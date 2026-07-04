@@ -9,7 +9,7 @@ and passes tests before reporting done.
 | Agent | Owns | When to delegate |
 |-------|------|-----------------|
 | **mcp-server** | `mcp-server/` (TypeScript) | New/modified tool schemas, TS validation, HTTP client changes |
-| **unreal-python** | `unreal-plugin/` (Python) | New/modified handlers, UE4 API calls, threading, transactions |
+| **unreal-python** | `Plugins/MCPBridge/Content/Python/` (Python) | New/modified handlers, UE4 API calls, threading, transactions |
 | **validation-safety** | Validation layer (both sides) | Post-op validation, tolerance changes, safety rules |
 | **integration-test** | Test scripts | New unit tests, mock server updates, integration test scenarios |
 | **documentation** | `docs/`, `README.md` | Tool reference updates, setup guide changes, troubleshooting |
@@ -61,7 +61,7 @@ When done, give a short summary:
 ## Rules
 - Never skip the build/test verification step.
 - Do not modify files outside an agent's ownership without good reason. If you need a Python change while working on TS, switch context explicitly.
-- Follow the file ownership boundaries in CLAUDE.md. TypeScript in `mcp-server/`, Python in `unreal-plugin/`, docs in `docs/`.
+- Follow the file ownership boundaries in CLAUDE.md. TypeScript in `mcp-server/`, Python in `Plugins/MCPBridge/Content/Python/`, docs in `docs/`.
 - Every tool that modifies editor state needs a `@transactional` decorator on the Python side.
 - Every actor tool must support the `validate` parameter.
 - Prototype new tools through `python_proxy` before building dedicated handlers, unless the scope is already well-defined.

@@ -1,7 +1,7 @@
 """Unit tests for PIETestSpec.from_string -- no UE4 required.
 
 Run from repo root:
-    python unreal-plugin/Content/Python/tests/test_pie_test_spec.py
+    python Plugins/MCPBridge/Content/Python/tests/test_pie_test_spec.py
 """
 import sys
 import os

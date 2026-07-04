@@ -89,9 +89,9 @@ Test the connection to Unreal Engine.
 
 If the bridge is working, Claude should be able to report the engine version, project name, and project paths.
 
-## Unreal Setup (manual, legacy layout)
+## Unreal Setup (manual)
 
-The installer above is the recommended path; it uses the unified `MCPBridge` plugin. The steps below install the older loose-file layout by hand. The Python code is identical (`unreal-plugin/Content/Python/` mirrors `Plugins/MCPBridge/Content/Python/`), but do not mix the two layouts in one project.
+The installer above is the recommended path. The steps below do the same thing by hand.
 
 ### 1. Enable Python in UE4
 
@@ -101,50 +101,38 @@ The installer above is the recommended path; it uses the unified `MCPBridge` plu
 4. Enable it.
 5. Restart the editor.
 
-### 2. Install the Python Listener
+### 2. Install the MCPBridge Plugin
 
 Copy this folder:
 
 ```text
-unreal-plugin/Content/Python/
+Plugins/MCPBridge/
 ```
 
 Into your UE4 project:
 
 ```text
-YourProject/Content/Python/
+YourProject/Plugins/MCPBridge/
 ```
 
-The project should then contain:
-
-```text
-Content/
-  Python/
-    startup.py
-    mcp_bridge/
-      listener.py
-      router.py
-      handlers/
-      generation/
-      utils/
-```
+Then enable the `MCPBridge` plugin in `Edit > Plugins` (or add it to your `.uproject`). The C++ modules compile the next time you build the project.
 
 ### 3. Configure Startup
 
-Add this to your project `Config/DefaultEngine.ini`:
+Add this to your project `Config/DefaultEngine.ini`, replacing `<ProjectRoot>` with your project's absolute path:
 
 ```ini
 [/Script/PythonScriptPlugin.PythonScriptPluginSettings]
 bDeveloperMode=True
 bRemoteExecution=True
-+StartupScripts=/Game/Python/startup.py
-+AdditionalPaths=(Path="/Game/Python")
++StartupScripts=startup.py
++AdditionalPaths=(Path="<ProjectRoot>/Plugins/MCPBridge/Content/Python")
 ```
 
 There is also an example file here:
 
 ```text
-unreal-plugin/Config/DefaultEngine.ini.example
+Plugins/MCPBridge/Config/DefaultEngine.ini.example
 ```
 
 ### 4. Restart Unreal
@@ -258,12 +246,11 @@ npm run test:integration
 mcp-server/
   TypeScript MCP server used by Claude Code.
 
-unreal-plugin/
-  Python listener and command handlers that run inside UE4.
-
-ue4-plugin/
-  C++ UE4 plugin code for advanced Blueprint, Widget Blueprint,
-  Behavior Tree, animation, effects, and gameplay generation tools.
+Plugins/MCPBridge/
+  The unified UE4 plugin: Python listener and command handlers
+  (Content/Python/), plus C++ modules for the status panel and the
+  Blueprint, Widget Blueprint, Behavior Tree, animation, effects,
+  and gameplay generation tools (Source/).
 
 docs/
   Setup, architecture, troubleshooting, tool reference, specs, and plans.
@@ -359,17 +346,18 @@ curl -X POST http://localhost:8080 -H "Content-Type: application/json" -d "{\"co
 
 ### Listener does not start
 
-Check `Config/DefaultEngine.ini` and confirm this setting exists:
+Check `Config/DefaultEngine.ini` and confirm these settings exist:
 
 ```ini
-StartupScripts=/Game/Python/startup.py
++StartupScripts=startup.py
++AdditionalPaths=(Path="<ProjectRoot>/Plugins/MCPBridge/Content/Python")
 ```
 
 Restart the editor after changing Python plugin settings or startup scripts.
 
 ### C++ plugin tools are missing
 
-Make sure the plugin in `ue4-plugin/` has been copied or linked into your UE project `Plugins` folder, compiled, enabled in the editor, and loaded after restart.
+Make sure `Plugins/MCPBridge/` has been copied into your UE project's `Plugins` folder, compiled, enabled in the editor, and loaded after restart.
 
 ## More Documentation
 
@@ -378,8 +366,7 @@ Make sure the plugin in `ue4-plugin/` has been copied or linked into your UE pro
 - `docs/TOOL_REFERENCE.md`
 - `docs/TROUBLESHOOTING.md`
 - `README_PROMPTBRUSH.md`
-- `ue4-plugin/README.md`
-- `unreal-plugin/README.md`
+- `Plugins/MCPBridge/Docs/QuickStart.md`
 
 ## Current Project Notes
 

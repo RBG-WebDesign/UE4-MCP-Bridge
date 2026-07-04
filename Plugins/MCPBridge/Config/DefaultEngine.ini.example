@@ -1,0 +1,11 @@
+; Add these settings to your project's DefaultEngine.ini
+; to enable the Python plugin and auto-start the MCP Bridge listener.
+; The installer (Scripts/install-mcp-bridge.ps1) writes these for you;
+; use this file only for manual setup. Replace <ProjectRoot> with the
+; absolute path to your project folder.
+
+[/Script/PythonScriptPlugin.PythonScriptPluginSettings]
+bDeveloperMode=True
+bRemoteExecution=True
++StartupScripts=startup.py
++AdditionalPaths=(Path="<ProjectRoot>/Plugins/MCPBridge/Content/Python")

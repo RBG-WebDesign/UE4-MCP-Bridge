@@ -1,6 +1,6 @@
 """Unit tests for spec_assembler -- no UE4 required.
 
-Run: python unreal-plugin/Content/Python/tests/test_spec_assembler.py
+Run: python Plugins/MCPBridge/Content/Python/tests/test_spec_assembler.py
 """
 import sys
 import os

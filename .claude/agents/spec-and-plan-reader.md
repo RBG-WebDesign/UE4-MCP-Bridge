@@ -37,7 +37,7 @@ Dispatch this agent when you need answers about:
    - ShaderWeave shares the Python listener but uses separate URL paths
    - Gameplay Generator orchestrates all builders
 
-5. **Generation pipeline schemas:** `unreal-plugin/Content/Python/mcp_bridge/generation/spec_schema.py`
+5. **Generation pipeline schemas:** `Plugins/MCPBridge/Content/Python/mcp_bridge/generation/spec_schema.py`
 
 ## Response Format
 - Lead with the direct answer, quoting the spec/plan when relevant

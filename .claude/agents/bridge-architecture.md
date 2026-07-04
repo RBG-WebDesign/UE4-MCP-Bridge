@@ -27,14 +27,14 @@ Dispatch this agent when you need answers about:
    - `mcp-server/src/tools/` -- tool definitions by category
 
 3. **For Python listener questions:**
-   - `unreal-plugin/Content/Python/mcp_bridge/listener.py` -- HTTP server, game thread queue
-   - `unreal-plugin/Content/Python/mcp_bridge/router.py` -- COMMAND_ROUTES dispatch
-   - `unreal-plugin/Content/Python/mcp_bridge/handlers/` -- handler implementations
+   - `Plugins/MCPBridge/Content/Python/mcp_bridge/listener.py` -- HTTP server, game thread queue
+   - `Plugins/MCPBridge/Content/Python/mcp_bridge/router.py` -- COMMAND_ROUTES dispatch
+   - `Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/` -- handler implementations
 
 4. **For generation pipeline questions:**
-   - `unreal-plugin/Content/Python/mcp_bridge/generation/spec_schema.py` -- spec dataclasses
-   - `unreal-plugin/Content/Python/mcp_bridge/generation/ai_generator.py` -- asset generators
-   - `unreal-plugin/Content/Python/mcp_bridge/generation/mechanics/` -- mechanic implementations
+   - `Plugins/MCPBridge/Content/Python/mcp_bridge/generation/spec_schema.py` -- spec dataclasses
+   - `Plugins/MCPBridge/Content/Python/mcp_bridge/generation/ai_generator.py` -- asset generators
+   - `Plugins/MCPBridge/Content/Python/mcp_bridge/generation/mechanics/` -- mechanic implementations
 
 5. **For C++ plugin integration:**
    - `Public/BlueprintGraphBuilderLibrary.h` -- existing public API pattern
@@ -43,7 +43,7 @@ Dispatch this agent when you need answers about:
 
 6. **For test patterns:**
    - `mcp-server/tests/` -- unit tests with mock server
-   - `unreal-plugin/Content/Python/tests/` -- Python tests
+   - `Plugins/MCPBridge/Content/Python/tests/` -- Python tests
 
 ## Response Format
 - Lead with the direct answer
@@ -52,7 +52,7 @@ Dispatch this agent when you need answers about:
 - If the question involves adding something new, point to the closest existing pattern
 
 ## Rules
-- Never suggest violating file ownership boundaries (TS in mcp-server/, Python in unreal-plugin/, C++ in ue4-plugin/)
+- Never suggest violating file ownership boundaries (TS in mcp-server/, Python in Plugins/MCPBridge/Content/Python/, C++ in Plugins/MCPBridge/Source/)
 - Always check CLAUDE.md architecture rules before answering
 - Do not write or modify code. Research only.
 - Keep answers concise. No filler.

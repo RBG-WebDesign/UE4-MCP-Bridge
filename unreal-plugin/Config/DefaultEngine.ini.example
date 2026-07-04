@@ -1,8 +1,0 @@
-; Add these settings to your project's DefaultEngine.ini
-; to enable the Python plugin and auto-start the MCP Bridge listener.
-
-[/Script/PythonScriptPlugin.PythonScriptPluginSettings]
-bDeveloperMode=True
-bRemoteExecution=True
-+StartupScripts=/Game/Python/startup.py
-+AdditionalPaths=(Path="/Game/Python")

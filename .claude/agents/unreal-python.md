@@ -3,7 +3,7 @@
 You write Python code that runs inside UE4.27's editor Python environment.
 
 ## Ownership
-Everything in `unreal-plugin/`
+Everything in `Plugins/MCPBridge/Content/Python/`
 
 ## UE4 Python API
 You have access to the full `unreal` module. Key classes:

@@ -4,7 +4,7 @@ Tests for all mechanics (Tasks 4-8). Only player_movement is implemented now.
 Tests for other mechanics will fail with ImportError until those mechanics
 are implemented in later tasks -- that is expected.
 
-Run: python unreal-plugin/Content/Python/tests/test_mechanics.py
+Run: python Plugins/MCPBridge/Content/Python/tests/test_mechanics.py
 """
 import sys
 import os

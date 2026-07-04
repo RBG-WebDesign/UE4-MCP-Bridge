@@ -57,13 +57,13 @@ The `tools/` directory has 11 files:
 - `promptbrush.ts` -- PromptBrush tools: `prompt_generate`, `prompt_status`, `prompt_spec_list`, `widget_build_from_json`
 - `gameplay.ts` -- PIE start/stop, acceptance tests, telemetry
 
-### Python Listener (`unreal-plugin/Content/Python/mcp_bridge/`)
+### Python Listener (`Plugins/MCPBridge/Content/Python/mcp_bridge/`)
 - `listener.py` -- HTTP server on background thread, queues commands to game thread via `register_slate_post_tick_callback`
 - `router.py` -- dispatches commands to handlers
 - `handlers/` -- mirrors the MCP tool groups (actors, blueprints, level, materials, project, system, viewport)
 - `utils/` -- serialization, transactions (UE4 undo wrappers), validation
 
-Auto-started by `unreal-plugin/Content/Python/startup.py` when UE4 loads.
+Auto-started by `Plugins/MCPBridge/Content/Python/startup.py` when UE4 loads.
 
 ### Behavior Tree Workflow
 When the user asks to read, inspect, duplicate, replicate, compare, or manipulate Behavior Trees, use the editor C++ bridge first. Do not rely on raw UE4 Python reflection for core Behavior Tree internals, because UE4.27 protects `RootNode`, `BlackboardAsset`, root decorators, and decorator ops from Python.
@@ -91,7 +91,7 @@ The listener always responds with:
 ```
 The `UnrealClient.sendCommand()` in `unreal-client.ts` is the only code that makes these HTTP calls. Connection errors and timeouts resolve (not reject) with `{success: false}`.
 
-### BlueprintGraphBuilder C++ Plugin (`ue4-plugin/BlueprintGraphBuilder/`)
+### BlueprintGraphBuilder C++ Plugin (`Plugins/MCPBridge/Source/BlueprintGraphBuilder/`)
 A UE4.27 editor plugin (C++) that builds Blueprint event graphs, Widget Blueprints, Behavior Trees, and Animation Blueprints from JSON. Compiled inside a UE4 project (copied to `YourProject/Plugins/`), not by `npm run build`. Contains four subsystems:
 
 **Blueprint Graph Builder** (11 passes complete) -- builds event graphs from JSON. Exposes `UBlueprintGraphBuilderLibrary::BuildBlueprintFromJSON` to Python. The Python handler for `blueprint_build_from_json` calls this.
@@ -111,7 +111,7 @@ Blackboard key selectors are resolved via reflection (`ResolveSelectedKey`). Ari
 ### PromptBrush (`promptbrush.ts` + external plugin)
 Generates complete UE4.27 gameplay systems from a single natural language prompt. Creates Blueprint classes, Widget Blueprints, materials, data assets, maps, and input mappings in one pass. Exposed as `prompt_generate`, `prompt_status`, `prompt_spec_list` MCP tools. The UE4 side is a separate C++ plugin (`PromptBrush`) that lives outside this repo at `D:\Unreal Projects\CodePlayground\Plugins\PromptBrush\`. The plugin must be copied into the target project's `Plugins/` folder and enabled before `prompt_generate` will work. See `README_PROMPTBRUSH.md` for setup.
 
-### ShaderWeave Bridge (`unreal-plugin/Content/Python/mcp_bridge/shaderweave/`)
+### ShaderWeave Bridge (`Plugins/MCPBridge/Content/Python/mcp_bridge/shaderweave/`)
 A separate product that shares the UE_Bridge HTTP listener. Pushes HLSL into Material Custom Expression nodes and returns compile feedback. Uses its own URL namespace (`/shaderweave/v1/*`) separate from the existing `POST /` command router. ShaderWeave is its own repo/product -- UE_Bridge only hosts the transport and UE4 execution layer. Spec: `docs/superpowers/specs/2026-03-18-shaderweave-bridge-mvp-design.md`.
 
 ### Pattern System (`mcp-server/src/patterns/`)
@@ -126,7 +126,7 @@ The `blueprint_build_from_description` tool uses a pattern registry to translate
    query: <class or method name>
    ```
    This has 57K+ snippets with exact signatures, class hierarchies, and property types. Use it to verify method names, parameter types, and return values rather than guessing.
-3. Add a Python handler in `unreal-plugin/Content/Python/mcp_bridge/handlers/`
+3. Add a Python handler in `Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/`
 4. Register the command in `router.py`'s `COMMAND_ROUTES` dict (maps command string to handler function)
 5. Add the TypeScript tool definition in the matching `mcp-server/src/tools/` file
 6. If the tool modifies editor state, add it to the `modifyingCommands` set in `index.ts`
@@ -151,8 +151,8 @@ A second MCP server (`unreal-api`) runs alongside `unreal-bridge` and serves UE4
 - Does NOT cover: third-party plugins or marketplace assets
 
 **Two API lookup systems are available -- use the right one:**
-- **unreal-api MCP** (`search_unreal_api`, `get_function_signature`, etc.) -- for **C++ API**: class hierarchies, function signatures, `#include` paths, deprecation. Use when writing C++ in `ue4-plugin/`.
-- **Context7 StubHub** (`mcp__plugin_context7_context7__query-docs` with `/radial-hks/unreal-python-stubhub`) -- for **Python API**: `unreal` module method signatures, property types, Python class wrappers. Use when writing Python handlers in `unreal-plugin/`.
+- **unreal-api MCP** (`search_unreal_api`, `get_function_signature`, etc.) -- for **C++ API**: class hierarchies, function signatures, `#include` paths, deprecation. Use when writing C++ in `Plugins/MCPBridge/Source/`.
+- **Context7 StubHub** (`mcp__plugin_context7_context7__query-docs` with `/radial-hks/unreal-python-stubhub`) -- for **Python API**: `unreal` module method signatures, property types, Python class wrappers. Use when writing Python handlers in `Plugins/MCPBridge/Content/Python/`.
 
 ## Architecture Rules
 - The MCP server never imports or references Unreal modules. It only sends HTTP.
@@ -235,11 +235,11 @@ Multiple agents may work on this repo concurrently. Each workstream has its own 
 
 | Workstream | Location | Status | Spec |
 |---|---|---|---|
-| Blueprint Graph Builder | `ue4-plugin/BlueprintGraphBuilder/` | 11 passes complete | `docs/superpowers/specs/2026-03-17-blueprint-graph-builder-design.md` |
-| Widget Blueprint Builder | `ue4-plugin/BlueprintGraphBuilder/Private/WidgetBuilder/` | Design complete, Pass 1 planned | `docs/superpowers/specs/2026-03-18-widget-blueprint-builder-design.md` |
-| ShaderWeave Bridge | `unreal-plugin/Content/Python/mcp_bridge/shaderweave/` | Design complete | `docs/superpowers/specs/2026-03-18-shaderweave-bridge-mvp-design.md` |
-| Behavior Tree Builder | `ue4-plugin/BlueprintGraphBuilder/Private/BehaviorTreeBuilder/` | Complete (26 node types) | `docs/superpowers/specs/2026-03-19-behavior-tree-builder-design.md` |
-| Animation Blueprint Builder | `ue4-plugin/BlueprintGraphBuilder/Private/AnimBlueprintBuilder/` | Complete (v1) | `docs/superpowers/specs/2026-03-19-anim-blueprint-builder-design.md` |
+| Blueprint Graph Builder | `Plugins/MCPBridge/Source/BlueprintGraphBuilder/` | 11 passes complete | `docs/superpowers/specs/2026-03-17-blueprint-graph-builder-design.md` |
+| Widget Blueprint Builder | `Plugins/MCPBridge/Source/BlueprintGraphBuilder/Private/WidgetBuilder/` | Design complete, Pass 1 planned | `docs/superpowers/specs/2026-03-18-widget-blueprint-builder-design.md` |
+| ShaderWeave Bridge | `Plugins/MCPBridge/Content/Python/mcp_bridge/shaderweave/` | Design complete | `docs/superpowers/specs/2026-03-18-shaderweave-bridge-mvp-design.md` |
+| Behavior Tree Builder | `Plugins/MCPBridge/Source/BlueprintGraphBuilder/Private/BehaviorTreeBuilder/` | Complete (26 node types) | `docs/superpowers/specs/2026-03-19-behavior-tree-builder-design.md` |
+| Animation Blueprint Builder | `Plugins/MCPBridge/Source/BlueprintGraphBuilder/Private/AnimBlueprintBuilder/` | Complete (v1) | `docs/superpowers/specs/2026-03-19-anim-blueprint-builder-design.md` |
 | PromptBrush | External plugin + `mcp-server/src/tools/promptbrush.ts` | Active | `README_PROMPTBRUSH.md` |
 
 ShaderWeave is a separate product that shares the UE_Bridge listener. It uses `/shaderweave/v1/*` URL paths, not the `POST /` command router. Do not mix ShaderWeave handlers into `handlers/` or ShaderWeave routes into `router.py`. Note: `listener.py` requires minimal path-routing changes for ShaderWeave (see ShaderWeave spec for details).
@@ -275,7 +275,8 @@ Dispatch these for codebase questions instead of guessing. They search actual fi
 
 ## File Ownership
 - `mcp-server/` is TypeScript only
-- `unreal-plugin/` is Python only
-- `ue4-plugin/` is C++ only (UE4 plugin, compiled by Unreal Build Tool, not npm)
+- `Plugins/MCPBridge/Content/Python/` is Python only
+- `Plugins/MCPBridge/Source/` is C++ only (UE4 plugin modules, compiled by Unreal Build Tool, not npm)
 - `docs/` is Markdown only
 - These boundaries are hard. No cross-contamination.
+- `Plugins/MCPBridge/` is the single source of truth for everything that runs inside UE4. There are no other copies; the old `unreal-plugin/` and `ue4-plugin/` trees were removed.

@@ -1,6 +1,6 @@
 """Unit tests for intent_extractor -- no UE4 required.
 
-Run: python unreal-plugin/Content/Python/tests/test_intent_extractor.py
+Run: python Plugins/MCPBridge/Content/Python/tests/test_intent_extractor.py
 """
 import sys
 import os
