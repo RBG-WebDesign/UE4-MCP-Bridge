@@ -11,7 +11,7 @@ import time
 
 
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-PROJECT_PYTHON = os.path.join(PROJECT_ROOT, "Content", "Python")
+PROJECT_PYTHON = os.path.join(PROJECT_ROOT, "Plugins", "MCPBridge", "Content", "Python")
 DEFAULT_ENGINE_ROOT = r"D:\UE\UE_4.27\Engine"
 
 
