@@ -14,7 +14,7 @@ _FALLOFF_MAP: Dict[str, str] = {
 }
 
 
-def generate_sound_attenuation(spec: SoundAttenuationSpec) -> Tuple[bool, str, Dict[str, Any]]:
+def generate_sound_attenuation(spec: SoundAttenuationSpec, save_enabled: bool = True) -> Tuple[bool, str, Dict[str, Any]]:
     """Create a SoundAttenuation asset."""
     try:
         import unreal
@@ -43,14 +43,17 @@ def generate_sound_attenuation(spec: SoundAttenuationSpec) -> Tuple[bool, str, D
         except Exception:
             pass  # property layout may vary; asset created is still valid
 
-        unreal.EditorAssetLibrary.save_asset(full_path)
-        return True, "", {"path": full_path, "skipped": False}
+        saved = False
+        if save_enabled:
+            unreal.EditorAssetLibrary.save_asset(full_path)
+            saved = True
+        return True, "", {"path": full_path, "skipped": False, "saved": saved}
 
     except Exception as e:
         return False, str(e), {}
 
 
-def generate_sound_class(spec: SoundClassSpec) -> Tuple[bool, str, Dict[str, Any]]:
+def generate_sound_class(spec: SoundClassSpec, save_enabled: bool = True) -> Tuple[bool, str, Dict[str, Any]]:
     """Create a SoundClass asset."""
     try:
         import unreal
@@ -78,14 +81,17 @@ def generate_sound_class(spec: SoundClassSpec) -> Tuple[bool, str, Dict[str, Any
         except Exception:
             pass
 
-        unreal.EditorAssetLibrary.save_asset(full_path)
-        return True, "", {"path": full_path, "skipped": False}
+        saved = False
+        if save_enabled:
+            unreal.EditorAssetLibrary.save_asset(full_path)
+            saved = True
+        return True, "", {"path": full_path, "skipped": False, "saved": saved}
 
     except Exception as e:
         return False, str(e), {}
 
 
-def generate_sound_mix(spec: SoundMixSpec) -> Tuple[bool, str, Dict[str, Any]]:
+def generate_sound_mix(spec: SoundMixSpec, save_enabled: bool = True) -> Tuple[bool, str, Dict[str, Any]]:
     """Create a SoundMix asset."""
     try:
         import unreal
@@ -111,8 +117,11 @@ def generate_sound_mix(spec: SoundMixSpec) -> Tuple[bool, str, Dict[str, Any]]:
         except Exception:
             pass
 
-        unreal.EditorAssetLibrary.save_asset(full_path)
-        return True, "", {"path": full_path, "skipped": False}
+        saved = False
+        if save_enabled:
+            unreal.EditorAssetLibrary.save_asset(full_path)
+            saved = True
+        return True, "", {"path": full_path, "skipped": False, "saved": saved}
 
     except Exception as e:
         return False, str(e), {}
@@ -133,13 +142,13 @@ def _batch(items: list, fn) -> Dict[str, Any]:
     }
 
 
-def generate_all_sound_attenuations(specs: List[SoundAttenuationSpec]) -> Dict[str, Any]:
-    return _batch(specs, generate_sound_attenuation)
+def generate_all_sound_attenuations(specs: List[SoundAttenuationSpec], save_enabled: bool = True) -> Dict[str, Any]:
+    return _batch(specs, lambda spec: generate_sound_attenuation(spec, save_enabled=save_enabled))
 
 
-def generate_all_sound_classes(specs: List[SoundClassSpec]) -> Dict[str, Any]:
-    return _batch(specs, generate_sound_class)
+def generate_all_sound_classes(specs: List[SoundClassSpec], save_enabled: bool = True) -> Dict[str, Any]:
+    return _batch(specs, lambda spec: generate_sound_class(spec, save_enabled=save_enabled))
 
 
-def generate_all_sound_mixes(specs: List[SoundMixSpec]) -> Dict[str, Any]:
-    return _batch(specs, generate_sound_mix)
+def generate_all_sound_mixes(specs: List[SoundMixSpec], save_enabled: bool = True) -> Dict[str, Any]:
+    return _batch(specs, lambda spec: generate_sound_mix(spec, save_enabled=save_enabled))

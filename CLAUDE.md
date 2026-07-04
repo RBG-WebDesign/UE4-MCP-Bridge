@@ -91,7 +91,7 @@ The listener always responds with:
 ```
 The `UnrealClient.sendCommand()` in `unreal-client.ts` is the only code that makes these HTTP calls. Connection errors and timeouts resolve (not reject) with `{success: false}`.
 
-### BlueprintGraphBuilder C++ Plugin (`Plugins/MCPBridge/Source/BlueprintGraphBuilder/`)
+### BlueprintGraphBuilder C++ Plugin (`Plugins/MCPBridge/Source/MCPBridgeGraphBuilder/`)
 A UE4.27 editor plugin (C++) that builds Blueprint event graphs, Widget Blueprints, Behavior Trees, and Animation Blueprints from JSON. Compiled inside a UE4 project (copied to `YourProject/Plugins/`), not by `npm run build`. Contains four subsystems:
 
 **Blueprint Graph Builder** (11 passes complete) -- builds event graphs from JSON. Exposes `UBlueprintGraphBuilderLibrary::BuildBlueprintFromJSON` to Python. The Python handler for `blueprint_build_from_json` calls this.
@@ -235,11 +235,11 @@ Multiple agents may work on this repo concurrently. Each workstream has its own 
 
 | Workstream | Location | Status | Spec |
 |---|---|---|---|
-| Blueprint Graph Builder | `Plugins/MCPBridge/Source/BlueprintGraphBuilder/` | 11 passes complete | `docs/superpowers/specs/2026-03-17-blueprint-graph-builder-design.md` |
-| Widget Blueprint Builder | `Plugins/MCPBridge/Source/BlueprintGraphBuilder/Private/WidgetBuilder/` | Design complete, Pass 1 planned | `docs/superpowers/specs/2026-03-18-widget-blueprint-builder-design.md` |
+| Blueprint Graph Builder | `Plugins/MCPBridge/Source/MCPBridgeGraphBuilder/` | 11 passes complete | `docs/superpowers/specs/2026-03-17-blueprint-graph-builder-design.md` |
+| Widget Blueprint Builder | `Plugins/MCPBridge/Source/MCPBridgeGraphBuilder/Private/WidgetBuilder/` | Design complete, Pass 1 planned | `docs/superpowers/specs/2026-03-18-widget-blueprint-builder-design.md` |
 | ShaderWeave Bridge | `Plugins/MCPBridge/Content/Python/mcp_bridge/shaderweave/` | Design complete | `docs/superpowers/specs/2026-03-18-shaderweave-bridge-mvp-design.md` |
-| Behavior Tree Builder | `Plugins/MCPBridge/Source/BlueprintGraphBuilder/Private/BehaviorTreeBuilder/` | Complete (26 node types) | `docs/superpowers/specs/2026-03-19-behavior-tree-builder-design.md` |
-| Animation Blueprint Builder | `Plugins/MCPBridge/Source/BlueprintGraphBuilder/Private/AnimBlueprintBuilder/` | Complete (v1) | `docs/superpowers/specs/2026-03-19-anim-blueprint-builder-design.md` |
+| Behavior Tree Builder | `Plugins/MCPBridge/Source/MCPBridgeGraphBuilder/Private/BehaviorTreeBuilder/` | Complete (26 node types) | `docs/superpowers/specs/2026-03-19-behavior-tree-builder-design.md` |
+| Animation Blueprint Builder | `Plugins/MCPBridge/Source/MCPBridgeGraphBuilder/Private/AnimBlueprintBuilder/` | Complete (v1) | `docs/superpowers/specs/2026-03-19-anim-blueprint-builder-design.md` |
 | PromptBrush | External plugin + `mcp-server/src/tools/promptbrush.ts` | Active | `README_PROMPTBRUSH.md` |
 
 ShaderWeave is a separate product that shares the UE_Bridge listener. It uses `/shaderweave/v1/*` URL paths, not the `POST /` command router. Do not mix ShaderWeave handlers into `handlers/` or ShaderWeave routes into `router.py`. Note: `listener.py` requires minimal path-routing changes for ShaderWeave (see ShaderWeave spec for details).

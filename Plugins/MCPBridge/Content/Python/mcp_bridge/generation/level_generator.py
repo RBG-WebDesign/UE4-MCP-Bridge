@@ -18,7 +18,7 @@ _ACTOR_TYPE_MAP = {
 }
 
 
-def generate_level(spec: LevelSpec) -> Tuple[bool, str, Dict[str, Any]]:
+def generate_level(spec: LevelSpec, save_enabled: bool = True) -> Tuple[bool, str, Dict[str, Any]]:
     """Create a map and place actors from a LevelSpec.
 
     Creates the level if it does not exist, loads it, places actors, saves.
@@ -70,23 +70,25 @@ def generate_level(spec: LevelSpec) -> Tuple[bool, str, Dict[str, Any]]:
             except Exception as e:
                 failed.append(f"{actor_def.get('name', '?')}: {e}")
 
-        # Save level
-        try:
-            unreal.EditorLevelLibrary.save_current_level()
-        except Exception:
-            pass
+        saved = False
+        if save_enabled:
+            try:
+                unreal.EditorLevelLibrary.save_current_level()
+                saved = True
+            except Exception:
+                pass
 
-        return True, "", {"path": full_path, "placed": placed, "failed": failed}
+        return True, "", {"path": full_path, "placed": placed, "failed": failed, "saved": saved}
 
     except Exception as e:
         return False, str(e), {}
 
 
-def generate_all_levels(specs: List[LevelSpec]) -> Dict[str, Any]:
+def generate_all_levels(specs: List[LevelSpec], save_enabled: bool = True) -> Dict[str, Any]:
     results = []
     errors: List[str] = []
     for spec in specs:
-        ok, err, data = generate_level(spec)
+        ok, err, data = generate_level(spec, save_enabled=save_enabled)
         entry: Dict[str, Any] = {"name": spec.name, "success": ok, "data": data}
         if err:
             entry["error"] = err

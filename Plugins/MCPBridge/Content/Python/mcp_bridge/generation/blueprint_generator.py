@@ -43,7 +43,7 @@ def _resolve_parent_class(parent_name: str) -> Any:
         return None
 
 
-def generate_blueprint(spec: BlueprintSpec) -> Tuple[bool, str, Dict[str, Any]]:
+def generate_blueprint(spec: BlueprintSpec, compile_enabled: bool = True, save_enabled: bool = True) -> Tuple[bool, str, Dict[str, Any]]:
     """Create a Blueprint asset from a BlueprintSpec.
 
     Returns (success, error_message, result_data).
@@ -105,33 +105,38 @@ def generate_blueprint(spec: BlueprintSpec) -> Tuple[bool, str, Dict[str, Any]]:
                 lib = getattr(unreal, "BlueprintGraphBuilderLibrary", None)
                 if lib:
                     json_str = json.dumps(spec.graph_json)
-                    lib.build_blueprint_from_json(bp, json_str, True)
+                    err_ref = ""
+                    lib.build_blueprint_from_json(bp, json_str, err_ref)
             except Exception:
                 pass  # graph failure is non-fatal
 
-        # Save (triggers BP compilation on the game thread; KismetSystemLibrary
-        # is not exposed in UE4.27 Python bindings)
-        try:
-            unreal.EditorAssetLibrary.save_asset(bp.get_path_name())
-        except Exception:
-            pass
+        saved = False
+        if compile_enabled and save_enabled:
+            # Save triggers BP compilation on the game thread in UE4.27.
+            try:
+                unreal.EditorAssetLibrary.save_asset(bp.get_path_name())
+                saved = True
+            except Exception:
+                pass
 
         return True, "", {
             "path": full_path,
             "components_added": components_added,
             "skipped": False,
+            "compile_skipped": not compile_enabled,
+            "saved": saved,
         }
 
     except Exception as e:
         return False, str(e), {}
 
 
-def generate_all_blueprints(specs: List[BlueprintSpec]) -> Dict[str, Any]:
+def generate_all_blueprints(specs: List[BlueprintSpec], compile_enabled: bool = True, save_enabled: bool = True) -> Dict[str, Any]:
     """Generate all blueprints from a list of specs. Returns summary."""
     results = []
     errors: List[str] = []
     for spec in specs:
-        ok, err, data = generate_blueprint(spec)
+        ok, err, data = generate_blueprint(spec, compile_enabled=compile_enabled, save_enabled=save_enabled)
         entry: Dict[str, Any] = {"name": spec.name, "success": ok, "data": data}
         if err:
             entry["error"] = err

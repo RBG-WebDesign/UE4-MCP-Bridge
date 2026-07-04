@@ -392,11 +392,15 @@ def handle_material_create(params: Dict[str, Any]) -> Dict[str, Any]:
                     "error": "Failed to create base material",
                 }
 
-        # Save the asset
-        try:
-            unreal.EditorAssetLibrary.save_asset(mat.get_path_name())
-        except Exception:
-            pass
+        # Save the asset when the caller or safety toggle allows it.
+        from mcp_bridge import state
+
+        should_save = bool(params.get("save")) if "save" in params else state.safety_enabled("auto_save_after_operations")
+        if should_save:
+            try:
+                unreal.EditorAssetLibrary.save_asset(mat.get_path_name())
+            except Exception:
+                pass
 
         return {
             "success": True,
@@ -406,6 +410,7 @@ def handle_material_create(params: Dict[str, Any]) -> Dict[str, Any]:
                 "type": mat_type,
                 "parent": parent_path if mat_type == "instance" else None,
                 "parameters_set": parameters_set,
+                "saved": should_save,
             },
         }
     except Exception as e:

@@ -39,16 +39,7 @@ def launch_pie(level_path: Optional[str] = None) -> bool:
         except (AttributeError, Exception):
             pass
 
-        # Fallback 1: LevelEditorSubsystem (UE5+)
-        try:
-            subsystem = unreal.get_editor_subsystem(unreal.LevelEditorSubsystem)
-            if subsystem is not None:
-                subsystem.play_in_editor(in_editor=True)
-                return True
-        except (AttributeError, Exception):
-            pass
-
-        # Fallback 2: editor_play_simulate (SIE, no PlayerController)
+        # Fallback: editor_play_simulate (SIE, no PlayerController)
         try:
             unreal.EditorLevelLibrary.editor_play_simulate()
             return True
@@ -72,16 +63,7 @@ def stop_pie() -> bool:
         except (AttributeError, Exception):
             pass
 
-        # Fallback 1: LevelEditorSubsystem (UE5+)
-        try:
-            subsystem = unreal.get_editor_subsystem(unreal.LevelEditorSubsystem)
-            if subsystem is not None:
-                subsystem.request_end_play_map()
-                return True
-        except (AttributeError, Exception):
-            pass
-
-        # Fallback 2: editor_end_play (UE4.27)
+        # Fallback: editor_end_play (UE4.27)
         try:
             unreal.EditorLevelLibrary.editor_end_play()
             return True

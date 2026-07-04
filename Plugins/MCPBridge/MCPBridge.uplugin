@@ -17,7 +17,7 @@
   "Installed": false,
   "Modules": [
     {
-      "Name": "MCPBridgePanel",
+      "Name": "MCPBridgeEditorPanel",
       "Type": "Editor",
       "LoadingPhase": "PostEngineInit",
       "PlatformAllowList": [
@@ -25,7 +25,7 @@
       ]
     },
     {
-      "Name": "BlueprintGraphBuilder",
+      "Name": "MCPBridgeGraphBuilder",
       "Type": "Editor",
       "LoadingPhase": "Default",
       "PlatformAllowList": [

@@ -5,7 +5,7 @@ from typing import Any, Dict, List, Tuple
 from mcp_bridge.generation.spec_schema import StringTableSpec
 
 
-def generate_string_table(spec: StringTableSpec) -> Tuple[bool, str, Dict[str, Any]]:
+def generate_string_table(spec: StringTableSpec, save_enabled: bool = True) -> Tuple[bool, str, Dict[str, Any]]:
     """Create a StringTable asset and populate entries."""
     try:
         import unreal
@@ -29,23 +29,27 @@ def generate_string_table(spec: StringTableSpec) -> Tuple[bool, str, Dict[str, A
 
         # StringTable entries are not writable via Python API in UE4.27.
         # The asset is created as a stub; populate entries via CSV import or editor.
-        unreal.EditorAssetLibrary.save_asset(full_path)
+        saved = False
+        if save_enabled:
+            unreal.EditorAssetLibrary.save_asset(full_path)
+            saved = True
         return True, "", {
             "path": full_path,
             "namespace": spec.namespace,
             "entries_defined": len(spec.entries),
             "note": "Entries must be populated via CSV import or editor (Python API is read-only for StringTable entries in UE4.27)",
             "skipped": False,
+            "saved": saved,
         }
 
     except Exception as e:
         return False, str(e), {}
 
 
-def generate_all_string_tables(specs: List[StringTableSpec]) -> Dict[str, Any]:
+def generate_all_string_tables(specs: List[StringTableSpec], save_enabled: bool = True) -> Dict[str, Any]:
     results, errors = [], []
     for spec in specs:
-        ok, err, data = generate_string_table(spec)
+        ok, err, data = generate_string_table(spec, save_enabled=save_enabled)
         entry: Dict[str, Any] = {"name": spec.name, "success": ok, "data": data}
         if err:
             entry["error"] = err

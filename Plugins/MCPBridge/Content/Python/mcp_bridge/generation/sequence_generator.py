@@ -5,7 +5,7 @@ from typing import Any, Dict, List, Tuple
 from mcp_bridge.generation.spec_schema import LevelSequenceSpec
 
 
-def generate_level_sequence(spec: LevelSequenceSpec) -> Tuple[bool, str, Dict[str, Any]]:
+def generate_level_sequence(spec: LevelSequenceSpec, save_enabled: bool = True) -> Tuple[bool, str, Dict[str, Any]]:
     """Create a LevelSequence asset."""
     try:
         import unreal
@@ -37,19 +37,22 @@ def generate_level_sequence(spec: LevelSequenceSpec) -> Tuple[bool, str, Dict[st
         except Exception:
             pass  # duration is best-effort; asset is valid without it
 
-        unreal.EditorAssetLibrary.save_asset(full_path)
+        saved = False
+        if save_enabled:
+            unreal.EditorAssetLibrary.save_asset(full_path)
+            saved = True
         return True, "", {
-            "path": full_path, "duration_seconds": spec.duration_seconds, "skipped": False
+            "path": full_path, "duration_seconds": spec.duration_seconds, "skipped": False, "saved": saved
         }
 
     except Exception as e:
         return False, str(e), {}
 
 
-def generate_all_level_sequences(specs: List[LevelSequenceSpec]) -> Dict[str, Any]:
+def generate_all_level_sequences(specs: List[LevelSequenceSpec], save_enabled: bool = True) -> Dict[str, Any]:
     results, errors = [], []
     for spec in specs:
-        ok, err, data = generate_level_sequence(spec)
+        ok, err, data = generate_level_sequence(spec, save_enabled=save_enabled)
         entry: Dict[str, Any] = {"name": spec.name, "success": ok, "data": data}
         if err:
             entry["error"] = err

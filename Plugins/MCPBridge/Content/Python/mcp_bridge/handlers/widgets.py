@@ -51,9 +51,24 @@ def _fade_animations(target_name: str, fade_in: float, hold: float, fade_out: fl
     fade_out = max(float(fade_out), 0.01)
     hold = max(float(hold), 0.0)
     return [
-        {"name": "FadeIn", "target": target_name, "duration": fade_in, "tracks": [{"type": "opacity", "from": 0.0, "to": 1.0}]},
-        {"name": "FadeOut", "target": target_name, "duration": fade_out, "tracks": [{"type": "opacity", "from": 1.0, "to": 0.0}]},
-        {"name": "TitleSequence", "target": target_name, "duration": fade_in + hold + fade_out, "tracks": [{"type": "opacity", "from": 0.0, "to": 1.0}]},
+        {
+            "name": "FadeIn",
+            "target": target_name,
+            "duration": fade_in,
+            "tracks": [{"type": "opacity", "from": 0.0, "to": 1.0}],
+        },
+        {
+            "name": "FadeOut",
+            "target": target_name,
+            "duration": fade_out,
+            "tracks": [{"type": "opacity", "from": 1.0, "to": 0.0}],
+        },
+        {
+            "name": "TitleSequence",
+            "target": target_name,
+            "duration": fade_in + hold + fade_out,
+            "tracks": [{"type": "opacity", "from": 0.0, "to": 1.0}],
+        },
     ]
 
 
@@ -63,10 +78,12 @@ def build_title_widget_spec(params: Dict[str, Any], lower_third: bool = False) -
     subtitle = str(params.get("subtitle", ""))
     eyebrow = str(params.get("eyebrow", ""))
     target_name = "TitleGroup"
+
     title_color = _color(params, "title_color", preset["title_color"])
     subtitle_color = _color(params, "subtitle_color", preset["subtitle_color"])
     background_color = _color(params, "background_color", preset["background_color"])
     accent_color = _color(params, "accent_color", preset["accent_color"])
+
     width = float(params.get("width", 1440 if lower_third else 1280))
     height = float(params.get("height", 220 if lower_third else 360))
     x = float(params.get("x", 80 if lower_third else 320))
@@ -77,34 +94,86 @@ def build_title_widget_spec(params: Dict[str, Any], lower_third: bool = False) -
         text_children.append({
             "type": "TextBlock",
             "name": "EyebrowText",
-            "properties": {"text": eyebrow, "justification": "Left" if lower_third else "Center", "color": accent_color, "fontSize": float(params.get("eyebrow_font_size", 28 if lower_third else 34)), "shadowOffset": {"x": 1, "y": 1}, "shadowColor": {"r": 0, "g": 0, "b": 0, "a": 0.65}},
+            "properties": {
+                "text": eyebrow,
+                "justification": "Left" if lower_third else "Center",
+                "color": accent_color,
+                "fontSize": float(params.get("eyebrow_font_size", 28 if lower_third else 34)),
+                "shadowOffset": {"x": 1, "y": 1},
+                "shadowColor": {"r": 0, "g": 0, "b": 0, "a": 0.65},
+            },
             "slot": {"padding": {"left": 0, "top": 0, "right": 0, "bottom": 10}},
         })
     text_children.append({
         "type": "TextBlock",
         "name": "TitleText",
-        "properties": {"text": title, "justification": "Left" if lower_third else "Center", "color": title_color, "fontSize": float(params.get("title_font_size", 58 if lower_third else 86)), "autoWrapText": True, "shadowOffset": {"x": 2, "y": 2}, "shadowColor": {"r": 0, "g": 0, "b": 0, "a": 0.72}},
+        "properties": {
+            "text": title,
+            "justification": "Left" if lower_third else "Center",
+            "color": title_color,
+            "fontSize": float(params.get("title_font_size", 58 if lower_third else 86)),
+            "autoWrapText": True,
+            "shadowOffset": {"x": 2, "y": 2},
+            "shadowColor": {"r": 0, "g": 0, "b": 0, "a": 0.72},
+        },
         "slot": {"padding": {"left": 0, "top": 0, "right": 0, "bottom": 8}},
     })
     if subtitle:
         text_children.append({
             "type": "TextBlock",
             "name": "SubtitleText",
-            "properties": {"text": subtitle, "justification": "Left" if lower_third else "Center", "color": subtitle_color, "fontSize": float(params.get("subtitle_font_size", 34 if lower_third else 42)), "autoWrapText": True, "shadowOffset": {"x": 1, "y": 1}, "shadowColor": {"r": 0, "g": 0, "b": 0, "a": 0.62}},
+            "properties": {
+                "text": subtitle,
+                "justification": "Left" if lower_third else "Center",
+                "color": subtitle_color,
+                "fontSize": float(params.get("subtitle_font_size", 34 if lower_third else 42)),
+                "autoWrapText": True,
+                "shadowOffset": {"x": 1, "y": 1},
+                "shadowColor": {"r": 0, "g": 0, "b": 0, "a": 0.62},
+            },
         })
 
     root = {
         "type": "CanvasPanel",
         "name": "RootCanvas",
-        "children": [{
-            "type": "Border",
-            "name": target_name,
-            "properties": {"renderOpacity": 0.0, "color": background_color, "padding": {"left": 44, "top": 30, "right": 44, "bottom": 30}},
-            "slot": {"position": {"x": x, "y": y}, "size": {"x": width, "y": height}, "alignment": {"x": 0.0, "y": 0.5}, "zOrder": 100},
-            "children": [{"type": "VerticalBox", "name": "TextStack", "slot": {"alignment": {"x": 0.0 if lower_third else 0.5, "y": 0.5}}, "children": text_children}],
-        }],
+        "children": [
+            {
+                "type": "Border",
+                "name": target_name,
+                "properties": {
+                    "renderOpacity": 0.0,
+                    "color": background_color,
+                    "padding": {"left": 44, "top": 30, "right": 44, "bottom": 30},
+                },
+                "slot": {
+                    "position": {"x": x, "y": y},
+                    "size": {"x": width, "y": height},
+                    "alignment": {"x": 0.0, "y": 0.5 if lower_third else 0.5},
+                    "zOrder": 100,
+                },
+                "children": [
+                    {
+                        "type": "VerticalBox",
+                        "name": "TextStack",
+                        "slot": {
+                            "alignment": {"x": 0.0 if lower_third else 0.5, "y": 0.5},
+                        },
+                        "children": text_children,
+                    }
+                ],
+            }
+        ],
     }
-    return {"root": root, "animations": _fade_animations(target_name, float(params.get("fade_in", 0.35)), float(params.get("hold", 2.2)), float(params.get("fade_out", 0.45)))}
+
+    return {
+        "root": root,
+        "animations": _fade_animations(
+            target_name,
+            float(params.get("fade_in", 0.35)),
+            float(params.get("hold", 2.2)),
+            float(params.get("fade_out", 0.45)),
+        ),
+    }
 
 
 def _build_widget_asset(package_path: str, asset_name: str, spec: Dict[str, Any]) -> Dict[str, Any]:
@@ -114,22 +183,42 @@ def _build_widget_asset(package_path: str, asset_name: str, spec: Dict[str, Any]
         lib = getattr(unreal, "WidgetBlueprintBuilderLibrary", None)
         if lib is None:
             return {"success": False, "data": {}, "error": "WidgetBlueprintBuilderLibrary not available"}
+        if not package_path or not asset_name:
+            return {"success": False, "data": {}, "error": "Missing package_path or asset_name"}
         unreal.EditorAssetLibrary.make_directory(package_path)
         result = lib.build_widget_from_json(package_path, asset_name, json.dumps(spec))
         ok = result == ""
-        return {"success": ok, "data": {"path": f"{package_path}/{asset_name}", "spec": spec, "animations": [anim.get("name") for anim in spec.get("animations", [])]}, "error": str(result) if not ok else None}
+        return {
+            "success": ok,
+            "data": {
+                "path": f"{package_path}/{asset_name}",
+                "spec": spec,
+                "animations": [anim.get("name") for anim in spec.get("animations", [])],
+            },
+            "error": str(result) if not ok else None,
+        }
     except Exception as exc:
         return {"success": False, "data": {}, "error": str(exc)}
 
 
 def handle_widget_title_template(params: Dict[str, Any]) -> Dict[str, Any]:
+    """Return a title or lower-third widget spec without creating an asset."""
     lower_third = str(params.get("style", "title")) == "lower_third" or bool(params.get("lower_third", False))
-    return {"success": True, "data": {"spec": build_title_widget_spec(params, lower_third=lower_third), "preset_names": sorted(TITLE_PRESETS.keys())}}
+    spec = build_title_widget_spec(params, lower_third=lower_third)
+    return {"success": True, "data": {"spec": spec, "preset_names": sorted(TITLE_PRESETS.keys())}}
 
 
 def handle_widget_title_card_create(params: Dict[str, Any]) -> Dict[str, Any]:
-    return _build_widget_asset(str(params.get("package_path", "/Game/UI/Titles")), str(params.get("asset_name", "WBP_TitleCard")), build_title_widget_spec(params, lower_third=False))
+    """Create a full-screen centered title card with fade animations."""
+    package_path = str(params.get("package_path", "/Game/UI/Titles"))
+    asset_name = str(params.get("asset_name", "WBP_TitleCard"))
+    spec = build_title_widget_spec(params, lower_third=False)
+    return _build_widget_asset(package_path, asset_name, spec)
 
 
 def handle_widget_lower_third_create(params: Dict[str, Any]) -> Dict[str, Any]:
-    return _build_widget_asset(str(params.get("package_path", "/Game/UI/Titles")), str(params.get("asset_name", "WBP_LowerThird")), build_title_widget_spec(params, lower_third=True))
+    """Create a broadcast-style lower third with fade animations."""
+    package_path = str(params.get("package_path", "/Game/UI/Titles"))
+    asset_name = str(params.get("asset_name", "WBP_LowerThird"))
+    spec = build_title_widget_spec(params, lower_third=True)
+    return _build_widget_asset(package_path, asset_name, spec)

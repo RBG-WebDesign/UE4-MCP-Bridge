@@ -1017,6 +1017,10 @@ def handle_camera_shake_blueprint(params: Dict[str, Any]) -> Dict[str, Any]:
 
         # Check if asset already exists -- delete and recreate
         if unreal.EditorAssetLibrary.does_asset_exist(full_path):
+            from mcp_bridge import state
+            blocked = state.blocked_response_for_key("allow_asset_delete", "camera_shake_blueprint")
+            if blocked is not None:
+                return blocked
             unreal.EditorAssetLibrary.delete_asset(full_path)
 
         bp = asset_tools.create_asset(name, content_path, unreal.Blueprint, factory)
@@ -1060,8 +1064,12 @@ def handle_camera_shake_blueprint(params: Dict[str, Any]) -> Dict[str, Any]:
                 fov_osc.amplitude = fov_amp
                 fov_osc.frequency = fov_freq
 
-        # Save the asset
-        unreal.EditorAssetLibrary.save_asset(full_path)
+        # Save the asset when the caller or safety toggle allows it.
+        from mcp_bridge import state
+
+        should_save = bool(params.get("save")) if "save" in params else state.safety_enabled("auto_save_after_operations")
+        if should_save:
+            unreal.EditorAssetLibrary.save_asset(full_path)
 
         return {
             "success": True,
@@ -1070,6 +1078,7 @@ def handle_camera_shake_blueprint(params: Dict[str, Any]) -> Dict[str, Any]:
                 "name": name,
                 "duration": duration,
                 "preset": preset_name if preset_name else None,
+                "saved": should_save,
                 "oscillation": {
                     "rot_pitch": {"amp": rot_pitch_amp, "freq": rot_pitch_freq},
                     "rot_yaw": {"amp": rot_yaw_amp, "freq": rot_yaw_freq},
@@ -1235,7 +1244,11 @@ def handle_console_effect(params: Dict[str, Any]) -> Dict[str, Any]:
 
         console_cmd = console_map[command]
         world = unreal.EditorLevelLibrary.get_editor_world()
-        unreal.SystemLibrary.execute_console_command(world, console_cmd)
+        from mcp_bridge.utils.console_safety import execute_console_command
+
+        console_result = execute_console_command(unreal, world, console_cmd, "console_effect")
+        if not console_result.get("success", False):
+            return console_result
 
         return {
             "success": True,

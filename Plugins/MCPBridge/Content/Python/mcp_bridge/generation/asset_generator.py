@@ -5,7 +5,7 @@ from typing import Any, Dict, List, Tuple
 from mcp_bridge.generation.spec_schema import MaterialSpec, DataAssetSpec
 
 
-def generate_material(spec: MaterialSpec) -> Tuple[bool, str, Dict[str, Any]]:
+def generate_material(spec: MaterialSpec, save_enabled: bool = True) -> Tuple[bool, str, Dict[str, Any]]:
     """Create a simple flat-color material asset.
 
     Uses MaterialFactoryNew. Attempts to set a constant base color expression.
@@ -48,18 +48,21 @@ def generate_material(spec: MaterialSpec) -> Tuple[bool, str, Dict[str, Any]]:
             except Exception:
                 pass  # material still exists, just without the color node
 
-        try:
-            unreal.EditorAssetLibrary.save_asset(full_path)
-        except Exception:
-            pass
+        saved = False
+        if save_enabled:
+            try:
+                unreal.EditorAssetLibrary.save_asset(full_path)
+                saved = True
+            except Exception:
+                pass
 
-        return True, "", {"path": full_path, "skipped": False}
+        return True, "", {"path": full_path, "skipped": False, "saved": saved}
 
     except Exception as e:
         return False, str(e), {}
 
 
-def generate_data_asset(spec: DataAssetSpec) -> Tuple[bool, str, Dict[str, Any]]:
+def generate_data_asset(spec: DataAssetSpec, save_enabled: bool = True) -> Tuple[bool, str, Dict[str, Any]]:
     """Create a stub data asset, curve, or DataAsset-fallback for Enum/Struct/DataTable."""
     try:
         import unreal
@@ -95,26 +98,30 @@ def generate_data_asset(spec: DataAssetSpec) -> Tuple[bool, str, Dict[str, Any]]
         if asset is None:
             return False, f"Failed to create {spec.asset_type}: {full_path}", {}
 
-        try:
-            unreal.EditorAssetLibrary.save_asset(full_path)
-        except Exception:
-            pass
+        saved = False
+        if save_enabled:
+            try:
+                unreal.EditorAssetLibrary.save_asset(full_path)
+                saved = True
+            except Exception:
+                pass
 
         return True, "", {
             "path": full_path,
             "type": spec.asset_type,
             "skipped": False,
+            "saved": saved,
         }
 
     except Exception as e:
         return False, str(e), {}
 
 
-def generate_all_materials(specs: List[MaterialSpec]) -> Dict[str, Any]:
+def generate_all_materials(specs: List[MaterialSpec], save_enabled: bool = True) -> Dict[str, Any]:
     results = []
     errors: List[str] = []
     for spec in specs:
-        ok, err, data = generate_material(spec)
+        ok, err, data = generate_material(spec, save_enabled=save_enabled)
         entry: Dict[str, Any] = {"name": spec.name, "success": ok, "data": data}
         if err:
             entry["error"] = err
@@ -128,11 +135,11 @@ def generate_all_materials(specs: List[MaterialSpec]) -> Dict[str, Any]:
     }
 
 
-def generate_all_data_assets(specs: List[DataAssetSpec]) -> Dict[str, Any]:
+def generate_all_data_assets(specs: List[DataAssetSpec], save_enabled: bool = True) -> Dict[str, Any]:
     results = []
     errors: List[str] = []
     for spec in specs:
-        ok, err, data = generate_data_asset(spec)
+        ok, err, data = generate_data_asset(spec, save_enabled=save_enabled)
         entry: Dict[str, Any] = {"name": spec.name, "success": ok, "data": data}
         if err:
             entry["error"] = err

@@ -18,7 +18,7 @@ _BB_KEY_TYPES: Dict[str, str] = {
 }
 
 
-def generate_blackboard(spec: BlackboardSpec) -> Tuple[bool, str, Dict[str, Any]]:
+def generate_blackboard(spec: BlackboardSpec, save_enabled: bool = True) -> Tuple[bool, str, Dict[str, Any]]:
     """Create a Blackboard asset from a BlackboardSpec."""
     try:
         import unreal
@@ -59,14 +59,17 @@ def generate_blackboard(spec: BlackboardSpec) -> Tuple[bool, str, Dict[str, Any]
             except Exception:
                 pass  # key add is best-effort
 
-        unreal.EditorAssetLibrary.save_asset(full_path)
-        return True, "", {"path": full_path, "keys_added": keys_added, "skipped": False}
+        saved = False
+        if save_enabled:
+            unreal.EditorAssetLibrary.save_asset(full_path)
+            saved = True
+        return True, "", {"path": full_path, "keys_added": keys_added, "skipped": False, "saved": saved}
 
     except Exception as e:
         return False, str(e), {}
 
 
-def generate_behavior_tree(spec: BehaviorTreeSpec) -> Tuple[bool, str, Dict[str, Any]]:
+def generate_behavior_tree(spec: BehaviorTreeSpec, save_enabled: bool = True) -> Tuple[bool, str, Dict[str, Any]]:
     """Create a BehaviorTree asset, assign its Blackboard, and build node graph."""
     try:
         import unreal
@@ -118,7 +121,10 @@ def generate_behavior_tree(spec: BehaviorTreeSpec) -> Tuple[bool, str, Dict[str,
         if build_error and builder_available:
             success = False
 
-        unreal.EditorAssetLibrary.save_asset(full_path)
+        saved = False
+        if save_enabled:
+            unreal.EditorAssetLibrary.save_asset(full_path)
+            saved = True
         return success, build_error, {
             "path": full_path,
             "blackboard": spec.blackboard_path,
@@ -126,13 +132,14 @@ def generate_behavior_tree(spec: BehaviorTreeSpec) -> Tuple[bool, str, Dict[str,
             "builder_available": builder_available,
             "graph_built": graph_built,
             "skipped": False,
+            "saved": saved,
         }
 
     except Exception as e:
         return False, str(e), {}
 
 
-def generate_eqs_query(spec: EQSQuerySpec) -> Tuple[bool, str, Dict[str, Any]]:
+def generate_eqs_query(spec: EQSQuerySpec, save_enabled: bool = True) -> Tuple[bool, str, Dict[str, Any]]:
     """Create an EnvQuery (EQS) asset."""
     try:
         import unreal
@@ -149,8 +156,11 @@ def generate_eqs_query(spec: EQSQuerySpec) -> Tuple[bool, str, Dict[str, Any]]:
         if eq is None:
             return False, f"Failed to create EnvQuery: {full_path}", {}
 
-        unreal.EditorAssetLibrary.save_asset(full_path)
-        return True, "", {"path": full_path, "generator_type": spec.generator_type, "skipped": False}
+        saved = False
+        if save_enabled:
+            unreal.EditorAssetLibrary.save_asset(full_path)
+            saved = True
+        return True, "", {"path": full_path, "generator_type": spec.generator_type, "skipped": False, "saved": saved}
 
     except Exception as e:
         return False, str(e), {}
@@ -171,13 +181,13 @@ def _batch(items: list, fn) -> Dict[str, Any]:
     }
 
 
-def generate_all_blackboards(specs: List[BlackboardSpec]) -> Dict[str, Any]:
-    return _batch(specs, generate_blackboard)
+def generate_all_blackboards(specs: List[BlackboardSpec], save_enabled: bool = True) -> Dict[str, Any]:
+    return _batch(specs, lambda spec: generate_blackboard(spec, save_enabled=save_enabled))
 
 
-def generate_all_behavior_trees(specs: List[BehaviorTreeSpec]) -> Dict[str, Any]:
-    return _batch(specs, generate_behavior_tree)
+def generate_all_behavior_trees(specs: List[BehaviorTreeSpec], save_enabled: bool = True) -> Dict[str, Any]:
+    return _batch(specs, lambda spec: generate_behavior_tree(spec, save_enabled=save_enabled))
 
 
-def generate_all_eqs_queries(specs: List[EQSQuerySpec]) -> Dict[str, Any]:
-    return _batch(specs, generate_eqs_query)
+def generate_all_eqs_queries(specs: List[EQSQuerySpec], save_enabled: bool = True) -> Dict[str, Any]:
+    return _batch(specs, lambda spec: generate_eqs_query(spec, save_enabled=save_enabled))

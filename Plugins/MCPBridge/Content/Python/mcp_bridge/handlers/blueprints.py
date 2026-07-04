@@ -223,8 +223,6 @@ def _compile_blueprint_ue427_safe(bp: Any, bp_path: str = "") -> Dict[str, Any]:
             if compile_fn is not None:
                 compile_fn(bp)
                 method = "KismetSystemLibrary.compile_blueprint"
-                path_to_save = bp_path or bp.get_path_name()
-                unreal.EditorAssetLibrary.save_asset(path_to_save, only_if_is_dirty=False)
             else:
                 path_to_save = bp_path or bp.get_path_name()
                 unreal.EditorAssetLibrary.save_asset(path_to_save, only_if_is_dirty=False)

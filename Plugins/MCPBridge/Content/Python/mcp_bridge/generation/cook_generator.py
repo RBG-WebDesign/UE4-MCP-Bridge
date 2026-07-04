@@ -5,7 +5,7 @@ from typing import Any, Dict, List, Tuple
 from mcp_bridge.generation.spec_schema import PrimaryAssetLabelSpec
 
 
-def generate_primary_asset_label(spec: PrimaryAssetLabelSpec) -> Tuple[bool, str, Dict[str, Any]]:
+def generate_primary_asset_label(spec: PrimaryAssetLabelSpec, save_enabled: bool = True) -> Tuple[bool, str, Dict[str, Any]]:
     """Create a PrimaryAssetLabel asset for Asset Manager cook rules."""
     try:
         import unreal
@@ -41,22 +41,26 @@ def generate_primary_asset_label(spec: PrimaryAssetLabelSpec) -> Tuple[bool, str
         except Exception:
             pass
 
-        unreal.EditorAssetLibrary.save_asset(full_path)
+        saved = False
+        if save_enabled:
+            unreal.EditorAssetLibrary.save_asset(full_path)
+            saved = True
         return True, "", {
             "path": full_path,
             "priority": spec.priority,
             "chunk_id": spec.chunk_id,
             "skipped": False,
+            "saved": saved,
         }
 
     except Exception as e:
         return False, str(e), {}
 
 
-def generate_all_primary_asset_labels(specs: List[PrimaryAssetLabelSpec]) -> Dict[str, Any]:
+def generate_all_primary_asset_labels(specs: List[PrimaryAssetLabelSpec], save_enabled: bool = True) -> Dict[str, Any]:
     results, errors = [], []
     for spec in specs:
-        ok, err, data = generate_primary_asset_label(spec)
+        ok, err, data = generate_primary_asset_label(spec, save_enabled=save_enabled)
         entry: Dict[str, Any] = {"name": spec.name, "success": ok, "data": data}
         if err:
             entry["error"] = err

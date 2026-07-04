@@ -4,6 +4,8 @@ import sys
 import io
 import traceback
 import datetime
+import json
+import os
 from typing import Any, Dict
 
 
@@ -154,6 +156,126 @@ def handle_ue_logs(params: Dict[str, Any]) -> Dict[str, Any]:
                 "suggestion": "You can use python_proxy to run: "
                               "import unreal; unreal.log('your message') to write to the log."
             }
+        }
+    except Exception as e:
+        return {"success": False, "data": {}, "error": str(e)}
+
+
+def handle_bridge_status(params: Dict[str, Any]) -> Dict[str, Any]:
+    """Return the persisted bridge status plus runtime metadata."""
+    try:
+        from mcp_bridge import state
+
+        return {
+            "success": True,
+            "data": state.get_status(),
+        }
+    except Exception as e:
+        return {"success": False, "data": {}, "error": str(e)}
+
+
+def handle_bridge_latest_notification(params: Dict[str, Any]) -> Dict[str, Any]:
+    """Return the latest compact command notification written by the bridge."""
+    try:
+        from mcp_bridge import state
+
+        path = state.latest_notification_path()
+        if not os.path.exists(path):
+            return {
+                "success": True,
+                "data": {
+                    "notification": None,
+                    "path": path,
+                    "message": "No bridge notification has been written yet.",
+                },
+            }
+
+        with open(path, "r", encoding="utf-8") as f:
+            notification = json.load(f)
+
+        return {
+            "success": True,
+            "data": {
+                "notification": notification,
+                "path": path,
+            },
+        }
+    except Exception as e:
+        return {"success": False, "data": {}, "error": str(e)}
+
+
+def handle_bridge_copy_project_info(params: Dict[str, Any]) -> Dict[str, Any]:
+    """Return compact project info for external clients.
+
+    Clipboard copying is handled by the C++ panel. The command is still useful
+    for MCP clients and prevents the panel from pointing at a missing backend
+    command.
+    """
+    try:
+        import unreal
+        from mcp_bridge import state
+
+        status = state.get_status()
+        data = {
+            "listener_url": "http://{}:{}".format(
+                status.get("listener_host", "localhost"),
+                status.get("listener_port", 8080),
+            ),
+            "project": unreal.SystemLibrary.get_game_name(),
+            "project_dir": unreal.SystemLibrary.get_project_directory(),
+            "content_dir": unreal.SystemLibrary.get_project_content_directory(),
+            "engine_version": unreal.SystemLibrary.get_engine_version(),
+            "current_level": status.get("current_level", ""),
+            "last_ping_at": status.get("last_ping_at", ""),
+            "last_command": status.get("last_command", ""),
+            "last_result": status.get("last_command_status", ""),
+            "latest_notification_path": status.get("latest_notification_path", ""),
+            "last_result_path": status.get("last_result_path", ""),
+        }
+        return {
+            "success": True,
+            "data": data,
+        }
+    except Exception as e:
+        return {"success": False, "data": {}, "error": str(e)}
+
+
+def handle_bridge_self_test(params: Dict[str, Any]) -> Dict[str, Any]:
+    """Run quick readiness checks for panel actions and chat handoff."""
+    try:
+        from mcp_bridge import router, state
+
+        commands = sorted(router.COMMAND_ROUTES.keys())
+        safety = state.load_safety()
+        required = [
+            "ping",
+            "test_connection",
+            "bridge_status",
+            "bridge_latest_notification",
+            "bridge_copy_project_info",
+            "bridge_command_manifest",
+        ]
+        missing = [name for name in required if name not in router.COMMAND_ROUTES]
+        optimization_commands = [name for name in commands if name.startswith("optimization_")]
+        checks = {
+            "listener": "ok",
+            "required_commands": "ok" if not missing else "missing",
+            "optimization_commands": len(optimization_commands),
+            "safety": safety,
+        }
+        return {
+            "success": not missing,
+            "data": {
+                "status": "ready" if not missing else "needs_repair",
+                "checks": checks,
+                "missing_commands": missing,
+                "command_count": len(commands),
+                "recommended_chat_handoff": (
+                    "Paste the copied MCP Bridge handoff prompt, then ask the chat "
+                    "to run test_connection against the listener URL."
+                ),
+            },
+            "error": "" if not missing else "Missing required bridge commands: {}".format(", ".join(missing)),
         }
     except Exception as e:
         return {"success": False, "data": {}, "error": str(e)}

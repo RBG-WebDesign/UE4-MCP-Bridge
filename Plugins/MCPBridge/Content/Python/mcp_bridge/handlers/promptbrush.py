@@ -40,7 +40,7 @@ def _get_output_dir() -> str:
 
 
 def _write_input_mappings(action_mappings: list, axis_mappings: list, project_dir: str) -> Dict[str, Any]:
-    """Append action and axis mappings to DefaultInput.ini without duplicating exact lines."""
+    """Append action and axis mappings to DefaultInput.ini."""
     ini_path = os.path.join(project_dir, "Config", "DefaultInput.ini")
     lines_to_add = []
 
@@ -63,40 +63,11 @@ def _write_input_mappings(action_mappings: list, axis_mappings: list, project_di
             )
 
     try:
-        existing_lines = set()
-        if os.path.exists(ini_path):
-            with open(ini_path, encoding="utf-8-sig") as f:
-                existing_lines = {line.strip() for line in f}
-
-        unique_lines = []
-        skipped = 0
-        seen_new = set()
-        for line in lines_to_add:
-            if line in existing_lines or line in seen_new:
-                skipped += 1
-                continue
-            seen_new.add(line)
-            unique_lines.append(line)
-
-        if not unique_lines:
-            return {
-                "success": True,
-                "mappings_written": 0,
-                "mappings_skipped": skipped,
-                "ini_path": ini_path,
-            }
-
-        os.makedirs(os.path.dirname(ini_path), exist_ok=True)
         with open(ini_path, "a", encoding="utf-8") as f:
             f.write("\n; PromptBrush generated mappings\n")
-            for line in unique_lines:
+            for line in lines_to_add:
                 f.write(line + "\n")
-        return {
-            "success": True,
-            "mappings_written": len(unique_lines),
-            "mappings_skipped": skipped,
-            "ini_path": ini_path,
-        }
+        return {"success": True, "mappings_written": len(lines_to_add), "ini_path": ini_path}
     except Exception as e:
         return {"success": False, "error": str(e)}
 
@@ -115,6 +86,10 @@ def handle_prompt_generate(params: Dict[str, Any]) -> Dict[str, Any]:
             return {"success": False, "data": {}, "error": "Missing 'prompt' parameter"}
 
         dry_run = bool(params.get("dry_run", False))
+        from mcp_bridge import state
+
+        compile_enabled = bool(params.get("compile")) if "compile" in params else state.safety_enabled("auto_compile_blueprints")
+        save_enabled = bool(params.get("save")) if "save" in params else state.safety_enabled("auto_save_after_operations")
         run_id = str(uuid.uuid4())[:8]
         output_dir = _get_output_dir()
 
@@ -148,51 +123,51 @@ def handle_prompt_generate(params: Dict[str, Any]) -> Dict[str, Any]:
         # Phase 2: Generate all assets
         generation_results: Dict[str, Any] = {}
 
-        bp_result = generate_all_blueprints(spec.blueprints)
+        bp_result = generate_all_blueprints(spec.blueprints, compile_enabled=compile_enabled, save_enabled=save_enabled)
         generation_results["blueprints"] = bp_result
 
         widget_result = generate_all_widgets(spec.widgets)
         generation_results["widgets"] = widget_result
 
-        mat_result = generate_all_materials(spec.materials)
+        mat_result = generate_all_materials(spec.materials, save_enabled=save_enabled)
         generation_results["materials"] = mat_result
 
-        data_result = generate_all_data_assets(spec.data_assets)
+        data_result = generate_all_data_assets(spec.data_assets, save_enabled=save_enabled)
         generation_results["data_assets"] = data_result
 
-        level_result = generate_all_levels(spec.levels)
+        level_result = generate_all_levels(spec.levels, save_enabled=save_enabled)
         generation_results["levels"] = level_result
 
         # AI assets
-        bb_result = generate_all_blackboards(spec.blackboards)
+        bb_result = generate_all_blackboards(spec.blackboards, save_enabled=save_enabled)
         generation_results["blackboards"] = bb_result
 
-        bt_result = generate_all_behavior_trees(spec.behavior_trees)
+        bt_result = generate_all_behavior_trees(spec.behavior_trees, save_enabled=save_enabled)
         generation_results["behavior_trees"] = bt_result
 
-        eqs_result = generate_all_eqs_queries(spec.eqs_queries)
+        eqs_result = generate_all_eqs_queries(spec.eqs_queries, save_enabled=save_enabled)
         generation_results["eqs_queries"] = eqs_result
 
         # Audio assets
-        attn_result = generate_all_sound_attenuations(spec.sound_attenuations)
+        attn_result = generate_all_sound_attenuations(spec.sound_attenuations, save_enabled=save_enabled)
         generation_results["sound_attenuations"] = attn_result
 
-        sc_result = generate_all_sound_classes(spec.sound_classes)
+        sc_result = generate_all_sound_classes(spec.sound_classes, save_enabled=save_enabled)
         generation_results["sound_classes"] = sc_result
 
-        mix_result = generate_all_sound_mixes(spec.sound_mixes)
+        mix_result = generate_all_sound_mixes(spec.sound_mixes, save_enabled=save_enabled)
         generation_results["sound_mixes"] = mix_result
 
         # Sequencer
-        seq_result = generate_all_level_sequences(spec.level_sequences)
+        seq_result = generate_all_level_sequences(spec.level_sequences, save_enabled=save_enabled)
         generation_results["level_sequences"] = seq_result
 
         # Localization
-        st_result = generate_all_string_tables(spec.string_tables)
+        st_result = generate_all_string_tables(spec.string_tables, save_enabled=save_enabled)
         generation_results["string_tables"] = st_result
 
         # Cook labels
-        pal_result = generate_all_primary_asset_labels(spec.primary_asset_labels)
+        pal_result = generate_all_primary_asset_labels(spec.primary_asset_labels, save_enabled=save_enabled)
         generation_results["primary_asset_labels"] = pal_result
 
         # Phase 3: Input mappings
@@ -210,7 +185,10 @@ def handle_prompt_generate(params: Dict[str, Any]) -> Dict[str, Any]:
 
         # Phase 4: Compile all generated Blueprints
         bp_paths = [f"{s.content_path}/{s.name}" for s in spec.blueprints]
-        compile_results = compile_all_blueprints(bp_paths)
+        if compile_enabled:
+            compile_results = compile_all_blueprints(bp_paths)
+        else:
+            compile_results = {"total": len(bp_paths), "succeeded": 0, "failed": 0, "skipped": True}
 
         # Phase 5: Write manifest
         manifest_path = write_manifest(
@@ -257,6 +235,8 @@ def handle_prompt_generate(params: Dict[str, Any]) -> Dict[str, Any]:
                 "spec_path": spec_path,
                 "manifest_path": manifest_path,
                 "acceptance_tests": spec.acceptance_tests,
+                "compiled": compile_enabled,
+                "saved": save_enabled,
             },
         }
 

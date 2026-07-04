@@ -105,8 +105,8 @@ function Assert-BridgeLayout {
         "Plugins/MCPBridge/MCPBridge.uplugin",
         "Plugins/MCPBridge/Content/Python/startup.py",
         "Plugins/MCPBridge/Content/Python/mcp_bridge",
-        "Plugins/MCPBridge/Source/MCPBridgePanel/MCPBridgePanel.Build.cs",
-        "Plugins/MCPBridge/Source/BlueprintGraphBuilder/BlueprintGraphBuilder.Build.cs"
+        "Plugins/MCPBridge/Source/MCPBridgeEditorPanel/MCPBridgeEditorPanel.Build.cs",
+        "Plugins/MCPBridge/Source/MCPBridgeGraphBuilder/MCPBridgeGraphBuilder.Build.cs"
     )
 
     foreach ($relativePath in $requiredPaths) {

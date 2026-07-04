@@ -10,16 +10,46 @@ NOT transactable in UE4's undo system. Do not wrap them in transactions.
 import math
 import os
 import datetime
+import time
 from typing import Any, Dict
 
 
-def _get_viewport_subsystem() -> Any:
-    """Get the UnrealEditorSubsystem for viewport camera access.
+class _ViewportCameraAdapter:
+    """Small compatibility shim for UE4.27 and newer editor viewport APIs."""
 
-    Returns the subsystem or raises if unavailable.
+    def __init__(self, unreal_module: Any, subsystem: Any = None) -> None:
+        self._unreal = unreal_module
+        self._subsystem = subsystem
+
+    def get_level_viewport_camera_info(self) -> Any:
+        if self._subsystem is not None:
+            return self._subsystem.get_level_viewport_camera_info()
+        return self._unreal.EditorLevelLibrary.get_level_viewport_camera_info()
+
+    def set_level_viewport_camera_info(self, location: Any, rotation: Any) -> None:
+        if self._subsystem is not None:
+            self._subsystem.set_level_viewport_camera_info(location, rotation)
+            return
+        self._unreal.EditorLevelLibrary.set_level_viewport_camera_info(location, rotation)
+
+
+def _get_viewport_subsystem() -> Any:
+    """Get a viewport camera accessor compatible with UE4.27 and UE5.
+
+    Returns an object with get_level_viewport_camera_info and
+    set_level_viewport_camera_info methods, or raises if unavailable.
     """
     import unreal
-    return unreal.UnrealEditorSubsystem()
+
+    if hasattr(unreal, "UnrealEditorSubsystem"):
+        return _ViewportCameraAdapter(unreal, unreal.UnrealEditorSubsystem())
+    if (
+        hasattr(unreal, "EditorLevelLibrary")
+        and hasattr(unreal.EditorLevelLibrary, "get_level_viewport_camera_info")
+        and hasattr(unreal.EditorLevelLibrary, "set_level_viewport_camera_info")
+    ):
+        return _ViewportCameraAdapter(unreal)
+    raise RuntimeError("No compatible viewport camera API is available")
 
 
 def _get_camera_state() -> Dict[str, Any]:
@@ -126,7 +156,11 @@ def handle_viewport_screenshot(params: Dict[str, Any]) -> Dict[str, Any]:
             try:
                 world = unreal.EditorLevelLibrary.get_editor_world()
                 cmd = f"HighResShot {res_x}x{res_y} filename=\"{filepath}\""
-                unreal.SystemLibrary.execute_console_command(world, cmd)
+                from mcp_bridge.utils.console_safety import execute_console_command
+
+                console_result = execute_console_command(unreal, world, cmd, "viewport_screenshot")
+                if not console_result.get("success", False):
+                    return console_result
                 capture_method = "console_command_HighResShot"
             except Exception as fallback_err:
                 return {
@@ -135,11 +169,14 @@ def handle_viewport_screenshot(params: Dict[str, Any]) -> Dict[str, Any]:
                     "error": f"Screenshot capture failed. Primary: {primary_err}. Fallback: {fallback_err}",
                 }
 
-        # Verify file was written
-        if os.path.exists(filepath) and os.path.getsize(filepath) > 0:
-            file_size = os.path.getsize(filepath)
-        else:
-            file_size = 0
+        # Unreal may finish writing the PNG shortly after the screenshot call returns.
+        file_size = 0
+        for _ in range(100):
+            if os.path.exists(filepath):
+                file_size = os.path.getsize(filepath)
+                if file_size > 0:
+                    break
+            time.sleep(0.1)
 
         return {
             "success": True,
@@ -190,17 +227,30 @@ def handle_viewport_camera(params: Dict[str, Any]) -> Dict[str, Any]:
 
         new_loc = vector_from_dict(location) if location is not None else current_loc
         new_rot = rotator_from_dict(rotation) if rotation is not None else current_rot
+        fov_command = None
 
-        subsystem.set_level_viewport_camera_info(new_loc, new_rot)
-
-        # FOV is set via console command in UE4.27
         if fov is not None:
             fov_val = float(fov)
             if fov_val < 1 or fov_val > 170:
                 return {"success": False, "data": {}, "error": f"FOV must be between 1 and 170 (got {fov_val})"}
+            fov_command = f"fov {fov_val}"
+            from mcp_bridge.utils.console_safety import validate_console_command
+
+            blocked = validate_console_command(fov_command, "viewport_camera")
+            if blocked is not None:
+                return blocked
+
+        subsystem.set_level_viewport_camera_info(new_loc, new_rot)
+
+        # FOV is set via console command in UE4.27
+        if fov_command is not None:
             try:
                 world = unreal.EditorLevelLibrary.get_editor_world()
-                unreal.SystemLibrary.execute_console_command(world, f"fov {fov_val}")
+                from mcp_bridge.utils.console_safety import execute_console_command
+
+                console_result = execute_console_command(unreal, world, fov_command, "viewport_camera")
+                if not console_result.get("success", False):
+                    return console_result
             except Exception:
                 pass  # FOV command may not be available in all contexts
 
@@ -385,7 +435,11 @@ def handle_viewport_render_mode(params: Dict[str, Any]) -> Dict[str, Any]:
         if not world:
             return {"success": False, "data": {}, "error": "No level is currently open"}
 
-        unreal.SystemLibrary.execute_console_command(world, mode_commands[mode])
+        from mcp_bridge.utils.console_safety import execute_console_command
+
+        console_result = execute_console_command(unreal, world, mode_commands[mode], "viewport_render_mode")
+        if not console_result.get("success", False):
+            return console_result
 
         return {
             "success": True,

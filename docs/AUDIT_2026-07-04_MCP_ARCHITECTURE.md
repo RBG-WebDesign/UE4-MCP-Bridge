@@ -198,9 +198,20 @@ M15 Clean-checkout E2E validation + docs freeze.
    router's COMMAND_ROUTES and every `sendCommand("...")` in TS source; fails
    on any advertised command without a route. Wired into `npm test`.
 3. Synced the full C++ source (BlueprintInspector, BlueprintMutator, current
-   library versions) from the live plugins into `Plugins/MCPBridge/Source`,
-   restored buildable rule class names, and verified the module list in
-   `MCPBridge.uplugin`. See section 7 for build verification status.
+   library versions - 104 files) from the live plugins into
+   `Plugins/MCPBridge/Source`, and synced the full live Python tree
+   (optimization suite, panel, state, project_index, console_safety) into
+   `Plugins/MCPBridge/Content/Python`. The modules were renamed to
+   `MCPBridgeGraphBuilder` and `MCPBridgeEditorPanel` (Build.cs rule class,
+   .uplugin, API export macros, IMPLEMENT_MODULE) so the unified plugin is
+   buildable on a clean checkout AND can coexist with the legacy
+   `Plugins/BlueprintGraphBuilder` / `Plugins/MCPBridgePanel` trees still
+   present in this host project - UBT compiles every Build.cs under Plugins/
+   into one rules assembly, so restoring the old class names would have broken
+   the host project's next compile. UCLASS names (BlueprintGraphBuilderLibrary
+   etc.) are unchanged, so Python callers are unaffected. Installer manifest
+   and CLAUDE.md paths updated. `host project data (mcp_bridge/data/) is
+   intentionally NOT shipped in the plugin.
 
 ## 7. Remaining risks / not done
 

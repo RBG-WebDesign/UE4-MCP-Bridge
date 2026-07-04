@@ -33,7 +33,7 @@ GENRE_KEYWORDS: Dict[str, List[str]] = {
         "item management", "equipment", "slot system",
     ],
     "menu_system": [
-        "main menu", "pause menu", "settings menu", "ui flow",
+        "main menu", "pause menu", "settings menu", "hud", "ui flow",
         "game over", "victory screen", "menu system", "ui system",
     ],
     "generic": [],

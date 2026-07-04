@@ -13,6 +13,8 @@ import queue
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from typing import Any, Dict, Optional, Callable
 
+from mcp_bridge import state
+
 # Globals
 _server: Optional[HTTPServer] = None
 _server_thread: Optional[threading.Thread] = None
@@ -39,6 +41,7 @@ _shaderweave_active_sessions: int = 0
 
 HOST = "localhost"
 PORT = 8080
+COMMAND_TIMEOUT_SECONDS = 300.0
 
 
 def _get_next_request_id() -> int:
@@ -99,9 +102,9 @@ class BridgeRequestHandler(BaseHTTPRequestHandler):
                 "params": params,
             })
 
-            # Wait for the game thread to process and respond
-            # Timeout after 60 seconds to prevent hanging
-            if event.wait(timeout=60.0):
+            # Wait for the game thread to process and respond. UE editor
+            # commands can legitimately take several minutes on large projects.
+            if event.wait(timeout=COMMAND_TIMEOUT_SECONDS):
                 result = _response_data.pop(request_id, {
                     "success": False,
                     "data": {},
@@ -115,7 +118,7 @@ class BridgeRequestHandler(BaseHTTPRequestHandler):
                 result = {
                     "success": False,
                     "data": {},
-                    "error": "Command timed out after 60 seconds"
+                    "error": "Command timed out after {} seconds".format(int(COMMAND_TIMEOUT_SECONDS))
                 }
 
             self._send_json(200, result)
@@ -142,7 +145,7 @@ class BridgeRequestHandler(BaseHTTPRequestHandler):
             })
 
     def _handle_status(self) -> None:
-        """Return full bridge status. Reads thread-safe module-level vars only."""
+        """Return full bridge status."""
         uptime = time.time() - _start_time if _start_time > 0 else 0.0
 
         last_event = None
@@ -154,11 +157,17 @@ class BridgeRequestHandler(BaseHTTPRequestHandler):
                 "duration_ms": round(_last_event_duration_ms, 1),
             }
 
+        bridge_status = state.get_status()
+        bridge_status["uptime_sec"] = round(uptime, 1)
+        bridge_status["total_requests"] = _request_counter
+        bridge_status["server_time"] = time.time()
+
         self._send_json(200, {
             "success": True,
             "data": {
                 "version": "0.1.0",
                 "protocol_version": 1,
+                "status": bridge_status,
                 "bridge": {
                     "running": True,
                     "port": PORT,
@@ -312,8 +321,10 @@ def start(host: str = HOST, port: int = PORT) -> bool:
             import unreal
             _tick_handle = unreal.register_slate_post_tick_callback(_process_command_queue)
             _detect_subsystems()
+            state.mark_listener_started(host, port)
             unreal.log(f"[MCP Bridge] Listener started on {host}:{port}")
         except ImportError:
+            state.mark_listener_started(host, port)
             print(f"[MCP Bridge] Listener started on {host}:{port} (no UE4 tick callback)")
 
         return True
@@ -356,6 +367,10 @@ def stop() -> bool:
 
     _server = None
     _server_thread = None
+    try:
+        state.mark_listener_stopped()
+    except Exception:
+        pass
 
     try:
         import unreal

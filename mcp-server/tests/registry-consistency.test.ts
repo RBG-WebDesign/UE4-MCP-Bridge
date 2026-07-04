@@ -28,7 +28,15 @@ const srcRoot = join(here, "..", "src");
 const INTERNAL_ONLY_ROUTES = new Set<string>([
   // Alias of clear_output_log kept for backward compatibility.
   "bridge_clear_log",
+  // Called by the C++ MCPBridge editor panel over HTTP, not by MCP clients.
+  "bridge_status",
+  "bridge_latest_notification",
+  "bridge_copy_project_info",
+  "bridge_self_test",
 ]);
+
+// Route prefixes reserved for panel-driven internal suites (no MCP schema yet).
+const INTERNAL_ONLY_PREFIXES = ["optimization_"];
 
 let passed = 0;
 let failed = 0;
@@ -101,7 +109,10 @@ check("every TS-sent command has a Python route in the tracked plugin", () => {
 
 check("every Python route is either called from TS or allowlisted internal-only", () => {
   const orphans = [...routes]
-    .filter((route) => !sent.has(route) && !INTERNAL_ONLY_ROUTES.has(route))
+    .filter((route) =>
+      !sent.has(route) &&
+      !INTERNAL_ONLY_ROUTES.has(route) &&
+      !INTERNAL_ONLY_PREFIXES.some((prefix) => route.startsWith(prefix)))
     .sort();
   if (orphans.length > 0) {
     throw new Error(
