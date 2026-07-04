@@ -13,12 +13,12 @@ Use the installer for new projects and updates:
 .\Scripts\install-mcp-bridge.ps1 "D:\Unreal Projects\MyGame\MyGame.uproject"
 ```
 
-The installer builds the MCP server, copies the Unreal-side Python listener, copies the BlueprintGraphBuilder plugin, updates `DefaultEngine.ini`, and writes a project-local `.mcp.json`.
+The installer builds the MCP server, copies the unified `MCPBridge` plugin, enables it in the `.uproject`, updates `DefaultEngine.ini`, and writes a project-local `.mcp.json`.
 
-For update details and options, see `docs/MCP_BRIDGE_INSTALLER.md`.
+For update details and options, see `docs/MCP_BRIDGE_INSTALLER.md`. For release packaging, see `docs/MCP_BRIDGE_RELEASE_WORKFLOW.md`.
 
-## Manual Install
-Use these steps only when you need to copy files by hand.
+## Manual Install (legacy layout)
+Use these steps only when you need to copy files by hand. This installs the older loose-file layout (`Content/Python/` in your project) instead of the unified `MCPBridge` plugin the installer uses. The Python code is identical; `unreal-plugin/Content/Python/` mirrors `Plugins/MCPBridge/Content/Python/`. Do not mix the two layouts in one project: if you later run the installer, it removes the legacy `StartupScripts` entry and switches the project to the plugin layout.
 
 ## Step 1: Enable Python in UE4
 1. Open your UE4 project in the editor

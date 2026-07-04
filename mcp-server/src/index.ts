@@ -28,6 +28,8 @@ import { createOperationsTools } from "./tools/operations.js";
 import { createPromptBrushTools } from "./tools/promptbrush.js";
 import { createGameplayTools } from "./tools/gameplay.js";
 import { createEffectsTools } from "./tools/effects.js";
+import { createIntelligenceTools } from "./tools/intelligence.js";
+import { createTitleTools } from "./tools/titles.js";
 import type { ToolDefinition } from "./types.js";
 
 async function main(): Promise<void> {
@@ -52,6 +54,8 @@ async function main(): Promise<void> {
     ...createPromptBrushTools(client),
     ...createGameplayTools(client),
     ...createEffectsTools(client),
+    ...createIntelligenceTools(client),
+    ...createTitleTools(client),
   ];
 
   // Build a lookup map
@@ -65,9 +69,14 @@ async function main(): Promise<void> {
     "actor_spawn", "actor_modify", "actor_delete", "actor_duplicate",
     "actor_organize", "actor_snap_to_socket", "batch_spawn",
     "material_create", "material_apply",
+    "asset_save_many", "project_enable_plugins",
     "blueprint_create", "blueprint_compile", "blueprint_build_from_json", "blueprint_build_from_description",
     "anim_blueprint_build_from_json",
     "widget_build_from_json",
+    "widget_title_card_create", "widget_lower_third_create",
+    "title_manifest_create", "title_manifest_from_reference",
+    "title_widget_build_from_manifest", "title_controller_create",
+    "title_sequence_bind", "title_manifest_adjust",
     "prompt_generate",
     "level_save",
     "pp_volume_spawn", "pp_volume_modify", "pp_preset",

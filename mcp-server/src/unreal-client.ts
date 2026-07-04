@@ -22,7 +22,7 @@ export interface UnrealClientOptions {
 const DEFAULT_OPTIONS: UnrealClientOptions = {
   host: "localhost",
   port: 8080,
-  timeout: 60000,
+  timeout: 300000,
 };
 
 export class UnrealClient {

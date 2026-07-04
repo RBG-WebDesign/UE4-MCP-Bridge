@@ -13,6 +13,8 @@ param(
 
     [switch]$SkipCppPlugin,
 
+    [switch]$SkipPanelPlugin,
+
     [switch]$SkipMcpConfig,
 
     [switch]$IncludeUnrealApi,
@@ -100,9 +102,11 @@ function Assert-BridgeLayout {
     $requiredPaths = @(
         "package.json",
         "mcp-server/package.json",
-        "unreal-plugin/Content/Python/startup.py",
-        "unreal-plugin/Content/Python/mcp_bridge",
-        "ue4-plugin/BlueprintGraphBuilder/BlueprintGraphBuilder.uplugin"
+        "Plugins/MCPBridge/MCPBridge.uplugin",
+        "Plugins/MCPBridge/Content/Python/startup.py",
+        "Plugins/MCPBridge/Content/Python/mcp_bridge",
+        "Plugins/MCPBridge/Source/MCPBridgePanel/MCPBridgePanel.Build.cs",
+        "Plugins/MCPBridge/Source/BlueprintGraphBuilder/BlueprintGraphBuilder.Build.cs"
     )
 
     foreach ($relativePath in $requiredPaths) {
@@ -154,7 +158,9 @@ function Copy-ManagedDirectory {
         [string]$Destination,
 
         [Parameter(Mandatory = $true)]
-        [string]$Name
+        [string]$Name,
+
+        [string[]]$ExcludeDirectoryNames = @()
     )
 
     if (-not (Test-Path -LiteralPath $Source)) {
@@ -174,7 +180,43 @@ function Copy-ManagedDirectory {
     }
 
     if ($PSCmdlet.ShouldProcess($Destination, "copy $Name files")) {
-        Copy-Item -Path (Join-Path $Source "*") -Destination $Destination -Recurse -Force
+        $sourceRoot = (Resolve-Path -LiteralPath $Source).Path.TrimEnd("\", "/")
+        $items = @(Get-ChildItem -LiteralPath $sourceRoot -Recurse -Force)
+
+        foreach ($item in $items) {
+            $relativePath = $item.FullName.Substring($sourceRoot.Length).TrimStart("\", "/")
+            if ([string]::IsNullOrWhiteSpace($relativePath)) {
+                continue
+            }
+
+            $pathParts = @($relativePath -split "[\\/]")
+            $isExcluded = $false
+            foreach ($part in $pathParts) {
+                if ($ExcludeDirectoryNames -contains $part) {
+                    $isExcluded = $true
+                    break
+                }
+            }
+
+            if ($isExcluded) {
+                continue
+            }
+
+            $targetPath = Join-Path $Destination $relativePath
+            if ($item.PSIsContainer) {
+                if (-not (Test-Path -LiteralPath $targetPath)) {
+                    New-Item -ItemType Directory -Path $targetPath | Out-Null
+                }
+            }
+            else {
+                $targetParent = Split-Path -Parent $targetPath
+                if (-not (Test-Path -LiteralPath $targetParent)) {
+                    New-Item -ItemType Directory -Path $targetParent | Out-Null
+                }
+
+                Copy-Item -LiteralPath $item.FullName -Destination $targetPath -Force
+            }
+        }
     }
 }
 
@@ -208,7 +250,7 @@ function Copy-ManagedFile {
     }
 }
 
-function Install-PythonListener {
+function Install-MCPBridgePlugin {
     param(
         [Parameter(Mandatory = $true)]
         [string]$Root,
@@ -217,33 +259,9 @@ function Install-PythonListener {
         [string]$ProjectRoot
     )
 
-    if ($SkipPython) {
-        Write-Host "Skipping Python listener install."
-        return
-    }
-
-    $source = Join-Path $Root "unreal-plugin/Content/Python"
-    $destination = Join-Path $ProjectRoot "Content/Python"
-    Copy-ManagedDirectory -Source $source -Destination $destination -Name "Python listener"
-}
-
-function Install-BlueprintGraphBuilder {
-    param(
-        [Parameter(Mandatory = $true)]
-        [string]$Root,
-
-        [Parameter(Mandatory = $true)]
-        [string]$ProjectRoot
-    )
-
-    if ($SkipCppPlugin) {
-        Write-Host "Skipping BlueprintGraphBuilder plugin install."
-        return
-    }
-
-    $source = Join-Path $Root "ue4-plugin/BlueprintGraphBuilder"
-    $destination = Join-Path $ProjectRoot "Plugins/BlueprintGraphBuilder"
-    Copy-ManagedDirectory -Source $source -Destination $destination -Name "BlueprintGraphBuilder plugin"
+    $source = Join-Path $Root "Plugins/MCPBridge"
+    $destination = Join-Path $ProjectRoot "Plugins/MCPBridge"
+    Copy-ManagedDirectory -Source $source -Destination $destination -Name "MCPBridge plugin" -ExcludeDirectoryNames @("Binaries", "Intermediate", "Saved")
 }
 
 function Update-DefaultEngineIni {
@@ -260,11 +278,12 @@ function Update-DefaultEngineIni {
     $configDir = Join-Path $ProjectRoot "Config"
     $iniPath = Join-Path $configDir "DefaultEngine.ini"
     $sectionName = "[/Script/PythonScriptPlugin.PythonScriptPluginSettings]"
+    $pluginPythonPath = ConvertTo-JsonPath -Path (Join-Path $ProjectRoot "Plugins/MCPBridge/Content/Python")
     $requiredLines = @(
         "bDeveloperMode=True",
         "bRemoteExecution=True",
-        "+StartupScripts=/Game/Python/startup.py",
-        "+AdditionalPaths=(Path=`"/Game/Python`")"
+        "+StartupScripts=startup.py",
+        "+AdditionalPaths=(Path=`"$pluginPythonPath`")"
     )
 
     if (-not (Test-Path -LiteralPath $configDir)) {
@@ -317,7 +336,11 @@ function Update-DefaultEngineIni {
                 if ($line -match "^\s*bDeveloperMode\s*=") { continue }
                 if ($line -match "^\s*bRemoteExecution\s*=") { continue }
                 if ($line -match "^\s*\+?StartupScripts\s*=\s*/Game/Python/startup\.py\s*$") { continue }
+                if ($line -match "^\s*\+?StartupScripts\s*=\s*/MCPBridge/Python/startup\.py\s*$") { continue }
+                if ($line -match "^\s*\+?StartupScripts\s*=\s*startup\.py\s*$") { continue }
                 if ($line -match "^\s*\+?AdditionalPaths\s*=\s*\(Path=`"/Game/Python`"\)\s*$") { continue }
+                if ($line -match "^\s*\+?AdditionalPaths\s*=\s*\(Path=`"/MCPBridge/Python`"\)\s*$") { continue }
+                if ($line -match '^\s*\+?AdditionalPaths\s*=\s*\(Path=".*?/Plugins/MCPBridge/Content/Python"\)\s*$') { continue }
                 $filteredSection += $line
             }
         }
@@ -395,6 +418,69 @@ function Update-McpConfig {
     }
 }
 
+function Update-UProjectPlugins {
+    param(
+        [string]$UProjectPath
+    )
+
+    if ([string]::IsNullOrWhiteSpace($UProjectPath)) {
+        Write-Host "Skipping .uproject plugin update because no .uproject file was found."
+        return
+    }
+
+    $pluginsToEnable = @("PythonScriptPlugin", "EditorScriptingUtilities", "MCPBridge")
+
+    if ($pluginsToEnable.Count -eq 0) {
+        return
+    }
+
+    try {
+        $projectJson = Get-Content -LiteralPath $UProjectPath -Raw | ConvertFrom-Json
+    }
+    catch {
+        throw "Unable to parse .uproject JSON: $UProjectPath"
+    }
+
+    $propertyNames = @($projectJson.PSObject.Properties | ForEach-Object { $_.Name })
+    if ($propertyNames -contains "Plugins") {
+        $plugins = @($projectJson.Plugins)
+    }
+    else {
+        $plugins = @()
+    }
+
+    foreach ($pluginName in $pluginsToEnable) {
+        $existing = $plugins | Where-Object { $_.Name -eq $pluginName } | Select-Object -First 1
+        if ($existing) {
+            $existingPropertyNames = @($existing.PSObject.Properties | ForEach-Object { $_.Name })
+            if ($existingPropertyNames -contains "Enabled") {
+                $existing.Enabled = $true
+            }
+            else {
+                $existing | Add-Member -MemberType NoteProperty -Name "Enabled" -Value $true
+            }
+        }
+        else {
+            $plugins += [PSCustomObject]@{
+                Name = $pluginName
+                Enabled = $true
+            }
+        }
+    }
+
+    if ($propertyNames -contains "Plugins") {
+        $projectJson.Plugins = $plugins
+    }
+    else {
+        $projectJson | Add-Member -MemberType NoteProperty -Name "Plugins" -Value $plugins
+    }
+
+    $json = $projectJson | ConvertTo-Json -Depth 12
+    if ($PSCmdlet.ShouldProcess($UProjectPath, "enable MCP Bridge project plugins")) {
+        Set-Content -LiteralPath $UProjectPath -Value $json -Encoding UTF8
+    }
+}
+
 $repoRoot = Get-RepoRoot
 Assert-BridgeLayout -Root $repoRoot
 
@@ -411,14 +497,15 @@ else {
 }
 
 Invoke-BridgeBuild -Root $repoRoot
-Install-PythonListener -Root $repoRoot -ProjectRoot $projectRoot
-Install-BlueprintGraphBuilder -Root $repoRoot -ProjectRoot $projectRoot
+Install-MCPBridgePlugin -Root $repoRoot -ProjectRoot $projectRoot
 Update-DefaultEngineIni -ProjectRoot $projectRoot
 Update-McpConfig -Root $repoRoot -ProjectRoot $projectRoot
+Update-UProjectPlugins -UProjectPath $projectInfo.UProject
 
 Write-Host ""
 Write-Host "MCP Bridge install complete."
 Write-Host "Next steps:"
 Write-Host "1. Enable the Python Editor Script Plugin in UE4 if it is not already enabled."
-Write-Host "2. Restart the Unreal editor so Content/Python/startup.py can start the listener."
-Write-Host "3. If BlueprintGraphBuilder was installed, accept the UE4 rebuild prompt."
+Write-Host "2. Restart the Unreal editor so startup.py can start the listener from the copied plugin Python path."
+Write-Host "3. If the MCPBridge plugin was installed or updated, accept the UE4 rebuild prompt."
+Write-Host "4. Open Window > MCP Bridge after the editor restarts."

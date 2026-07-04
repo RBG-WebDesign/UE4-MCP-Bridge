@@ -65,6 +65,18 @@ The `tools/` directory has 11 files:
 
 Auto-started by `unreal-plugin/Content/Python/startup.py` when UE4 loads.
 
+### Behavior Tree Workflow
+When the user asks to read, inspect, duplicate, replicate, compare, or manipulate Behavior Trees, use the editor C++ bridge first. Do not rely on raw UE4 Python reflection for core Behavior Tree internals, because UE4.27 protects `RootNode`, `BlackboardAsset`, root decorators, and decorator ops from Python.
+
+Default path:
+- Use `USFBehaviorTreeReplicationLibrary` from the `Sinfeld_DemoEditor` module.
+- Select the Behavior Tree in the Content Browser, then call `unreal.SFBehaviorTreeReplicationLibrary.get_first_selected_behavior_tree()`.
+- Export structure with `export_behavior_tree_to_json()` or `export_behavior_tree_to_json_file()`.
+- For replication, start from `duplicate_behavior_tree_asset()` and then adjust the duplicated tree.
+- Treat graph generation from JSON as a separate editor-tooling layer. Do not hand-edit `.uasset` files directly.
+
+Reference: `docs/BEHAVIOR_TREE_REPLICATION.md`.
+
 ### Threading Constraint
 UE4's Python environment runs on the game thread. The HTTP server runs on a background thread. All `unreal` module calls must be marshaled to the game thread through `register_slate_post_tick_callback` in `listener.py`. Never call `unreal.*` from the HTTP handler directly.
 
@@ -159,6 +171,18 @@ viewport_screenshot to visually verify the result. For multi-actor operations, u
 viewport_fit followed by viewport_screenshot for an overview. This visual feedback
 loop is the default behavior, not an optional extra.
 
+## UE Bridge MCP Testing Workflow
+When a UE Bridge MCP authoring job is complete, stop after lightweight editor-side
+sanity checks and let the user test the result in Unreal first. Do not start PIE
+automatically, do not run gameplay runtime checks automatically, and do not ask
+what the user wants next unless there is a blocker or a necessary design choice.
+
+Use editor-side checks such as `level_actors`, `asset_info`, `blueprint_compile`,
+`placement_validate`, `viewport_fit`, or `viewport_screenshot` when they help
+confirm the requested edit exists. Only call `pie_start`, `gameplay_pie_start`,
+runtime telemetry, or acceptance-test commands when the user explicitly asks for
+a runtime test, or when the current task is specifically to debug PIE behavior.
+
 ## UE4.27 API Safety -- Forbidden UE5 Patterns
 
 **Engine target: Unreal Engine 4.27. If an API exists in UE5 but is not confirmed in UE4.27, do not use it. Fall back to known UE4.27 patterns.**
@@ -189,7 +213,7 @@ When spawning any overlap-based trigger actor (ShakeTriggerActor, kill volumes, 
 1. **Never place a trigger volume on top of the PlayerStart.** `OnBeginOverlap` only fires on state transition (outside -> inside). If the player spawns already inside the volume, the event never fires.
 2. **Minimum clearance:** Place trigger volumes at least 1.5x the volume's extent away from any PlayerStart location.
 3. **Verify before spawning:** Query the PlayerStart location and compare against the planned trigger position + extent. Reject or warn if they overlap.
-4. **Test pattern:** After spawning a trigger, start PIE and walk the player into the volume. Check Output Log for the actor's log messages. Do not assume placement is correct without runtime verification.
+4. **Runtime test pattern:** Ask the user before starting PIE. If they approve a runtime test, start PIE and walk the player into the volume. Check Output Log for the actor's log messages. Do not assume placement is correct without runtime verification.
 
 These rules apply to all tools that spawn overlap-based actors: `camera_shake_trigger`, and any future trigger/zone tools.
 

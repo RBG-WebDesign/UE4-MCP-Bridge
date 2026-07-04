@@ -960,7 +960,7 @@ In UE4 editor, create a simple Actor Blueprint that:
 
 - [ ] **Step 2: Verify fade animation plays**
 
-Run PIE. The "PRESS X" text should fade from invisible (opacity 0) to visible (opacity 1) over 0.25 seconds.
+If runtime testing has been explicitly requested or approved, run PIE. The "PRESS X" text should fade from invisible (opacity 0) to visible (opacity 1) over 0.25 seconds.
 
 If nothing animates but the animation exists in the panel, check:
 - Property path: should be `RenderOpacity` exactly

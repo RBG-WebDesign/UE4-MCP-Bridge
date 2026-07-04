@@ -1,5 +1,5 @@
 /**
- * Project and asset tools: project_info, asset_list, asset_info.
+ * Project and asset tools: project_info, asset_list, asset_info, input_mapping_info.
  */
 
 import { z } from "zod";
@@ -39,6 +39,55 @@ export function createProjectTools(client: UnrealClient): ToolDefinition[] {
       }),
       handler: async (params) => {
         const result = await client.sendCommand("asset_info", params);
+        return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
+      },
+    },
+    {
+      name: "asset_load_diagnostics",
+      description: "Diagnose asset loads, Blueprint generated classes, dependencies, referencers, and script class availability.",
+      inputSchema: z.object({
+        asset_paths: z.union([z.string(), z.array(z.string())]).optional().describe("Asset paths to inspect"),
+        class_paths: z.union([z.string(), z.array(z.string())]).optional().describe("Class paths to load, such as /Script/Synthesis.AudioImpulseResponse"),
+        include_dependencies: z.boolean().optional().describe("Include asset registry dependencies (default true)"),
+        include_referencers: z.boolean().optional().describe("Include asset registry referencers (default true)"),
+      }),
+      handler: async (params) => {
+        const result = await client.sendCommand("asset_load_diagnostics", params);
+        return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
+      },
+    },
+    {
+      name: "asset_save_many",
+      description: "Save only the explicit asset paths passed in. Safer than project-wide save-all.",
+      inputSchema: z.object({
+        paths: z.union([z.string(), z.array(z.string())]).describe("Asset paths to save"),
+      }),
+      handler: async (params) => {
+        const result = await client.sendCommand("asset_save_many", params);
+        return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
+      },
+    },
+    {
+      name: "project_enable_plugins",
+      description: "Enable one or more plugins in the current .uproject and report whether an editor restart is required.",
+      inputSchema: z.object({
+        plugins: z.union([z.string(), z.array(z.string())]).describe("Plugin names to enable"),
+      }),
+      handler: async (params) => {
+        const result = await client.sendCommand("project_enable_plugins", params);
+        return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
+      },
+    },
+    {
+      name: "input_mapping_info",
+      description: "Inspect Unreal input action and axis mappings. Use this to validate bindings like PF_Pause to Escape when physical key injection is unavailable.",
+      inputSchema: z.object({
+        action_name: z.string().optional().describe("Exact action name to filter, such as PF_Pause"),
+        axis_name: z.string().optional().describe("Exact axis name to filter"),
+        key: z.string().optional().describe("Exact key name to filter, such as Escape"),
+      }),
+      handler: async (params) => {
+        const result = await client.sendCommand("input_mapping_info", params);
         return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
       },
     },

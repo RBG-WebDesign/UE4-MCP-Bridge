@@ -1,5 +1,13 @@
 # Tool Reference
 
+## UE Bridge MCP Testing Workflow
+
+For authoring tasks, use bridge tools to make the requested editor change, then
+stop after lightweight editor-side sanity checks. Let the user test the result
+in Unreal before starting PIE. Do not run PIE, gameplay telemetry, or runtime
+acceptance commands unless the user explicitly asks for runtime testing or the
+task is specifically about PIE behavior.
+
 ## System Tools
 
 ### test_connection

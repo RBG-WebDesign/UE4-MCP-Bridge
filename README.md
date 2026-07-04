@@ -45,7 +45,7 @@ From this repository root:
 .\Scripts\install-mcp-bridge.ps1 "D:\Unreal Projects\MyGame\MyGame.uproject"
 ```
 
-The installer builds the MCP server, installs the Unreal-side Python listener, installs the BlueprintGraphBuilder plugin, patches `DefaultEngine.ini`, and writes `.mcp.json` into the target project. Rerun the same command later to update that project. See `docs/MCP_BRIDGE_INSTALLER.md` for options like `-CleanManaged`, `-SkipBuild`, and `-SkipCppPlugin`.
+The installer builds the MCP server, installs and enables the unified `MCPBridge` plugin, patches `DefaultEngine.ini`, and writes `.mcp.json` into the target project. Rerun the same command later to update that project. See `docs/MCP_BRIDGE_INSTALLER.md` for installer options and `docs/MCP_BRIDGE_RELEASE_WORKFLOW.md` for packaging.
 
 Manual server build:
 
@@ -89,7 +89,9 @@ Test the connection to Unreal Engine.
 
 If the bridge is working, Claude should be able to report the engine version, project name, and project paths.
 
-## Unreal Setup
+## Unreal Setup (manual, legacy layout)
+
+The installer above is the recommended path; it uses the unified `MCPBridge` plugin. The steps below install the older loose-file layout by hand. The Python code is identical (`unreal-plugin/Content/Python/` mirrors `Plugins/MCPBridge/Content/Python/`), but do not mix the two layouts in one project.
 
 ### 1. Enable Python in UE4
 
@@ -156,6 +158,13 @@ http://localhost:8080
 ## Claude Code Setup
 
 Claude Code reads `.mcp.json` from the repository root. After running `npm run build`, open Claude Code in this folder and use the bridge tools directly.
+
+Default UE Bridge workflow for authoring tasks:
+
+- Make the requested editor change.
+- Run only lightweight editor-side sanity checks when useful.
+- Let the user test the result in Unreal before starting PIE.
+- Do not ask what the user wants next unless there is a blocker or required choice.
 
 Good first requests:
 
@@ -308,7 +317,8 @@ The MCP server validates tool calls and forwards structured requests to the Pyth
 1. Ask Claude to spawn or move actors.
 2. Use viewport focus or screenshot tools to inspect the result.
 3. Ask Claude to adjust placement, scale, rotation, folder organization, or materials.
-4. Save the level when the result is correct.
+4. Test the result in Unreal when the edit is complete.
+5. Save the level when the result is correct.
 
 ### Build Gameplay Content
 
@@ -317,7 +327,8 @@ The MCP server validates tool calls and forwards structured requests to the Pyth
 3. Create Blueprints, widgets, maps, and supporting assets.
 4. Compile and validate.
 5. Capture screenshots or inspect assets.
-6. Save the level and generated assets.
+6. Test the result in Unreal.
+7. Save the level and generated assets.
 
 ## Troubleshooting
 

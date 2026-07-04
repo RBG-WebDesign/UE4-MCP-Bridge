@@ -8,6 +8,11 @@
 
 **Tech Stack:** UE4.27 Python (experimental, game-thread only), log-file cursor for log scraping, `unreal.EditorLevelLibrary.get_pie_worlds()` for PIE world access, `unreal.WidgetLibrary.get_all_widgets_of_class()` for widget visibility, TypeScript + Zod for MCP tool schemas, `MockUnrealServer.setHandler()` for unit tests.
 
+**Assistant workflow note:** This plan defines PIE tools, but normal UE Bridge
+authoring work should not start PIE automatically after edits. Use the tools for
+explicit runtime testing requests, PIE debugging tasks, and planned validation
+runs only.
+
 ---
 
 ## File Map
