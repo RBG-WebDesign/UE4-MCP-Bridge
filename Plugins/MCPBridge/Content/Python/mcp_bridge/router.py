@@ -99,6 +99,13 @@ from mcp_bridge.handlers.effects import (
     handle_console_effect,
 )
 
+from mcp_bridge.handlers.project_index import (
+    handle_project_index_rebuild,
+    handle_project_index_query,
+    handle_project_semantic_diff,
+    handle_gameplay_pattern_search,
+)
+
 
 # Command dispatch table
 COMMAND_ROUTES: Dict[str, Callable[[Dict[str, Any]], Dict[str, Any]]] = {
@@ -120,6 +127,12 @@ COMMAND_ROUTES: Dict[str, Callable[[Dict[str, Any]], Dict[str, Any]]] = {
     "asset_load_diagnostics": handle_asset_load_diagnostics,
     "asset_save_many": handle_asset_save_many,
     "project_enable_plugins": handle_project_enable_plugins,
+
+    # Project intelligence (index, semantic diff, pattern search)
+    "project_index_rebuild": handle_project_index_rebuild,
+    "project_index_query": handle_project_index_query,
+    "project_semantic_diff": handle_project_semantic_diff,
+    "gameplay_pattern_search": handle_gameplay_pattern_search,
 
     # Actors
     "actor_spawn": handle_actor_spawn,
