@@ -1,3 +1,5 @@
+// Copyright 2026 RareBird Games. All Rights Reserved.
+
 #include "BTJsonParser.h"
 #include "BTBuildSpec.h"
 #include "Serialization/JsonReader.h"

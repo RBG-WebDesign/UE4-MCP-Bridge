@@ -1,3 +1,5 @@
+// Copyright 2026 RareBird Games. All Rights Reserved.
+
 #include "WidgetBlueprintAssetFactory.h"
 #include "WidgetBlueprint.h"
 #include "Blueprint/UserWidget.h"

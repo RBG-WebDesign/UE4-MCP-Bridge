@@ -1,3 +1,5 @@
+// Copyright 2026 RareBird Games. All Rights Reserved.
+
 #include "WidgetPropertyApplier.h"
 #include "Dom/JsonObject.h"
 #include "Components/Widget.h"

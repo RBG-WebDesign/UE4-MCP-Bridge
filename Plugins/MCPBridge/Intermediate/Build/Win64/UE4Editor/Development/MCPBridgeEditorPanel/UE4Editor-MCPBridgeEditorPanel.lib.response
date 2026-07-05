@@ -1,0 +1,13 @@
+/NOLOGO
+/errorReport:prompt
+/MACHINE:x64
+/SUBSYSTEM:WINDOWS
+/DEF
+/NAME:"UE4Editor-MCPBridgeEditorPanel.dll"
+/IGNORE:4221
+/NODEFAULTLIB
+"D:\Unreal Projects\MASTER_PROJECT\SF_Repository\Sinfeld_240301\Intermediate\Build\Win64\Sinfeld_DemoEditor\Development\UnrealEd\SharedPCH.UnrealEd.ShadowErrors.h.obj"
+"D:\Unreal Projects\MASTER_PROJECT\SF_Repository\Sinfeld_240301\Plugins\MCPBridge\Intermediate\Build\Win64\UE4Editor\Development\MCPBridgeEditorPanel\Module.MCPBridgeEditorPanel.cpp.obj"
+"D:\Unreal Projects\MASTER_PROJECT\SF_Repository\Sinfeld_240301\Plugins\MCPBridge\Intermediate\Build\Win64\UE4Editor\Development\MCPBridgeEditorPanel\Module.MCPBridgeEditorPanel.gen.cpp.obj"
+"D:\Unreal Projects\MASTER_PROJECT\SF_Repository\Sinfeld_240301\Plugins\MCPBridge\Intermediate\Build\Win64\UE4Editor\Development\MCPBridgeEditorPanel\Default.rc2.res"
+/OUT:"D:\Unreal Projects\MASTER_PROJECT\SF_Repository\Sinfeld_240301\Plugins\MCPBridge\Intermediate\Build\Win64\UE4Editor\Development\MCPBridgeEditorPanel\UE4Editor-MCPBridgeEditorPanel.lib"

@@ -1,3 +1,5 @@
+// Copyright 2026 RareBird Games. All Rights Reserved.
+
 #include "WidgetClassRegistry.h"
 #include "Components/CanvasPanel.h"
 #include "Components/VerticalBox.h"

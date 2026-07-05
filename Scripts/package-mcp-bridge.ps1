@@ -32,7 +32,7 @@ function Copy-PluginClean {
         [string]$Destination
     )
 
-    $excludedDirectories = @("Binaries", "Build", "Intermediate", "Saved", ".git", ".vs", "DerivedDataCache")
+    $excludedDirectories = @("Binaries", "Build", "Intermediate", "Saved", ".git", ".vs", "DerivedDataCache", "__pycache__")
     $sourceRoot = (Resolve-Path -LiteralPath $Source).Path.TrimEnd("\", "/")
 
     if (Test-Path -LiteralPath $Destination) {
@@ -79,7 +79,7 @@ function Copy-PluginClean {
 function Assert-PluginClean {
     param([string]$Root)
 
-    $badDirectories = @("Binaries", "Build", "Intermediate", "Saved")
+    $badDirectories = @("Binaries", "Build", "Intermediate", "Saved", "__pycache__", ".vs")
     foreach ($badDirectory in $badDirectories) {
         $matches = @(Get-ChildItem -LiteralPath $Root -Directory -Recurse -Force | Where-Object { $_.Name -eq $badDirectory })
         if ($matches.Count -gt 0) {

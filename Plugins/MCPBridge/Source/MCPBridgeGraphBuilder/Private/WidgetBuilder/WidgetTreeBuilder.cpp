@@ -1,3 +1,5 @@
+// Copyright 2026 RareBird Games. All Rights Reserved.
+
 #include "WidgetTreeBuilder.h"
 #include "WidgetClassRegistry.h"
 #include "WidgetChildAttachment.h"

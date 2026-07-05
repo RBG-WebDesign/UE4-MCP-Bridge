@@ -1,3 +1,5 @@
+// Copyright 2026 RareBird Games. All Rights Reserved.
+
 #include "BPNodeFactory.h"
 #include "BPNodeFactory_Internals.h"
 #include "BPGLogCategories.h"

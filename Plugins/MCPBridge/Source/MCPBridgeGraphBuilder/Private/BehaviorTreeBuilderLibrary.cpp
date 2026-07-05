@@ -1,3 +1,5 @@
+// Copyright 2026 RareBird Games. All Rights Reserved.
+
 #include "BehaviorTreeBuilderLibrary.h"
 #include "BehaviorTreeBuilder/BTBuilder.h"
 #include "BehaviorTree/BehaviorTree.h"

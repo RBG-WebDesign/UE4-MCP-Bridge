@@ -1,3 +1,5 @@
+// Copyright 2026 RareBird Games. All Rights Reserved.
+
 #include "WidgetBlueprintBuilderLibrary.h"
 #include "WidgetBuilder/WidgetBlueprintBuilder.h"
 #include "WidgetBlueprint.h"

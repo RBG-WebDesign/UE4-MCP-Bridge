@@ -1,3 +1,5 @@
+// Copyright 2026 RareBird Games. All Rights Reserved.
+
 #include "BPMemberReader.h"
 #include "BPGLogCategories.h"
 #include "BPTypeDescriptor.h"

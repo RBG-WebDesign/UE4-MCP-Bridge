@@ -1,3 +1,5 @@
+// Copyright 2026 RareBird Games. All Rights Reserved.
+
 #include "ABPJsonParser.h"
 #include "ABPBuildSpec.h"
 #include "Serialization/JsonReader.h"

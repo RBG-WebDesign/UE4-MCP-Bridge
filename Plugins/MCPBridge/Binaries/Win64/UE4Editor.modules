@@ -1,0 +1,8 @@
+{
+	"BuildId": "17155196",
+	"Modules": 
+	{
+		"MCPBridgeEditorPanel": "UE4Editor-MCPBridgeEditorPanel.dll",
+		"MCPBridgeGraphBuilder": "UE4Editor-MCPBridgeGraphBuilder.dll"
+	}
+}

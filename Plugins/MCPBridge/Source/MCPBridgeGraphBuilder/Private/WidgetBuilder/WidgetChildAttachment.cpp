@@ -1,3 +1,5 @@
+// Copyright 2026 RareBird Games. All Rights Reserved.
+
 #include "WidgetChildAttachment.h"
 #include "Components/PanelWidget.h"
 #include "Components/PanelSlot.h"

@@ -1,3 +1,5 @@
+// Copyright 2026 RareBird Games. All Rights Reserved.
+
 #include "ABPAssetFactory.h"
 #include "Animation/AnimBlueprint.h"
 #include "Animation/AnimInstance.h"

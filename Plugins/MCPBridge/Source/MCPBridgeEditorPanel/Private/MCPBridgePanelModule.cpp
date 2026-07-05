@@ -1,3 +1,5 @@
+// Copyright 2026 RareBird Games. All Rights Reserved.
+
 #include "CoreMinimal.h"
 #include "Windows/WindowsPlatformApplicationMisc.h"
 #include "Framework/Application/SlateApplication.h"

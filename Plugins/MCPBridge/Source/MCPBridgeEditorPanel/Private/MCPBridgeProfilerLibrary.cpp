@@ -1,3 +1,5 @@
+// Copyright 2026 RareBird Games. All Rights Reserved.
+
 #include "MCPBridgeProfilerLibrary.h"
 
 #include "HAL/FileManager.h"

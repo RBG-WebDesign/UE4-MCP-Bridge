@@ -1,3 +1,5 @@
+// Copyright 2026 RareBird Games. All Rights Reserved.
+
 #include "WidgetBlueprintFinalizer.h"
 #include "WidgetBlueprint.h"
 #include "Kismet2/BlueprintEditorUtils.h"

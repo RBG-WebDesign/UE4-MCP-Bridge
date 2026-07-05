@@ -50,4 +50,28 @@ Then test the listener:
 curl -X POST http://localhost:8080 -H "Content-Type: application/json" -d "{\"command\":\"ping\"}"
 ```
 
-The MCP server is distributed separately in this repository under `mcp-server/`. For local development, use `Scripts/install-mcp-bridge.ps1` from the repository root to install the plugin and generate `.mcp.json`.
+## Connect an MCP Client (Claude Code, Codex, Cursor)
+
+The plugin hosts the in-editor listener on `http://localhost:8080`. To drive it
+from an AI coding agent you also need the companion MCP server (TypeScript),
+which translates MCP tool calls into listener commands. It is not part of this
+plugin package. Get it from the project repository:
+
+```text
+https://github.com/RBG-WebDesign/UE4_Bridge
+```
+
+From that repository root:
+
+```bash
+npm install
+npm run build
+```
+
+Then point your MCP client at `mcp-server/dist/index.js` (the repository's
+`.mcp.json` shows the exact configuration), or run
+`Scripts/install-mcp-bridge.ps1 <YourProject.uproject>` to install the plugin,
+patch your project settings, and write `.mcp.json` in one step.
+
+The full tool reference (150+ tools) is in the repository under
+`docs/TOOL_REFERENCE.md`.

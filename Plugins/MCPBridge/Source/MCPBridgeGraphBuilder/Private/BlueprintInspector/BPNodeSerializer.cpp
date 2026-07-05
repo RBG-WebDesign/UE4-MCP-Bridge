@@ -1,3 +1,5 @@
+// Copyright 2026 RareBird Games. All Rights Reserved.
+
 #include "BPNodeSerializer.h"
 #include "BPPinSerializer.h"
 #include "EdGraph/EdGraphNode.h"

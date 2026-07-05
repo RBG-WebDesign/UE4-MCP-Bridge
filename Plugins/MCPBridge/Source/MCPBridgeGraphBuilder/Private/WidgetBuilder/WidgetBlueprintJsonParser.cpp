@@ -1,3 +1,5 @@
+// Copyright 2026 RareBird Games. All Rights Reserved.
+
 #include "WidgetBlueprintJsonParser.h"
 #include "Serialization/JsonReader.h"
 #include "Serialization/JsonSerializer.h"

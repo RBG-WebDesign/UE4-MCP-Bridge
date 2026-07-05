@@ -1,3 +1,5 @@
+// Copyright 2026 RareBird Games. All Rights Reserved.
+
 #include "ABPNodeRegistry.h"
 #include "AnimGraphNode_StateMachine.h"
 #include "AnimGraphNode_Slot.h"

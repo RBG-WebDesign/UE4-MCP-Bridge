@@ -1,3 +1,5 @@
+// Copyright 2026 RareBird Games. All Rights Reserved.
+
 #include "BPSCSOps.h"
 #include "BPMutatorHelpers.h"
 #include "BPGLogCategories.h"

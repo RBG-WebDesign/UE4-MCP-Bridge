@@ -1,3 +1,5 @@
+// Copyright 2026 RareBird Games. All Rights Reserved.
+
 using UnrealBuildTool;
 
 public class MCPBridgeGraphBuilder : ModuleRules

@@ -1,3 +1,5 @@
+// Copyright 2026 RareBird Games. All Rights Reserved.
+
 #include "WidgetSlotPropertyApplier.h"
 #include "Components/PanelSlot.h"
 #include "Components/CanvasPanelSlot.h"

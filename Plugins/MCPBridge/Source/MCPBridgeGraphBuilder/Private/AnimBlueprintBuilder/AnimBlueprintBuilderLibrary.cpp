@@ -1,3 +1,5 @@
+// Copyright 2026 RareBird Games. All Rights Reserved.
+
 #include "AnimBlueprintBuilderLibrary.h"
 #include "AnimBlueprintBuilder/ABPBuilder.h"
 #include "Animation/AnimBlueprint.h"

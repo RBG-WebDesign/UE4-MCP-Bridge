@@ -1,3 +1,5 @@
+// Copyright 2026 RareBird Games. All Rights Reserved.
+
 #include "BPGraphReader.h"
 #include "BPNodeSerializer.h"
 #include "BPGLogCategories.h"

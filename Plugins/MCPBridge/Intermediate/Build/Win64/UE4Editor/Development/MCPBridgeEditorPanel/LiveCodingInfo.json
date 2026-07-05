@@ -1,0 +1,13 @@
+{
+	"RemapUnityFiles": 
+	{
+		"Module.MCPBridgeEditorPanel.cpp.obj": [
+			"MCPBridgePanelModule.cpp.obj",
+			"MCPBridgeProfilerLibrary.cpp.obj"
+		],
+		"Module.MCPBridgeEditorPanel.gen.cpp.obj": [
+			"MCPBridgeEditorPanel.init.gen.cpp.obj",
+			"MCPBridgeProfilerLibrary.gen.cpp.obj"
+		]
+	}
+}

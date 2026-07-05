@@ -1,3 +1,5 @@
+// Copyright 2026 RareBird Games. All Rights Reserved.
+
 #include "BPTypeDescriptor.h"
 #include "BPGLogCategories.h"
 #include "Dom/JsonObject.h"

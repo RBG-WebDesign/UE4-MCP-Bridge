@@ -6,21 +6,21 @@
   "Description": "Editor automation bridge for Unreal Engine 4.27 with a local MCP server, Python listener, dockable status panel, and Blueprint graph builders.",
   "Category": "Editor",
   "CreatedBy": "RareBird Games",
-  "CreatedByURL": "",
-  "DocsURL": "",
+  "CreatedByURL": "https://github.com/RBG-WebDesign",
+  "DocsURL": "https://github.com/RBG-WebDesign/UE4_Bridge",
   "MarketplaceURL": "",
-  "SupportURL": "",
+  "SupportURL": "https://github.com/RBG-WebDesign/UE4_Bridge/issues",
   "EngineVersion": "4.27.0",
   "CanContainContent": true,
   "EnabledByDefault": false,
-  "IsBetaVersion": true,
+  "IsBetaVersion": false,
   "Installed": false,
   "Modules": [
     {
       "Name": "MCPBridgeEditorPanel",
       "Type": "Editor",
       "LoadingPhase": "PostEngineInit",
-      "PlatformAllowList": [
+      "WhitelistPlatforms": [
         "Win64"
       ]
     },
@@ -28,7 +28,7 @@
       "Name": "MCPBridgeGraphBuilder",
       "Type": "Editor",
       "LoadingPhase": "Default",
-      "PlatformAllowList": [
+      "WhitelistPlatforms": [
         "Win64"
       ]
     }
@@ -42,5 +42,6 @@
       "Name": "EditorScriptingUtilities",
       "Enabled": true
     }
-  ]
+  ],
+  "IsExperimentalVersion": false
 }

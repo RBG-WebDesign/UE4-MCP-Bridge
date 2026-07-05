@@ -1,3 +1,5 @@
+// Copyright 2026 RareBird Games. All Rights Reserved.
+
 #include "BPNodeOps.h"
 #include "BPMutatorHelpers.h"
 #include "BPNodeRegistry.h"

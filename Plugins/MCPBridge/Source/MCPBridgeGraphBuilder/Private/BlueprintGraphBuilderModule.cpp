@@ -1,3 +1,5 @@
+// Copyright 2026 RareBird Games. All Rights Reserved.
+
 #include "CoreMinimal.h"
 #include "Modules/ModuleManager.h"
 #include "BPGLogCategories.h"

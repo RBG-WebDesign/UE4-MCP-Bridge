@@ -1,3 +1,5 @@
+// Copyright 2026 RareBird Games. All Rights Reserved.
+
 #include "BlueprintGraphBuilderLibrary.h"
 
 #include "EdGraph/EdGraph.h"

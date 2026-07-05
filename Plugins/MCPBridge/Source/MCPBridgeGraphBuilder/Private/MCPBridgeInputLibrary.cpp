@@ -1,3 +1,5 @@
+// Copyright 2026 RareBird Games. All Rights Reserved.
+
 #include "MCPBridgeInputLibrary.h"
 
 #include "GameFramework/InputSettings.h"

@@ -1,3 +1,5 @@
+// Copyright 2026 RareBird Games. All Rights Reserved.
+
 #pragma once
 #include "CoreMinimal.h"
 #include "Logging/LogMacros.h"

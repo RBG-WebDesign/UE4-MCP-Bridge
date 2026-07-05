@@ -1,3 +1,5 @@
+// Copyright 2026 RareBird Games. All Rights Reserved.
+
 #include "ShakeTriggerActor.h"
 #include "Kismet/GameplayStatics.h"
 #include "GameFramework/PlayerController.h"

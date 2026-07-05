@@ -1,3 +1,5 @@
+// Copyright 2026 RareBird Games. All Rights Reserved.
+
 #include "ABPAnimGraphBuilder.h"
 #include "ABPBuildSpec.h"
 #include "ABPNodeRegistry.h"

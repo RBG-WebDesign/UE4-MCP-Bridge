@@ -1,3 +1,5 @@
+// Copyright 2026 RareBird Games. All Rights Reserved.
+
 #include "BTNodeFactory.h"
 #include "BTBuildSpec.h"
 #include "BTNodeRegistry.h"

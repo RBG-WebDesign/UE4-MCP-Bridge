@@ -1,3 +1,5 @@
+// Copyright 2026 RareBird Games. All Rights Reserved.
+
 #include "BlueprintInspectorLibrary.h"
 #include "BPMemberReader.h"
 #include "BPGraphReader.h"
