@@ -134,6 +134,26 @@ from mcp_bridge.handlers.project_index import (
     handle_project_semantic_diff,
     handle_gameplay_pattern_search,
 )
+from mcp_bridge.handlers.blueprint_graph import (
+    handle_blueprint_inspect,
+    handle_blueprint_add_variable,
+    handle_blueprint_remove_variable,
+    handle_blueprint_set_variable_default,
+    handle_blueprint_add_function,
+    handle_blueprint_remove_function,
+    handle_blueprint_add_event_dispatcher,
+    handle_blueprint_remove_event_dispatcher,
+    handle_blueprint_add_interface,
+    handle_blueprint_remove_interface,
+    handle_blueprint_component_remove,
+    handle_blueprint_component_rename,
+    handle_blueprint_node_add,
+    handle_blueprint_node_delete,
+    handle_blueprint_node_move,
+    handle_blueprint_node_set_enabled,
+    handle_blueprint_pins_connect,
+    handle_blueprint_pins_break,
+)
 
 
 # Command dispatch table
@@ -166,6 +186,26 @@ COMMAND_ROUTES: Dict[str, Callable[[Dict[str, Any]], Dict[str, Any]]] = {
     "project_index_query": handle_project_index_query,
     "project_semantic_diff": handle_project_semantic_diff,
     "gameplay_pattern_search": handle_gameplay_pattern_search,
+
+    # Blueprint member and graph editing (C++ Inspector/Mutator bridge)
+    "blueprint_inspect": handle_blueprint_inspect,
+    "blueprint_add_variable": handle_blueprint_add_variable,
+    "blueprint_remove_variable": handle_blueprint_remove_variable,
+    "blueprint_set_variable_default": handle_blueprint_set_variable_default,
+    "blueprint_add_function": handle_blueprint_add_function,
+    "blueprint_remove_function": handle_blueprint_remove_function,
+    "blueprint_add_event_dispatcher": handle_blueprint_add_event_dispatcher,
+    "blueprint_remove_event_dispatcher": handle_blueprint_remove_event_dispatcher,
+    "blueprint_add_interface": handle_blueprint_add_interface,
+    "blueprint_remove_interface": handle_blueprint_remove_interface,
+    "blueprint_component_remove": handle_blueprint_component_remove,
+    "blueprint_component_rename": handle_blueprint_component_rename,
+    "blueprint_node_add": handle_blueprint_node_add,
+    "blueprint_node_delete": handle_blueprint_node_delete,
+    "blueprint_node_move": handle_blueprint_node_move,
+    "blueprint_node_set_enabled": handle_blueprint_node_set_enabled,
+    "blueprint_pins_connect": handle_blueprint_pins_connect,
+    "blueprint_pins_break": handle_blueprint_pins_break,
 
     # Actors
     "actor_spawn": handle_actor_spawn,

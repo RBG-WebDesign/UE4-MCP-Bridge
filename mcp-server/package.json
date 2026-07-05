@@ -9,7 +9,7 @@
     "build": "tsc",
     "dev": "tsc --watch",
     "start": "node dist/index.js",
-    "test": "tsx tests/registry-consistency.test.ts && tsx tests/actor-tools.test.ts && tsx tests/level-viewport-tools.test.ts && tsx tests/material-blueprint-tools.test.ts && tsx tests/gameplay-tools.test.ts && tsx tests/intelligence-tools.test.ts && tsx tests/widget-title-tools.test.ts && tsx tests/title-tools.test.ts",
+    "test": "tsx tests/registry-consistency.test.ts && tsx tests/actor-tools.test.ts && tsx tests/level-viewport-tools.test.ts && tsx tests/material-blueprint-tools.test.ts && tsx tests/gameplay-tools.test.ts && tsx tests/intelligence-tools.test.ts && tsx tests/widget-title-tools.test.ts && tsx tests/title-tools.test.ts && tsx tests/blueprint-graph-tools.test.ts",
     "test:integration": "tsx tests/integration/viewport-integration.test.ts && tsx tests/integration/material-integration.test.ts && tsx tests/integration/blueprint-integration.test.ts"
   },
   "dependencies": {

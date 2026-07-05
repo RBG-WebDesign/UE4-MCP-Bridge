@@ -30,6 +30,7 @@ import { createGameplayTools } from "./tools/gameplay.js";
 import { createEffectsTools } from "./tools/effects.js";
 import { createIntelligenceTools } from "./tools/intelligence.js";
 import { createTitleTools } from "./tools/titles.js";
+import { createBlueprintGraphTools } from "./tools/blueprint-graph.js";
 import type { ToolDefinition } from "./types.js";
 
 async function main(): Promise<void> {
@@ -56,6 +57,7 @@ async function main(): Promise<void> {
     ...createEffectsTools(client),
     ...createIntelligenceTools(client),
     ...createTitleTools(client),
+    ...createBlueprintGraphTools(client),
   ];
 
   // Build a lookup map
@@ -81,6 +83,13 @@ async function main(): Promise<void> {
     "level_save",
     "pp_volume_spawn", "pp_volume_modify", "pp_preset",
     "camera_shake_blueprint", "camera_shake_spawn", "camera_shake_trigger",
+    "blueprint_add_variable", "blueprint_remove_variable", "blueprint_set_variable_default",
+    "blueprint_add_function", "blueprint_remove_function",
+    "blueprint_add_event_dispatcher", "blueprint_remove_event_dispatcher",
+    "blueprint_add_interface", "blueprint_remove_interface",
+    "blueprint_component_remove", "blueprint_component_rename",
+    "blueprint_node_add", "blueprint_node_delete", "blueprint_node_move",
+    "blueprint_node_set_enabled", "blueprint_pins_connect", "blueprint_pins_break",
   ]);
 
   // Handle tools/list
