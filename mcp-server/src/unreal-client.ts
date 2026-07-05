@@ -19,10 +19,13 @@ export interface UnrealClientOptions {
   timeout: number;
 }
 
+// Client timeout must exceed the listener's COMMAND_TIMEOUT_SECONDS (300s)
+// so the server's structured timeout error reaches the caller instead of
+// the client cutting the connection first.
 const DEFAULT_OPTIONS: UnrealClientOptions = {
   host: "localhost",
   port: 8080,
-  timeout: 300000,
+  timeout: 320000,
 };
 
 export class UnrealClient {

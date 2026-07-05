@@ -318,25 +318,63 @@ def handle_bridge_command_manifest(params: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def handle_restart_listener(params: Dict[str, Any]) -> Dict[str, Any]:
-    """Restart the MCP Bridge listener.
-    
+    """Restart the MCP Bridge listener on the next editor tick.
+
+    The restart must not run inline: this handler executes on the game
+    thread while the HTTP thread is blocked waiting for this very response.
+    Calling listener.stop() here would deadlock until the command timeout
+    (HTTPServer.shutdown() waits for the request loop, which waits for us).
+    Instead, schedule a one-shot tick callback and return immediately.
+
     Args:
-        params: Optional 'host' (str) and 'port' (int).
-    
+        params: Optional 'host' (str), 'port' (int), and 'reload' (bool) to
+            importlib.reload the listener module before restarting (picks up
+            code changes without an editor restart).
+
     Returns:
-        Restart status.
+        Scheduling status. The actual restart happens within a tick or two;
+        callers should re-poll test_connection.
     """
     try:
-        from mcp_bridge.listener import restart
+        import unreal
+
         host = params.get("host", "localhost")
         port = params.get("port", 8080)
-        success = restart(host, port)
+        do_reload = bool(params.get("reload", False))
+
+        state: Dict[str, Any] = {"done": False, "handle": None}
+
+        def _deferred_restart(delta_time: float) -> None:
+            if state["done"]:
+                return
+            state["done"] = True
+            try:
+                import importlib
+                from mcp_bridge import listener
+                listener.stop()
+                if do_reload:
+                    listener = importlib.reload(listener)
+                listener.start(host, port)
+                unreal.log(f"[MCP Bridge] Listener restarted on {host}:{port} (reload={do_reload})")
+            except Exception as exc:
+                unreal.log_error(f"[MCP Bridge] Deferred listener restart failed: {exc}")
+            finally:
+                handle = state.get("handle")
+                if handle is not None:
+                    try:
+                        unreal.unregister_slate_post_tick_callback(handle)
+                    except Exception:
+                        pass
+
+        state["handle"] = unreal.register_slate_post_tick_callback(_deferred_restart)
         return {
-            "success": success,
+            "success": True,
             "data": {
-                "status": "restarted" if success else "restart_failed",
+                "status": "restart_scheduled",
                 "host": host,
                 "port": port,
+                "reload": do_reload,
+                "note": "Restart runs on the next editor tick; re-poll test_connection.",
             }
         }
     except Exception as e:

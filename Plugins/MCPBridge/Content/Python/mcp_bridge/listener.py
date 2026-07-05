@@ -25,6 +25,12 @@ _request_counter: int = 0
 _counter_lock: threading.Lock = threading.Lock()
 _tick_handle: Optional[object] = None
 
+# Requests whose HTTP thread already gave up (timeout). The game-thread
+# processor must skip these instead of executing a mutation nobody is
+# waiting for.
+_cancelled_requests: set = set()
+_cancelled_lock: threading.Lock = threading.Lock()
+
 _start_time: float = 0.0
 _last_event_timestamp: float = 0.0
 _last_event_command: str = ""
@@ -112,13 +118,22 @@ class BridgeRequestHandler(BaseHTTPRequestHandler):
                 })
                 del _response_map[request_id]
             else:
-                # Timeout
+                # Timeout. Mark the request cancelled so the game thread
+                # discards it instead of executing it later with nobody
+                # listening (silent mutation).
+                with _cancelled_lock:
+                    _cancelled_requests.add(request_id)
                 _response_map.pop(request_id, None)
                 _response_data.pop(request_id, None)
                 result = {
                     "success": False,
                     "data": {},
-                    "error": "Command timed out after {} seconds".format(int(COMMAND_TIMEOUT_SECONDS))
+                    "error": (
+                        "Command timed out after {} seconds. The command was "
+                        "cancelled before execution; if it was already running "
+                        "on the game thread it may still complete - verify "
+                        "editor state before retrying a mutation."
+                    ).format(int(COMMAND_TIMEOUT_SECONDS))
                 }
 
             self._send_json(200, result)
@@ -231,6 +246,22 @@ def _process_command_queue(delta_time: float) -> None:
         request_id = item["id"]
         command = item["command"]
         params = item["params"]
+
+        # Skip commands whose HTTP request already timed out. Executing them
+        # would mutate the editor with no caller to receive the result.
+        with _cancelled_lock:
+            was_cancelled = request_id in _cancelled_requests
+            _cancelled_requests.discard(request_id)
+        if was_cancelled:
+            try:
+                import unreal
+                unreal.log_warning(
+                    f"[MCP Bridge] Skipping cancelled command '{command}' (request {request_id}): HTTP caller timed out before execution"
+                )
+            except ImportError:
+                pass
+            processed += 1
+            continue
 
         cmd_start = time.time()
 
