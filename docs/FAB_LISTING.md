@@ -58,9 +58,9 @@ Highlights:
   machine. The listener can be stopped/restarted from the MCP Bridge panel.
 - **External Dependencies:** Driving the editor from an AI agent requires a
   companion MCP server (Node.js/TypeScript) that runs locally and translates
-  MCP tool calls into listener commands. It is provided with full source and
-  setup instructions at the repository linked below. The plugin itself is
-  fully functional for panel-based use without it.
+  MCP tool calls into listener commands. It is MIT-licensed with full source
+  and setup instructions at https://github.com/RBG-WebDesign/MCPBridge-Server.
+  The plugin itself is fully functional for panel-based use without it.
 - **Engine APIs:** UE 4.27 only. No UE5-only APIs are used (enforced by an
   automated token scan in CI).
 - **Python:** Requires the built-in Python Editor Script Plugin (enabled

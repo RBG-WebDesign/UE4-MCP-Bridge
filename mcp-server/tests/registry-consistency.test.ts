@@ -23,6 +23,19 @@ const routerPath = join(
 );
 const srcRoot = join(here, "..", "src");
 
+// This test cross-checks the TS tool layer against the plugin's Python
+// router, which only exists in the mono-repo. In the standalone server
+// repository the router is not present; skip with a clear notice rather
+// than fail (the mono-repo CI still enforces consistency).
+import { existsSync } from "fs";
+if (!existsSync(routerPath)) {
+  console.log(
+    "  SKIP  registry consistency: plugin router.py not present " +
+    "(standalone server checkout; enforced in the mono-repo CI)"
+  );
+  process.exit(0);
+}
+
 // Routes that intentionally have no TypeScript tool schema. Each entry must
 // be documented in docs/TOOL_REFERENCE.md or the router itself as internal.
 const INTERNAL_ONLY_ROUTES = new Set<string>([

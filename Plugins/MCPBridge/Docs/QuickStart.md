@@ -58,7 +58,7 @@ which translates MCP tool calls into listener commands. It is not part of this
 plugin package. Get it from the project repository:
 
 ```text
-https://github.com/RBG-WebDesign/UE4_Bridge
+https://github.com/RBG-WebDesign/MCPBridge-Server
 ```
 
 From that repository root:
@@ -68,10 +68,8 @@ npm install
 npm run build
 ```
 
-Then point your MCP client at `mcp-server/dist/index.js` (the repository's
-`.mcp.json` shows the exact configuration), or run
-`Scripts/install-mcp-bridge.ps1 <YourProject.uproject>` to install the plugin,
-patch your project settings, and write `.mcp.json` in one step.
+Then point your MCP client at `dist/index.js` (the repository README shows
+the exact `.mcp.json` configuration).
 
-The full tool reference (150+ tools) is in the repository under
-`docs/TOOL_REFERENCE.md`.
+The server repository README also documents the full tool surface
+(150+ tools).
