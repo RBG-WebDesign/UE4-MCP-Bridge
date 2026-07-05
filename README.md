@@ -17,12 +17,26 @@ With Unreal open and the bridge running, Claude Code can help with:
 
 - Spawning, moving, duplicating, organizing, and deleting actors
 - Listing, inspecting, creating, compiling, and documenting Blueprints
-- Creating and applying materials
+- Editing Blueprint internals: variables, functions, event dispatchers,
+  interfaces, components, graph nodes, and pin connections (schema-validated;
+  every mutation compiles and saves, and failures are reported explicitly)
+- Generating whole game skeletons: GameMode/Character/PlayerController/HUD
+  with class defaults wired, camera rig presets, and input control schemes
+- Creating AI assets: Blackboards with typed keys and Behavior Trees built
+  from JSON (26 node types)
+- Generating C++ classes and compiling with UnrealBuildTool as a background
+  job with structured compiler errors
+- Creating materials, material instances with parameter overrides,
+  DataTables, and audio components
 - Capturing viewport screenshots and moving the editor camera
 - Creating maps and placing actors
+- Searching the project with a cached intelligence index and gameplay
+  pattern heuristics
 - Running Python inside UE4
 - Generating gameplay scaffolds with PromptBrush
 - Saving levels and validating generated content
+
+The full tool list (150+ tools) is documented in `docs/TOOL_REFERENCE.md`.
 
 ## Requirements
 

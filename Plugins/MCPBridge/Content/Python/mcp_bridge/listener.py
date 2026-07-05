@@ -180,7 +180,7 @@ class BridgeRequestHandler(BaseHTTPRequestHandler):
         self._send_json(200, {
             "success": True,
             "data": {
-                "version": "0.1.0",
+                "version": "0.4.0",
                 "protocol_version": 1,
                 "status": bridge_status,
                 "bridge": {
