@@ -29,3 +29,6 @@ Plugins/*
 Plugins/MCPBridge/Binaries/
 Plugins/MCPBridge/Intermediate/
 Plugins/MCPBridge/Saved/
+
+# Local release artifacts (uploaded to cloud storage, not tracked)
+_releases/
