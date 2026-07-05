@@ -48,7 +48,11 @@ def _resolve_class(class_path: str) -> Tuple[Optional[Any], Optional[str]]:
         try:
             obj = unreal.load_object(None, class_path)
             if isinstance(obj, unreal.Blueprint):
-                cls = obj.generated_class()
+                # UBlueprint::GeneratedClass is not exposed to 4.27 Python;
+                # load the _C class object directly.
+                asset_path = obj.get_path_name().split(".")[0]
+                asset_name = asset_path.rsplit("/", 1)[-1]
+                cls = unreal.load_class(None, f"{asset_path}.{asset_name}_C")
             else:
                 cls = obj
         except Exception:

@@ -141,6 +141,17 @@ from mcp_bridge.handlers.cpp_tools import (
     handle_job_list,
     handle_job_cancel,
 )
+from mcp_bridge.handlers.gamedev import (
+    handle_input_mapping_add,
+    handle_input_mapping_remove,
+    handle_input_preset_apply,
+    handle_gameplay_framework_create,
+    handle_project_settings_maps,
+    handle_camera_rig_create,
+    handle_blackboard_create,
+    handle_behavior_tree_create,
+    handle_ai_nav_rebuild,
+)
 from mcp_bridge.handlers.blueprint_graph import (
     handle_blueprint_inspect,
     handle_blueprint_add_variable,
@@ -200,6 +211,17 @@ COMMAND_ROUTES: Dict[str, Callable[[Dict[str, Any]], Dict[str, Any]]] = {
     "job_status": handle_job_status,
     "job_list": handle_job_list,
     "job_cancel": handle_job_cancel,
+
+    # Game dev workflow: input, framework, camera, AI
+    "input_mapping_add": handle_input_mapping_add,
+    "input_mapping_remove": handle_input_mapping_remove,
+    "input_preset_apply": handle_input_preset_apply,
+    "gameplay_framework_create": handle_gameplay_framework_create,
+    "project_settings_maps": handle_project_settings_maps,
+    "camera_rig_create": handle_camera_rig_create,
+    "blackboard_create": handle_blackboard_create,
+    "behavior_tree_create": handle_behavior_tree_create,
+    "ai_nav_rebuild": handle_ai_nav_rebuild,
 
     # Blueprint member and graph editing (C++ Inspector/Mutator bridge)
     "blueprint_inspect": handle_blueprint_inspect,
