@@ -213,13 +213,44 @@ M15 Clean-checkout E2E validation + docs freeze.
    and CLAUDE.md paths updated. `host project data (mcp_bridge/data/) is
    intentionally NOT shipped in the plugin.
 
-## 7. Remaining risks / not done
+## 7. Status update (end of 2026-07-04 session)
 
-- Switching THIS host project from the untracked plugin pair to the tracked
-  unified plugin requires closing the editor, removing/disabling the old
-  plugin dirs (duplicate module names collide in UBT), rebuilding, and
-  updating DefaultEngine.ini + .uproject. Needs a coordinated editor restart.
-- Optimization suite and panel/state modules still live only in the untracked
-  tree pending the M1 full sync decision.
-- No async jobs yet (M4); no C++ generation tools yet (M7).
-- CI workflow (.github/workflows/ci.yml) is untracked and unreviewed.
+Completed after the initial audit pass, all verified live against the editor:
+
+- Host project switched to the unified tracked plugin (editor restart cycle):
+  .uproject enables MCPBridge, DefaultEngine.ini points at the plugin Python,
+  legacy Plugins/MCPBridgePanel + Plugins/BlueprintGraphBuilder moved to
+  _legacy_plugins/, project Content/Python retired (data/ kept in place).
+  Backups in _legacy_bridge_backup/.
+- M2 registry consistency test (runs first in npm test).
+- M3 listener reliability: timed-out commands are cancelled instead of
+  zombie-executing; restart_listener defers off the request path (was a
+  deadlock); client timeout (320s) now exceeds server timeout (300s).
+- M6 Blueprint graph editing: 18 tools over the C++ Inspector/Mutator;
+  schema-validated pin connections; transaction + compile + save per
+  mutation.
+- M4+M7 job system (subprocess jobs, cancellation, exclusive kinds) +
+  cpp_class_create + cpp_build with structured compiler-error parsing.
+- M9-M11: input mapping tools + presets (via new UMCPBridgeInputLibrary;
+  FKey is not constructible from 4.27 Python), gameplay_framework_create,
+  project_settings_maps, camera_rig_create, blackboard_create +
+  behavior_tree_create (via new UMCPBridgeAILibrary; BlackboardAsset is
+  protected from Python), ai_nav_rebuild.
+- M5 (partial): transactions added to the six level-mutating effects
+  handlers; blueprint_graph and gamedev mutations are transactional from
+  birth.
+- Clean-checkout plugin build re-verified via AutomationTool BuildPlugin
+  after the C++ additions (BUILD SUCCESSFUL).
+
+## 8. Remaining risks / not done
+
+- Widget/title/asset-creation handlers are not transaction-wrapped (they
+  validate via compile+save instead; acceptable but inconsistent).
+- Cook/package tools (M13+), data asset tools (DataTable/CurveTable), audio
+  tools, and game template generators (M14) are not implemented.
+- SetCallFunctionTarget exists in C++ but is not exposed as an MCP tool.
+- project_settings_maps was not exercised against a real map switch (writes
+  ini + CDO; logic reviewed and unit-parseable, but no live round-trip).
+- CI workflow (.github/workflows/ci.yml) remains untracked and unreviewed.
+- Legacy trees in _legacy_plugins/ and _legacy_bridge_backup/ can be deleted
+  after a week of stable operation.

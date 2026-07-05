@@ -9,6 +9,8 @@ Camera shake playback during PIE is NOT transactable.
 
 from typing import Any, Dict, List
 
+from mcp_bridge.utils.transactions import transactional
+
 
 def _find_actor_by_name(name: str) -> Any:
     """Find an actor in the current level by its label."""
@@ -338,6 +340,7 @@ def _apply_post_process_settings(settings: Any, pp_params: Dict[str, Any]) -> Li
 
 # ── PostProcessVolume: spawn / modify ──
 
+@transactional("MCP Spawn PostProcess Volume")
 def handle_pp_volume_spawn(params: Dict[str, Any]) -> Dict[str, Any]:
     """Spawn a PostProcessVolume with full settings control.
 
@@ -395,6 +398,7 @@ def handle_pp_volume_spawn(params: Dict[str, Any]) -> Dict[str, Any]:
         return {"success": False, "data": {}, "error": str(e)}
 
 
+@transactional("MCP Modify PostProcess Volume")
 def handle_pp_volume_modify(params: Dict[str, Any]) -> Dict[str, Any]:
     """Modify an existing PostProcessVolume's settings.
 
@@ -451,6 +455,7 @@ def handle_pp_volume_modify(params: Dict[str, Any]) -> Dict[str, Any]:
 
 # ── Presets: common effect combinations ──
 
+@transactional("MCP Apply PostProcess Preset")
 def handle_pp_preset(params: Dict[str, Any]) -> Dict[str, Any]:
     """Apply a named post-processing preset. Creates or modifies a PP volume.
 
@@ -681,6 +686,7 @@ def handle_pp_preset(params: Dict[str, Any]) -> Dict[str, Any]:
 
 # ── Camera Shake ──
 
+@transactional("MCP Spawn Camera Shake")
 def handle_camera_shake_spawn(params: Dict[str, Any]) -> Dict[str, Any]:
     """Spawn a CameraShakeSourceActor that emits camera shake in a radius.
 
@@ -860,6 +866,7 @@ def handle_camera_shake_play(params: Dict[str, Any]) -> Dict[str, Any]:
         return {"success": False, "data": {}, "error": str(e)}
 
 
+@transactional("MCP Create Camera Shake Blueprint")
 def handle_camera_shake_blueprint(params: Dict[str, Any]) -> Dict[str, Any]:
     """Create a CameraShake Blueprint asset with oscillation parameters.
 
@@ -1096,6 +1103,7 @@ def handle_camera_shake_blueprint(params: Dict[str, Any]) -> Dict[str, Any]:
 
 # ── ShakeTriggerActor (C++ runtime actor, spawned by Python) ──
 
+@transactional("MCP Spawn Shake Trigger")
 def handle_camera_shake_trigger(params: Dict[str, Any]) -> Dict[str, Any]:
     """Spawn a ShakeTriggerActor that plays camera shake when the player overlaps.
 

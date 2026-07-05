@@ -51,11 +51,16 @@ ShaderWeave (web app, future) --HTTP /shaderweave/v1/*:8080--> Python Listener (
 
 `index.ts` collects all tool arrays, builds a lookup map, and tracks which commands are "modifying" (recorded in history for undo). Modifying commands: actor_spawn, actor_modify, actor_delete, actor_duplicate, actor_organize, actor_snap_to_socket, batch_spawn, material_create, material_apply, blueprint_create, blueprint_compile, blueprint_build_from_json, anim_blueprint_build_from_json, level_save.
 
-The `tools/` directory has 11 files:
+The `tools/` directory has 16 files:
 - `actors.ts`, `blueprints.ts`, `level.ts`, `materials.ts`, `operations.ts`, `project.ts`, `system.ts`, `viewport.ts` -- core tools
 - `effects.ts` -- post-processing volumes, camera shakes (spawn/play/trigger), visual effects
 - `promptbrush.ts` -- PromptBrush tools: `prompt_generate`, `prompt_status`, `prompt_spec_list`, `widget_build_from_json`
 - `gameplay.ts` -- PIE start/stop, acceptance tests, telemetry
+- `intelligence.ts` -- project index rebuild/query, semantic diff, gameplay pattern search
+- `titles.ts` -- data-driven Sequencer title tools
+- `blueprint-graph.ts` -- Blueprint member/graph editing (18 tools over the C++ Inspector/Mutator; schema-validated pin connections)
+- `cpp.ts` -- cpp_class_create, cpp_build (UBT as background job with parsed errors), job_status/job_list/job_cancel
+- `gamedev.ts` -- input mappings/presets, gameplay_framework_create, project_settings_maps, camera_rig_create, blackboard_create, behavior_tree_create, ai_nav_rebuild
 
 ### Python Listener (`Plugins/MCPBridge/Content/Python/mcp_bridge/`)
 - `listener.py` -- HTTP server on background thread, queues commands to game thread via `register_slate_post_tick_callback`

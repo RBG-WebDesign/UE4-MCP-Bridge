@@ -1369,3 +1369,62 @@ Restore to a named checkpoint by undoing operations since it was created.
 
 ### batch_operations
 Execute multiple tool calls in a single request with shared transaction.
+
+## Blueprint Graph Editing Tools (2026-07-04)
+
+Bridge to the C++ UBlueprintInspectorLibrary / UBlueprintMutatorLibrary.
+Every pin connection is validated by UEdGraphSchema_K2::CanCreateConnection
+before linking. Every mutation runs in a UE4 transaction, then compiles and
+saves; compile failure returns success=false with compiler errors.
+
+| Tool | Purpose | Key params |
+|---|---|---|
+| blueprint_inspect | Read graphs, members, components, nodes, pins | blueprint_path, action (graphs/functions/variables/macros/interfaces/event_dispatchers/components/nodes/node_detail/find_nodes), graph_name, node_guid, query |
+| blueprint_add_variable | Add member variable | name, type (TypeDescriptor: {category, sub_category?, sub_category_object?, container_type?}), default_value, category |
+| blueprint_remove_variable | Remove member variable | name |
+| blueprint_set_variable_default | Set variable default | name, default_value |
+| blueprint_add_function | Create user function graph | name, inputs [{name, type}], outputs |
+| blueprint_remove_function | Remove function graph | name |
+| blueprint_add_event_dispatcher | Create dispatcher | name, signature {parameters} |
+| blueprint_remove_event_dispatcher | Remove dispatcher | name |
+| blueprint_add_interface / blueprint_remove_interface | Interface implementation | interface_class (/Script/... or /Game/....BPI_X_C) |
+| blueprint_component_remove / blueprint_component_rename | SCS component ops | component_name / old_name+new_name |
+| blueprint_node_add | Add graph node, returns GUID | graph_name, node_type (CallFunction, Event, CustomEvent, VariableGet/Set, Branch, Sequence, Cast, SpawnActor, switches, input nodes, delegates, ...), position, config (camelCase keys: targetClass, functionName, eventName, varName, actorClass, structType, ...) |
+| blueprint_node_delete / blueprint_node_move / blueprint_node_set_enabled | Node ops by GUID | graph_name, node_guid |
+| blueprint_pins_connect | Schema-validated pin connection | graph_name, source_node_guid, source_pin, target_node_guid, target_pin |
+| blueprint_pins_break | Break all links on a pin | graph_name, node_guid, pin_name |
+
+## C++ and Job Tools (2026-07-04)
+
+| Tool | Purpose | Key params |
+|---|---|---|
+| cpp_class_create | Generate UCLASS .h/.cpp in a game module (17 parent classes) | name (no prefix), parent_class, module, subdir, uclass_specifiers |
+| cpp_build | UnrealBuildTool build as background job with parsed errors | target, platform, configuration, extra_args |
+| job_status | Poll a job: status, parsed result, output tail | job_id, include_output |
+| job_list | List session jobs | - |
+| job_cancel | Cancel running job | job_id |
+
+Notes: cpp_build reports compile errors normally while the editor is open;
+link may fail with LNK1104 (locked DLLs, flagged distinctly). New classes
+require an editor restart to load. Jobs do not survive editor restarts.
+
+## Game Dev Workflow Tools (2026-07-04)
+
+| Tool | Purpose | Key params |
+|---|---|---|
+| input_mapping_add / input_mapping_remove | Action/axis mappings (C++ helper; FKey not constructible from Python) | kind, name, key (FKey names: W, SpaceBar, MouseX, ...), scale, modifiers |
+| input_preset_apply | Standard control schemes | preset (first_person/third_person/top_down/tank) |
+| gameplay_framework_create | Linked GameMode/Character/PC/HUD/... Blueprints with GameMode defaults wired | path, base_name, pieces |
+| project_settings_maps | Default maps + game mode (CDO + DefaultEngine.ini) | game_default_map, editor_startup_map, global_default_game_mode |
+| camera_rig_create | SpringArm+Camera preset rigs on a Pawn/Character BP | blueprint_path, preset (first_person/third_person/top_down/side_scroller) |
+| blackboard_create | BlackboardData asset with typed keys | path, name, keys [{name, type, base_class?}] |
+| behavior_tree_create | BehaviorTree bound to a blackboard, graph from JSON (26 node types) | path, name, blackboard_path, keys, tree |
+| ai_nav_rebuild | RebuildNavigation console command | - |
+
+## Project Intelligence Tools (2026-07-04)
+
+| Tool | Purpose |
+|---|---|
+| project_index_rebuild / project_index_query | File-backed searchable index of assets, Blueprints, materials, widgets, level actors under Saved/MCP/index |
+| project_semantic_diff | Before/after semantic comparison of indexed categories |
+| gameplay_pattern_search | Heuristic search for overlap logic, key-door flows, prompt widgets, objective chains, interactables |
