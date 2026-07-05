@@ -134,6 +134,13 @@ from mcp_bridge.handlers.project_index import (
     handle_project_semantic_diff,
     handle_gameplay_pattern_search,
 )
+from mcp_bridge.handlers.cpp_tools import (
+    handle_cpp_class_create,
+    handle_cpp_build,
+    handle_job_status,
+    handle_job_list,
+    handle_job_cancel,
+)
 from mcp_bridge.handlers.blueprint_graph import (
     handle_blueprint_inspect,
     handle_blueprint_add_variable,
@@ -186,6 +193,13 @@ COMMAND_ROUTES: Dict[str, Callable[[Dict[str, Any]], Dict[str, Any]]] = {
     "project_index_query": handle_project_index_query,
     "project_semantic_diff": handle_project_semantic_diff,
     "gameplay_pattern_search": handle_gameplay_pattern_search,
+
+    # C++ generation and build (job-based)
+    "cpp_class_create": handle_cpp_class_create,
+    "cpp_build": handle_cpp_build,
+    "job_status": handle_job_status,
+    "job_list": handle_job_list,
+    "job_cancel": handle_job_cancel,
 
     # Blueprint member and graph editing (C++ Inspector/Mutator bridge)
     "blueprint_inspect": handle_blueprint_inspect,
