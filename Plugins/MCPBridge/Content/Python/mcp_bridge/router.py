@@ -152,6 +152,15 @@ from mcp_bridge.handlers.gamedev import (
     handle_behavior_tree_create,
     handle_ai_nav_rebuild,
 )
+from mcp_bridge.handlers.content_tools import (
+    handle_material_instance_create,
+    handle_material_instance_set_params,
+    handle_data_table_create,
+    handle_data_table_fill_from_json,
+    handle_audio_component_add,
+    handle_level_new,
+    handle_game_template_create,
+)
 from mcp_bridge.handlers.blueprint_graph import (
     handle_blueprint_inspect,
     handle_blueprint_add_variable,
@@ -222,6 +231,15 @@ COMMAND_ROUTES: Dict[str, Callable[[Dict[str, Any]], Dict[str, Any]]] = {
     "blackboard_create": handle_blackboard_create,
     "behavior_tree_create": handle_behavior_tree_create,
     "ai_nav_rebuild": handle_ai_nav_rebuild,
+
+    # Content: material instances, data tables, audio, maps, templates
+    "material_instance_create": handle_material_instance_create,
+    "material_instance_set_params": handle_material_instance_set_params,
+    "data_table_create": handle_data_table_create,
+    "data_table_fill_from_json": handle_data_table_fill_from_json,
+    "audio_component_add": handle_audio_component_add,
+    "level_new": handle_level_new,
+    "game_template_create": handle_game_template_create,
 
     # Blueprint member and graph editing (C++ Inspector/Mutator bridge)
     "blueprint_inspect": handle_blueprint_inspect,

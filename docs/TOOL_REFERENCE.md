@@ -1428,3 +1428,21 @@ require an editor restart to load. Jobs do not survive editor restarts.
 | project_index_rebuild / project_index_query | File-backed searchable index of assets, Blueprints, materials, widgets, level actors under Saved/MCP/index |
 | project_semantic_diff | Before/after semantic comparison of indexed categories |
 | gameplay_pattern_search | Heuristic search for overlap logic, key-door flows, prompt widgets, objective chains, interactables |
+
+## Content Tools: Materials, Data, Audio, Maps, Templates (2026-07-05)
+
+| Tool | Purpose | Key params |
+|---|---|---|
+| material_instance_create | MaterialInstanceConstant from a parent with param overrides | path, name, parent_material, scalar_params {name:float}, vector_params {name:[r,g,b,a?]}, texture_params {name:path} |
+| material_instance_set_params | Set params on an existing instance | material_instance, scalar_params, vector_params, texture_params |
+| data_table_create | DataTable for a row struct, optional row fill | path, name, row_struct, rows_json |
+| data_table_fill_from_json | Replace an existing DataTable's rows | data_table, rows_json |
+| audio_component_add | AudioComponent on a Blueprint (+ optional SoundBase) | blueprint_path, component_name, sound, attach_to, auto_activate |
+| level_new | Create + load + save a new level (switches loaded level; refuses if unsaved) | path, template |
+| game_template_create | Playable skeleton: framework + camera rig + input + optional map/default GM | path, base_name, template (first_person/third_person/top_down/side_scroller), create_map, set_as_default |
+
+Note: DataTable row filling uses the C++ `UMCPBridgeDataLibrary` wrapper around
+`UDataTable::CreateTableFromJSONString`, NOT
+`DataTableFunctionLibrary.fill_data_table_from_json_string`. The latter shows a
+modal summary dialog on the game thread that hangs the bridge; the C++ path
+returns import problems as structured data with no dialog.

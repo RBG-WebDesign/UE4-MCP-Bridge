@@ -33,6 +33,7 @@ import { createTitleTools } from "./tools/titles.js";
 import { createBlueprintGraphTools } from "./tools/blueprint-graph.js";
 import { createCppTools } from "./tools/cpp.js";
 import { createGamedevTools } from "./tools/gamedev.js";
+import { createContentTools } from "./tools/content.js";
 import type { ToolDefinition } from "./types.js";
 
 async function main(): Promise<void> {
@@ -62,6 +63,7 @@ async function main(): Promise<void> {
     ...createBlueprintGraphTools(client),
     ...createCppTools(client),
     ...createGamedevTools(client),
+    ...createContentTools(client),
   ];
 
   // Build a lookup map
@@ -98,6 +100,9 @@ async function main(): Promise<void> {
     "input_mapping_add", "input_mapping_remove", "input_preset_apply",
     "gameplay_framework_create", "project_settings_maps", "camera_rig_create",
     "blackboard_create", "behavior_tree_create", "ai_nav_rebuild",
+    "material_instance_create", "material_instance_set_params",
+    "data_table_create", "data_table_fill_from_json",
+    "audio_component_add", "level_new", "game_template_create",
   ]);
 
   // Handle tools/list

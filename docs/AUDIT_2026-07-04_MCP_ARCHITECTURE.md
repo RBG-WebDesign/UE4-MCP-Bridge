@@ -242,15 +242,37 @@ Completed after the initial audit pass, all verified live against the editor:
 - Clean-checkout plugin build re-verified via AutomationTool BuildPlugin
   after the C++ additions (BUILD SUCCESSFUL).
 
-## 8. Remaining risks / not done
+## 8. M13/M14 addendum (2026-07-05)
+
+Completed and verified live:
+- Material instances: material_instance_create / set_params (scalar/vector/
+  texture overrides; missing params rejected explicitly).
+- DataTables: data_table_create / fill_from_json. IMPORTANT FINDING -
+  unreal.DataTableFunctionLibrary.fill_data_table_from_json_string shows a
+  MODAL summary dialog on the game thread that hangs the bridge (observed:
+  three stacked modals had to be closed via Win32 PostMessage during
+  testing). Replaced with the C++ UMCPBridgeDataLibrary wrapper around
+  UDataTable::CreateTableFromJSONString, which returns import problems as
+  structured data with no dialog. Verified: 2-row GameplayTagTableRow fill in
+  0.76s, structured problem reporting for malformed rows.
+- Audio: audio_component_add (AudioComponent + optional SoundBase).
+- Maps: level_new (guards against unsaved changes before switching levels).
+- M14: game_template_create composes framework + camera rig + input preset +
+  optional map/default game mode. Verified a full third_person template.
+
+## 9. Remaining risks / not done
 
 - Widget/title/asset-creation handlers are not transaction-wrapped (they
   validate via compile+save instead; acceptable but inconsistent).
-- Cook/package tools (M13+), data asset tools (DataTable/CurveTable), audio
-  tools, and game template generators (M14) are not implemented.
+- Cook/packaging tools are not implemented (cook_generator.py exists in
+  generation/ but has no tool route). CurveTable and PrimaryDataAsset CRUD
+  not implemented.
 - SetCallFunctionTarget exists in C++ but is not exposed as an MCP tool.
 - project_settings_maps was not exercised against a real map switch (writes
-  ini + CDO; logic reviewed and unit-parseable, but no live round-trip).
+  ini + CDO; logic reviewed, but no live round-trip).
+- level_new / game_template_create with create_map=True switch the loaded
+  level; only the create_map=False path was exercised live (to avoid
+  disturbing the user's open level).
 - CI workflow (.github/workflows/ci.yml) remains untracked and unreviewed.
 - Legacy trees in _legacy_plugins/ and _legacy_bridge_backup/ can be deleted
   after a week of stable operation.
