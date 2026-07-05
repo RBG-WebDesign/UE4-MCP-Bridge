@@ -218,6 +218,8 @@ export function createBlueprintGraphTools(client: UnrealClient): ToolDefinition[
         "VariableGet/VariableSet {varName, scope?}; Cast {targetClass, purity?}; " +
         "SpawnActor {actorClass}; CreateWidget {widgetClass}; MakeStruct/BreakStruct " +
         "{structType}; Comment {text}; MacroInstance {macroBP, macroName}. " +
+        "EXCEPTION: input nodes use snake_case keys - InputAction {action_name, " +
+        "consume_input?}, InputAxisEvent {axis_name}, InputKey {key}. " +
         "Class paths use /Script/Module.Class form. Compiles and saves.",
       inputSchema: z.object({
         blueprint_path: blueprintPath,

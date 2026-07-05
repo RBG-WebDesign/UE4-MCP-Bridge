@@ -628,8 +628,12 @@ def handle_blueprint_compile(params: Dict[str, Any]) -> Dict[str, Any]:
             except Exception:
                 pass
 
-        return {
-            "success": True,
+        # success means the Blueprint actually compiled clean, not merely
+        # that the compiler ran. Callers checking only 'success' must not
+        # mistake a failed compile for a good one.
+        compile_ok = compiled and not had_errors
+        result: Dict[str, Any] = {
+            "success": compile_ok,
             "data": {
                 "name": bp.get_name(),
                 "path": bp_path,
@@ -642,6 +646,11 @@ def handle_blueprint_compile(params: Dict[str, Any]) -> Dict[str, Any]:
                 "report": compile_result.get("report", {}),
             },
         }
+        if not compile_ok:
+            result["error"] = (
+                f"Blueprint failed to compile with {len(errors)} error(s); see data.errors"
+            )
+        return result
     except Exception as e:
         return {"success": False, "data": {}, "error": str(e)}
 

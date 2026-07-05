@@ -302,7 +302,10 @@ def handle_project_settings_maps(params: Dict[str, Any]) -> Dict[str, Any]:
     if not updates:
         return _fail("Provide at least one of: game_default_map, editor_startup_map, global_default_game_mode")
 
-    # Live CDO update
+    # Live CDO update. Map properties are SoftObjectPath (constructible from
+    # Python); GlobalDefaultGameMode is a SoftClassPath, which 4.27 Python
+    # cannot construct at all - that key is ini-only and takes effect on the
+    # next editor start (verified live 2026-07-05).
     settings = unreal.get_default_object(unreal.GameMapsSettings)
     cdo_errors = []
     for param_key in ("game_default_map", "editor_startup_map"):
@@ -312,10 +315,10 @@ def handle_project_settings_maps(params: Dict[str, Any]) -> Dict[str, Any]:
             except Exception as exc:
                 cdo_errors.append(f"{param_key}: {exc}")
     if params.get("global_default_game_mode"):
-        try:
-            settings.set_editor_property("global_default_game_mode", params["global_default_game_mode"])
-        except Exception as exc:
-            cdo_errors.append(f"global_default_game_mode: {exc}")
+        cdo_errors.append(
+            "global_default_game_mode: persisted to ini only (SoftClassPath is "
+            "not constructible from UE4.27 Python); takes effect on editor restart"
+        )
 
     # Persist to DefaultEngine.ini
     project_dir = unreal.Paths.convert_relative_path_to_full(unreal.Paths.project_dir())
