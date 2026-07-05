@@ -28,6 +28,12 @@
 #include "Widgets/SBoxPanel.h"
 #include "Widgets/Text/STextBlock.h"
 
+#include "Panel/MCPBridgePanelTheme.h"
+#include "Panel/SMCPBridgeSafetyPanel.h"
+#include "Panel/SMCPBridgeActionsPanel.h"
+
+DEFINE_LOG_CATEGORY_STATIC(LogMCPBridgePanel, Log, All);
+
 static const FName MCPBridgePanelTabName("MCPBridgePanel");
 
 struct FMCPCommandHistoryEntry
@@ -91,6 +97,7 @@ public:
         if (bShouldUseCompactLayout != bCompactLayout)
         {
             bCompactLayout = bShouldUseCompactLayout;
+            Theme->bCompact = bShouldUseCompactLayout;
             RebuildPanel();
             RebuildHistory();
         }
@@ -157,74 +164,37 @@ private:
     FString CurrentMessage = TEXT("Ready");
     TMap<FString, TSharedPtr<FSlateImageBrush>> IconBrushes;
 
-    const FLinearColor AppBackground = FLinearColor(0.006f, 0.015f, 0.026f, 1.0f);
-    const FLinearColor HeaderBackground = FLinearColor(0.012f, 0.028f, 0.044f, 1.0f);
-    const FLinearColor CardBackground = FLinearColor(0.030f, 0.050f, 0.074f, 1.0f);
-    const FLinearColor CardInsetBackground = FLinearColor(0.045f, 0.068f, 0.096f, 1.0f);
-    const FLinearColor CardBorderColor = FLinearColor(0.120f, 0.175f, 0.235f, 1.0f);
-    const FLinearColor ButtonNormal = FLinearColor(0.075f, 0.105f, 0.145f, 1.0f);
-    const FLinearColor ButtonHover = FLinearColor(0.105f, 0.145f, 0.195f, 1.0f);
-    const FLinearColor ButtonPressed = FLinearColor(0.050f, 0.075f, 0.110f, 1.0f);
-    const FLinearColor PrimaryBlue = FLinearColor(0.150f, 0.455f, 0.920f, 1.0f);
-    const FLinearColor PrimaryBlueHover = FLinearColor(0.205f, 0.555f, 1.000f, 1.0f);
-    const FLinearColor PrimaryBluePressed = FLinearColor(0.090f, 0.320f, 0.720f, 1.0f);
-    const FLinearColor TextPrimary = FLinearColor(0.930f, 0.950f, 0.980f, 1.0f);
-    const FLinearColor TextSecondary = FLinearColor(0.740f, 0.790f, 0.860f, 1.0f);
-    const FLinearColor TextMuted = FLinearColor(0.560f, 0.620f, 0.700f, 1.0f);
-    const FLinearColor AccentBlue = FLinearColor(0.150f, 0.455f, 0.920f, 1.0f);
-    const FLinearColor SuccessGreen = FLinearColor(0.235f, 0.740f, 0.445f, 1.0f);
-    const FLinearColor WarningAmber = FLinearColor(1.000f, 0.690f, 0.270f, 1.0f);
-    const FLinearColor ErrorRed = FLinearColor(0.930f, 0.320f, 0.320f, 1.0f);
+    // Single source of truth for the panel's visual language, shared with
+    // the compound child widgets. The reference aliases keep the existing
+    // builder code unchanged while reading through to the theme.
+    TSharedRef<FMCPBridgePanelTheme> Theme = MakeShared<FMCPBridgePanelTheme>();
 
-    FSlateColorBrush ButtonNormalBrush;
-    FSlateColorBrush ButtonHoverBrush;
-    FSlateColorBrush ButtonPressedBrush;
-    FSlateColorBrush PrimaryButtonNormalBrush;
-    FSlateColorBrush PrimaryButtonHoverBrush;
-    FSlateColorBrush PrimaryButtonPressedBrush;
-    FSlateColorBrush TransparentBrush;
-    FButtonStyle SecondaryButtonStyle;
-    FButtonStyle PrimaryButtonStyle;
-    FButtonStyle TransparentButtonStyle;
+    const FLinearColor& AppBackground = Theme->AppBackground;
+    const FLinearColor& HeaderBackground = Theme->HeaderBackground;
+    const FLinearColor& CardBackground = Theme->CardBackground;
+    const FLinearColor& CardInsetBackground = Theme->CardInsetBackground;
+    const FLinearColor& CardBorderColor = Theme->CardBorderColor;
+    const FLinearColor& ButtonNormal = Theme->ButtonNormal;
+    const FLinearColor& ButtonHover = Theme->ButtonHover;
+    const FLinearColor& ButtonPressed = Theme->ButtonPressed;
+    const FLinearColor& PrimaryBlue = Theme->PrimaryBlue;
+    const FLinearColor& PrimaryBlueHover = Theme->PrimaryBlueHover;
+    const FLinearColor& PrimaryBluePressed = Theme->PrimaryBluePressed;
+    const FLinearColor& TextPrimary = Theme->TextPrimary;
+    const FLinearColor& TextSecondary = Theme->TextSecondary;
+    const FLinearColor& TextMuted = Theme->TextMuted;
+    const FLinearColor& AccentBlue = Theme->AccentBlue;
+    const FLinearColor& SuccessGreen = Theme->SuccessGreen;
+    const FLinearColor& WarningAmber = Theme->WarningAmber;
+    const FLinearColor& ErrorRed = Theme->ErrorRed;
 
-public:
-    SMCPBridgePanel()
-        : ButtonNormalBrush(ButtonNormal)
-        , ButtonHoverBrush(ButtonHover)
-        , ButtonPressedBrush(ButtonPressed)
-        , PrimaryButtonNormalBrush(PrimaryBlue)
-        , PrimaryButtonHoverBrush(PrimaryBlueHover)
-        , PrimaryButtonPressedBrush(PrimaryBluePressed)
-        , TransparentBrush(FLinearColor::Transparent)
-    {
-    }
+    FButtonStyle& SecondaryButtonStyle = Theme->SecondaryButtonStyle;
+    FButtonStyle& PrimaryButtonStyle = Theme->PrimaryButtonStyle;
+    FButtonStyle& TransparentButtonStyle = Theme->TransparentButtonStyle;
 
-private:
     void ConfigureSlateStyles()
     {
-        SecondaryButtonStyle = FButtonStyle()
-            .SetNormal(ButtonNormalBrush)
-            .SetHovered(ButtonHoverBrush)
-            .SetPressed(ButtonPressedBrush)
-            .SetDisabled(ButtonPressedBrush)
-            .SetNormalPadding(FMargin(0.0f))
-            .SetPressedPadding(FMargin(0.0f));
-
-        PrimaryButtonStyle = FButtonStyle()
-            .SetNormal(PrimaryButtonNormalBrush)
-            .SetHovered(PrimaryButtonHoverBrush)
-            .SetPressed(PrimaryButtonPressedBrush)
-            .SetDisabled(ButtonPressedBrush)
-            .SetNormalPadding(FMargin(0.0f))
-            .SetPressedPadding(FMargin(0.0f));
-
-        TransparentButtonStyle = FButtonStyle()
-            .SetNormal(TransparentBrush)
-            .SetHovered(TransparentBrush)
-            .SetPressed(TransparentBrush)
-            .SetDisabled(TransparentBrush)
-            .SetNormalPadding(FMargin(0.0f))
-            .SetPressedPadding(FMargin(0.0f));
+        Theme->Configure();
     }
 
     FString GetMCPDir() const
@@ -441,39 +411,37 @@ private:
 
     FSlateFontInfo FontRegular(const int32 Size) const
     {
-        return FCoreStyle::GetDefaultFontStyle("Regular", ScaledFont(Size));
+        return Theme->FontRegular(Size);
     }
 
     FSlateFontInfo FontBold(const int32 Size) const
     {
-        return FCoreStyle::GetDefaultFontStyle("Bold", ScaledFont(Size));
+        return Theme->FontBold(Size);
     }
 
     int32 ScaledFont(const int32 Size) const
     {
-        const float Scale = bCompactLayout ? 0.60f : 1.0f;
-        return FMath::Max(8, FMath::RoundToInt(static_cast<float>(Size) * Scale));
+        return Theme->ScaledFont(Size);
     }
 
     float ScaledSize(const float Value) const
     {
-        const float Scale = bCompactLayout ? 0.72f : 1.0f;
-        return Value * Scale;
+        return Theme->ScaledSize(Value);
     }
 
     FMargin ScaledMargin(const float Uniform) const
     {
-        return FMargin(ScaledSize(Uniform));
+        return Theme->ScaledMargin(Uniform);
     }
 
     FMargin ScaledMargin(const float Left, const float Top, const float Right, const float Bottom) const
     {
-        return FMargin(ScaledSize(Left), ScaledSize(Top), ScaledSize(Right), ScaledSize(Bottom));
+        return Theme->ScaledMargin(Left, Top, Right, Bottom);
     }
 
     FSlateColor SecondaryColor() const
     {
-        return FSlateColor(TextSecondary);
+        return Theme->SecondaryColor();
     }
 
     FLinearColor ResultColor(const FString& Status) const
@@ -802,15 +770,28 @@ private:
 
     TSharedRef<SWidget> MakeSafetySection()
     {
-        return MakeCard(TEXT("Safety"), TEXT("Destructive actions stay off until the user enables them."),
-            SNew(SVerticalBox)
-            + SVerticalBox::Slot().AutoHeight().Padding(ScaledMargin(0.0f, 0.0f, 0.0f, 10.0f))[MakeSafetyToggle(TEXT("allow_actor_delete"), TEXT("Allow Actor Delete"), TEXT("Delete actors by name or pattern."))]
-            + SVerticalBox::Slot().AutoHeight().Padding(ScaledMargin(0.0f, 0.0f, 0.0f, 10.0f))[MakeSafetyToggle(TEXT("allow_asset_delete"), TEXT("Allow Asset Delete"), TEXT("Delete assets from the content browser."))]
-            + SVerticalBox::Slot().AutoHeight().Padding(ScaledMargin(0.0f, 0.0f, 0.0f, 10.0f))[MakeSafetyToggle(TEXT("allow_console_command"), TEXT("Allow Console Command"), TEXT("Run allowlisted console commands."))]
-            + SVerticalBox::Slot().AutoHeight().Padding(ScaledMargin(0.0f, 0.0f, 0.0f, 10.0f))[MakeSafetyToggle(TEXT("allow_python_proxy"), TEXT("Allow Python Proxy"), TEXT("Execute Unreal Python from MCP tools."))]
-            + SVerticalBox::Slot().AutoHeight().Padding(ScaledMargin(0.0f, 0.0f, 0.0f, 10.0f))[MakeSafetyToggle(TEXT("auto_compile_blueprints"), TEXT("Auto Compile Blueprints"), TEXT("Compile generated or changed Blueprint assets."))]
-            + SVerticalBox::Slot().AutoHeight().Padding(ScaledMargin(0.0f, 0.0f, 0.0f, 10.0f))[MakeSafetyToggle(TEXT("auto_save_after_operations"), TEXT("Auto Save After Operations"), TEXT("Save assets after successful batch actions."))]
-            + SVerticalBox::Slot().AutoHeight()[MakeSafetyToggle(TEXT("pie_commands_enabled"), TEXT("PIE Commands Enabled"), TEXT("Allow start, stop, and status for Play In Editor."))]);
+        return SNew(SMCPBridgeSafetyPanel)
+            .Theme(Theme)
+            .IsSafetyEnabled(FMCPIsSafetyEnabled::CreateSP(this, &SMCPBridgePanel::IsSafetyEnabledForWidget))
+            .OnToggleSafety(FMCPOnSafetyToggle::CreateSP(this, &SMCPBridgePanel::HandleSafetyToggle));
+    }
+
+    bool IsSafetyEnabledForWidget(const FString& Key) const
+    {
+        return IsSafetyEnabled(Key);
+    }
+
+    void HandleSafetyToggle(const FString& Key)
+    {
+        State.Safety.FindOrAdd(Key) = !IsSafetyEnabled(Key);
+        if (SaveConfigFile())
+        {
+            SetMessage(FString::Printf(TEXT("Updated safety: %s"), *Key));
+        }
+        else
+        {
+            SetMessage(FString::Printf(TEXT("Could not save safety setting: %s"), *Key));
+        }
     }
 
     TSharedRef<SWidget> MakeStatusSection()
@@ -827,7 +808,16 @@ private:
                 + SHorizontalBox::Slot().FillWidth(1.0f).Padding(ScaledMargin(10.0f, 0.0f, 10.0f, 0.0f))
                 [MakeStatusValue(TEXT("Last result"), [this]() { return TextFor(State.LastResult, TEXT("Idle")); }, [this]() { return ResultColor(State.LastResult); })]
                 + SHorizontalBox::Slot().FillWidth(1.0f).Padding(ScaledMargin(10.0f, 0.0f, 0.0f, 0.0f))
-                [MakeStatusValue(TEXT("Last error"), [this]() { return TextFor(State.LastErrorMessage.IsEmpty() ? State.LastErrorCode : State.LastErrorMessage, TEXT("No recent error")); }, TextSecondary)]
+                [
+                    SNew(SButton)
+                    .ButtonStyle(&TransparentButtonStyle)
+                    .ContentPadding(FMargin(0.0f))
+                    .ToolTipText(FText::FromString(TEXT("Click to print filtered error diagnostics to the Output Log.")))
+                    .OnClicked_Lambda([this]() { DumpLastErrorDiagnostics(); return FReply::Handled(); })
+                    [
+                        MakeStatusValue(TEXT("Last error"), [this]() { return TextFor(State.LastErrorMessage.IsEmpty() ? State.LastErrorCode : State.LastErrorMessage, TEXT("No recent error")); }, TextSecondary)
+                    ]
+                ]
             ]
             + SVerticalBox::Slot()
             .AutoHeight()
@@ -838,47 +828,30 @@ private:
                 + SHorizontalBox::Slot().FillWidth(1.0f).Padding(ScaledMargin(8.0f, 0.0f, 8.0f, 0.0f))
                 [MakeMetricTile(TEXT("WARN"), TEXT("Failures"), [this]() { return FText::AsNumber(State.Failures); }, WarningAmber)]
                 + SHorizontalBox::Slot().FillWidth(1.0f).Padding(ScaledMargin(8.0f, 0.0f, 0.0f, 0.0f))
-                [MakeMetricTile(TEXT("ERR"), TEXT("Errors"), [this]() { return FText::AsNumber(State.Errors); }, ErrorRed)]
+                [
+                    SNew(SButton)
+                    .ButtonStyle(&TransparentButtonStyle)
+                    .ContentPadding(FMargin(0.0f))
+                    .ToolTipText(FText::FromString(TEXT("Click to print filtered error diagnostics to the Output Log.")))
+                    .OnClicked_Lambda([this]() { DumpLastErrorDiagnostics(); return FReply::Handled(); })
+                    [
+                        MakeMetricTile(TEXT("ERR"), TEXT("Errors"), [this]() { return FText::AsNumber(State.Errors); }, ErrorRed)
+                    ]
+                ]
             ]);
     }
 
     TSharedRef<SWidget> MakeActionsSection()
     {
-        if (bCompactLayout)
-        {
-            return MakeCard(TEXT("Actions"), TEXT("Common bridge actions."), MakeActionsList());
-        }
-
-        return MakeCard(TEXT("Actions"), TEXT("Common bridge actions."), MakeActionsGrid());
+        return SNew(SMCPBridgeActionsPanel)
+            .Theme(Theme)
+            .bCompactLayout(bCompactLayout)
+            .OnQueueCommand(FMCPOnQueueCommand::CreateSP(this, &SMCPBridgePanel::HandleQueueCommand));
     }
 
-    TSharedRef<SWidget> MakeActionsGrid()
+    void HandleQueueCommand(const FString& CommandName)
     {
-        return SNew(SUniformGridPanel)
-            .SlotPadding(ScaledMargin(6.0f))
-            + SUniformGridPanel::Slot(0, 0)[MakeActionButton(TEXT("Copy Chat Handoff"), TEXT("bridge_copy_connection_prompt"))]
-            + SUniformGridPanel::Slot(1, 0)[MakeActionButton(TEXT("Copy Project Handoff"), TEXT("bridge_copy_project_info"))]
-            + SUniformGridPanel::Slot(2, 0)[MakeActionButton(TEXT("Test Connection"), TEXT("test_connection"))]
-            + SUniformGridPanel::Slot(0, 1)[MakeActionButton(TEXT("Run Self-Test"), TEXT("bridge_self_test"))]
-            + SUniformGridPanel::Slot(1, 1)[MakeActionButton(TEXT("Copy Latest Result"), TEXT("bridge_copy_latest_result"))]
-            + SUniformGridPanel::Slot(2, 1)[MakeActionButton(TEXT("Copy Recovery Command"), TEXT("bridge_copy_recovery_command"))]
-            + SUniformGridPanel::Slot(0, 2)[MakeActionButton(TEXT("Screenshot"), TEXT("viewport_screenshot"))]
-            + SUniformGridPanel::Slot(1, 2)[MakeActionButton(TEXT("Save Current Level"), TEXT("level_save"))]
-            + SUniformGridPanel::Slot(2, 2)[MakeActionButton(TEXT("Open Output Log"), TEXT("bridge_open_output_log"))];
-    }
-
-    TSharedRef<SWidget> MakeActionsList()
-    {
-        return SNew(SVerticalBox)
-            + SVerticalBox::Slot().AutoHeight().Padding(ScaledMargin(0.0f, 0.0f, 0.0f, 8.0f))[MakeActionButton(TEXT("Copy Chat Handoff"), TEXT("bridge_copy_connection_prompt"))]
-            + SVerticalBox::Slot().AutoHeight().Padding(ScaledMargin(0.0f, 0.0f, 0.0f, 8.0f))[MakeActionButton(TEXT("Copy Project Handoff"), TEXT("bridge_copy_project_info"))]
-            + SVerticalBox::Slot().AutoHeight().Padding(ScaledMargin(0.0f, 0.0f, 0.0f, 8.0f))[MakeActionButton(TEXT("Test Connection"), TEXT("test_connection"))]
-            + SVerticalBox::Slot().AutoHeight().Padding(ScaledMargin(0.0f, 0.0f, 0.0f, 8.0f))[MakeActionButton(TEXT("Run Self-Test"), TEXT("bridge_self_test"))]
-            + SVerticalBox::Slot().AutoHeight().Padding(ScaledMargin(0.0f, 0.0f, 0.0f, 8.0f))[MakeActionButton(TEXT("Copy Latest Result"), TEXT("bridge_copy_latest_result"))]
-            + SVerticalBox::Slot().AutoHeight().Padding(ScaledMargin(0.0f, 0.0f, 0.0f, 8.0f))[MakeActionButton(TEXT("Copy Recovery Command"), TEXT("bridge_copy_recovery_command"))]
-            + SVerticalBox::Slot().AutoHeight().Padding(ScaledMargin(0.0f, 0.0f, 0.0f, 8.0f))[MakeActionButton(TEXT("Screenshot"), TEXT("viewport_screenshot"))]
-            + SVerticalBox::Slot().AutoHeight().Padding(ScaledMargin(0.0f, 0.0f, 0.0f, 8.0f))[MakeActionButton(TEXT("Save Current Level"), TEXT("level_save"))]
-            + SVerticalBox::Slot().AutoHeight()[MakeActionButton(TEXT("Open Output Log"), TEXT("bridge_open_output_log"))];
+        QueueBridgeCommand(CommandName);
     }
 
     TSharedRef<SWidget> MakeOptimizationSection()
@@ -1266,74 +1239,59 @@ private:
             ];
     }
 
-    TSharedRef<SWidget> MakeSafetyToggle(const FString Key, const FString Label, const FString HelpText)
+    /** Print a filtered diagnostic block for the last failed bridge
+     *  activity to the Output Log, then focus the log tab. Spares the user
+     *  a blind dig through the full editor log when the ERR tile is red. */
+    void DumpLastErrorDiagnostics()
     {
-        return SNew(SBorder)
-            .BorderImage(FCoreStyle::Get().GetBrush("WhiteBrush"))
-            .BorderBackgroundColor(CardInsetBackground)
-            .Padding(ScaledMargin(12.0f, 10.0f, 12.0f, 10.0f))
-            [
-                SNew(SHorizontalBox)
-                + SHorizontalBox::Slot()
-                .FillWidth(1.0f)
-                .VAlign(VAlign_Center)
-                [
-                    SNew(SVerticalBox)
-                    + SVerticalBox::Slot().AutoHeight()
-                    [
-                        SNew(STextBlock)
-                        .Text(FText::FromString(Label))
-                        .Font(FontBold(14))
-                        .ColorAndOpacity(PrimaryColor())
-                    ]
-                    + SVerticalBox::Slot().AutoHeight().Padding(ScaledMargin(0.0f, 2.0f, 0.0f, 0.0f))
-                    [
-                        SNew(STextBlock)
-                        .Text(FText::FromString(HelpText))
-                        .Font(FontRegular(12))
-                        .ColorAndOpacity(MutedColor())
-                        .AutoWrapText(true)
-                    ]
-                ]
-                + SHorizontalBox::Slot()
-                .AutoWidth()
-                .VAlign(VAlign_Center)
-                .Padding(ScaledMargin(12.0f, 0.0f, 0.0f, 0.0f))
-                [
-                    SNew(SButton)
-                    .ButtonStyle(&TransparentButtonStyle)
-                    .OnClicked_Lambda([this, Key]()
-                    {
-                        State.Safety.FindOrAdd(Key) = !IsSafetyEnabled(Key);
-                        if (SaveConfigFile())
-                        {
-                            SetMessage(FString::Printf(TEXT("Updated safety: %s"), *Key));
-                        }
-                        else
-                        {
-                            SetMessage(FString::Printf(TEXT("Could not save safety setting: %s"), *Key));
-                        }
-                        return FReply::Handled();
-                    })
-                    [
-                        SNew(SBorder)
-                        .BorderImage(FCoreStyle::Get().GetBrush("WhiteBrush"))
-                        .BorderBackgroundColor_Lambda([this, Key]() { return IsSafetyEnabled(Key) ? PrimaryBlue : ButtonNormal; })
-                        .Padding(ScaledMargin(12.0f, 6.0f, 12.0f, 6.0f))
-                        [
-                            SNew(SBox)
-                            .WidthOverride(ScaledSize(34.0f))
-                            [
-                                SNew(STextBlock)
-                                .Text_Lambda([this, Key]() { return FText::FromString(IsSafetyEnabled(Key) ? TEXT("ON") : TEXT("OFF")); })
-                                .Font(FontBold(11))
-                                .Justification(ETextJustify::Center)
-                                .ColorAndOpacity_Lambda([this, Key]() { return FSlateColor(IsSafetyEnabled(Key) ? FLinearColor::White : TextMuted); })
-                            ]
-                        ]
-                    ]
-                ]
-            ];
+        UE_LOG(LogMCPBridgePanel, Display, TEXT("===== MCP Bridge error diagnostics ====="));
+        UE_LOG(LogMCPBridgePanel, Display, TEXT("Last command: %s (result: %s)"),
+            State.LastCommand.IsEmpty() ? TEXT("<none>") : *State.LastCommand,
+            State.LastResult.IsEmpty() ? TEXT("<idle>") : *State.LastResult);
+
+        const FString LastError = State.LastErrorMessage.IsEmpty() ? State.LastErrorCode : State.LastErrorMessage;
+        UE_LOG(LogMCPBridgePanel, Display, TEXT("Last error: %s"),
+            LastError.IsEmpty() ? TEXT("<none>") : *LastError);
+
+        int32 Printed = 0;
+        for (int32 Index = State.History.Num() - 1; Index >= 0 && Printed < 5; --Index)
+        {
+            const FMCPCommandHistoryEntry& Entry = State.History[Index];
+            const bool bFailed =
+                Entry.Status.Equals(TEXT("error"), ESearchCase::IgnoreCase) ||
+                Entry.Status.Equals(TEXT("failed"), ESearchCase::IgnoreCase) ||
+                Entry.Status.Equals(TEXT("failure"), ESearchCase::IgnoreCase);
+            if (!bFailed)
+            {
+                continue;
+            }
+            ++Printed;
+            UE_LOG(LogMCPBridgePanel, Warning, TEXT("[%d] %s  %s  (%s ms)  %s"),
+                Printed,
+                *Entry.Timestamp,
+                *Entry.Command,
+                Entry.DurationMs.IsEmpty() ? TEXT("-") : *Entry.DurationMs,
+                Entry.Error.IsEmpty() ? TEXT("<no error text>") : *Entry.Error);
+        }
+        if (Printed == 0)
+        {
+            UE_LOG(LogMCPBridgePanel, Display, TEXT("No failed commands in recent history."));
+        }
+
+        FString LastResultJson;
+        const FString LastResultPath = FPaths::Combine(GetMCPDir(), TEXT("last_command_result.json"));
+        if (FFileHelper::LoadFileToString(LastResultJson, *LastResultPath))
+        {
+            UE_LOG(LogMCPBridgePanel, Display, TEXT("Last command payload (%s):\n%s"), *LastResultPath, *LastResultJson);
+        }
+        else
+        {
+            UE_LOG(LogMCPBridgePanel, Display, TEXT("No last_command_result.json found at %s"), *LastResultPath);
+        }
+        UE_LOG(LogMCPBridgePanel, Display, TEXT("========================================"));
+
+        OpenOutputLog();
+        SetMessage(TEXT("Error diagnostics printed to Output Log (LogMCPBridgePanel)"));
     }
 
     TSharedRef<SWidget> MakeStatusValue(const FString& Label, TFunction<FText()> ValueGetter, const FLinearColor& ValueColor)
