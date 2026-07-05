@@ -21,14 +21,14 @@ For every question, follow this order:
 
 3. **Check existing code for patterns** -- the best way to understand how to build
    something new is to see how similar things were already built:
-   - C++ plugin: `ue4-plugin/BlueprintGraphBuilder/Source/BlueprintGraphBuilder/`
+   - C++ plugin: `Plugins/MCPBridge/Source/BlueprintGraphBuilder/`
    - MCP tools: `mcp-server/src/tools/`
-   - Python handlers: `unreal-plugin/Content/Python/mcp_bridge/handlers/`
-   - Generation pipeline: `unreal-plugin/Content/Python/mcp_bridge/generation/`
+   - Python handlers: `Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/`
+   - Generation pipeline: `Plugins/MCPBridge/Content/Python/mcp_bridge/generation/`
 
 4. **Check test files** -- tests show expected behavior and edge cases:
    - TS tests: `mcp-server/tests/`
-   - Python tests: `unreal-plugin/Content/Python/tests/`
+   - Python tests: `Plugins/MCPBridge/Content/Python/tests/`
 
 5. **Check agent/skill definitions** -- they encode project conventions:
    - `.claude/agents/` -- specialist agent definitions

@@ -50,7 +50,7 @@ const myTools = createMyTools(client);
 allTools.push(...myTools);
 ```
 
-## Step 3: Python Router Entry (`unreal-plugin/Content/Python/mcp_bridge/router.py`)
+## Step 3: Python Router Entry (`Plugins/MCPBridge/Content/Python/mcp_bridge/router.py`)
 
 ```python
 from mcp_bridge.handlers.my_category import handle_my_command
@@ -61,7 +61,7 @@ COMMAND_ROUTES = {
 }
 ```
 
-## Step 4: Python Handler (`unreal-plugin/Content/Python/mcp_bridge/handlers/my_category.py`)
+## Step 4: Python Handler (`Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/my_category.py`)
 
 ```python
 from typing import Any, Dict

@@ -50,11 +50,11 @@ Pick the right search focus based on the question type:
 
 | Question Type | Where to Look First |
 |---|---|
-| UE4 C++ API / class hierarchy | `ue4-plugin/BlueprintGraphBuilder/` source, then engine headers |
-| How a tool works end-to-end | `mcp-server/src/tools/`, `unreal-plugin/.../handlers/`, `router.py` |
+| UE4 C++ API / class hierarchy | `Plugins/MCPBridge/Source/BlueprintGraphBuilder/` source, then engine headers |
+| How a tool works end-to-end | `mcp-server/src/tools/`, `Plugins/MCPBridge/Content/Python/mcp_bridge/.../handlers/`, `router.py` |
 | What a spec decided | `docs/superpowers/specs/` |
 | What's left in a plan | `docs/superpowers/plans/` |
-| Generation pipeline | `unreal-plugin/.../generation/` |
+| Generation pipeline | `Plugins/MCPBridge/Content/Python/mcp_bridge/.../generation/` |
 | JSON schema format | Specs first, then `spec_schema.py`, then existing mechanic files |
 | Build/module dependencies | `Build.cs`, `package.json` |
 | Threading / game thread | `listener.py`, CLAUDE.md threading section |
@@ -70,7 +70,7 @@ Instead of guessing, dispatch:
 Agent(
   description="Research editor graph sync",
   model="opus",
-  prompt="Research question for the UE_Bridge project: How does the existing BlueprintGraphBuilder handle editor graph sync after building runtime nodes? Context: Planning the BehaviorTree builder's editor graph sync phase. Instructions: Search ue4-plugin/BlueprintGraphBuilder/ for any editor graph reconstruction code. Check specs at docs/superpowers/specs/2026-03-17-blueprint-graph-builder-design.md. Return the pattern with file paths. Do NOT write or modify any code."
+  prompt="Research question for the UE_Bridge project: How does the existing BlueprintGraphBuilder handle editor graph sync after building runtime nodes? Context: Planning the BehaviorTree builder's editor graph sync phase. Instructions: Search Plugins/MCPBridge/Source/BlueprintGraphBuilder/ for any editor graph reconstruction code. Check specs at docs/superpowers/specs/2026-03-17-blueprint-graph-builder-design.md. Return the pattern with file paths. Do NOT write or modify any code."
 )
 ```
 

@@ -10,8 +10,8 @@ description: >
 
 ## Three-Layer Architecture
 1. **TypeScript MCP Server** (`mcp-server/src/`) -- tool definitions, Zod schemas, HTTP client
-2. **Python Listener** (`unreal-plugin/Content/Python/mcp_bridge/`) -- HTTP server in UE4, game thread dispatch, handlers
-3. **C++ Plugin** (`ue4-plugin/BlueprintGraphBuilder/`) -- node graph builders (Blueprint, Widget, BehaviorTree)
+2. **Python Listener** (`Plugins/MCPBridge/Content/Python/mcp_bridge/`) -- HTTP server in UE4, game thread dispatch, handlers
+3. **C++ Plugin** (`Plugins/MCPBridge/Source/BlueprintGraphBuilder/`) -- node graph builders (Blueprint, Widget, BehaviorTree)
 
 ## Data Flow
 ```
@@ -20,23 +20,23 @@ Claude Code --stdio--> MCP Server --HTTP POST :8080--> Python Listener --> unrea
 
 ## File Ownership (hard boundaries)
 - `mcp-server/` = TypeScript only
-- `unreal-plugin/` = Python only
-- `ue4-plugin/` = C++ only (compiled by Unreal Build Tool)
+- `Plugins/MCPBridge/Content/Python/` = Python only
+- `Plugins/MCPBridge/Source/` = C++ only (compiled by Unreal Build Tool)
 - `docs/` = Markdown only
 
 ## Active Workstreams
 | Workstream | Location | Status |
 |---|---|---|
-| Blueprint Graph Builder | `ue4-plugin/BlueprintGraphBuilder/` | 11 passes complete |
-| Widget Blueprint Builder | `ue4-plugin/.../WidgetBuilder/` | Design complete |
-| Behavior Tree Builder | `ue4-plugin/.../BehaviorTreeBuilder/` | Complete (17 node types, services, arithmetic BB conditions) |
-| ShaderWeave Bridge | `unreal-plugin/.../shaderweave/` | Design complete |
+| Blueprint Graph Builder | `Plugins/MCPBridge/Source/BlueprintGraphBuilder/` | 11 passes complete |
+| Widget Blueprint Builder | `Plugins/MCPBridge/Source/BlueprintGraphBuilder/.../WidgetBuilder/` | Design complete |
+| Behavior Tree Builder | `Plugins/MCPBridge/Source/BlueprintGraphBuilder/.../BehaviorTreeBuilder/` | Complete (17 node types, services, arithmetic BB conditions) |
+| ShaderWeave Bridge | `Plugins/MCPBridge/Content/Python/mcp_bridge/.../shaderweave/` | Design complete |
 
 ## Key Reference Files
 - `CLAUDE.md` -- architecture rules, build commands, code standards
 - `docs/superpowers/specs/` -- design specifications
 - `docs/superpowers/plans/` -- implementation plans with task checklists
-- `unreal-plugin/.../generation/spec_schema.py` -- generation pipeline data structures
+- `Plugins/MCPBridge/Content/Python/mcp_bridge/.../generation/spec_schema.py` -- generation pipeline data structures
 
 ## Research Agents Available
 - **ue4-cpp-expert** -- UE4.27 C++ APIs, class hierarchies, plugin patterns

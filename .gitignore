@@ -17,3 +17,18 @@ __pycache__/
 task-queue.md
 decisions.md
 .orchestrator/
+
+# MCP bridge generated cache
+Saved/MCP/index/
+Saved/MCP/titles/
+
+# UE project plugins are not part of this repo, except the unified bridge plugin
+Plugins/*
+!Plugins/MCPBridge/
+# Never track build outputs inside the bridge plugin
+Plugins/MCPBridge/Binaries/
+Plugins/MCPBridge/Intermediate/
+Plugins/MCPBridge/Saved/
+
+# Local release artifacts (uploaded to cloud storage, not tracked)
+_releases/

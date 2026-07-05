@@ -17,8 +17,8 @@ Type a prompt like "Make me gameplay like Puzzle Fighter" and PromptBrush automa
 ## Prerequisites
 
 1. UE4.27 with the Python Editor Script Plugin enabled
-2. `BlueprintGraphBuilder` plugin compiled and enabled in your project (see `ue4-plugin/`)
-3. UE Bridge Python listener running (`unreal-plugin/Content/Python/startup.py`)
+2. `BlueprintGraphBuilder` plugin compiled and enabled in your project (see `Plugins/MCPBridge/Source/`)
+3. UE Bridge Python listener running (`Plugins/MCPBridge/Content/Python/startup.py`)
 4. MCP bridge running: `npm run build` then ensure `.mcp.json` is configured
 
 ## Plugin setup
@@ -95,7 +95,7 @@ handlers/promptbrush.py
 
 ## Adding a new genre
 
-Edit `unreal-plugin/Content/Python/mcp_bridge/generation/prompt_to_spec.py`:
+Edit `Plugins/MCPBridge/Content/Python/mcp_bridge/generation/prompt_to_spec.py`:
 
 1. Add keywords to `GENRE_KEYWORDS`:
 ```python
@@ -124,7 +124,7 @@ if genre == "horror":
 ## Files in this repo
 
 ```
-unreal-plugin/Content/Python/mcp_bridge/
+Plugins/MCPBridge/Content/Python/mcp_bridge/
   handlers/promptbrush.py          -- prompt_generate, prompt_status, prompt_spec_list
   generation/
     spec_schema.py                 -- BuildSpec dataclasses

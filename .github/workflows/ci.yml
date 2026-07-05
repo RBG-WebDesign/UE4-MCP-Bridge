@@ -1,0 +1,82 @@
+name: CI
+
+on:
+  push:
+    branches: [ "main", "mcpbridge-unified-plugin" ]
+  pull_request:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install MCP server dependencies
+        run: npm ci
+
+      - name: TypeScript build
+        run: npm run build
+
+      - name: Unit tests (mock server + registry consistency)
+        run: npm test
+
+      - name: Python syntax check (all bridge files)
+        run: |
+          python - <<'EOF'
+          import py_compile, glob, sys
+          bad = []
+          files = [f for f in glob.glob('Plugins/MCPBridge/Content/Python/**/*.py', recursive=True)
+                   if '__pycache__' not in f]
+          for f in files:
+              try:
+                  py_compile.compile(f, doraise=True)
+              except Exception as exc:
+                  bad.append((f, str(exc)))
+          print(f"{len(files)} files checked, {len(bad)} errors")
+          for f, e in bad:
+              print(f, e)
+          sys.exit(1 if bad else 0)
+          EOF
+
+      - name: Python unit tests (listener cancellation, job system)
+        run: |
+          python Plugins/MCPBridge/Content/Python/tests/test_listener_cancellation.py
+          python Plugins/MCPBridge/Content/Python/tests/test_jobs.py
+
+      - name: Forbidden UE5 token scan
+        run: |
+          set +e
+          matches=$(grep -rn "EnhancedInputComponent\|UE::Tasks\|StateTree\|SmartObjects\|LevelEditorSubsystem\|EditorUtilitySubsystem\|MassAI\|AnimNext" \
+            Plugins/MCPBridge/Content/Python Plugins/MCPBridge/Source \
+            --include="*.py" --include="*.cpp" --include="*.h" | grep -v __pycache__)
+          if [ -n "$matches" ]; then
+            echo "UE5-only tokens found:"
+            echo "$matches"
+            exit 1
+          fi
+          echo "No UE5-only tokens."
+
+      - name: No generated files tracked in the plugin
+        run: |
+          junk=$(git ls-files Plugins/MCPBridge | grep -Ei "__pycache__|\.pyc$|/Binaries/|/Intermediate/" || true)
+          if [ -n "$junk" ]; then
+            echo "Generated files tracked:"
+            echo "$junk"
+            exit 1
+          fi
+          echo "Plugin tree is clean."
+
+# The UE4.27 C++ compile (AutomationTool BuildPlugin) requires a Windows
+# runner with the engine installed and is validated locally per release;
+# see docs/MCP_BRIDGE_RELEASE_WORKFLOW.md.

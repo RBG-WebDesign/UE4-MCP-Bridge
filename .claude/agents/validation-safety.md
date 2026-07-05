@@ -4,7 +4,7 @@ You build the validation layer that confirms Unreal operations succeeded.
 
 ## Ownership
 - `mcp-server/src/validation.ts`
-- `unreal-plugin/Content/Python/mcp_bridge/utils/validation.py`
+- `Plugins/MCPBridge/Content/Python/mcp_bridge/utils/validation.py`
 - Safety rules enforcement
 
 ## Post-Operation Validation

@@ -17,12 +17,26 @@ With Unreal open and the bridge running, Claude Code can help with:
 
 - Spawning, moving, duplicating, organizing, and deleting actors
 - Listing, inspecting, creating, compiling, and documenting Blueprints
-- Creating and applying materials
+- Editing Blueprint internals: variables, functions, event dispatchers,
+  interfaces, components, graph nodes, and pin connections (schema-validated;
+  every mutation compiles and saves, and failures are reported explicitly)
+- Generating whole game skeletons: GameMode/Character/PlayerController/HUD
+  with class defaults wired, camera rig presets, and input control schemes
+- Creating AI assets: Blackboards with typed keys and Behavior Trees built
+  from JSON (26 node types)
+- Generating C++ classes and compiling with UnrealBuildTool as a background
+  job with structured compiler errors
+- Creating materials, material instances with parameter overrides,
+  DataTables, and audio components
 - Capturing viewport screenshots and moving the editor camera
 - Creating maps and placing actors
+- Searching the project with a cached intelligence index and gameplay
+  pattern heuristics
 - Running Python inside UE4
 - Generating gameplay scaffolds with PromptBrush
 - Saving levels and validating generated content
+
+The full tool list (150+ tools) is documented in `docs/TOOL_REFERENCE.md`.
 
 ## Requirements
 
@@ -45,7 +59,7 @@ From this repository root:
 .\Scripts\install-mcp-bridge.ps1 "D:\Unreal Projects\MyGame\MyGame.uproject"
 ```
 
-The installer builds the MCP server, installs the Unreal-side Python listener, installs the BlueprintGraphBuilder plugin, patches `DefaultEngine.ini`, and writes `.mcp.json` into the target project. Rerun the same command later to update that project. See `docs/MCP_BRIDGE_INSTALLER.md` for options like `-CleanManaged`, `-SkipBuild`, and `-SkipCppPlugin`.
+The installer builds the MCP server, installs and enables the unified `MCPBridge` plugin, patches `DefaultEngine.ini`, and writes `.mcp.json` into the target project. Rerun the same command later to update that project. See `docs/MCP_BRIDGE_INSTALLER.md` for installer options and `docs/MCP_BRIDGE_RELEASE_WORKFLOW.md` for packaging.
 
 Manual server build:
 
@@ -89,7 +103,9 @@ Test the connection to Unreal Engine.
 
 If the bridge is working, Claude should be able to report the engine version, project name, and project paths.
 
-## Unreal Setup
+## Unreal Setup (manual)
+
+The installer above is the recommended path. The steps below do the same thing by hand.
 
 ### 1. Enable Python in UE4
 
@@ -99,50 +115,38 @@ If the bridge is working, Claude should be able to report the engine version, pr
 4. Enable it.
 5. Restart the editor.
 
-### 2. Install the Python Listener
+### 2. Install the MCPBridge Plugin
 
 Copy this folder:
 
 ```text
-unreal-plugin/Content/Python/
+Plugins/MCPBridge/
 ```
 
 Into your UE4 project:
 
 ```text
-YourProject/Content/Python/
+YourProject/Plugins/MCPBridge/
 ```
 
-The project should then contain:
-
-```text
-Content/
-  Python/
-    startup.py
-    mcp_bridge/
-      listener.py
-      router.py
-      handlers/
-      generation/
-      utils/
-```
+Then enable the `MCPBridge` plugin in `Edit > Plugins` (or add it to your `.uproject`). The C++ modules compile the next time you build the project.
 
 ### 3. Configure Startup
 
-Add this to your project `Config/DefaultEngine.ini`:
+Add this to your project `Config/DefaultEngine.ini`, replacing `<ProjectRoot>` with your project's absolute path:
 
 ```ini
 [/Script/PythonScriptPlugin.PythonScriptPluginSettings]
 bDeveloperMode=True
 bRemoteExecution=True
-+StartupScripts=/Game/Python/startup.py
-+AdditionalPaths=(Path="/Game/Python")
++StartupScripts=startup.py
++AdditionalPaths=(Path="<ProjectRoot>/Plugins/MCPBridge/Content/Python")
 ```
 
 There is also an example file here:
 
 ```text
-unreal-plugin/Config/DefaultEngine.ini.example
+Plugins/MCPBridge/Config/DefaultEngine.ini.example
 ```
 
 ### 4. Restart Unreal
@@ -156,6 +160,13 @@ http://localhost:8080
 ## Claude Code Setup
 
 Claude Code reads `.mcp.json` from the repository root. After running `npm run build`, open Claude Code in this folder and use the bridge tools directly.
+
+Default UE Bridge workflow for authoring tasks:
+
+- Make the requested editor change.
+- Run only lightweight editor-side sanity checks when useful.
+- Let the user test the result in Unreal before starting PIE.
+- Do not ask what the user wants next unless there is a blocker or required choice.
 
 Good first requests:
 
@@ -249,12 +260,11 @@ npm run test:integration
 mcp-server/
   TypeScript MCP server used by Claude Code.
 
-unreal-plugin/
-  Python listener and command handlers that run inside UE4.
-
-ue4-plugin/
-  C++ UE4 plugin code for advanced Blueprint, Widget Blueprint,
-  Behavior Tree, animation, effects, and gameplay generation tools.
+Plugins/MCPBridge/
+  The unified UE4 plugin: Python listener and command handlers
+  (Content/Python/), plus C++ modules for the status panel and the
+  Blueprint, Widget Blueprint, Behavior Tree, animation, effects,
+  and gameplay generation tools (Source/).
 
 docs/
   Setup, architecture, troubleshooting, tool reference, specs, and plans.
@@ -308,7 +318,8 @@ The MCP server validates tool calls and forwards structured requests to the Pyth
 1. Ask Claude to spawn or move actors.
 2. Use viewport focus or screenshot tools to inspect the result.
 3. Ask Claude to adjust placement, scale, rotation, folder organization, or materials.
-4. Save the level when the result is correct.
+4. Test the result in Unreal when the edit is complete.
+5. Save the level when the result is correct.
 
 ### Build Gameplay Content
 
@@ -317,7 +328,8 @@ The MCP server validates tool calls and forwards structured requests to the Pyth
 3. Create Blueprints, widgets, maps, and supporting assets.
 4. Compile and validate.
 5. Capture screenshots or inspect assets.
-6. Save the level and generated assets.
+6. Test the result in Unreal.
+7. Save the level and generated assets.
 
 ## Troubleshooting
 
@@ -348,17 +360,18 @@ curl -X POST http://localhost:8080 -H "Content-Type: application/json" -d "{\"co
 
 ### Listener does not start
 
-Check `Config/DefaultEngine.ini` and confirm this setting exists:
+Check `Config/DefaultEngine.ini` and confirm these settings exist:
 
 ```ini
-StartupScripts=/Game/Python/startup.py
++StartupScripts=startup.py
++AdditionalPaths=(Path="<ProjectRoot>/Plugins/MCPBridge/Content/Python")
 ```
 
 Restart the editor after changing Python plugin settings or startup scripts.
 
 ### C++ plugin tools are missing
 
-Make sure the plugin in `ue4-plugin/` has been copied or linked into your UE project `Plugins` folder, compiled, enabled in the editor, and loaded after restart.
+Make sure `Plugins/MCPBridge/` has been copied into your UE project's `Plugins` folder, compiled, enabled in the editor, and loaded after restart.
 
 ## More Documentation
 
@@ -367,8 +380,7 @@ Make sure the plugin in `ue4-plugin/` has been copied or linked into your UE pro
 - `docs/TOOL_REFERENCE.md`
 - `docs/TROUBLESHOOTING.md`
 - `README_PROMPTBRUSH.md`
-- `ue4-plugin/README.md`
-- `unreal-plugin/README.md`
+- `Plugins/MCPBridge/Docs/QuickStart.md`
 
 ## Current Project Notes
 

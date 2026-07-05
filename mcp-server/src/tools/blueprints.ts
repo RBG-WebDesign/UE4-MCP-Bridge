@@ -206,26 +206,11 @@ export function createBlueprintTools(client: UnrealClient): ToolDefinition[] {
           clear_existing: boolean;
         };
 
-        // Escape for safe embedding in Python single-quoted strings
-        const escapedPath = blueprint_path.replace(/\\/g, "\\\\").replace(/'/g, "\\'");
-        const graphJson = JSON.stringify(graph)
-          .replace(/\\/g, "\\\\")
-          .replace(/'/g, "\\'");
-        const clearFlag = (clear_existing ?? true) ? "True" : "False";
-
-        const code = `\
-import unreal
-bp = unreal.load_object(None, '${escapedPath}')
-if not bp:
-    raise Exception('Blueprint not found at path: ${escapedPath}')
-unreal.BlueprintGraphBuilderLibrary.build_blueprint_from_json(bp, '${graphJson}', ${clearFlag})
-print('blueprint_build_from_json: done')
-`;
-        // Note: graphJson is already a valid JSON string -- pass it directly to C++.
-        // The C++ function calls FJsonSerializer::Deserialize internally, so no Python
-        // json.loads/json.dumps roundtrip is needed.
-
-        const result = await client.sendCommand("python_proxy", { code });
+        const result = await client.sendCommand("blueprint_build_from_json", {
+          blueprint_path,
+          graph_json: graph,
+          clear_existing,
+        });
         return {
           content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }],
         };
@@ -323,25 +308,11 @@ print('blueprint_build_from_json: done')
           };
         }
 
-        // Call blueprint_build_from_json via python_proxy
-        const escapedPath = blueprint_path
-          .replace(/\\/g, "\\\\")
-          .replace(/'/g, "\\'");
-        const graphJson = JSON.stringify(graph)
-          .replace(/\\/g, "\\\\")
-          .replace(/'/g, "\\'");
-        const clearFlag = (clear_existing ?? true) ? "True" : "False";
-
-        const code = `\
-import unreal
-bp = unreal.load_object(None, '${escapedPath}')
-if not bp:
-    raise Exception('Blueprint not found at path: ${escapedPath}')
-unreal.BlueprintGraphBuilderLibrary.build_blueprint_from_json(bp, '${graphJson}', ${clearFlag})
-print('blueprint_build_from_description: done')
-`;
-
-        const result = await client.sendCommand("python_proxy", { code });
+        const result = await client.sendCommand("blueprint_build_from_json", {
+          blueprint_path,
+          graph_json: graph,
+          clear_existing,
+        });
         return {
           content: [
             {

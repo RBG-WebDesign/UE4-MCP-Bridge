@@ -20,7 +20,7 @@ Dispatch this agent when you need answers about:
 
 1. **Check existing C++ code first.** The BlueprintGraphBuilder plugin has 11 passes of
    working code. Use it as the authoritative pattern reference:
-   - `ue4-plugin/BlueprintGraphBuilder/Source/BlueprintGraphBuilder/`
+   - `Plugins/MCPBridge/Source/BlueprintGraphBuilder/`
    - Look at existing builders: WidgetBuilder/, BehaviorTreeBuilder/
    - Check Build.cs for module dependencies
    - Check Public/ headers for the public API surface

@@ -23,7 +23,7 @@ TypeScript process using `@modelcontextprotocol/sdk`. Registers tools with Zod i
 
 Does not know how Unreal works internally. Sends structured JSON, returns text results.
 
-### Python Listener (`unreal-plugin/`)
+### Python Listener (`Plugins/MCPBridge/Content/Python/`)
 Python script running inside the UE4.27 editor process. Starts an HTTP server on localhost:8080, receives JSON command payloads, and executes them using the `unreal` module.
 
 Uses a background thread for HTTP with a thread-safe queue to marshal commands to UE4's game thread via `register_slate_post_tick_callback`.

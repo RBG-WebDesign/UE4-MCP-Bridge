@@ -28,6 +28,12 @@ import { createOperationsTools } from "./tools/operations.js";
 import { createPromptBrushTools } from "./tools/promptbrush.js";
 import { createGameplayTools } from "./tools/gameplay.js";
 import { createEffectsTools } from "./tools/effects.js";
+import { createIntelligenceTools } from "./tools/intelligence.js";
+import { createTitleTools } from "./tools/titles.js";
+import { createBlueprintGraphTools } from "./tools/blueprint-graph.js";
+import { createCppTools } from "./tools/cpp.js";
+import { createGamedevTools } from "./tools/gamedev.js";
+import { createContentTools } from "./tools/content.js";
 import type { ToolDefinition } from "./types.js";
 
 async function main(): Promise<void> {
@@ -52,6 +58,12 @@ async function main(): Promise<void> {
     ...createPromptBrushTools(client),
     ...createGameplayTools(client),
     ...createEffectsTools(client),
+    ...createIntelligenceTools(client),
+    ...createTitleTools(client),
+    ...createBlueprintGraphTools(client),
+    ...createCppTools(client),
+    ...createGamedevTools(client),
+    ...createContentTools(client),
   ];
 
   // Build a lookup map
@@ -65,13 +77,32 @@ async function main(): Promise<void> {
     "actor_spawn", "actor_modify", "actor_delete", "actor_duplicate",
     "actor_organize", "actor_snap_to_socket", "batch_spawn",
     "material_create", "material_apply",
+    "asset_save_many", "project_enable_plugins",
     "blueprint_create", "blueprint_compile", "blueprint_build_from_json", "blueprint_build_from_description",
     "anim_blueprint_build_from_json",
     "widget_build_from_json",
+    "widget_title_card_create", "widget_lower_third_create",
+    "title_manifest_create", "title_manifest_from_reference",
+    "title_widget_build_from_manifest", "title_controller_create",
+    "title_sequence_bind", "title_manifest_adjust",
     "prompt_generate",
     "level_save",
     "pp_volume_spawn", "pp_volume_modify", "pp_preset",
     "camera_shake_blueprint", "camera_shake_spawn", "camera_shake_trigger",
+    "blueprint_add_variable", "blueprint_remove_variable", "blueprint_set_variable_default",
+    "blueprint_add_function", "blueprint_remove_function",
+    "blueprint_add_event_dispatcher", "blueprint_remove_event_dispatcher",
+    "blueprint_add_interface", "blueprint_remove_interface",
+    "blueprint_component_remove", "blueprint_component_rename",
+    "blueprint_node_add", "blueprint_node_delete", "blueprint_node_move",
+    "blueprint_node_set_enabled", "blueprint_pins_connect", "blueprint_pins_break",
+    "cpp_class_create", "cpp_build",
+    "input_mapping_add", "input_mapping_remove", "input_preset_apply",
+    "gameplay_framework_create", "project_settings_maps", "camera_rig_create",
+    "blackboard_create", "behavior_tree_create", "ai_nav_rebuild",
+    "material_instance_create", "material_instance_set_params",
+    "data_table_create", "data_table_fill_from_json",
+    "audio_component_add", "level_new", "game_template_create",
   ]);
 
   // Handle tools/list

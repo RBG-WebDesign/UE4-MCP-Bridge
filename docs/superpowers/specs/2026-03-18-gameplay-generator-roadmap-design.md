@@ -37,6 +37,14 @@ Repair Plane:       failure analysis -> patch -> recompile  (stub only)
 All three planes run inside the same bridge architecture: `POST /` -> `router.py` ->
 handlers. No new ports, no new listener process, no new URL namespace.
 
+## Assistant Runtime Testing Policy
+
+The validation plane defines runtime tools, but assistant authoring workflows
+should not start PIE automatically when an edit is complete. Default to
+editor-side validation, then hand off to the user for testing in Unreal. Use
+`gameplay_pie_start`, telemetry, and runtime acceptance checks only when the
+user explicitly requests runtime testing or the task is about PIE behavior.
+
 ## Architecture
 
 ### New files

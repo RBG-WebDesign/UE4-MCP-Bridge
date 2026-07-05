@@ -1,11 +1,37 @@
 /**
  * PromptBrush tools: prompt_generate, prompt_status, prompt_spec_list,
- * blueprint_build_from_json, widget_build_from_json.
+ * widget_build_from_json.
  */
 
 import { z } from "zod";
 import { UnrealClient } from "../unreal-client.js";
 import type { ToolDefinition } from "../types.js";
+
+const colorSchema = z.object({
+  r: z.number(),
+  g: z.number(),
+  b: z.number(),
+  a: z.number().optional(),
+});
+
+const titleBaseSchema = {
+  package_path: z.string().startsWith("/").optional().describe("Content directory path, default /Game/UI/Titles"),
+  asset_name: z.string().optional().describe("Widget Blueprint asset name"),
+  title: z.string().optional().describe("Primary title text"),
+  subtitle: z.string().optional().describe("Secondary line text"),
+  eyebrow: z.string().optional().describe("Small label above the title"),
+  preset: z.enum(["cinematic", "broadcast", "horror", "clean"]).optional().describe("Visual preset"),
+  fade_in: z.number().positive().optional().describe("Fade-in duration in seconds"),
+  hold: z.number().min(0).optional().describe("Suggested hold duration in seconds"),
+  fade_out: z.number().positive().optional().describe("Fade-out duration in seconds"),
+  title_color: colorSchema.optional(),
+  subtitle_color: colorSchema.optional(),
+  background_color: colorSchema.optional(),
+  accent_color: colorSchema.optional(),
+  title_font_size: z.number().positive().optional(),
+  subtitle_font_size: z.number().positive().optional(),
+  eyebrow_font_size: z.number().positive().optional(),
+};
 
 export function createPromptBrushTools(client: UnrealClient): ToolDefinition[] {
   return [
@@ -62,21 +88,47 @@ export function createPromptBrushTools(client: UnrealClient): ToolDefinition[] {
       },
     },
     {
-      name: "blueprint_build_from_json",
+      name: "widget_title_template",
       description:
-        "Build a Blueprint event graph from a JSON schema using BlueprintGraphBuilderLibrary. " +
-        "The Blueprint must already exist. This populates its event graph nodes and wiring.",
+        "Return a polished UMG title or lower-third widget JSON spec with named fade-in and fade-out animations. " +
+        "Does not create an asset.",
       inputSchema: z.object({
-        blueprint_path: z
-          .string()
-          .startsWith("/")
-          .describe("Asset path of the Blueprint to populate e.g. /Game/Blueprints/BP_MyActor"),
-        graph_json: z
-          .record(z.unknown())
-          .describe("Graph specification object matching BlueprintGraphBuilderLibrary schema"),
+        ...titleBaseSchema,
+        style: z.enum(["title", "lower_third"]).optional().describe("Template style to generate"),
+        lower_third: z.boolean().optional().describe("Alias for style=lower_third"),
       }),
       handler: async (params) => {
-        const result = await client.sendCommand("blueprint_build_from_json", params);
+        const result = await client.sendCommand("widget_title_template", params);
+        return {
+          content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }],
+        };
+      },
+    },
+    {
+      name: "widget_title_card_create",
+      description:
+        "Create a centered cinematic title-card Widget Blueprint with styled text, background treatment, and FadeIn/FadeOut animation specs.",
+      inputSchema: z.object({
+        ...titleBaseSchema,
+        asset_name: z.string().default("WBP_TitleCard"),
+      }),
+      handler: async (params) => {
+        const result = await client.sendCommand("widget_title_card_create", params);
+        return {
+          content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }],
+        };
+      },
+    },
+    {
+      name: "widget_lower_third_create",
+      description:
+        "Create a broadcast-style lower-third Widget Blueprint with styled title/subtitle text and FadeIn/FadeOut animation specs.",
+      inputSchema: z.object({
+        ...titleBaseSchema,
+        asset_name: z.string().default("WBP_LowerThird"),
+      }),
+      handler: async (params) => {
+        const result = await client.sendCommand("widget_lower_third_create", params);
         return {
           content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }],
         };
