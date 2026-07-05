@@ -1738,6 +1738,32 @@ def handle_optimization_quick_triage(params: Dict[str, Any]) -> Dict[str, Any]:
         if bool(params.get("generate_report", False)):
             data["report_path"] = _write_report(unreal, {"data": data}, "quick_triage")
 
+        # Persist an agent-ready context payload so the MCP server (or any
+        # agent session) can pull the bundled triage evidence in one read
+        # instead of re-running the audits. Overwritten on every triage run.
+        try:
+            context_payload = {
+                "generated_at": datetime.datetime.utcnow().replace(microsecond=0).isoformat() + "Z",
+                "source": "optimization_quick_triage",
+                "target": target,
+                "target_frame_ms": target_frame_ms,
+                "likely_bottleneck": likely_bottleneck,
+                "evidence": evidence,
+                "recommended_next_steps": recommended_next_steps,
+                "summaries": summaries,
+                "findings": findings[: int(params.get("max_output_findings", 50))],
+                "finding_count": len(findings),
+                "report_path": data.get("report_path"),
+            }
+            context_dir = os.path.join(unreal.SystemLibrary.get_project_directory(), "Saved", "MCP")
+            os.makedirs(context_dir, exist_ok=True)
+            context_path = os.path.join(context_dir, "optimization_context.json")
+            with open(context_path, "w", encoding="utf-8") as fh:
+                json.dump(context_payload, fh, indent=2, sort_keys=True, default=str)
+            data["context_path"] = context_path
+        except Exception as context_exc:
+            data["context_error"] = f"Context payload not written: {context_exc}"
+
         return _ok(data)
     except Exception as exc:
         return _err(str(exc))
