@@ -42,7 +42,20 @@ async function main(): Promise<void> {
 
   const server = new Server(
     { name: "unreal-bridge", version: "1.0.0" },
-    { capabilities: { tools: {} } }
+    {
+      capabilities: { tools: {} },
+      instructions: [
+        "Before executing any structural engine or blueprint generation task",
+        "(gameplay systems, blueprint/widget generation, editor C++, UI",
+        "materials), read the contents of docs/playbooks/ in the project",
+        "repository. Playbooks are verified recipes for pre-solved UE4.27",
+        "architecture patterns: design intent, dependencies, graph logic,",
+        "replication steps, and engine-specific gotchas. Follow an existing",
+        "playbook instead of re-deriving a solution, and when you materially",
+        "change a documented system, update its playbook as part of the work.",
+        "If docs/playbooks/ does not exist in this project, proceed normally.",
+      ].join(" "),
+    }
   );
 
   // Collect all tool definitions

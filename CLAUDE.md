@@ -159,6 +159,19 @@ A second MCP server (`unreal-api`) runs alongside `unreal-bridge` and serves UE4
 - **unreal-api MCP** (`search_unreal_api`, `get_function_signature`, etc.) -- for **C++ API**: class hierarchies, function signatures, `#include` paths, deprecation. Use when writing C++ in `Plugins/MCPBridge/Source/`.
 - **Context7 StubHub** (`mcp__plugin_context7_context7__query-docs` with `/radial-hks/unreal-python-stubhub`) -- for **Python API**: `unreal` module method signatures, property types, Python class wrappers. Use when writing Python handlers in `Plugins/MCPBridge/Content/Python/`.
 
+## Architecture Playbooks (`docs/playbooks/`)
+
+Before executing any structural engine or blueprint generation task (gameplay
+systems, blueprint/widget generation, editor C++, UI materials), read
+`docs/playbooks/` for an existing recipe. Playbooks are verified specs of
+pre-solved UE4.27 systems: design intent, dependencies, graph logic,
+replication steps, and engine-specific gotchas. Follow the playbook instead
+of re-deriving the solution. When you build or materially change a major
+system, writing or updating its playbook is part of finishing the work; use
+`docs/playbooks/_TEMPLATE.md`. The unreal-bridge MCP server also ships this
+instruction to any project it connects to (see `instructions` in
+`mcp-server/src/index.ts`).
+
 ## Architecture Rules
 - The MCP server never imports or references Unreal modules. It only sends HTTP.
 - The Python listener never imports MCP SDK modules. It only receives HTTP.
