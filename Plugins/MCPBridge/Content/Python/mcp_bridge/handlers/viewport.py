@@ -10,7 +10,6 @@ NOT transactable in UE4's undo system. Do not wrap them in transactions.
 import math
 import os
 import datetime
-import time
 from typing import Any, Dict
 
 
@@ -88,6 +87,9 @@ def handle_viewport_screenshot(params: Dict[str, Any]) -> Dict[str, Any]:
 
     Saves screenshots to {ProjectDir}/Saved/Screenshots/MCPBridge/.
     Returns the absolute filesystem path so Claude Code can read the file.
+    The PNG is written at end of frame, after this handler returns, so the
+    response carries status "pending"; callers poll the filepath until
+    the file has nonzero size (the MCP server does this automatically).
 
     Capture fallback chain:
     1. unreal.AutomationLibrary.take_high_res_screenshot() if available in 4.27
@@ -169,20 +171,24 @@ def handle_viewport_screenshot(params: Dict[str, Any]) -> Dict[str, Any]:
                     "error": f"Screenshot capture failed. Primary: {primary_err}. Fallback: {fallback_err}",
                 }
 
-        # Unreal may finish writing the PNG shortly after the screenshot call returns.
+        # The capture is deferred: UE4 writes the PNG at end of frame, but this
+        # handler runs on the game thread inside a slate post-tick callback.
+        # Blocking here would prevent the frame from ever ending, so the file
+        # could never be written while we wait. Return immediately with a
+        # pending status; the MCP server polls the filesystem off-thread.
         file_size = 0
-        for _ in range(100):
-            if os.path.exists(filepath):
-                file_size = os.path.getsize(filepath)
-                if file_size > 0:
-                    break
-            time.sleep(0.1)
+        status = "pending"
+        if os.path.exists(filepath):
+            file_size = os.path.getsize(filepath)
+            if file_size > 0:
+                status = "complete"
 
         return {
             "success": True,
             "data": {
                 "filepath": filepath,
                 "filename": filename,
+                "status": status,
                 "resolution": {"width": res_x, "height": res_y},
                 "file_size_bytes": file_size,
                 "capture_method": capture_method,

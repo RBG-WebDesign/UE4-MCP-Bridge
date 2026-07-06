@@ -666,6 +666,9 @@ export class MockUnrealServer {
       data: {
         filepath: `/mock/project/Saved/Screenshots/MCPBridge/${filename}`,
         filename,
+        // "complete" (not "pending") so unit tests never poll the filesystem
+        // for this fake path; the pending path is covered by integration tests.
+        status: "complete",
         resolution: { width: resX, height: resY },
         file_size_bytes: 245760,
         capture_method: "AutomationLibrary.take_high_res_screenshot",

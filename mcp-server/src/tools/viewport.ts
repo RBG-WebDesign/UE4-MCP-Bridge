@@ -2,9 +2,36 @@
  * Viewport tools: screenshot, camera, mode, focus, render_mode, bounds, fit, look_at.
  */
 
+import { stat } from "fs/promises";
 import { z } from "zod";
 import { UnrealClient } from "../unreal-client.js";
 import type { ToolDefinition } from "../types.js";
+
+/**
+ * The listener responds before UE4 writes the PNG: the capture happens at
+ * end of frame, and the Python handler cannot block the game thread waiting
+ * for a frame it would be preventing. Poll for the file here instead, off
+ * the game thread, so callers can read the image as soon as the tool returns.
+ */
+async function waitForScreenshotFile(data: Record<string, unknown>): Promise<void> {
+  const filepath = data.filepath;
+  if (data.status !== "pending" || typeof filepath !== "string") {
+    return;
+  }
+  for (let attempt = 0; attempt < 100; attempt++) {
+    try {
+      const info = await stat(filepath);
+      if (info.size > 0) {
+        data.file_size_bytes = info.size;
+        data.status = "complete";
+        return;
+      }
+    } catch {
+      // File not written yet.
+    }
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+}
 
 export function createViewportTools(client: UnrealClient): ToolDefinition[] {
   return [
@@ -21,6 +48,9 @@ export function createViewportTools(client: UnrealClient): ToolDefinition[] {
       }),
       handler: async (params) => {
         const result = await client.sendCommand("viewport_screenshot", params);
+        if (result.success) {
+          await waitForScreenshotFile(result.data);
+        }
         return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
       },
     },
