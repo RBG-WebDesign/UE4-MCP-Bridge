@@ -2,9 +2,13 @@
 
 #include "CoreMinimal.h"
 #include "Windows/WindowsPlatformApplicationMisc.h"
+#include "Editor.h"
+#include "FileHelpers.h"
 #include "Framework/Application/SlateApplication.h"
 #include "Framework/Docking/TabManager.h"
+#include "HAL/FileManager.h"
 #include "HttpModule.h"
+#include "UnrealClient.h"
 #include "Interfaces/IHttpRequest.h"
 #include "Interfaces/IHttpResponse.h"
 #include "Json.h"
@@ -1581,15 +1585,29 @@ private:
             return FReply::Handled();
         }
 
+        // level_save and viewport_screenshot run natively instead of through
+        // the Python listener: they are pure editor operations, respond
+        // instantly, and keep working when the listener is disabled.
         if (CommandName == TEXT("level_save"))
         {
-            PostCommand(CommandName, TEXT("{\"save_all\": false}"));
+            const bool bSaved = FEditorFileUtils::SaveCurrentLevel();
+            SetMessage(bSaved ? TEXT("Level saved") : TEXT("Level save failed or was cancelled"));
             return FReply::Handled();
         }
 
         if (CommandName == TEXT("viewport_screenshot"))
         {
-            PostCommand(CommandName, TEXT("{\"resolution\": {\"width\": 1920, \"height\": 1080}}"));
+            const FString Directory = FPaths::ProjectSavedDir() / TEXT("Screenshots/MCPBridge");
+            IFileManager::Get().MakeDirectory(*Directory, true);
+            const FString Filepath = Directory / FString::Printf(TEXT("panel_%s.png"), *FDateTime::Now().ToString(TEXT("%Y%m%d_%H%M%S")));
+            FScreenshotRequest::RequestScreenshot(Filepath, /*bInShowUI*/ false, /*bAddFilenameSuffix*/ false);
+            if (GEditor)
+            {
+                // The request is fulfilled on the next viewport draw; force one
+                // so non-realtime viewports do not sit on the request.
+                GEditor->RedrawAllViewports();
+            }
+            SetMessage(FString::Printf(TEXT("Screenshot requested: %s"), *Filepath));
             return FReply::Handled();
         }
 
