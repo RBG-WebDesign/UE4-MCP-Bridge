@@ -7,6 +7,7 @@
 #include "Engine/Blueprint.h"
 #include "Kismet2/BlueprintEditorUtils.h"
 #include "UObject/UnrealType.h"
+#include "UObject/UObjectIterator.h"
 
 #define LOCTEXT_NAMESPACE "BPVariableOps"
 
@@ -17,6 +18,25 @@ namespace
      *  Syncs the description field back from the CDO so downstream readers (inspector,
      *  editor UI) still see the current default. Matches what
      *  FBlueprintEditorUtils::DuplicateVariableDescription does on BP duplication. */
+    /** Convert a JSON scalar to FProperty::ImportText form. Callers pass
+     *  json.dumps output, so strings arrive wrapped in literal quotes.
+     *  ImportText on a numeric/bool/enum property parses a leading quote as
+     *  garbage (Atof('"42.5"') == 0.0) while still reporting success, so
+     *  strip JSON quoting unless the property genuinely holds text. */
+    FString JsonDefaultToImportText(const FString& DefaultValueJson, const bool bIsTextLike)
+    {
+        FString Trimmed = DefaultValueJson.TrimStartAndEnd();
+        const bool bQuoted = Trimmed.Len() >= 2 && Trimmed.StartsWith(TEXT("\"")) && Trimmed.EndsWith(TEXT("\""));
+        if (!bQuoted || bIsTextLike)
+        {
+            return Trimmed;
+        }
+        FString Inner = Trimmed.Mid(1, Trimmed.Len() - 2);
+        Inner.ReplaceInline(TEXT("\\\""), TEXT("\""));
+        Inner.ReplaceInline(TEXT("\\\\"), TEXT("\\"));
+        return Inner;
+    }
+
     void SyncDefaultValueFromCDO(UBlueprint* Blueprint, const FName& VarFName)
     {
         if (!Blueprint) return;
@@ -63,7 +83,14 @@ bool FBPVariableOps::AddVariable(UBlueprint* Blueprint, const FString& VarName, 
         LOCTEXT("AddVariable", "Soul Juice: Add Variable"),
         [&]() -> bool
         {
-            const bool bAdded = FBlueprintEditorUtils::AddMemberVariable(Blueprint, VarFName, PinType, DefaultValueJson);
+            const bool bTextLikePin =
+                PinType.PinCategory == TEXT("string") ||
+                PinType.PinCategory == TEXT("name") ||
+                PinType.PinCategory == TEXT("text");
+            const FString ImportDefault = DefaultValueJson.IsEmpty()
+                ? DefaultValueJson
+                : JsonDefaultToImportText(DefaultValueJson, bTextLikePin);
+            const bool bAdded = FBlueprintEditorUtils::AddMemberVariable(Blueprint, VarFName, PinType, ImportDefault);
             if (!bAdded)
             {
                 UE_LOG(LogBlueprintMutator, Error, TEXT("AddVariable: AddMemberVariable returned false for '%s'"), *VarName);
@@ -124,11 +151,65 @@ bool FBPVariableOps::SetVariableDefault(UBlueprint* Blueprint, const FString& Va
         LOCTEXT("SetVariableDefault", "Soul Juice: Set Variable Default"),
         [&]() -> bool
         {
-            // UE4.27 has no FBlueprintEditorUtils::SetBlueprintVariableDefaultValue; write the
-            // string default directly onto the FBPVariableDescription (this is what
-            // AddMemberVariable itself does at BlueprintEditorUtils.cpp:4747). The subsequent
-            // CompileBlueprint inside RunMutation applies it to the CDO.
-            Blueprint->NewVariables[VarIndex].DefaultValue = DefaultValueJson;
+            // The description string alone is not enough for a pre-existing
+            // variable: recompiling copies the OLD CDO's values onto the new
+            // CDO (user-edit preservation), so the string never wins. Write
+            // the CDO directly, like the editor's Details panel does, before
+            // the compile so the value survives the copy.
+            UClass* GenClass = Blueprint->GeneratedClass;
+            UObject* CDO = GenClass ? GenClass->GetDefaultObject(/*bCreateIfNeeded=*/false) : nullptr;
+            FProperty* Prop = GenClass ? FindFProperty<FProperty>(GenClass, VarFName) : nullptr;
+            if (!CDO || !Prop)
+            {
+                UE_LOG(LogBlueprintMutator, Warning,
+                    TEXT("SetVariableDefault: '%s' has no compiled property on %s; compile the blueprint first"),
+                    *VarName, *Blueprint->GetName());
+                return false;
+            }
+            void* Addr = Prop->ContainerPtrToValuePtr<void>(CDO);
+
+            const bool bIsTextLike = Prop->IsA<FStrProperty>() || Prop->IsA<FNameProperty>() || Prop->IsA<FTextProperty>();
+            const FString ImportString = JsonDefaultToImportText(DefaultValueJson, bIsTextLike);
+            Blueprint->NewVariables[VarIndex].DefaultValue = ImportString;
+
+            FString OldExported;
+            Prop->ExportTextItem(OldExported, Addr, Addr, nullptr, PPF_SerializedAsImportText);
+
+            CDO->Modify();
+            if (Prop->ImportText(*ImportString, Addr, PPF_SerializedAsImportText, CDO) == nullptr)
+            {
+                UE_LOG(LogBlueprintMutator, Warning,
+                    TEXT("SetVariableDefault: could not parse '%s' as a value for '%s'"),
+                    *ImportString, *VarName);
+                return false;
+            }
+
+            // Loaded child class CDOs carry their own copy of the value. Any
+            // child still holding the old default should follow the new one
+            // (children that overrode it keep their override), mirroring
+            // delta-serialization semantics.
+            for (TObjectIterator<UClass> It; It; ++It)
+            {
+                UClass* Child = *It;
+                if (Child == GenClass || !Child->IsChildOf(GenClass) ||
+                    Child->HasAnyClassFlags(CLASS_NewerVersionExists))
+                {
+                    continue;
+                }
+                UObject* ChildCDO = Child->GetDefaultObject(/*bCreateIfNeeded=*/false);
+                if (!ChildCDO)
+                {
+                    continue;
+                }
+                void* ChildAddr = Prop->ContainerPtrToValuePtr<void>(ChildCDO);
+                FString ChildExported;
+                Prop->ExportTextItem(ChildExported, ChildAddr, ChildAddr, nullptr, PPF_SerializedAsImportText);
+                if (ChildExported == OldExported)
+                {
+                    ChildCDO->Modify();
+                    Prop->ImportText(*ImportString, ChildAddr, PPF_SerializedAsImportText, ChildCDO);
+                }
+            }
             return true;
         });
     if (bOk)
