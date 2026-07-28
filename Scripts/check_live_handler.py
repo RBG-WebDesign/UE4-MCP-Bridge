@@ -50,10 +50,21 @@ def classify_analyze(data: Dict[str, Any]) -> Tuple[str, str]:
             return "canonical", "nested root/pelvis/compression with mean, max, p95"
         return "partial", "has a root block but no step_cm_per_frame distribution"
 
+    # Check the flat shape before the no-track case: the legacy handler reports a
+    # missing root track as has_root_track=false, which would otherwise look
+    # inconclusive rather than legacy.
     flat_markers = [k for k in ("step_mean_cm", "has_root_track", "compression_settings")
                     if k in data]
     if flat_markers:
         return "legacy", "flat shape, keys: " + ", ".join(flat_markers)
+
+    # A sequence with no root track at all -- a stabilized idle, for instance --
+    # produces neither shape's statistics, so this probe cannot discriminate.
+    # Not a failure; the caller falls back to the anim_reanchor probe.
+    if "error" in data and "sequence" in data:
+        return "inconclusive", (
+            "probe sequence has no root track, so this call cannot tell the "
+            "implementations apart")
 
     return "unknown", "keys: " + ", ".join(sorted(data)[:12])
 
@@ -119,10 +130,27 @@ def main() -> int:
                 print(f"anim_reanchor            : error ({reanchor.get('error')})")
 
     print()
-    verdicts = [v for v in (verdict, reanchor_verdict) if v]
-    if all(v == "canonical" for v in verdicts):
+
+    # The anim_reanchor probe is authoritative when it ran. It is the command
+    # that actually gates a write, and a verdict field is something only this
+    # repo's handler produces. The analyze probe is a fallback, and it goes
+    # inconclusive on a sequence with no root track.
+    if reanchor_verdict == "canonical":
         print("The listener is serving this repo's handlers. Safety gates are live.")
+        if verdict != "canonical":
+            print(f"(the analyze probe was {verdict}; the reanchor verdict decides)")
         return 0
+
+    if reanchor_verdict is None and verdict == "canonical":
+        print("The listener is serving this repo's handlers.")
+        print("Pass --reference to also confirm the divergent gate directly.")
+        return 0
+
+    if reanchor_verdict is None and verdict == "inconclusive":
+        print("Inconclusive. The probe sequence has no root track, so this call")
+        print("cannot tell the implementations apart. Re-run with --reference, or")
+        print("point --sequence at a clip that has one.")
+        return 3
 
     print("The listener is NOT serving this repo's handlers.")
     print()
