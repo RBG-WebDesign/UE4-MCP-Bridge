@@ -113,11 +113,11 @@ in the response as `skipped_no_track`, never silently dropped.
 **Finalize once.** `FinalizeBoneAnimation` recompresses the whole sequence and is expensive.
 Call it once after all tracks are mutated, not per bone.
 
-**Coordinate space check.** `GetBonePosesForFrame` returns `FTransform` per bone; whether
-that is local or component space needs confirming in-editor before the math is trusted.
-Pass 1 acceptance includes verifying it agrees with `GetRawTrackRotationData` for the same
-bone and frame. If it turns out to be component space, the reference read switches to
-`GetRawTrackRotationData` for both sides.
+**Coordinate space: resolved, local.** `GetBonePosesForFrame` returns local
+(parent-relative) transforms. Verified in-editor against `GetRawTrackRotationData` at frame
+0 for `pelvis`, `spine_01`, `clavicle_l`, and `hand_l`: all four agree to four decimal
+places, delta 0.0000 degrees. The delta math in this spec is therefore correct as written,
+and `preview_mesh` has no bearing on the returned space, so leaving it `None` is safe.
 
 ## Root Motion Analysis
 
@@ -346,6 +346,11 @@ that noise does not cause needless recompression.
 
 ## Implementation Passes
 
+Status: Pass 1 is written and its unit tests pass. It has **not** been run against a live
+editor, so the acceptance list below is outstanding, and every `unreal.AnimationLibrary`
+call other than `get_bone_poses_for_frame` is still unobserved. Passes 2 onward are not
+started.
+
 **Pass 1 -- Read path. Python only, no plugin rebuild.** `anim_pose_snapshot`,
 `anim_pose_delta`, and `anim_root_motion_analyze`. No mutating code exists anywhere in the
 build yet. Acceptance, in order:
@@ -356,11 +361,10 @@ build yet. Acceptance, in order:
 2. Confirm the step distribution and roughness classify it as `smooth_drift`, and that the
    `inverted_root_authoring` flag fires given the near-stationary pelvis.
 3. Calibrate the roughness boundary against a clip that is known to look correct.
-4. Resolve the coordinate space question: confirm `GetBonePosesForFrame` agrees with
-   `GetRawTrackRotationData` for the same bone and frame, and switch the reference read if
-   it does not.
-5. Confirm the reported degree deltas on the Donathan clips match what is visible in the
+4. Confirm the reported degree deltas on the Donathan clips match what is visible in the
    editor.
+
+The coordinate space item that used to sit here is resolved; see Resolved: Coordinate Space.
 
 Item 1 is the reason this pass exists. Reproducing a number that was arrived at by other
 means is the only cheap check available that the raw track reader is correct at all.
@@ -453,19 +457,20 @@ Directly verified for `get_bone_poses_for_frame` only. The other reads
 marshaling is expected but has not been observed. Confirm each on first use rather than
 assuming; the cost is one `python_proxy` call apiece.
 
-## Open Question
+## Resolved: Coordinate Space
 
-**Coordinate space is still unresolved.** The verification above covers marshaling, not
-semantics: it did not establish whether the returned `FTransform` values are local
-(parent-relative) or component space. The delta math in this spec assumes local, matching
-raw track `RotKeys`. This remains a Pass 1 acceptance item, checked by comparing
-`get_bone_poses_for_frame` against `get_raw_track_rotation_data` for the same bone and
-frame. If they disagree, the reference read switches to `get_raw_track_rotation_data` for
-both sides and `get_bone_poses_for_frame` drops out of the design entirely.
+`get_bone_poses_for_frame` returns **local (parent-relative)** transforms. Measured against
+`get_raw_track_rotation_data` at frame 0:
 
-The `preview_mesh` default interacts with this. If the transforms turn out to be component
-space, then the mesh argument selects the reference skeleton used to compose them, and
-leaving it `None` makes results depend on whichever preview mesh each sequence happens to
-carry. In that case it must be passed explicitly so a batch run stays comparable across
-clips. If the transforms are local, the argument does not matter. Resolve the space
-question first, then decide.
+| Bone | `get_bone_poses_for_frame` | `get_raw_track_rotation_data` | Delta |
+|---|---|---|---|
+| `pelvis` | (89.6534, -51.4840, -51.8454) | (89.6534, -51.4840, -51.8454) | 0.0000 deg |
+| `spine_01` | (0.4449, 3.4751, 0.0976) | (0.4449, 3.4751, 0.0976) | 0.0000 deg |
+| `clavicle_l` | (-76.4938, -96.9320, 110.6357) | (-76.4938, -96.9320, 110.6357) | 0.0000 deg |
+| `hand_l` | (1.3926, 2.9340, -87.4916) | (1.3926, 2.9340, -87.4916) | 0.0000 deg |
+
+Consequences: the delta math is correct as written, `preview_mesh` has no bearing on the
+returned space so leaving it `None` is safe, and the fallback plan of dropping
+`get_bone_poses_for_frame` in favor of reading raw tracks on both sides is not needed.
+
+No open questions remain blocking Pass 1.

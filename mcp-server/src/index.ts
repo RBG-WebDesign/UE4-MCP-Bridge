@@ -34,6 +34,7 @@ import { createBlueprintGraphTools } from "./tools/blueprint-graph.js";
 import { createCppTools } from "./tools/cpp.js";
 import { createGamedevTools } from "./tools/gamedev.js";
 import { createContentTools } from "./tools/content.js";
+import { createAnimationTools } from "./tools/animation.js";
 import type { ToolDefinition } from "./types.js";
 
 async function main(): Promise<void> {
@@ -77,6 +78,7 @@ async function main(): Promise<void> {
     ...createCppTools(client),
     ...createGamedevTools(client),
     ...createContentTools(client),
+    ...createAnimationTools(client),
   ];
 
   // Build a lookup map

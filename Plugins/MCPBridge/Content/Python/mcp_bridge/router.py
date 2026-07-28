@@ -92,6 +92,11 @@ from mcp_bridge.handlers.gameplay import (
     handle_telemetry_snapshot,
     handle_run_acceptance_tests,
 )
+from mcp_bridge.handlers.animation import (
+    handle_anim_pose_snapshot,
+    handle_anim_pose_delta,
+    handle_anim_root_motion_analyze,
+)
 from mcp_bridge.handlers.effects import (
     handle_pp_volume_spawn,
     handle_pp_volume_modify,
@@ -325,6 +330,11 @@ COMMAND_ROUTES: Dict[str, Callable[[Dict[str, Any]], Dict[str, Any]]] = {
     "gameplay_pie_stop": handle_pie_stop,
     "gameplay_telemetry_snapshot": handle_telemetry_snapshot,
     "gameplay_run_acceptance_tests": handle_run_acceptance_tests,
+
+    # Animation pose analysis (read-only)
+    "anim_pose_snapshot": handle_anim_pose_snapshot,
+    "anim_pose_delta": handle_anim_pose_delta,
+    "anim_root_motion_analyze": handle_anim_root_motion_analyze,
 
     # Effects (PostProcess, Camera Shake, Visual Effects)
     "pp_volume_spawn": handle_pp_volume_spawn,
