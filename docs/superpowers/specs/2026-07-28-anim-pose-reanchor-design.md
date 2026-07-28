@@ -510,6 +510,30 @@ must either drop the route or have the handler ported into this repo first.
 Verified against fixtures covering the abort path, a project with extra unrelated routes, a
 fresh project needing the import block inserted, and a repeat run proving idempotency.
 
+## Stale Module Hazard
+
+Reconciling files on disk does not change what a running listener answers with. Python
+caches imported modules, so the listener keeps executing whatever it loaded at startup until
+it is restarted. Nothing about the filesystem reveals this.
+
+It has already cost something real. After a reconcile ran, `anim_reanchor` was called with
+`dry_run: false` on `SK_Donathan_Run_180_Left` -- the clip this repo classifies as
+`divergent` at 80.65 degrees -- and the write went through. The response carried the old
+flat shape (`finalized`, `saved`) rather than this repo's (`verdict`, `written`,
+`write_report`, `backup`), so the divergent refusal and the pre-write asset duplication were
+both absent from the path that executed.
+
+`Scripts/check_live_handler.py` asks the listener which implementation is answering and
+says plainly whether the safety gates are live. Run it after every reconcile and before any
+write:
+
+```
+python Scripts/check_live_handler.py --sequence /Game/Path/Clip --reference /Game/Path/Idle
+```
+
+Exit code 0 means canonical, 1 means the listener needs restarting, 2 means it could not be
+reached.
+
 ## Testing
 
 Unit tests in `mcp-server/tests/animation-tools.test.ts` against `mock-server.ts`, covering
