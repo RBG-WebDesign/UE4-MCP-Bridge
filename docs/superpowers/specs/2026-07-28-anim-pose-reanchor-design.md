@@ -523,6 +523,23 @@ flat shape (`finalized`, `saved`) rather than this repo's (`verdict`, `written`,
 `write_report`, `backup`), so the divergent refusal and the pre-write asset duplication were
 both absent from the path that executed.
 
+Root cause, now fixed: `restart_listener` with `reload: true` called
+`importlib.reload(listener)` and nothing else. `listener.py` resolves the router through
+`from mcp_bridge.router import route_command`, which binds whatever `sys.modules` already
+holds, so the router and every handler stayed cached. The docstring claimed it "picks up
+code changes without an editor restart"; that was only ever true of `listener.py` itself.
+
+`_deep_reload_bridge_modules` in `handlers/system.py` now reloads utils, then handlers, then
+the router, in that order, because `reload` re-executes a module and its `from X import Y`
+binds X as it exists at that moment. It also deletes each module's cached `.pyc` first:
+Python validates bytecode on source mtime and size only, so a file rewritten in the same
+mtime second at the same byte length passes validation and reload silently reuses the old
+code. `importlib.invalidate_caches()` does not help, since it clears finder caches rather
+than that check.
+
+This means Python-side changes no longer need an editor restart:
+`{"command": "restart_listener", "params": {"reload": true}}`. C++ changes still do.
+
 `Scripts/check_live_handler.py` asks the listener which implementation is answering and
 says plainly whether the safety gates are live. Run it after every reconcile and before any
 write:

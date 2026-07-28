@@ -6,7 +6,7 @@ import traceback
 import datetime
 import json
 import os
-from typing import Any, Dict
+from typing import Any, Dict, List
 
 
 def handle_ping(params: Dict[str, Any]) -> Dict[str, Any]:
@@ -317,6 +317,101 @@ def handle_bridge_command_manifest(params: Dict[str, Any]) -> Dict[str, Any]:
         return {"success": False, "data": {}, "error": str(e)}
 
 
+# Reloaded in this order so each layer picks up the fresh version of the one
+# below it. Anything not listed is left alone.
+_RELOAD_PREFIXES = ("mcp_bridge.utils.", "mcp_bridge.handlers.")
+_RELOAD_LAST = ("mcp_bridge.router",)
+
+# mcp_bridge.state owns the live command queue. Replacing it mid-restart would
+# strand whatever is already in flight, including this very request.
+_RELOAD_SKIP = {"mcp_bridge.state", "mcp_bridge.listener"}
+
+
+def _deep_reload_bridge_modules() -> List[str]:
+    """Reload handler, util, and router modules. Returns the names reloaded.
+
+    importlib.reload(listener) alone does not do this. listener.py resolves the
+    router through `from mcp_bridge.router import route_command`, and that binds
+    whatever sys.modules already holds, so handler edits stayed invisible until
+    the whole editor restarted.
+
+    Order matters for the same reason: reload re-executes a module and its
+    `from X import Y` statements bind X as it exists at that moment. Utils go
+    first, then handlers (which import utils), then the router (which imports
+    handlers).
+
+    A module that fails to reload is reported rather than aborting the rest,
+    since leaving the listener down is worse than leaving one module stale.
+    """
+    import importlib
+    import importlib.util
+    import sys
+
+    importlib.invalidate_caches()
+
+    reloaded: List[str] = []
+    failures: List[str] = []
+
+    def _drop_stale_bytecode(module: Any) -> None:
+        """Delete a module's cached .pyc before reloading it.
+
+        Python validates cached bytecode on source mtime and size only.
+        invalidate_caches() does not help: it clears finder caches, not that
+        check. So a file rewritten within the same mtime second at the same byte
+        length -- a threshold edited from 30.0 to 45.0, say, moments before a
+        reload -- passes validation and reload silently reuses the old bytecode.
+        Silently running old code is the exact failure this function exists to
+        prevent, so the cache is removed rather than trusted.
+        """
+        import os
+
+        source = getattr(module, "__file__", None)
+        if not source or not source.endswith(".py"):
+            return
+        try:
+            cached = importlib.util.cache_from_source(source)
+        except Exception:
+            return
+        try:
+            if os.path.isfile(cached):
+                os.remove(cached)
+        except OSError:
+            # A read-only or locked cache is not fatal; reload still usually
+            # picks up the change because most edits alter the file size.
+            pass
+
+    def _reload(name: str) -> None:
+        module = sys.modules.get(name)
+        if module is None:
+            return
+        try:
+            _drop_stale_bytecode(module)
+            importlib.reload(module)
+            reloaded.append(name)
+        except Exception as exc:
+            failures.append(f"{name}: {exc}")
+
+    for prefix in _RELOAD_PREFIXES:
+        for name in sorted(n for n in list(sys.modules) if n.startswith(prefix)):
+            if name in _RELOAD_SKIP:
+                continue
+            _reload(name)
+
+    for name in _RELOAD_LAST:
+        if name not in _RELOAD_SKIP:
+            _reload(name)
+
+    if failures:
+        try:
+            import unreal
+            for failure in failures:
+                unreal.log_error(f"[MCP Bridge] Reload failed for {failure}")
+        except ImportError:
+            pass
+
+    return reloaded
+
+
 def handle_restart_listener(params: Dict[str, Any]) -> Dict[str, Any]:
     """Restart the MCP Bridge listener on the next editor tick.
 
@@ -353,7 +448,11 @@ def handle_restart_listener(params: Dict[str, Any]) -> Dict[str, Any]:
                 from mcp_bridge import listener
                 listener.stop()
                 if do_reload:
+                    reloaded = _deep_reload_bridge_modules()
                     listener = importlib.reload(listener)
+                    unreal.log(
+                        f"[MCP Bridge] Reloaded {len(reloaded)} module(s): "
+                        + ", ".join(reloaded))
                 listener.start(host, port)
                 unreal.log(f"[MCP Bridge] Listener restarted on {host}:{port} (reload={do_reload})")
             except Exception as exc:
