@@ -428,16 +428,44 @@ dragged into position if the new idle moved a lot. Window length is an art call 
 **IK chain correction.** Foot and hand IK bones are not solved. They are excluded from the
 default mask and left to the existing IK setup.
 
+## Verified Python Bindings
+
+Confirmed against a live UE4.27 editor, not inferred:
+
+```python
+unreal.AnimationLibrary.get_bone_poses_for_frame(
+    animation_sequence, bone_names, frame, extract_root_motion, preview_mesh=None
+) -> Array(Transform)
+```
+
+Three things this settles:
+
+- The `meta=(ScriptName="AnimationLibrary")` specifier does produce `unreal.AnimationLibrary`,
+  so the class name in every call site is correct.
+- The `TArray<FTransform>&` out-parameter marshals as the **direct return value** rather than
+  requiring a pre-allocated argument. Results come back as a Python list matching `bone_names`
+  one-to-one.
+- `preview_mesh` is optional and defaults to `None`.
+
+Directly verified for `get_bone_poses_for_frame` only. The other reads
+(`get_raw_track_rotation_data`, `get_raw_track_position_data`,
+`get_bone_compression_settings`) use the same out-parameter pattern in C++, so the same
+marshaling is expected but has not been observed. Confirm each on first use rather than
+assuming; the cost is one `python_proxy` call apiece.
+
 ## Open Question
 
-The Python binding names for `UAnimationBlueprintLibrary` follow its
-`meta=(ScriptName="AnimationLibrary")` specifier, so calls should be
-`unreal.AnimationLibrary.get_bone_poses_for_frame(...)`. This is inferred from the UCLASS
-specifier, not observed.
+**Coordinate space is still unresolved.** The verification above covers marshaling, not
+semantics: it did not establish whether the returned `FTransform` values are local
+(parent-relative) or component space. The delta math in this spec assumes local, matching
+raw track `RotKeys`. This remains a Pass 1 acceptance item, checked by comparing
+`get_bone_poses_for_frame` against `get_raw_track_rotation_data` for the same bone and
+frame. If they disagree, the reference read switches to `get_raw_track_rotation_data` for
+both sides and `get_bone_poses_for_frame` drops out of the design entirely.
 
-Now that all of Passes 1 and 2 run through Python, this assumption carries the whole
-read path rather than part of it. Confirm it through `python_proxy` against a live editor
-before writing the handler, per the prototyping rule in CLAUDE.md. Specifically check that
-the `TArray<T>&` out-parameters (`Poses`, `RotationData`, `PositionData`) marshal as Python
-return values rather than requiring pre-allocated arguments, since that changes every call
-site in the handler.
+The `preview_mesh` default interacts with this. If the transforms turn out to be component
+space, then the mesh argument selects the reference skeleton used to compose them, and
+leaving it `None` makes results depend on whichever preview mesh each sequence happens to
+carry. In that case it must be passed explicitly so a batch run stays comparable across
+clips. If the transforms are local, the argument does not matter. Resolve the space
+question first, then decide.
