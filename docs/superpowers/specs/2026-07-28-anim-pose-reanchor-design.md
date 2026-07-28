@@ -434,10 +434,35 @@ open.
 `has_root_track`, `step_mean_cm`, `compression_settings`, `range_cm.xy_magnitude`) that does
 not match this repo's nested shape (`sequence`, `root.step_cm_per_frame.{mean,max,p95}`,
 `pelvis.local_range_cm`, `compression.codec`). Two implementations therefore exist: the one
-tracked here and the one running in the game project. They must be reconciled before Pass 3,
-because Pass 3 mutates assets and a schema mismatch there is expensive rather than merely
-confusing. Reconciling toward this repo keeps the tests, the p95 statistic, the pelvis block,
-and the registry-consistency check.
+tracked here and the one running in the game project.
+
+## Reconciliation
+
+`Scripts/reconcile_animation_schema.py` merges a game project's animation handlers to this
+repo's canonical schema. Dry run by default; `--apply` writes, with `.bak` copies.
+
+**The response schema is decided entirely by Python.** The TypeScript tools call
+`client.sendCommand` and `JSON.stringify` the result without reshaping it, so reconciling the
+schema means replacing the project's `handlers/animation.py`. The TS layer only affects tool
+registration and parameter names.
+
+**Why not `install-mcp-bridge.ps1`.** That script copies `Plugins/MCPBridge` wholesale with
+`Copy-Item -Force`, which overwrites `router.py`. A project carrying routes this repo does
+not have (locomotion, PIE agent, engine source search) would lose them: the handler files
+survive, but their imports and routes do not, so those commands start returning "Unknown
+command". The reconcile script patches only the four animation entries and leaves every
+other route untouched.
+
+**The failure mode the preflight exists to stop.** If the project router imports an animation
+handler this repo does not define, copying `animation.py` over it makes the import raise, and
+a router that cannot import is a bridge that answers nothing. That is not a degraded
+animation feature; it is a dead listener. The script refuses to write in that state and names
+both the missing handler and the commands that would break. `anim_batch_reanchor` is the live
+example: it is Pass 4 here and not yet implemented, so a project that already registered it
+must either drop the route or have the handler ported into this repo first.
+
+Verified against fixtures covering the abort path, a project with extra unrelated routes, a
+fresh project needing the import block inserted, and a repeat run proving idempotency.
 
 ## Testing
 
