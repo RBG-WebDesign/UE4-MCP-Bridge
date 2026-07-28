@@ -169,6 +169,7 @@ async function main(): Promise<void> {
   await server.connect(transport);
 
   console.error(`[Unreal MCP Bridge] Server started with ${allTools.length} tools`);
+  console.error(`[Unreal MCP Bridge] Listener endpoint: ${client.endpoint}`);
   console.error(`[Unreal MCP Bridge] Tools: ${allTools.map((t) => t.name).join(", ")}`);
 }
 

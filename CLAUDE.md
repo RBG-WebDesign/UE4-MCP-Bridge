@@ -32,6 +32,34 @@ The MCP server entry point is `mcp-server/dist/index.js` (ESM). Claude Code disc
 - UE4.27 with the Python Editor Script Plugin enabled
 - Node.js 18+
 
+### Remote Listener
+
+The MCP server normally runs on the same machine as the editor and talks to
+localhost:8080. When it does not -- a server in a container reaching an editor
+over a tunnel, for instance -- point it with environment variables set in the
+process that launches the MCP server:
+
+```bash
+export UNREAL_BRIDGE_HOST=100.64.0.7      # or a Tailscale MagicDNS name
+export UNREAL_BRIDGE_PORT=8080
+export UNREAL_BRIDGE_TIMEOUT_MS=320000    # raise for a slow link
+```
+
+Set these in the launching environment rather than interpolating them in
+`.mcp.json`; not every MCP client expands `${VAR}` there, and an unexpanded
+placeholder would otherwise be used verbatim as a hostname. The client detects
+that case and falls back, but the variable still would not take effect.
+
+The server logs its resolved endpoint at startup, so a mismatch is visible
+immediately rather than as a confusing connection error later.
+
+**Security.** The listener has no authentication, and `python_proxy` executes
+arbitrary Python inside the editor with full `unreal` module access. Anything
+that can reach the port can run code in the editor and read or write project
+files. Only expose it over a private network (Tailscale, WireGuard, an SSH
+tunnel bound to loopback). Never forward the port to the public internet or
+bind it to 0.0.0.0 on an untrusted network.
+
 ## Architecture
 
 ```
@@ -43,7 +71,9 @@ ShaderWeave (web app, future) --HTTP /shaderweave/v1/*:8080--> Python Listener (
 
 ### MCP Server (`mcp-server/src/`)
 - `index.ts` -- entry point, registers all tools, starts stdio transport
-- `unreal-client.ts` -- the sole HTTP client that talks to UE4 (localhost:8080, 60s timeout)
+- `unreal-client.ts` -- the sole HTTP client that talks to UE4. Defaults to localhost:8080;
+  override with `UNREAL_BRIDGE_HOST`, `UNREAL_BRIDGE_PORT`, `UNREAL_BRIDGE_TIMEOUT_MS` when
+  the MCP server and the editor are on different machines (see Remote Listener below)
 - `types.ts` -- shared `ToolDefinition` interface (name, Zod schema, handler)
 - `history.ts` -- undo/redo/checkpoint tracking
 - `validation.ts` -- shared validation helpers

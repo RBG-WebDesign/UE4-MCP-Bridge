@@ -1,8 +1,21 @@
 /**
  * HTTP client for communicating with the UE4 Python listener.
- * 
- * Sends JSON commands to localhost:8080 and returns parsed responses.
- * This module is the only point of contact between the MCP server and Unreal.
+ *
+ * Sends JSON commands to the listener and returns parsed responses. This
+ * module is the only point of contact between the MCP server and Unreal.
+ *
+ * Defaults to localhost:8080. Override with environment variables when the
+ * MCP server and the editor are not on the same machine, e.g. when the server
+ * runs in a container and reaches the editor over a tunnel:
+ *
+ *   UNREAL_BRIDGE_HOST=100.x.y.z      hostname or IP of the listener
+ *   UNREAL_BRIDGE_PORT=8080           port
+ *   UNREAL_BRIDGE_TIMEOUT_MS=320000   request timeout
+ *
+ * SECURITY: the listener has no authentication and python_proxy executes
+ * arbitrary Python inside the editor. Only point this at a host reachable
+ * over a private network (Tailscale, WireGuard, an SSH tunnel bound to
+ * loopback). Never expose the listener port to the public internet.
  */
 
 import http from "http";
@@ -22,17 +35,71 @@ export interface UnrealClientOptions {
 // Client timeout must exceed the listener's COMMAND_TIMEOUT_SECONDS (300s)
 // so the server's structured timeout error reaches the caller instead of
 // the client cutting the connection first.
-const DEFAULT_OPTIONS: UnrealClientOptions = {
-  host: "localhost",
-  port: 8080,
-  timeout: 320000,
-};
+const FALLBACK_HOST = "localhost";
+const FALLBACK_PORT = 8080;
+const FALLBACK_TIMEOUT = 320000;
+
+/**
+ * Parse an integer environment variable, ignoring values that are absent,
+ * malformed, or out of range. A typo in a tunnel port should fall back to the
+ * default rather than silently producing NaN and an unroutable request.
+ */
+function envInt(name: string, fallback: number, min: number, max: number): number {
+  const raw = process.env[name];
+  if (raw === undefined || raw.trim() === "") return fallback;
+  const text = raw.trim();
+  // Reject anything that is not purely an integer before parsing. parseInt
+  // stops at the first non-digit, so "80.5" would otherwise become port 80 --
+  // a different, silently wrong endpoint rather than an error.
+  const parsed = /^-?\d+$/.test(text) ? Number.parseInt(text, 10) : Number.NaN;
+  if (!Number.isFinite(parsed) || parsed < min || parsed > max) {
+    console.error(
+      `[Unreal MCP Bridge] Ignoring ${name}="${raw}": expected an integer ` +
+      `between ${min} and ${max}. Using ${fallback}.`
+    );
+    return fallback;
+  }
+  return parsed;
+}
+
+function envHost(): string {
+  const raw = process.env.UNREAL_BRIDGE_HOST;
+  if (raw === undefined || raw.trim() === "") return FALLBACK_HOST;
+  const value = raw.trim();
+  // A literal "${...}" means a config file used shell-style interpolation that
+  // the MCP client did not expand. Treating that as a hostname produces a
+  // baffling DNS error, so fall back and say why.
+  if (value.includes("${")) {
+    console.error(
+      `[Unreal MCP Bridge] UNREAL_BRIDGE_HOST="${raw}" looks like an unexpanded ` +
+      `placeholder. Set the variable in the environment that launches the MCP ` +
+      `server rather than relying on interpolation in .mcp.json. Using ${FALLBACK_HOST}.`
+    );
+    return FALLBACK_HOST;
+  }
+  return value;
+}
+
+export function resolveClientDefaults(): UnrealClientOptions {
+  return {
+    host: envHost(),
+    port: envInt("UNREAL_BRIDGE_PORT", FALLBACK_PORT, 1, 65535),
+    timeout: envInt("UNREAL_BRIDGE_TIMEOUT_MS", FALLBACK_TIMEOUT, 1000, 3600000),
+  };
+}
 
 export class UnrealClient {
   private options: UnrealClientOptions;
 
   constructor(options: Partial<UnrealClientOptions> = {}) {
-    this.options = { ...DEFAULT_OPTIONS, ...options };
+    // Env vars are read per instance rather than once at module load so tests
+    // can vary them, and so a wrapper process that sets them late still works.
+    this.options = { ...resolveClientDefaults(), ...options };
+  }
+
+  /** The endpoint this client will talk to. Used for startup diagnostics. */
+  get endpoint(): string {
+    return `http://${this.options.host}:${this.options.port}`;
   }
 
   /**
@@ -82,7 +149,11 @@ export class UnrealClient {
         resolve({
           success: false,
           data: {},
-          error: `Connection failed: ${err.message}. Is the UE4 editor running with the MCP Bridge listener?`,
+          error:
+            `Connection failed talking to ${this.endpoint}: ${err.message}. ` +
+            `Is the UE4 editor running with the MCP Bridge listener, and is ` +
+            `that endpoint reachable from here? Set UNREAL_BRIDGE_HOST / ` +
+            `UNREAL_BRIDGE_PORT if the editor is on another machine.`,
         });
       });
 
@@ -91,7 +162,10 @@ export class UnrealClient {
         resolve({
           success: false,
           data: {},
-          error: `Request timed out after ${this.options.timeout}ms`,
+          error:
+            `Request to ${this.endpoint} timed out after ${this.options.timeout}ms. ` +
+            `Raise UNREAL_BRIDGE_TIMEOUT_MS if a slow link or a long editor ` +
+            `operation needs more headroom.`,
         });
       });
 
