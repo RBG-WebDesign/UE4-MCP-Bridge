@@ -337,6 +337,52 @@ def test_decay_tail_is_bit_identical_to_the_original() -> None:
         assert _close(am.quat_angle_degrees(corrected, keys[i]), 0.0, tol=1e-9), i
 
 
+# --- rotation roughness: the wobble detector ---------------------------------
+
+
+def test_constant_turn_has_no_rotation_reversal() -> None:
+    quats = [_axis_angle((0.0, 0.0, 1.0), 2.0 * k) for k in range(60)]
+    assert _close(am.rotation_roughness(quats), 0.0, tol=1e-6), am.rotation_roughness(quats)
+
+
+def test_alternating_rotation_is_a_full_reversal() -> None:
+    """Back-and-forth every frame is the analytic worst case, and scores 1."""
+    quats = [_axis_angle((0.0, 0.0, 1.0), 3.0 if k % 2 else 0.0) for k in range(60)]
+    assert _close(am.rotation_roughness(quats), 1.0, tol=1e-6), am.rotation_roughness(quats)
+
+
+def test_slow_sine_rotation_reads_as_smooth() -> None:
+    """A gentle authored sway must not be mistaken for a wobble."""
+    quats = [_axis_angle((0.0, 0.0, 1.0), 5.0 * math.sin(2 * math.pi * k / 120))
+             for k in range(120)]
+    assert am.rotation_roughness(quats) < 0.1, am.rotation_roughness(quats)
+
+
+def test_rotation_roughness_is_amplitude_independent() -> None:
+    """A tiny wobble scores the same as a large one; only the shape matters."""
+    small = [_axis_angle((0.0, 1.0, 0.0), 0.05 if k % 2 else 0.0) for k in range(40)]
+    large = [_axis_angle((0.0, 1.0, 0.0), 12.0 if k % 2 else 0.0) for k in range(40)]
+    assert _close(am.rotation_roughness(small), am.rotation_roughness(large), tol=1e-4)
+
+
+def test_rotation_roughness_handles_static_and_short_tracks() -> None:
+    static = [_axis_angle((0.0, 0.0, 1.0), 7.0)] * 40
+    assert am.rotation_roughness(static) == 0.0
+    assert am.rotation_roughness([]) == 0.0
+    assert am.rotation_roughness([_axis_angle((0.0, 0.0, 1.0), 1.0)]) == 0.0
+
+
+def test_classify_rotation_boundaries() -> None:
+    moving = 1.0
+    assert am.classify_rotation(0.0, 0.0) == "static"
+    assert am.classify_rotation(moving, 0.0) == "smooth_turn"
+    assert am.classify_rotation(moving, 0.34) == "smooth_turn"
+    assert am.classify_rotation(moving, 0.35) == "unsteady"
+    assert am.classify_rotation(moving, 0.69) == "unsteady"
+    assert am.classify_rotation(moving, 0.7) == "wobble"
+    assert am.classify_rotation(moving, 1.0) == "wobble"
+
+
 def main() -> int:
     tests = [
         test_linear_ramp_has_zero_roughness,
@@ -373,6 +419,12 @@ def main() -> int:
         test_zero_weight_leaves_the_key_untouched,
         test_partial_weight_lands_between,
         test_decay_tail_is_bit_identical_to_the_original,
+        test_constant_turn_has_no_rotation_reversal,
+        test_alternating_rotation_is_a_full_reversal,
+        test_slow_sine_rotation_reads_as_smooth,
+        test_rotation_roughness_is_amplitude_independent,
+        test_rotation_roughness_handles_static_and_short_tracks,
+        test_classify_rotation_boundaries,
     ]
     failed = 0
     for fn in tests:

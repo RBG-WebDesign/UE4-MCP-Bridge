@@ -985,6 +985,58 @@ def _compression_info(lib: Any, seq: Any) -> Dict[str, Any]:
         return {"codec": None, "error_threshold": None, "error": str(exc)}
 
 
+def _bone_motion_block(lib: Any, seq: Any, bone: str) -> Dict[str, Any]:
+    """Full translation and rotation statistics for one bone's raw track.
+
+    Both are reported for every bone examined. An earlier version gave the root
+    rotation stats and the pelvis only a translation range, which meant a hip
+    that wobbled in place was invisible: no translation to see, and no rotation
+    numbers being computed for it at all.
+    """
+    positions = [_vec_tuple(v) for v in _call(lib, "get_raw_track_position_data", seq, bone)]
+    raw_rotations = _call(lib, "get_raw_track_rotation_data", seq, bone)
+    rotations = [_quat_tuple(q) for q in raw_rotations]
+
+    pos_steps = am.position_steps(positions)
+    pos_distribution = am.distribution(pos_steps)
+    pos_rough = am.roughness(positions)
+
+    rot_steps = am.rotation_steps(rotations)
+    rot_distribution = am.distribution(rot_steps)
+    rot_rough = am.rotation_roughness(rotations)
+
+    excursion = 0.0
+    if rotations:
+        excursion = max(am.quat_angle_degrees(rotations[0], q) for q in rotations)
+
+    # Naive about the Rotator wrap at +/-180; rotation_excursion_degrees is not.
+    yaw_range: Optional[float] = None
+    yaws: List[float] = []
+    for quat in raw_rotations:
+        euler = _euler_or_none(quat)
+        if euler is None:
+            yaws = []
+            break
+        yaws.append(euler["yaw"])
+    if yaws:
+        yaw_range = round(max(yaws) - min(yaws), 4)
+
+    return {
+        "bone": bone,
+        "key_count": len(rotations),
+        "range_cm": am.axis_range(positions),
+        "step_cm_per_frame": pos_distribution,
+        "roughness": round(pos_rough, 4),
+        "classification": am.classify(pos_distribution["mean"], pos_rough),
+        "yaw_range_degrees": yaw_range,
+        "rotation_excursion_degrees": round(excursion, 4),
+        "step_degrees_per_frame": rot_distribution,
+        "rotation_roughness": round(rot_rough, 4),
+        "rotation_classification": am.classify_rotation(
+            rot_distribution["mean"], rot_rough),
+    }
+
+
 def _analyze_one(lib: Any, seq: Any, path: str, root_bone: str, pelvis_bone: str) -> Dict[str, Any]:
     """Root motion statistics for a single sequence."""
     meta = _sequence_meta(lib, seq)
@@ -999,56 +1051,18 @@ def _analyze_one(lib: Any, seq: Any, path: str, root_bone: str, pelvis_bone: str
             ),
         }
 
-    positions = [_vec_tuple(v) for v in _call(lib, "get_raw_track_position_data", seq, root_bone)]
-    raw_rotations = _call(lib, "get_raw_track_rotation_data", seq, root_bone)
-    rotations = [_quat_tuple(q) for q in raw_rotations]
-
-    steps = am.position_steps(positions)
-    step_distribution = am.distribution(steps)
-    rough = am.roughness(positions)
-    root_range = am.axis_range(positions)
-
-    # Convention-free rotational excursion: the largest angle any key reaches
-    # from the first key. Always available, and unlike yaw it cannot be fooled
-    # by the Rotator's wrap at +/-180 degrees.
-    excursion = 0.0
-    if rotations:
-        excursion = max(am.quat_angle_degrees(rotations[0], q) for q in rotations)
-
-    # Reported because it is what an eyeball inspection of the track shows, but
-    # it is naive about yaw wrapping and depends on the Rotator binding being
-    # available. Prefer rotation_excursion_degrees when the two disagree.
-    yaw_range: Optional[float] = None
-    yaws: List[float] = []
-    for quat in raw_rotations:
-        euler = _euler_or_none(quat)
-        if euler is None:
-            yaws = []
-            break
-        yaws.append(euler["yaw"])
-    if yaws:
-        yaw_range = round(max(yaws) - min(yaws), 4)
-
-    root_block: Dict[str, Any] = {
-        "key_count": len(positions),
-        "range_cm": root_range,
-        "yaw_range_degrees": yaw_range,
-        "rotation_excursion_degrees": round(excursion, 4),
-        "step_cm_per_frame": step_distribution,
-        "step_degrees_per_frame": am.distribution(am.rotation_steps(rotations)),
-        "roughness": round(rough, 4),
-        "classification": am.classify(step_distribution["mean"], rough),
-    }
+    root_block = _bone_motion_block(lib, seq, root_bone)
+    root_range = root_block["range_cm"]
 
     pelvis_block: Dict[str, Any] = {"local_range_cm": None}
     flags: List[str] = []
     if pelvis_bone in tracks:
-        pelvis_positions = [
-            _vec_tuple(v)
-            for v in _call(lib, "get_raw_track_position_data", seq, pelvis_bone)
-        ]
-        pelvis_range = am.axis_range(pelvis_positions)
-        pelvis_block = {"local_range_cm": pelvis_range, "key_count": len(pelvis_positions)}
+        pelvis_block = _bone_motion_block(lib, seq, pelvis_bone)
+        pelvis_range = pelvis_block["range_cm"]
+        pelvis_block["local_range_cm"] = pelvis_range
+
+        if pelvis_block["rotation_classification"] in ("wobble", "unsteady"):
+            flags.append("pelvis_rotation_" + pelvis_block["rotation_classification"])
 
         root_max = max(root_range.values())
         pelvis_max = max(pelvis_range.values())
@@ -1057,6 +1071,9 @@ def _analyze_one(lib: Any, seq: Any, path: str, root_bone: str, pelvis_bone: str
             flags.append("inverted_root_authoring")
     else:
         flags.append("pelvis_track_missing")
+
+    if root_block["rotation_classification"] in ("wobble", "unsteady"):
+        flags.append("root_rotation_" + root_block["rotation_classification"])
 
     if meta["is_additive"]:
         flags.append("additive_sequence")

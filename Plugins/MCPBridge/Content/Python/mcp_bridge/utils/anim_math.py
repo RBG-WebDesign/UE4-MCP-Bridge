@@ -280,6 +280,54 @@ def apply_weighted_delta(q_delta: Quat, q_key: Quat, weight: float) -> Quat:
     return quat_slerp(q_key, corrected, weight)
 
 
+def rotation_deltas(quats: Sequence[Quat]) -> List[Quat]:
+    """Per-key rotation increments: the turn taken from each key to the next."""
+    return [quat_multiply(quats[i + 1], quat_inverse(quats[i]))
+            for i in range(len(quats) - 1)]
+
+
+def rotation_roughness(quats: Sequence[Quat]) -> float:
+    """How often the rotation reverses direction, normalized to 0..1.
+
+    The rotational counterpart to roughness(). Positional roughness compares
+    second differences to first differences; the same idea does not transfer
+    directly to quaternions, so this compares the angle between consecutive
+    rotation increments against the largest that angle could be for the step
+    size involved.
+
+    A constant turn has increments pointing the same way, so the angle between
+    them is ~0 and the result is ~0. A wobble reverses every frame: increment
+    k+1 is the inverse of increment k, separated by twice the step angle, and
+    the result is ~1. Anything oscillating scores high regardless of amplitude,
+    which is what makes it a wobble detector rather than a range measurement.
+
+    Returns 0.0 when there is too little rotation to divide by.
+    """
+    if len(quats) < 3:
+        return 0.0
+    steps = rotation_steps(quats)
+    mean_step = sum(steps) / len(steps) if steps else 0.0
+    if mean_step < 1e-6:
+        return 0.0
+    deltas = rotation_deltas(quats)
+    if len(deltas) < 2:
+        return 0.0
+    between = [quat_angle_degrees(deltas[i], deltas[i + 1])
+               for i in range(len(deltas) - 1)]
+    return (sum(between) / len(between)) / (2.0 * mean_step)
+
+
+def classify_rotation(step_mean_degrees: float, reversal: float) -> str:
+    """Summarize a rotation track as static, smooth_turn, or wobble."""
+    if step_mean_degrees < 1e-4:
+        return "static"
+    if reversal < 0.35:
+        return "smooth_turn"
+    if reversal < 0.7:
+        return "unsteady"
+    return "wobble"
+
+
 def classify(step_mean: float, roughness_value: float) -> str:
     """Summarize a track as static, smooth_drift, stepped, or noisy.
 
