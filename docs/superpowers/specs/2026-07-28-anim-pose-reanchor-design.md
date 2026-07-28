@@ -42,9 +42,13 @@ reachable from Python; the bone-track write path is not.
 Exact signatures for the two that matter most:
 
 ```cpp
-// Returns a MUTABLE reference. This is the only bone-track write hook in 4.27.
+// Returns a CONST reference despite the declaration below. Reading is fine;
+// writing through it does not compile. See API Corrections.
 static FRawAnimSequenceTrack& GetRawAnimationTrackByName(
     const UAnimSequence* AnimationSequence, const FName TrackName);
+
+// The actual write hook, confirmed by compiling against 4.27.2.
+FRawAnimSequenceTrack& UAnimSequence::GetRawAnimationTrack(int32 TrackIndex);
 
 static void GetBonePosesForFrame(
     const UAnimSequence* AnimationSequence, TArray<FName> BoneNames, int32 Frame,
@@ -53,7 +57,7 @@ static void GetBonePosesForFrame(
 
 The key finding: **UE4.27 has no `AddBoneAnimation` or `SetRawTrack*`**. The library exposes
 only `RemoveBoneAnimation`, `RemoveAllBoneAnimation`, and `FinalizeBoneAnimation` for bone
-tracks. Mutation must go through the `GetRawAnimationTrackByName` reference in C++, which
+tracks. Mutation must go through `UAnimSequence::GetRawAnimationTrack(int32)` in C++, which
 puts the write path in the existing `MCPBridgeGraphBuilder` plugin rather than in Python.
 
 `AddTransformationCurveKeys` is BlueprintCallable and writes additive layer tracks, but
