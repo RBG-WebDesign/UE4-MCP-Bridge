@@ -96,6 +96,7 @@ async function setup(): Promise<void> {
       data: {
         sequence: p.sequence_path,
         num_frames: 556,
+        length_seconds: 18.53,
         root: {
           range_cm: { x: 3.35, y: 2.34, z: 0.08 },
           roughness: 0.07,
@@ -110,9 +111,11 @@ async function setup(): Promise<void> {
   });
 }
 
-const EXPECTED = ["anim_pose_snapshot", "anim_pose_delta", "anim_root_motion_analyze"];
+const EXPECTED = [
+  "anim_pose_snapshot", "anim_pose_delta", "anim_root_motion_analyze", "anim_reanchor",
+];
 
-test("exposes exactly the Pass 1 read-only tools", async () => {
+test("exposes exactly the Pass 1 and Pass 2 tools", async () => {
   for (const name of EXPECTED) {
     assert(toolMap.has(name), `missing tool: ${name}`);
   }
@@ -202,6 +205,80 @@ test("anim_root_motion_analyze passes bone name overrides through", async () => 
   const received = (res.data as Record<string, unknown>).received as Record<string, unknown>;
   assert(received.root_bone === "Root", "root_bone not forwarded");
   assert(received.pelvis_bone === "Hips", "pelvis_bone not forwarded");
+});
+
+test("anim_reanchor forwards profile, window, threshold, and mask", async () => {
+  server.setHandler("anim_reanchor", (params) => ({
+    success: true,
+    data: {
+      target: (params as Record<string, unknown>).target_path,
+      dry_run: true,
+      bones_modified: 2,
+      max_delta_degrees: 18.4,
+      deltas: [
+        { bone: "clavicle_l", delta_degrees: 18.4, key_count: 61, keys_written: 12 },
+        { bone: "upperarm_l", delta_degrees: 11.2, key_count: 61, keys_written: 12 },
+      ],
+      needs_key_expansion: [],
+      received: params,
+    },
+  }));
+  const res = await callTool("anim_reanchor", {
+    target_path: "/Game/Possessed",
+    reference_path: "/Game/Idle",
+    profile: "decay",
+    window_frames: 12,
+    threshold_degrees: 1.5,
+    bone_mask: { include_subtrees: ["spine_01"], exclude_bones: ["root", "pelvis"] },
+  });
+  assert(res.success === true, "expected success");
+  const data = res.data as Record<string, unknown>;
+  assert(data.dry_run === true, "dry_run should come back true");
+  const received = data.received as Record<string, unknown>;
+  assert(received.profile === "decay", "profile not forwarded");
+  assert(received.window_frames === 12, "window_frames not forwarded");
+  assert(received.threshold_degrees === 1.5, "threshold not forwarded");
+  const mask = received.bone_mask as Record<string, unknown>;
+  const subtrees = mask.include_subtrees as string[];
+  assert(subtrees[0] === "spine_01", "bone mask subtrees not forwarded");
+});
+
+test("anim_reanchor rejects an unknown profile at the schema layer", async () => {
+  const tool = toolMap.get("anim_reanchor");
+  if (!tool) throw new Error("anim_reanchor missing");
+  const parsed = tool.inputSchema.safeParse({
+    target_path: "/Game/A",
+    reference_path: "/Game/B",
+    profile: "ease_in_out_quart",
+  });
+  assert(parsed.success === false, "expected schema rejection for an unknown profile");
+});
+
+test("anim_reanchor accepts the three documented profiles", async () => {
+  const tool = toolMap.get("anim_reanchor");
+  if (!tool) throw new Error("anim_reanchor missing");
+  for (const profile of ["constant", "decay", "both_ends"]) {
+    const parsed = tool.inputSchema.safeParse({
+      target_path: "/Game/A", reference_path: "/Game/B", profile,
+    });
+    assert(parsed.success === true, `profile ${profile} should be accepted`);
+  }
+});
+
+test("anim_reanchor surfaces the Pass 3 refusal for dry_run=false", async () => {
+  server.setHandler("anim_reanchor", () => ({
+    success: false,
+    data: {},
+    error: "dry_run=False is not available yet. The write path needs UAnimPoseLibrary "
+      + "from the MCPBridgeGraphBuilder plugin, which lands in Pass 3.",
+  }));
+  const res = await callTool("anim_reanchor", {
+    target_path: "/Game/Possessed",
+    reference_path: "/Game/Idle",
+    dry_run: false,
+  });
+  assert(res.success === false, "expected refusal");
+  assert(String(res.error).includes("Pass 3"), `unexpected error: ${res.error}`);
 });
 
 test("listener errors surface as success=false with the message", async () => {

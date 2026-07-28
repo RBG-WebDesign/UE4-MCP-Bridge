@@ -26,6 +26,12 @@ from mcp_bridge.utils import anim_math as am
 INVERTED_ROOT_MIN_RANGE_CM = 1.0
 INVERTED_ROOT_PELVIS_RATIO = 0.5
 
+# Default re-anchor mask. Upper body only: the legs need a matching IK pass
+# that this tool does not do, and rebasing root or pelvis breaks root motion
+# and foot planting.
+DEFAULT_INCLUDE_SUBTREES = ("spine_01",)
+DEFAULT_EXCLUDE_BONES = ("root", "pelvis")
+
 
 def _fail(message: str) -> Dict[str, Any]:
     return {"success": False, "data": {}, "error": message}
@@ -168,6 +174,19 @@ def _bone_rotations_at_frame(
     return {name: _quat_tuple(t.rotation) for name, t in zip(bones, poses)}
 
 
+def _bone_translations_at_frame(
+    lib: Any, seq: Any, bones: Sequence[str], frame: int
+) -> Dict[str, am.Vec3]:
+    """Local translation per bone at a frame, keyed by bone name."""
+    poses = _call(lib, "get_bone_poses_for_frame", seq, list(bones), frame, False, None)
+    if len(poses) != len(bones):
+        raise RuntimeError(
+            f"get_bone_poses_for_frame returned {len(poses)} transforms for "
+            f"{len(bones)} bones; cannot align results to bone names"
+        )
+    return {name: _vec_tuple(t.translation) for name, t in zip(bones, poses)}
+
+
 def handle_anim_pose_snapshot(params: Dict[str, Any]) -> Dict[str, Any]:
     """Capture the local pose of an AnimSequence at one frame.
 
@@ -307,6 +326,230 @@ def handle_anim_pose_delta(params: Dict[str, Any]) -> Dict[str, Any]:
             "skipped_no_track": missing,
             "reference_is_additive": reference_meta["is_additive"],
             "target_is_additive": target_meta["is_additive"],
+        })
+    except Exception as exc:
+        return _fail(str(exc))
+
+
+def _bone_path_to_root(lib: Any, seq: Any, bone: str, cache: Dict[str, set]) -> set:
+    """Set of ancestor names for a bone, including the bone itself.
+
+    Cached per call because a full mask resolution asks about every track and
+    the paths overlap heavily.
+    """
+    if bone in cache:
+        return cache[bone]
+    names = {bone}
+    try:
+        for entry in _call(lib, "find_bone_path_to_root", seq, bone):
+            names.add(str(entry))
+    except Exception:
+        # Fall back to "no known ancestors" rather than failing the whole
+        # resolution; the bone can still be selected by explicit name.
+        pass
+    cache[bone] = names
+    return names
+
+
+def _resolve_bone_mask(
+    lib: Any, seq: Any, mask: Dict[str, Any], available: Sequence[str]
+) -> Tuple[List[str], Dict[str, Any]]:
+    """Turn a bone mask spec into a concrete ordered bone list.
+
+    Returns (selected, explanation). Subtree membership is resolved through
+    find_bone_path_to_root, so include_subtrees works without the caller
+    knowing the skeleton hierarchy.
+    """
+    include_bones = list(mask.get("include_bones") or [])
+    include_subtrees = list(mask.get("include_subtrees") or [])
+    exclude_bones = set(mask.get("exclude_bones") or [])
+
+    defaulted = False
+    if not include_bones and not include_subtrees:
+        include_subtrees = list(DEFAULT_INCLUDE_SUBTREES)
+        exclude_bones |= set(DEFAULT_EXCLUDE_BONES)
+        defaulted = True
+
+    cache: Dict[str, set] = {}
+    selected: List[str] = []
+    for bone in available:
+        if bone in exclude_bones:
+            continue
+        if bone in include_bones:
+            selected.append(bone)
+            continue
+        if include_subtrees:
+            ancestry = _bone_path_to_root(lib, seq, bone, cache)
+            if any(root in ancestry for root in include_subtrees):
+                selected.append(bone)
+
+    explanation = {
+        "include_bones": include_bones,
+        "include_subtrees": include_subtrees,
+        "exclude_bones": sorted(exclude_bones),
+        "used_default_mask": defaulted,
+    }
+    return selected, explanation
+
+
+def handle_anim_reanchor(params: Dict[str, Any]) -> Dict[str, Any]:
+    """Report what re-anchoring a sequence to a reference pose would change.
+
+    Pass 2 is dry run only. The write path needs UAnimPoseLibrary in the C++
+    plugin, which lands in Pass 3, so dry_run=False is refused rather than
+    silently ignored.
+
+    Args:
+        params:
+            - target_path (str): Sequence to re-anchor. Required.
+            - reference_path (str): Sequence supplying the anchor pose. Required.
+            - reference_frame (int): Default 0.
+            - anchor_frame (int): Frame of the target to align. Default 0.
+            - bone_mask (dict): include_bones, include_subtrees, exclude_bones.
+              Defaults to the spine_01 subtree minus root and pelvis.
+            - profile (str): constant, decay, or both_ends. Default decay.
+            - window_frames (int): Decay length. Default 12.
+            - threshold_degrees (float): Skip bones under this. Default 1.5.
+            - include_translation (bool): Report translation deltas too.
+              Default false.
+            - dry_run (bool): Must be true in Pass 2. Default true.
+
+    Returns:
+        Per-bone deltas, the keys each would touch, and any tracks that would
+        need expanding before a time-varying profile could be applied.
+    """
+    try:
+        if not params.get("dry_run", True):
+            return _fail(
+                "dry_run=False is not available yet. The write path needs "
+                "UAnimPoseLibrary from the MCPBridgeGraphBuilder plugin, which lands "
+                "in Pass 3. Re-run with dry_run omitted or true."
+            )
+
+        target, err = _load_sequence(params.get("target_path", ""))
+        if err:
+            return _fail(f"target_path: {err}")
+        reference, err = _load_sequence(params.get("reference_path", ""))
+        if err:
+            return _fail(f"reference_path: {err}")
+
+        lib = _anim_library()
+        profile = params.get("profile", "decay")
+        if profile not in am.WEIGHT_PROFILES:
+            return _fail(
+                f"Unknown profile '{profile}'. Expected one of "
+                + ", ".join(am.WEIGHT_PROFILES)
+            )
+
+        window_frames = int(params.get("window_frames", 12))
+        threshold = float(params.get("threshold_degrees", 1.5))
+        include_translation = bool(params.get("include_translation", False))
+        reference_frame = int(params.get("reference_frame", 0))
+        anchor_frame = int(params.get("anchor_frame", 0))
+
+        target_meta = _sequence_meta(lib, target)
+        reference_meta = _sequence_meta(lib, reference)
+
+        if target_meta["is_additive"]:
+            return _fail(
+                f"Target is additive ({target_meta['additive_type']}). Its raw data is "
+                "already a delta, so re-anchoring would mean something different. "
+                "Refusing rather than guessing."
+            )
+        if reference_meta["is_additive"]:
+            return _fail(
+                f"Reference is additive ({reference_meta['additive_type']}). An additive "
+                "clip does not carry an absolute pose to anchor to."
+            )
+
+        if anchor_frame < 0 or anchor_frame >= max(target_meta["num_frames"], 1):
+            return _fail(
+                f"anchor_frame {anchor_frame} out of range; target has "
+                f"{target_meta['num_frames']} frames"
+            )
+        if reference_frame < 0 or reference_frame >= max(reference_meta["num_frames"], 1):
+            return _fail(
+                f"reference_frame {reference_frame} out of range; reference has "
+                f"{reference_meta['num_frames']} frames"
+            )
+
+        target_tracks = _track_names(lib, target)
+        reference_tracks = _track_names(lib, reference)
+
+        selected, mask_explanation = _resolve_bone_mask(
+            lib, target, params.get("bone_mask") or {}, target_tracks)
+        bones = [b for b in selected if b in reference_tracks]
+        skipped = [b for b in selected if b not in reference_tracks]
+        if not bones:
+            return _fail(
+                "Bone mask selected no bone that has a track in both sequences. "
+                f"Mask resolved to: {', '.join(selected[:40]) or '(nothing)'}"
+            )
+
+        reference_rot = _bone_rotations_at_frame(lib, reference, bones, reference_frame)
+        target_rot = _bone_rotations_at_frame(lib, target, bones, anchor_frame)
+
+        # Fetched once for the whole mask rather than per bone inside the loop;
+        # get_bone_poses_for_frame already takes a bone array.
+        reference_pos: Dict[str, am.Vec3] = {}
+        target_pos: Dict[str, am.Vec3] = {}
+        if include_translation:
+            reference_pos = _bone_translations_at_frame(
+                lib, reference, bones, reference_frame)
+            target_pos = _bone_translations_at_frame(lib, target, bones, anchor_frame)
+
+        num_frames = target_meta["num_frames"]
+        deltas: List[Dict[str, Any]] = []
+        needs_expansion: List[str] = []
+        below_threshold = 0
+
+        for bone in bones:
+            degrees = am.quat_angle_degrees(reference_rot[bone], target_rot[bone])
+            if degrees < threshold:
+                below_threshold += 1
+                continue
+
+            key_count = len(_call(lib, "get_raw_track_rotation_data", target, bone))
+            weights = [
+                am.weight_at(profile, i, key_count, window_frames)
+                for i in range(key_count)
+            ]
+            touched = sum(1 for w in weights if w > 0.0)
+            if profile != "constant" and key_count < num_frames:
+                needs_expansion.append(bone)
+
+            entry: Dict[str, Any] = {
+                "bone": bone,
+                "delta_degrees": round(degrees, 4),
+                "key_count": key_count,
+                "keys_written": touched,
+            }
+            if include_translation:
+                entry["translation_delta_cm"] = round(
+                    am.vec_length(am.vec_sub(reference_pos[bone], target_pos[bone])), 4)
+            deltas.append(entry)
+
+        deltas.sort(key=lambda e: e["delta_degrees"], reverse=True)
+
+        return _ok({
+            "target": params.get("target_path"),
+            "reference": params.get("reference_path"),
+            "dry_run": True,
+            "profile": profile,
+            "window_frames": window_frames,
+            "threshold_degrees": threshold,
+            "include_translation": include_translation,
+            "reference_frame": reference_frame,
+            "anchor_frame": anchor_frame,
+            "num_frames": num_frames,
+            "bone_mask": mask_explanation,
+            "bones_selected": len(bones),
+            "bones_modified": len(deltas),
+            "bones_below_threshold": below_threshold,
+            "max_delta_degrees": deltas[0]["delta_degrees"] if deltas else 0.0,
+            "deltas": deltas,
+            "skipped_no_track": skipped,
+            "needs_key_expansion": needs_expansion,
         })
     except Exception as exc:
         return _fail(str(exc))

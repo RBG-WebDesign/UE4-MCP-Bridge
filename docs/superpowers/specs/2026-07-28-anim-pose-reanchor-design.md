@@ -346,10 +346,9 @@ that noise does not cause needless recompression.
 
 ## Implementation Passes
 
-Status: Pass 1 is written and its unit tests pass. It has **not** been run against a live
-editor, so the acceptance list below is outstanding, and every `unreal.AnimationLibrary`
-call other than `get_bone_poses_for_frame` is still unobserved. Passes 2 onward are not
-started.
+Status: Passes 1 and 2 are written and their unit tests pass. Pass 1 has been run against a
+live editor; see Live Verification below for what that did and did not establish. Pass 2 is
+dry-run only and has not been run live. Pass 3 is not started.
 
 **Pass 1 -- Read path. Python only, no plugin rebuild.** `anim_pose_snapshot`,
 `anim_pose_delta`, and `anim_root_motion_analyze`. No mutating code exists anywhere in the
@@ -373,12 +372,23 @@ means is the only cheap check available that the raw track reader is correct at 
 be written without writing. Still no C++. Acceptance: dry-run output at `w=1` matches the
 Pass 1 delta report for the same clip and mask.
 
+Pass 2 additions worth noting: bone mask resolution uses `find_bone_path_to_root`, so
+`include_subtrees` works without the caller knowing the skeleton hierarchy, and it stays
+inside the BlueprintPure read set. `anim_reanchor` refuses `dry_run=False` with an explicit
+Pass 3 message rather than ignoring the flag, and refuses additive sequences on both sides.
+
 **Pass 3 -- Mutation. First pass that needs C++.** Adds `UAnimPoseLibrary`, the
 `AnimationModifiers` dependency, and a plugin rebuild. Track expansion for constant tracks,
 key mutation through the `GetRawAnimationTrackByName` reference, a single
 `FinalizeBoneAnimation`, then dirty and save. Acceptance: re-anchor a duplicated test clip,
 confirm frame 0 matches the reference within tolerance, confirm the tail is unchanged under
 `decay`, confirm undo restores the original.
+
+Two registration steps belong to Pass 3 and are easy to miss, since Pass 2 deliberately
+left them undone: add `anim_reanchor` and `anim_batch_reanchor` to the `modifyingCommands`
+set in `mcp-server/src/index.ts`, and add `@transactional` to the two mutating handlers.
+Neither was done earlier because a dry run is not a modification, and recording one in the
+undo history would be wrong.
 
 **Pass 4 -- Batch.** `anim_batch_reanchor` over a content folder with an include filter and
 per-asset dry-run report before any write. Acceptance: sweep the Blends folder, confirm the
@@ -387,6 +397,47 @@ ranked drift report is stable across repeat runs.
 **Pass 5 -- Skill and playbook.** `.claude/skills/anim-pose-reanchoring/` with the workflow
 and the safety defaults, plus `docs/playbooks/pose-anchored-animation-set.md` from
 `docs/playbooks/_TEMPLATE.md`.
+
+## Live Verification
+
+`anim_root_motion_analyze` has been run against a live UE4.27 editor over HTTP. What that
+established, and what it did not:
+
+**Established.** The bindings work end to end: `unreal.AnimationLibrary` resolves, the raw
+track reads return data, and the listener round trip is sound. On
+`SK_Donathan_Run_180_Left` the tool reported `rotation_excursion_degrees` of 176.77 across
+22 frames. An asset named "Run 180 Left" measuring ~177 degrees of rotation is strong
+internal evidence that the rotation path is correct, since the expected answer was knowable
+in advance from the asset name alone. A 76.65 cm Y range over a 22-frame run turn is
+likewise plausible.
+
+**Not established.** The planned first acceptance check was to reproduce the independently
+obtained 3.35 / 2.34 cm figures on `SK_Donathan_Idle_Final`. That did not happen, because
+the asset had already been stabilized before the tool ran on it: the live result reports
+`has_root_track: false`, zero range, and `classification: static`. Reproducing a known
+answer on a changed asset is not possible. If the pre-fix revision exists in source control,
+running the tool against it is still the cheapest available check that the position reader
+is numerically correct; without it, the translation path rests on plausibility rather than
+on a reproduced measurement.
+
+Note also that `yaw_range_degrees` and `rotation_excursion_degrees` came back identical
+(176.7715). That is expected for a pure-yaw turn measured from an endpoint, so it is
+consistent rather than suspicious, but it means the two did not act as independent checks
+on this clip.
+
+The reported `roughness` of 0.4205 sits just under the 0.5 `smooth_drift` boundary on a
+22-frame clip with a 7.14 cm mean step. Roughness is noisy at that few keys and that large a
+step, so this clip is not a good calibration anchor. The threshold calibration item remains
+open.
+
+**Schema divergence.** The live run returned a flat response shape (`sequence_path`,
+`has_root_track`, `step_mean_cm`, `compression_settings`, `range_cm.xy_magnitude`) that does
+not match this repo's nested shape (`sequence`, `root.step_cm_per_frame.{mean,max,p95}`,
+`pelvis.local_range_cm`, `compression.codec`). Two implementations therefore exist: the one
+tracked here and the one running in the game project. They must be reconciled before Pass 3,
+because Pass 3 mutates assets and a schema mismatch there is expensive rather than merely
+confusing. Reconciling toward this repo keeps the tests, the p95 statistic, the pelvis block,
+and the registry-consistency check.
 
 ## Testing
 

@@ -198,6 +198,145 @@ def test_axis_range_basic() -> None:
     assert _close(rng["z"], 0.0)
 
 
+# --- weight profiles (Pass 2) -----------------------------------------------
+
+
+def test_smoothstep_endpoints_and_midpoint() -> None:
+    assert _close(am.smoothstep(0.0), 0.0)
+    assert _close(am.smoothstep(1.0), 1.0)
+    assert _close(am.smoothstep(0.5), 0.5)
+    assert _close(am.smoothstep(-3.0), 0.0), "must clamp below 0"
+    assert _close(am.smoothstep(3.0), 1.0), "must clamp above 1"
+
+
+def test_smoothstep_has_flat_ends() -> None:
+    """Zero slope at both ends is the reason for using it over a linear ramp."""
+    near_start = am.smoothstep(0.01) - am.smoothstep(0.0)
+    near_middle = am.smoothstep(0.51) - am.smoothstep(0.50)
+    assert near_start < near_middle / 10.0, (near_start, near_middle)
+
+
+def test_constant_profile_is_one_everywhere() -> None:
+    for i in range(20):
+        assert _close(am.weight_at("constant", i, 20, 5), 1.0)
+
+
+def test_decay_profile_shape() -> None:
+    window = 12
+    assert _close(am.weight_at("decay", 0, 60, window), 1.0), "anchor must be fully corrected"
+    assert _close(am.weight_at("decay", window, 60, window), 0.0), "must reach zero at the window"
+    assert _close(am.weight_at("decay", 59, 60, window), 0.0), "must stay zero past the window"
+    # Monotonically decreasing across the window.
+    previous = 1.1
+    for i in range(window + 1):
+        current = am.weight_at("decay", i, 60, window)
+        assert current < previous, f"not decreasing at {i}: {current} >= {previous}"
+        previous = current
+
+
+def test_both_ends_profile_is_symmetric() -> None:
+    num_keys, window = 40, 8
+    assert _close(am.weight_at("both_ends", 0, num_keys, window), 1.0)
+    assert _close(am.weight_at("both_ends", num_keys - 1, num_keys, window), 1.0)
+    assert _close(am.weight_at("both_ends", num_keys // 2, num_keys, window), 0.0)
+    for i in range(num_keys):
+        mirrored = am.weight_at("both_ends", num_keys - 1 - i, num_keys, window)
+        assert _close(am.weight_at("both_ends", i, num_keys, window), mirrored), i
+
+
+def test_degenerate_window_touches_only_the_anchor() -> None:
+    assert _close(am.weight_at("decay", 0, 30, 0), 1.0)
+    assert _close(am.weight_at("decay", 1, 30, 0), 0.0)
+    assert _close(am.weight_at("both_ends", 29, 30, 0), 1.0)
+    assert _close(am.weight_at("both_ends", 15, 30, 0), 0.0)
+
+
+def test_unknown_profile_raises() -> None:
+    try:
+        am.weight_at("ease_in_out_quart", 0, 10, 4)
+    except ValueError as exc:
+        assert "ease_in_out_quart" in str(exc), exc
+        return
+    raise AssertionError("expected ValueError for an unknown profile")
+
+
+# --- slerp and delta application (Pass 2) -----------------------------------
+
+
+def test_slerp_endpoints() -> None:
+    a = _axis_angle((0.0, 0.0, 1.0), 0.0)
+    b = _axis_angle((0.0, 0.0, 1.0), 90.0)
+    assert _close(am.quat_angle_degrees(am.quat_slerp(a, b, 0.0), a), 0.0, tol=1e-4)
+    assert _close(am.quat_angle_degrees(am.quat_slerp(a, b, 1.0), b), 0.0, tol=1e-4)
+
+
+def test_slerp_midpoint_is_half_the_angle() -> None:
+    a = _axis_angle((0.0, 0.0, 1.0), 0.0)
+    b = _axis_angle((0.0, 0.0, 1.0), 90.0)
+    mid = am.quat_slerp(a, b, 0.5)
+    assert _close(am.quat_angle_degrees(a, mid), 45.0, tol=1e-4)
+    assert _close(am.quat_angle_degrees(mid, b), 45.0, tol=1e-4)
+
+
+def test_slerp_takes_the_short_way() -> None:
+    """A negated endpoint is the same rotation and must not cause a long spin."""
+    a = _axis_angle((0.0, 0.0, 1.0), 0.0)
+    b = _axis_angle((0.0, 0.0, 1.0), 90.0)
+    negated = (-b[0], -b[1], -b[2], -b[3])
+    mid = am.quat_slerp(a, negated, 0.5)
+    assert _close(am.quat_angle_degrees(a, mid), 45.0, tol=1e-4)
+
+
+def test_slerp_handles_coincident_inputs() -> None:
+    q = _axis_angle((0.2, 0.9, 0.1), 33.0)
+    assert _close(am.quat_angle_degrees(am.quat_slerp(q, q, 0.5), q), 0.0, tol=1e-4)
+
+
+def test_full_weight_reproduces_the_reference_exactly() -> None:
+    """The identity the whole re-anchor rests on.
+
+    At the anchor key with weight 1, the corrected rotation must equal the
+    reference rotation. If this drifts, every re-anchored clip starts wrong.
+    """
+    reference = _axis_angle((0.1, 0.7, 0.3), 62.0)
+    target = _axis_angle((0.4, 0.2, 0.9), 17.0)
+    delta = am.quat_delta(reference, target)
+    corrected = am.apply_weighted_delta(delta, target, 1.0)
+    assert _close(am.quat_angle_degrees(corrected, reference), 0.0, tol=1e-4)
+
+
+def test_zero_weight_leaves_the_key_untouched() -> None:
+    reference = _axis_angle((0.1, 0.7, 0.3), 62.0)
+    target = _axis_angle((0.4, 0.2, 0.9), 17.0)
+    delta = am.quat_delta(reference, target)
+    corrected = am.apply_weighted_delta(delta, target, 0.0)
+    assert _close(am.quat_angle_degrees(corrected, target), 0.0, tol=1e-4)
+
+
+def test_partial_weight_lands_between() -> None:
+    reference = _axis_angle((0.0, 0.0, 1.0), 90.0)
+    target = _axis_angle((0.0, 0.0, 1.0), 0.0)
+    delta = am.quat_delta(reference, target)
+    corrected = am.apply_weighted_delta(delta, target, 0.5)
+    assert _close(am.quat_angle_degrees(target, corrected), 45.0, tol=1e-4)
+
+
+def test_decay_tail_is_bit_identical_to_the_original() -> None:
+    """Past the window the clip must be untouched, not merely close.
+
+    A decay re-anchor that nudges the tail would defeat the point of using a
+    window at all.
+    """
+    reference = _axis_angle((0.0, 1.0, 0.0), 40.0)
+    keys = [_axis_angle((0.0, 1.0, 0.0), 5.0 * k) for k in range(30)]
+    delta = am.quat_delta(reference, keys[0])
+    for i in range(12, 30):
+        weight = am.weight_at("decay", i, 30, 12)
+        assert weight == 0.0, (i, weight)
+        corrected = am.apply_weighted_delta(delta, keys[i], weight)
+        assert _close(am.quat_angle_degrees(corrected, keys[i]), 0.0, tol=1e-9), i
+
+
 def main() -> int:
     tests = [
         test_linear_ramp_has_zero_roughness,
@@ -219,6 +358,21 @@ def main() -> int:
         test_quat_normalize_handles_zero,
         test_axis_range_empty,
         test_axis_range_basic,
+        test_smoothstep_endpoints_and_midpoint,
+        test_smoothstep_has_flat_ends,
+        test_constant_profile_is_one_everywhere,
+        test_decay_profile_shape,
+        test_both_ends_profile_is_symmetric,
+        test_degenerate_window_touches_only_the_anchor,
+        test_unknown_profile_raises,
+        test_slerp_endpoints,
+        test_slerp_midpoint_is_half_the_angle,
+        test_slerp_takes_the_short_way,
+        test_slerp_handles_coincident_inputs,
+        test_full_weight_reproduces_the_reference_exactly,
+        test_zero_weight_leaves_the_key_untouched,
+        test_partial_weight_lands_between,
+        test_decay_tail_is_bit_identical_to_the_original,
     ]
     failed = 0
     for fn in tests:

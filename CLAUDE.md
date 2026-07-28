@@ -259,7 +259,7 @@ Multiple agents may work on this repo concurrently. Each workstream has its own 
 | Behavior Tree Builder | `Plugins/MCPBridge/Source/MCPBridgeGraphBuilder/Private/BehaviorTreeBuilder/` | Complete (26 node types) | `docs/superpowers/specs/2026-03-19-behavior-tree-builder-design.md` |
 | Animation Blueprint Builder | `Plugins/MCPBridge/Source/MCPBridgeGraphBuilder/Private/AnimBlueprintBuilder/` | Complete (v1) | `docs/superpowers/specs/2026-03-19-anim-blueprint-builder-design.md` |
 | PromptBrush | External plugin + `mcp-server/src/tools/promptbrush.ts` | Active | `README_PROMPTBRUSH.md` |
-| Animation Pose Re-Anchoring | `handlers/animation.py` + `utils/anim_math.py` + `mcp-server/src/tools/animation.ts` | Pass 1 complete (read-only), unverified against a live editor | `docs/superpowers/specs/2026-07-28-anim-pose-reanchor-design.md` |
+| Animation Pose Re-Anchoring | `handlers/animation.py` + `utils/anim_math.py` + `mcp-server/src/tools/animation.ts` | Passes 1-2 complete (read-only + dry run); Pass 1 run live | `docs/superpowers/specs/2026-07-28-anim-pose-reanchor-design.md` |
 
 ShaderWeave is a separate product that shares the UE_Bridge listener. It uses `/shaderweave/v1/*` URL paths, not the `POST /` command router. Do not mix ShaderWeave handlers into `handlers/` or ShaderWeave routes into `router.py`. Note: `listener.py` requires minimal path-routing changes for ShaderWeave (see ShaderWeave spec for details).
 

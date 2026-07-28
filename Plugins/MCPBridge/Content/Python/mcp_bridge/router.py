@@ -96,6 +96,7 @@ from mcp_bridge.handlers.animation import (
     handle_anim_pose_snapshot,
     handle_anim_pose_delta,
     handle_anim_root_motion_analyze,
+    handle_anim_reanchor,
 )
 from mcp_bridge.handlers.effects import (
     handle_pp_volume_spawn,
@@ -335,6 +336,7 @@ COMMAND_ROUTES: Dict[str, Callable[[Dict[str, Any]], Dict[str, Any]]] = {
     "anim_pose_snapshot": handle_anim_pose_snapshot,
     "anim_pose_delta": handle_anim_pose_delta,
     "anim_root_motion_analyze": handle_anim_root_motion_analyze,
+    "anim_reanchor": handle_anim_reanchor,
 
     # Effects (PostProcess, Camera Shake, Visual Effects)
     "pp_volume_spawn": handle_pp_volume_spawn,

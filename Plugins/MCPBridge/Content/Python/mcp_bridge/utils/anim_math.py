@@ -6,9 +6,6 @@ The handlers in handlers/animation.py convert unreal types into these shapes
 before calling in.
 
 Quaternions are (x, y, z, w) tuples. Vectors are (x, y, z) tuples.
-
-Weight profiles for re-anchoring are deliberately not here yet; they land in
-Pass 2 alongside the dry-run path that uses them.
 """
 
 import math
@@ -185,6 +182,102 @@ def roughness(points: Sequence[Vec3]) -> float:
     if not curves:
         return 0.0
     return (sum(curves) / len(curves)) / mean_step
+
+
+def quat_slerp(a: Quat, b: Quat, t: float) -> Quat:
+    """Spherical linear interpolation from a to b.
+
+    Takes the short way around: if the two quaternions are more than 90 degrees
+    apart in 4D, b is negated first. Without that a re-anchor could rotate a
+    bone the long way and produce a visible spin.
+    """
+    an = quat_normalize(a)
+    bn = quat_normalize(b)
+    dot = an[0] * bn[0] + an[1] * bn[1] + an[2] * bn[2] + an[3] * bn[3]
+    if dot < 0.0:
+        bn = (-bn[0], -bn[1], -bn[2], -bn[3])
+        dot = -dot
+    if dot > 0.9995:
+        # Nearly coincident: lerp and renormalize. Avoids dividing by a
+        # vanishing sin(theta).
+        return quat_normalize((
+            an[0] + t * (bn[0] - an[0]),
+            an[1] + t * (bn[1] - an[1]),
+            an[2] + t * (bn[2] - an[2]),
+            an[3] + t * (bn[3] - an[3]),
+        ))
+    dot = max(-1.0, min(1.0, dot))
+    theta = math.acos(dot)
+    sin_theta = math.sin(theta)
+    wa = math.sin((1.0 - t) * theta) / sin_theta
+    wb = math.sin(t * theta) / sin_theta
+    return quat_normalize((
+        wa * an[0] + wb * bn[0],
+        wa * an[1] + wb * bn[1],
+        wa * an[2] + wb * bn[2],
+        wa * an[3] + wb * bn[3],
+    ))
+
+
+# --- weight profiles --------------------------------------------------------
+
+WEIGHT_PROFILES = ("constant", "decay", "both_ends")
+
+
+def smoothstep(t: float) -> float:
+    """Hermite smoothstep, clamped to [0, 1]. Zero slope at both ends."""
+    if t <= 0.0:
+        return 0.0
+    if t >= 1.0:
+        return 1.0
+    return t * t * (3.0 - 2.0 * t)
+
+
+def weight_at(profile: str, index: int, num_keys: int, window_frames: int) -> float:
+    """Correction strength for one key.
+
+    constant  : 1.0 everywhere. Rigidly re-poses the whole clip.
+    decay     : 1.0 at the first key, easing to 0.0 across window_frames.
+    both_ends : decay measured from whichever end is closer.
+
+    decay uses smoothstep rather than a linear ramp so the correction reaches
+    zero with zero slope, leaving no velocity discontinuity where it lands.
+    """
+    if profile == "constant":
+        return 1.0
+    if profile not in WEIGHT_PROFILES:
+        raise ValueError(
+            f"Unknown weight profile '{profile}'. Expected one of {', '.join(WEIGHT_PROFILES)}"
+        )
+    if window_frames <= 0:
+        # Degenerate window: correct only the anchor key itself.
+        if profile == "decay":
+            return 1.0 if index == 0 else 0.0
+        return 1.0 if index in (0, num_keys - 1) else 0.0
+
+    def from_start(i: int) -> float:
+        if i >= window_frames:
+            return 0.0
+        return 1.0 - smoothstep(i / float(window_frames))
+
+    if profile == "decay":
+        return from_start(index)
+    return max(from_start(index), from_start(num_keys - 1 - index))
+
+
+def apply_weighted_delta(q_delta: Quat, q_key: Quat, weight: float) -> Quat:
+    """Blend a key toward its corrected value by weight.
+
+    weight 0 leaves the key untouched; weight 1 applies the full correction.
+    At the anchor key with weight 1 this reproduces the reference rotation
+    exactly, which is the identity the whole re-anchor rests on.
+    """
+    if weight <= 0.0:
+        return quat_normalize(q_key)
+    corrected = quat_multiply(q_delta, q_key)
+    if weight >= 1.0:
+        return quat_normalize(corrected)
+    return quat_slerp(q_key, corrected, weight)
 
 
 def classify(step_mean: float, roughness_value: float) -> str:
