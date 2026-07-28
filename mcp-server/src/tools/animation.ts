@@ -72,7 +72,10 @@ export function createAnimationTools(client: UnrealClient): ToolDefinition[] {
         "Measure root track drift on an AnimSequence: per-axis range, per-frame step " +
         "distribution (mean/max/p95), a roughness ratio that separates smooth authored " +
         "sway from per-frame step noise, a root-vs-pelvis comparison that flags motion " +
-        "baked onto root at export, and the bone compression codec. Pass folder_path " +
+        "baked onto root at export, a rotation_roughness that detects wobble " +
+        "independently of amplitude, and the bone compression codec. A missing root " +
+        "track is reported as a flag rather than an error, so clips whose root was " +
+        "stripped are still analyzed. Pass folder_path " +
         "instead of sequence_path to sweep a folder, sorted by roughness descending. " +
         "Reads import-time data, so runtime causes such as foot IK or decompression " +
         "artifacts cannot appear here. Read-only.",
@@ -84,6 +87,10 @@ export function createAnimationTools(client: UnrealClient): ToolDefinition[] {
           "sequence_path, not both."),
         root_bone: z.string().optional().describe("Root bone name. Default \"root\"."),
         pelvis_bone: z.string().optional().describe("Pelvis bone name. Default \"pelvis\"."),
+        bones: z.array(z.string()).optional().describe(
+          "Additional bones to analyze alongside root and pelvis, e.g. " +
+          "[\"spine_01\", \"clavicle_l\"]. Each gets the same translation and " +
+          "rotation statistics."),
         recursive: z.boolean().optional().describe(
           "Folder mode only: recurse into subfolders. Default true."),
       }),

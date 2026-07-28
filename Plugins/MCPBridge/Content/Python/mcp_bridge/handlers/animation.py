@@ -1037,54 +1037,79 @@ def _bone_motion_block(lib: Any, seq: Any, bone: str) -> Dict[str, Any]:
     }
 
 
-def _analyze_one(lib: Any, seq: Any, path: str, root_bone: str, pelvis_bone: str) -> Dict[str, Any]:
-    """Root motion statistics for a single sequence."""
+def _analyze_one(
+    lib: Any, seq: Any, path: str, root_bone: str, pelvis_bone: str,
+    extra_bones: Optional[Sequence[str]] = None,
+) -> Dict[str, Any]:
+    """Motion statistics for a sequence's root, pelvis, and any named bones.
+
+    A missing root is a finding, not an error. An earlier version bailed out
+    entirely when there was no root track, which meant the clips most worth
+    inspecting -- ones whose root had been stripped, leaving the hips carrying
+    everything -- were the exact clips it refused to look at.
+    """
     meta = _sequence_meta(lib, seq)
     tracks = _track_names(lib, seq)
-
-    if root_bone not in tracks:
-        return {
-            "sequence": path,
-            "error": (
-                f"No animated track named '{root_bone}'. Available: "
-                + ", ".join(tracks[:40])
-            ),
-        }
-
-    root_block = _bone_motion_block(lib, seq, root_bone)
-    root_range = root_block["range_cm"]
-
-    pelvis_block: Dict[str, Any] = {"local_range_cm": None}
     flags: List[str] = []
+
+    root_block: Optional[Dict[str, Any]] = None
+    if root_bone in tracks:
+        root_block = _bone_motion_block(lib, seq, root_bone)
+        if root_block["rotation_classification"] in ("wobble", "unsteady"):
+            flags.append("root_rotation_" + root_block["rotation_classification"])
+    else:
+        flags.append("root_track_missing")
+
+    pelvis_block: Optional[Dict[str, Any]] = None
     if pelvis_bone in tracks:
         pelvis_block = _bone_motion_block(lib, seq, pelvis_bone)
-        pelvis_range = pelvis_block["range_cm"]
-        pelvis_block["local_range_cm"] = pelvis_range
-
+        pelvis_block["local_range_cm"] = pelvis_block["range_cm"]
         if pelvis_block["rotation_classification"] in ("wobble", "unsteady"):
             flags.append("pelvis_rotation_" + pelvis_block["rotation_classification"])
-
-        root_max = max(root_range.values())
-        pelvis_max = max(pelvis_range.values())
-        if (root_max > INVERTED_ROOT_MIN_RANGE_CM
-                and pelvis_max < INVERTED_ROOT_PELVIS_RATIO * root_max):
-            flags.append("inverted_root_authoring")
     else:
         flags.append("pelvis_track_missing")
 
-    if root_block["rotation_classification"] in ("wobble", "unsteady"):
-        flags.append("root_rotation_" + root_block["rotation_classification"])
+    # Only meaningful when both tracks exist: it compares one against the other.
+    if root_block is not None and pelvis_block is not None:
+        root_max = max(root_block["range_cm"].values())
+        pelvis_max = max(pelvis_block["range_cm"].values())
+        if (root_max > INVERTED_ROOT_MIN_RANGE_CM
+                and pelvis_max < INVERTED_ROOT_PELVIS_RATIO * root_max):
+            flags.append("inverted_root_authoring")
 
-    if meta["is_additive"]:
-        flags.append("additive_sequence")
+    others: List[Dict[str, Any]] = []
+    missing_extra: List[str] = []
+    for bone in (extra_bones or []):
+        if bone in tracks:
+            block = _bone_motion_block(lib, seq, bone)
+            if block["rotation_classification"] in ("wobble", "unsteady"):
+                flags.append(f"{bone}_rotation_" + block["rotation_classification"])
+            others.append(block)
+        else:
+            missing_extra.append(bone)
+
+    # yaw_range_degrees is derived from Rotator yaw and wraps at +/-180, so it
+    # can report several times the rotation that actually happened. When it
+    # disagrees badly with the wrap-free excursion, say so rather than leaving
+    # a reader to trust the larger number.
+    for block in [b for b in (root_block, pelvis_block) if b is not None] + others:
+        yaw = block.get("yaw_range_degrees")
+        excursion = block.get("rotation_excursion_degrees") or 0.0
+        if yaw is not None and yaw > max(2.0 * excursion, 10.0):
+            flags.append(f"{block['bone']}_yaw_range_unreliable")
 
     result: Dict[str, Any] = {
         "sequence": path,
         "root": root_block,
         "pelvis": pelvis_block,
+        "other_bones": others,
+        "bones_not_found": missing_extra,
+        "track_count": len(tracks),
         "flags": flags,
         "compression": _compression_info(lib, seq),
     }
+    if meta["is_additive"]:
+        flags.append("additive_sequence")
     result.update(meta)
     return result
 
@@ -1120,13 +1145,15 @@ def handle_anim_root_motion_analyze(params: Dict[str, Any]) -> Dict[str, Any]:
 
         root_bone = params.get("root_bone", "root")
         pelvis_bone = params.get("pelvis_bone", "pelvis")
+        extra_bones = params.get("bones") or []
         lib = _anim_library()
 
         if sequence_path:
             seq, err = _load_sequence(sequence_path)
             if err:
                 return _fail(err)
-            return _ok(_analyze_one(lib, seq, sequence_path, root_bone, pelvis_bone))
+            return _ok(_analyze_one(
+                lib, seq, sequence_path, root_bone, pelvis_bone, extra_bones))
 
         recursive = bool(params.get("recursive", True))
         asset_paths = unreal.EditorAssetLibrary.list_assets(
@@ -1146,7 +1173,8 @@ def handle_anim_root_motion_analyze(params: Dict[str, Any]) -> Dict[str, Any]:
             if not isinstance(asset, unreal.AnimSequence):
                 continue
             try:
-                entry = _analyze_one(lib, asset, clean, root_bone, pelvis_bone)
+                entry = _analyze_one(
+                    lib, asset, clean, root_bone, pelvis_bone, extra_bones)
                 if "error" in entry:
                     errors.append({"sequence": clean, "error": entry["error"]})
                 else:
@@ -1154,7 +1182,8 @@ def handle_anim_root_motion_analyze(params: Dict[str, Any]) -> Dict[str, Any]:
             except Exception as exc:
                 errors.append({"sequence": clean, "error": str(exc)})
 
-        analyzed.sort(key=lambda e: e["root"]["roughness"], reverse=True)
+        analyzed.sort(
+            key=lambda e: (e.get("root") or {}).get("roughness", 0.0), reverse=True)
         return _ok({
             "folder": folder_path,
             "recursive": recursive,
