@@ -35,7 +35,8 @@ reachable from Python; the bone-track write path is not.
 | `UAnimationBlueprintLibrary::GetAdditiveAnimationType` | same | BlueprintPure | Additive guard |
 | `UAnimationBlueprintLibrary::GetBoneCompressionSettings` | same | BlueprintPure | Compression audit |
 | `UAnimationBlueprintLibrary::FinalizeBoneAnimation` | same | BlueprintCallable | Commit + recompress |
-| `UAnimationBlueprintLibrary::GetRawAnimationTrackByName` | same | **C++ only** | Mutable track reference |
+| `UAnimationBlueprintLibrary::GetRawAnimationTrackByName` | same | **C++ only** | Const track reference; NOT writable |
+| `UAnimSequence::GetRawAnimationTrack(int32)` | Engine / `Animation/AnimSequence.h` | **C++ only** | Mutable track reference (the real write hook) |
 | `UAnimSequence::BakeTrackCurvesToRawAnimation` | Engine / `Animation/AnimSequence.h` | **C++ only** | Bake layer curves |
 
 Exact signatures for the two that matter most:
@@ -348,11 +349,9 @@ that noise does not cause needless recompression.
 Status: all passes are written and their unit tests pass. Passes 1 and 2 have been run
 against a live editor; see Live Verification for what that did and did not establish.
 
-**Pass 3 has never been compiled or executed.** The `unreal-api` C++ database was
-unavailable when it was written, so no signature in `AnimPoseLibrary.cpp` was verified
-against it. `FRawAnimSequenceTrack::RotKeys`, `FQuat::Slerp`, `FScopedTransaction`, and
-`IsValidRawAnimationTrackName` are all written from prior knowledge, not confirmed. Treat
-the first build as a real integration step, not a formality.
+Pass 3 compiles. It was written blind, with no signature database available, and the first
+build found three real errors. All three are fixed and the corrections are recorded below.
+It has still never been *executed*, so the write path remains unproven at runtime.
 
 **Pass 1 -- Read path. Python only, no plugin rebuild.** `anim_pose_snapshot`,
 `anim_pose_delta`, and `anim_root_motion_analyze`. No mutating code exists anywhere in the
@@ -509,6 +508,34 @@ must either drop the route or have the handler ported into this repo first.
 
 Verified against fixtures covering the abort path, a project with extra unrelated routes, a
 fresh project needing the import block inserted, and a repeat run proving idempotency.
+
+## API Corrections Found by the First Build
+
+`AnimPoseLibrary.cpp` was written without access to a signature database. Three things were
+wrong, all confirmed by compiling against UE4.27.2:
+
+**`MakeError` collides with an engine template.** `Engine/Templates/ValueOrError.h` declares
+a global `MakeError`, which wins overload resolution against a file-local static of the same
+name and fails with `C2440: cannot convert from 'TValueOrError_ErrorProxy...' to 'FString'`.
+The helper is now `MakeJsonError`. Worth remembering for any file in this plugin: `MakeError`
+and `MakeValue` are taken at global scope.
+
+**`GetAnimationTrackNames` returns through an out-parameter.** `C2660: function does not take
+1 arguments`. The 4.27 signature is
+`GetAnimationTrackNames(const UAnimSequence*, TArray<FName>& OutTrackNames)`. Consistent with
+every other read on this library, all of which use out-parameters.
+
+**`GetRawAnimationTrackByName` returns a const reference.** `C2440: cannot convert from
+'const FRawAnimSequenceTrack' to 'FRawAnimSequenceTrack &'`. It cannot be written through,
+which means the spec's original premise -- that it is the mutation hook -- was wrong. The
+working path is to resolve the bone to a track index with
+`TrackNames.IndexOfByKey(BoneName)` and take the mutable reference from the sequence itself
+via `UAnimSequence::GetRawAnimationTrack(int32)`. `IsValidRawAnimationTrackName` is no longer
+used at all, since the index lookup already answers that question.
+
+That last correction matters beyond this file: the "only bone-track write hook in 4.27" noted
+in the API table above is `UAnimSequence::GetRawAnimationTrack(int32)`, not the by-name
+accessor.
 
 ## Stale Module Hazard
 

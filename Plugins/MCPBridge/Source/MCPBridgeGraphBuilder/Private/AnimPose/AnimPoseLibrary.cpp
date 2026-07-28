@@ -22,7 +22,10 @@ namespace
 		TArray<float> Weights;
 	};
 
-	FString MakeError(const FString& Message)
+	// Named MakeJsonError, not MakeError: Engine/Templates/ValueOrError.h declares
+	// a global MakeError template that wins overload resolution here and fails
+	// with a TValueOrError_ErrorProxy -> FString conversion error.
+	FString MakeJsonError(const FString& Message)
 	{
 		return FString::Printf(TEXT("{\"success\":false,\"error\":\"%s\"}"),
 			*Message.ReplaceCharWithEscapedChar());
@@ -110,28 +113,31 @@ FString UAnimPoseLibrary::ValidateReanchorPlan(UAnimSequence* Target, const FStr
 {
 	if (Target == nullptr)
 	{
-		return MakeError(TEXT("Target sequence is null"));
+		return MakeJsonError(TEXT("Target sequence is null"));
 	}
 
 	TArray<FBonePlan> Plans;
 	FString ParseError;
 	if (!ParsePlan(PlanJSON, Plans, ParseError))
 	{
-		return MakeError(ParseError);
+		return MakeJsonError(ParseError);
 	}
+
+	// GetAnimationTrackNames returns through an out-parameter in 4.27.
+	TArray<FName> TrackNames;
+	UAnimationBlueprintLibrary::GetAnimationTrackNames(Target, TrackNames);
 
 	int32 MissingTracks = 0;
 	int32 WouldExpand = 0;
 	for (const FBonePlan& Plan : Plans)
 	{
-		if (!UAnimationBlueprintLibrary::IsValidRawAnimationTrackName(
-			Target, Plan.Bone.ToString()))
+		const int32 TrackIndex = TrackNames.IndexOfByKey(Plan.Bone);
+		if (TrackIndex == INDEX_NONE)
 		{
 			MissingTracks += 1;
 			continue;
 		}
-		const FRawAnimSequenceTrack& Track =
-			UAnimationBlueprintLibrary::GetRawAnimationTrackByName(Target, Plan.Bone);
+		const FRawAnimSequenceTrack& Track = Target->GetRawAnimationTrack(TrackIndex);
 		if (Track.RotKeys.Num() < Plan.Weights.Num())
 		{
 			WouldExpand += 1;
@@ -148,14 +154,14 @@ FString UAnimPoseLibrary::ApplyReanchorPlan(UAnimSequence* Target, const FString
 {
 	if (Target == nullptr)
 	{
-		return MakeError(TEXT("Target sequence is null"));
+		return MakeJsonError(TEXT("Target sequence is null"));
 	}
 
 	TArray<FBonePlan> Plans;
 	FString ParseError;
 	if (!ParsePlan(PlanJSON, Plans, ParseError))
 	{
-		return MakeError(ParseError);
+		return MakeJsonError(ParseError);
 	}
 
 	// The Python handler already opened a transaction, but the sequence still
@@ -172,17 +178,23 @@ FString UAnimPoseLibrary::ApplyReanchorPlan(UAnimSequence* Target, const FString
 	TArray<FString> Expanded;
 	TArray<FString> Missing;
 
+	// Resolved once. Indexing into the sequence is what yields a mutable track;
+	// GetRawAnimationTrackByName returns a const reference and cannot be written
+	// through.
+	TArray<FName> TrackNames;
+	UAnimationBlueprintLibrary::GetAnimationTrackNames(Target, TrackNames);
+
 	for (const FBonePlan& Plan : Plans)
 	{
 		const FString BoneString = Plan.Bone.ToString();
-		if (!UAnimationBlueprintLibrary::IsValidRawAnimationTrackName(Target, BoneString))
+		const int32 TrackIndex = TrackNames.IndexOfByKey(Plan.Bone);
+		if (TrackIndex == INDEX_NONE)
 		{
 			Missing.Add(BoneString);
 			continue;
 		}
 
-		FRawAnimSequenceTrack& Track =
-			UAnimationBlueprintLibrary::GetRawAnimationTrackByName(Target, Plan.Bone);
+		FRawAnimSequenceTrack& Track = Target->GetRawAnimationTrack(TrackIndex);
 		if (Track.RotKeys.Num() == 0)
 		{
 			Missing.Add(BoneString);
