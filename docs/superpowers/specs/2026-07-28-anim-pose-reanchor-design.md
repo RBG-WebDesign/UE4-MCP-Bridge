@@ -29,9 +29,11 @@ reachable from Python; the bone-track write path is not.
 |---|---|---|---|
 | `UAnimationBlueprintLibrary::GetBonePosesForFrame` | AnimationModifiers / `AnimationBlueprintLibrary.h` | BlueprintPure | Read reference pose |
 | `UAnimationBlueprintLibrary::GetRawTrackRotationData` | same | BlueprintPure | Read local rot keys |
+| `UAnimationBlueprintLibrary::GetRawTrackPositionData` | same | BlueprintPure | Read local pos keys |
 | `UAnimationBlueprintLibrary::GetAnimationTrackNames` | same | BlueprintPure | Enumerate tracks |
 | `UAnimationBlueprintLibrary::GetNumFrames` | same | BlueprintPure | Frame count |
 | `UAnimationBlueprintLibrary::GetAdditiveAnimationType` | same | BlueprintPure | Additive guard |
+| `UAnimationBlueprintLibrary::GetBoneCompressionSettings` | same | BlueprintPure | Compression audit |
 | `UAnimationBlueprintLibrary::FinalizeBoneAnimation` | same | BlueprintCallable | Commit + recompress |
 | `UAnimationBlueprintLibrary::GetRawAnimationTrackByName` | same | **C++ only** | Mutable track reference |
 | `UAnimSequence::BakeTrackCurvesToRawAnimation` | Engine / `Animation/AnimSequence.h` | **C++ only** | Bake layer curves |
@@ -117,18 +119,116 @@ Pass 1 acceptance includes verifying it agrees with `GetRawTrackRotationData` fo
 bone and frame. If it turns out to be component space, the reference read switches to
 `GetRawTrackRotationData` for both sides.
 
+## Root Motion Analysis
+
+A separate diagnostic sharing the same read path. It answers "is this clip sliding,
+jittering, or both, and is the root authored backwards" with numbers instead of a checklist.
+
+Motivating case: `SK_Donathan_Idle_Final` reported a 3.35 cm X / 2.34 cm Y root range over
+556 frames. Range alone cannot separate a smooth authored sway (~0.028 cm/frame, which reads
+as sliding) from per-frame step noise (which reads as jiggle). Those have different causes
+and different fixes, so the tool reports both.
+
+### Metrics
+
+Read root position keys `P[k]` and rotation keys `Q[k]` from the raw track.
+
+**Range.** Per-axis max minus min. What a naive script reports. Kept for continuity, but it
+is the weakest signal of the four.
+
+**Step distribution.** First differences, `d[k] = |P[k+1] - P[k]|`. Report mean, max, and
+95th percentile in cm/frame. Rotation equivalent: angle between consecutive quaternions in
+degrees per frame.
+
+**Roughness.** Second differences, `c[k] = |P[k+1] - 2*P[k] + P[k-1]|`, reported as
+`roughness = mean(c) / mean(d)`. Dimensionless.
+
+- Near 0: consecutive steps point the same way. Smooth authored sway, i.e. sliding.
+- Near or above 1: direction reverses most frames. Quantization stepping or noise, i.e. jiggle.
+
+The 1.0 boundary is empirical, not derived. It has to be calibrated against a clip that is
+known to look correct before it can be trusted as a pass/fail gate. Until then it is a
+ranking signal, not a verdict.
+
+**Root vs pelvis split.** Compare root translation range against pelvis local translation
+range. Normal authoring pins the root and carries weight shift on the pelvis, so the inverse
+means motion was baked onto root at export. Flag `inverted_root_authoring` when root range
+exceeds 1.0 cm and pelvis local range is under half of it. Heuristic thresholds, tunable.
+
+**Compression audit.** `GetBoneCompressionSettings` returns the `UAnimBoneCompressionSettings`
+asset. Report the codec class name at minimum. The per-codec error threshold lives on the
+codec object inside the settings and may need reflection to reach, so treat it as best
+effort and report null rather than guessing when it is not readable. This matters because
+aggressive key reduction on a long clip can quantize a smooth sub-millimetre-per-frame sway
+into visible steps at runtime, and no amount of raw-track inspection will reveal that.
+
+### Response Contract (anim_root_motion_analyze)
+
+```json
+{
+  "success": true,
+  "data": {
+    "sequence": "/Game/.../SK_Donathan_Idle_Final",
+    "num_frames": 556,
+    "length_seconds": 18.53,
+    "root": {
+      "range_cm": {"x": 3.35, "y": 2.34, "z": 0.08},
+      "yaw_range_degrees": 0.92,
+      "step_cm_per_frame": {"mean": 0.028, "max": 0.061, "p95": 0.049},
+      "step_degrees_per_frame": {"mean": 0.004, "max": 0.011, "p95": 0.009},
+      "roughness": 0.07,
+      "classification": "smooth_drift"
+    },
+    "pelvis": {"local_range_cm": {"x": 0.07, "y": 0.05, "z": 0.02}},
+    "flags": ["inverted_root_authoring"],
+    "compression": {"codec": "UAnimCompress_PerTrackCompression", "error_threshold": null}
+  },
+  "error": null
+}
+```
+
+`classification` is one of `static`, `smooth_drift`, `stepped`, `noisy`, derived from the
+step distribution and roughness together. It summarizes the numbers above it; it is not an
+independent measurement.
+
+### What This Cannot See
+
+It reads raw track data, which is what the asset stores at import. Runtime causes cannot
+appear here by construction: foot IK reacting to a drifting root, and decompression
+artifacts at evaluation time, both happen downstream of this data. A clip that reports
+`smooth_drift` with low roughness and still looks jittery in PIE points at the AnimBP or the
+codec rather than at the raw data. That negative result is most of the value of running it.
+
 ## Architecture
 
-Same shape as the existing Inspector/Mutator split: a C++ `UBlueprintFunctionLibrary`
-exposed to Python, a thin Python handler, a TS tool definition.
+Split by direction, because the read and write paths have different requirements.
+
+Every read the tool needs is BlueprintPure and therefore reachable from Python. Nothing in
+the analysis or diff path requires C++ at all:
 
 ```
-MCP tool (TS) --HTTP--> handlers/animation.py --> UAnimPoseLibrary (C++) --> UAnimSequence raw tracks
+MCP tool (TS) --HTTP--> handlers/animation.py --> unreal.AnimationLibrary (Python)
 ```
+
+Only the mutation path needs the plugin, because `GetRawAnimationTrackByName` is the sole
+bone-track write hook and is not BlueprintCallable:
+
+```
+MCP tool (TS) --HTTP--> handlers/animation.py --> UAnimPoseLibrary (C++) --> raw tracks
+```
+
+**This means Passes 1 and 2 ship with no C++ and no plugin rebuild.** The read-only tools
+can run against a live editor immediately, which matters because the whole point of
+front-loading them is to validate the numbers before any code can write. The
+`AnimationModifiers` dependency and the C++ library only land in Pass 3.
+
+Doing the analysis math in Python costs nothing at this scale: a 556-frame clip across a
+few dozen bones is trivial, and the per-key quaternion work in the write path is in C++
+regardless.
 
 ### Module Dependencies
 
-Add to `MCPBridgeGraphBuilder.Build.cs` `PrivateDependencyModuleNames`:
+Pass 3 only. Add to `MCPBridgeGraphBuilder.Build.cs` `PrivateDependencyModuleNames`:
 
 ```csharp
 "AnimationModifiers",   // UAnimationBlueprintLibrary, FRawAnimSequenceTrack access
@@ -139,20 +239,30 @@ Builder work. No new editor-only deps.
 
 ### File Structure
 
+Python, all passes:
+
+```
+handlers/animation.py                    # All six commands
+utils/anim_math.py                       # Delta math, weight profiles, statistics
+```
+
+C++, Pass 3 onward:
+
 ```
 Public/
-  AnimPoseLibrary.h                      # Public API (4 UFUNCTIONs)
+  AnimPoseLibrary.h                      # Public API (2 UFUNCTIONs)
 
 Private/AnimPose/
   AnimPoseLibrary.cpp                    # Dispatcher
   APSpec.h                               # Parsed request structs
   APJsonParser.h / .cpp                  # JSON -> FAPReanchorSpec
   APValidator.h / .cpp                   # Additive check, mask check, track existence
-  APPoseReader.h / .cpp                  # Reference pose extraction
-  APReanchor.h / .cpp                    # Delta math, weight profiles, track mutation
+  APReanchor.h / .cpp                    # Weight profiles, track expansion, mutation
 ```
 
 ### C++ Public API
+
+Write path only. Everything read-only lives in Python.
 
 ```cpp
 UCLASS()
@@ -160,16 +270,6 @@ class MCPBRIDGEGRAPHBUILDER_API UAnimPoseLibrary : public UBlueprintFunctionLibr
 {
     GENERATED_BODY()
 public:
-    // Read-only. Returns JSON pose snapshot.
-    UFUNCTION(BlueprintCallable, CallInEditor, Category="AnimPose")
-    static FString CapturePose(UAnimSequence* Sequence, int32 Frame, const FString& BoneMaskJSON);
-
-    // Read-only. Returns JSON per-bone angle deltas, sorted worst first.
-    UFUNCTION(BlueprintCallable, CallInEditor, Category="AnimPose")
-    static FString AnalyzePoseDelta(UAnimSequence* Reference, int32 ReferenceFrame,
-                                    UAnimSequence* Target, int32 TargetFrame,
-                                    const FString& BoneMaskJSON);
-
     // Mutating unless bDryRun. Returns JSON report.
     UFUNCTION(BlueprintCallable, CallInEditor, Category="AnimPose")
     static FString ReanchorAnimation(UAnimSequence* Target, UAnimSequence* Reference,
@@ -183,16 +283,22 @@ public:
 
 ## MCP Tools
 
-| Tool | Command | Mutating |
-|---|---|---|
-| `anim_pose_snapshot` | `anim_pose_snapshot` | no |
-| `anim_pose_delta` | `anim_pose_delta` | no |
-| `anim_reanchor` | `anim_reanchor` | yes |
-| `anim_batch_reanchor` | `anim_batch_reanchor` | yes |
+| Tool | Command | Mutating | Needs C++ |
+|---|---|---|---|
+| `anim_pose_snapshot` | `anim_pose_snapshot` | no | no |
+| `anim_pose_delta` | `anim_pose_delta` | no | no |
+| `anim_root_motion_analyze` | `anim_root_motion_analyze` | no | no |
+| `anim_reanchor` | `anim_reanchor` | yes | yes |
+| `anim_batch_reanchor` | `anim_batch_reanchor` | yes | yes |
+
+`anim_root_motion_analyze` takes either `sequence_path` or `folder_path`. Folder mode
+returns one entry per sequence sorted by roughness descending, so the clips most likely to
+be jittering surface first without needing a separate batch tool.
 
 Register `anim_reanchor` and `anim_batch_reanchor` in the `modifyingCommands` set in
-`mcp-server/src/index.ts`. Register all four in `COMMAND_ROUTES` in `router.py`. Both
-mutating handlers use `@transactional` from `utils/transactions.py`.
+`mcp-server/src/index.ts`. Register all five in `COMMAND_ROUTES` in `router.py`. The two
+mutating handlers use `@transactional` from `utils/transactions.py`; the read-only three
+must not, since wrapping a pure read in a transaction pollutes the undo stack.
 
 ### Options Contract
 
@@ -214,7 +320,7 @@ mutating handlers use `@transactional` from `utils/transactions.py`.
 }
 ```
 
-### Response Contract
+### Response Contract (anim_reanchor)
 
 ```json
 {
@@ -240,19 +346,35 @@ that noise does not cause needless recompression.
 
 ## Implementation Passes
 
-**Pass 1 -- Read path.** `CapturePose` and `AnalyzePoseDelta` in C++, `anim_pose_snapshot`
-and `anim_pose_delta` tools. No mutation anywhere in the build. Acceptance: point it at the
-real Donathan clips and confirm the reported degree deltas match what is visible in the
-editor, and confirm the coordinate space question above.
+**Pass 1 -- Read path. Python only, no plugin rebuild.** `anim_pose_snapshot`,
+`anim_pose_delta`, and `anim_root_motion_analyze`. No mutating code exists anywhere in the
+build yet. Acceptance, in order:
 
-**Pass 2 -- Dry run.** `ReanchorAnimation` with `bDryRun` forced true. Full delta math and
-weight profiles, reporting what it would write without writing. Acceptance: dry-run output
-on a clip matches the Pass 1 delta report at `w=1`.
+1. Run `anim_root_motion_analyze` on `SK_Donathan_Idle_Final` and confirm the reported
+   range reproduces the known 3.35 / 2.34 cm figures. That validates the reader against a
+   result obtained independently.
+2. Confirm the step distribution and roughness classify it as `smooth_drift`, and that the
+   `inverted_root_authoring` flag fires given the near-stationary pelvis.
+3. Calibrate the roughness boundary against a clip that is known to look correct.
+4. Resolve the coordinate space question: confirm `GetBonePosesForFrame` agrees with
+   `GetRawTrackRotationData` for the same bone and frame, and switch the reference read if
+   it does not.
+5. Confirm the reported degree deltas on the Donathan clips match what is visible in the
+   editor.
 
-**Pass 3 -- Mutation.** Enable the write path: track expansion for constant tracks, key
-mutation, single `FinalizeBoneAnimation`, dirty + save. Acceptance: re-anchor a duplicated
-test clip, confirm frame 0 matches the reference within tolerance, confirm the tail is
-unchanged under `decay`, confirm undo restores the original.
+Item 1 is the reason this pass exists. Reproducing a number that was arrived at by other
+means is the only cheap check available that the raw track reader is correct at all.
+
+**Pass 2 -- Dry run.** Full delta math and weight profiles in Python, reporting what would
+be written without writing. Still no C++. Acceptance: dry-run output at `w=1` matches the
+Pass 1 delta report for the same clip and mask.
+
+**Pass 3 -- Mutation. First pass that needs C++.** Adds `UAnimPoseLibrary`, the
+`AnimationModifiers` dependency, and a plugin rebuild. Track expansion for constant tracks,
+key mutation through the `GetRawAnimationTrackByName` reference, a single
+`FinalizeBoneAnimation`, then dirty and save. Acceptance: re-anchor a duplicated test clip,
+confirm frame 0 matches the reference within tolerance, confirm the tail is unchanged under
+`decay`, confirm undo restores the original.
 
 **Pass 4 -- Batch.** `anim_batch_reanchor` over a content folder with an include filter and
 per-asset dry-run report before any write. Acceptance: sweep the Blends folder, confirm the
@@ -267,6 +389,12 @@ and the safety defaults, plus `docs/playbooks/pose-anchored-animation-set.md` fr
 Unit tests in `mcp-server/tests/animation-tools.test.ts` against `mock-server.ts`, covering
 schema validation, default values (`dry_run` true, `include_translation` false), and error
 plumbing. Add the file to the `npm test` chain in the workspace `package.json`.
+
+The statistics in `utils/anim_math.py` are pure functions over key arrays and need no editor
+at all, so they get direct tests against synthetic input: a linear ramp should produce
+roughness near 0, an alternating sawtooth near 2, a constant track near 0 with zero step
+mean. Those cases pin the classification boundaries without a UE4 round trip and are worth
+writing before the handler that calls them.
 
 Integration tests in `mcp-server/tests/integration/` against a live editor: snapshot round
 trip, dry-run determinism, and a mutation test on a duplicated throwaway asset. Never
@@ -305,5 +433,11 @@ default mask and left to the existing IK setup.
 The Python binding names for `UAnimationBlueprintLibrary` follow its
 `meta=(ScriptName="AnimationLibrary")` specifier, so calls should be
 `unreal.AnimationLibrary.get_bone_poses_for_frame(...)`. This is inferred from the UCLASS
-specifier and needs confirming through `python_proxy` against a live editor before the
-handler is written, per the prototyping rule in CLAUDE.md.
+specifier, not observed.
+
+Now that all of Passes 1 and 2 run through Python, this assumption carries the whole
+read path rather than part of it. Confirm it through `python_proxy` against a live editor
+before writing the handler, per the prototyping rule in CLAUDE.md. Specifically check that
+the `TArray<T>&` out-parameters (`Poses`, `RotationData`, `PositionData`) marshal as Python
+return values rather than requiring pre-allocated arguments, since that changes every call
+site in the handler.
