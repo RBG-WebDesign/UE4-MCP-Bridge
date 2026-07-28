@@ -8,6 +8,8 @@ repo does not have. This script touches only the animation workstream:
     mcp_bridge/handlers/animation.py    copied
     tests/test_anim_math.py             copied
     mcp_bridge/router.py                patched in place, animation entries only
+    Source/.../AnimPoseLibrary.h/.cpp   copied (new files, nothing to clobber)
+    Source/.../*.Build.cs               patched in place, one dependency only
 
 Dry run by default. Pass --apply to write.
 
@@ -49,6 +51,15 @@ VERIFY_TESTS = (
 )
 
 ROUTER_RELATIVE = os.path.join("mcp_bridge", "router.py")
+
+# C++ write path. New files, so copying them cannot clobber project-local work.
+PLUGIN_SOURCE = os.path.join("Plugins", "MCPBridge", "Source", "MCPBridgeGraphBuilder")
+MANAGED_CPP_FILES = (
+    os.path.join("Public", "AnimPoseLibrary.h"),
+    os.path.join("Private", "AnimPose", "AnimPoseLibrary.cpp"),
+)
+BUILD_CS_RELATIVE = "MCPBridgeGraphBuilder.Build.cs"
+BUILD_CS_DEPENDENCY = "AnimationModifiers"
 
 # Commands this repo owns. The router patch is limited to exactly these.
 ANIMATION_COMMANDS = (
@@ -227,6 +238,52 @@ def build_router_patch(repo_python: str, project_python: str) -> Tuple[str, List
     return source, changes
 
 
+def plan_cpp_copies(repo_root: str, project_root: str) -> List[Tuple[str, str, str]]:
+    """Return (relative_path, status, detail) for each managed C++ file."""
+    plan: List[Tuple[str, str, str]] = []
+    for relative in MANAGED_CPP_FILES:
+        source = os.path.join(repo_root, PLUGIN_SOURCE, relative)
+        target = os.path.join(project_root, PLUGIN_SOURCE, relative)
+        if not os.path.isfile(source):
+            raise ReconcileError(f"Canonical C++ file missing from this repo: {source}")
+        if not os.path.exists(target):
+            plan.append((relative, "create", "not present in project"))
+        elif _sha(source) == _sha(target):
+            plan.append((relative, "unchanged", "already identical"))
+        else:
+            plan.append((relative, "overwrite", f"{_sha(target)} -> {_sha(source)}"))
+    return plan
+
+
+def build_cs_patch(project_root: str) -> Tuple[Optional[str], Optional[str]]:
+    """Add the AnimationModifiers dependency if absent. Idempotent.
+
+    Returns (new_source, change) or (None, None) when nothing is needed. The
+    project's Build.cs is patched rather than replaced because it may carry
+    dependencies this repo does not have.
+    """
+    path = os.path.join(project_root, PLUGIN_SOURCE, BUILD_CS_RELATIVE)
+    if not os.path.isfile(path):
+        raise ReconcileError(f"Project Build.cs not found: {path}")
+    source = _read(path)
+    if f'"{BUILD_CS_DEPENDENCY}"' in source:
+        return None, None
+
+    marker = "PrivateDependencyModuleNames.AddRange(new string[]\n        {\n"
+    index = source.find(marker)
+    if index < 0:
+        raise ReconcileError(
+            "Could not find PrivateDependencyModuleNames in the project Build.cs; "
+            f"add \"{BUILD_CS_DEPENDENCY}\" by hand")
+    insert_at = index + len(marker)
+    addition = (
+        "            // UAnimationBlueprintLibrary and FRawAnimSequenceTrack access for\n"
+        "            // the animation pose re-anchor write path (AnimPoseLibrary).\n"
+        f'            "{BUILD_CS_DEPENDENCY}",\n')
+    return source[:insert_at] + addition + source[insert_at:], (
+        f"added the {BUILD_CS_DEPENDENCY} dependency")
+
+
 def verify(project_python: str) -> List[str]:
     """Compile the touched files, run the math tests, confirm routes resolve."""
     results: List[str] = []
@@ -245,8 +302,15 @@ def verify(project_python: str) -> List[str]:
         test_run = subprocess.run(
             [sys.executable, test_path], capture_output=True, text=True)
         if test_run.returncode != 0:
+            # stderr matters as much as stdout here: an ImportError crashes the
+            # test module before it prints anything, and reporting only stdout
+            # turns a missing dependency into a blank failure.
+            detail = (test_run.stdout or "").strip()
+            errors = (test_run.stderr or "").strip()
+            if errors:
+                detail = f"{detail}\n{errors}" if detail else errors
             raise ReconcileError(
-                f"{os.path.basename(relative)} failed after writing:\n{test_run.stdout}")
+                f"{os.path.basename(relative)} failed after writing:\n{detail}")
         summary = test_run.stdout.strip().splitlines()[-1]
         results.append(f"{os.path.basename(relative)}: {summary}")
 
@@ -293,6 +357,15 @@ def main() -> int:
         for relative, status, detail in plan:
             print(f"{status.upper():<10} {relative}  ({detail})")
 
+        cpp_plan = plan_cpp_copies(REPO_ROOT, args.project)
+        for relative, status, detail in cpp_plan:
+            print(f"{status.upper():<10} Source/.../{relative}  ({detail})")
+        _, build_change = build_cs_patch(args.project)
+        if build_change:
+            print(f"PATCH      Source/.../{BUILD_CS_RELATIVE}  ({build_change})")
+        else:
+            print(f"UNCHANGED  Source/.../{BUILD_CS_RELATIVE}  (dependency already present)")
+
         _, router_changes = build_router_patch(repo_python, project_python)
         if router_changes:
             for change in router_changes:
@@ -316,6 +389,27 @@ def main() -> int:
             shutil.copy2(source, target)
             print(f"wrote    {relative}")
 
+        for relative, status, _ in cpp_plan:
+            if status == "unchanged":
+                continue
+            source = os.path.join(REPO_ROOT, PLUGIN_SOURCE, relative)
+            target = os.path.join(args.project, PLUGIN_SOURCE, relative)
+            os.makedirs(os.path.dirname(target), exist_ok=True)
+            if os.path.exists(target) and not args.no_backup:
+                shutil.copy2(target, target + ".bak")
+            shutil.copy2(source, target)
+            print(f"wrote    Source/.../{relative}")
+
+        if build_change:
+            build_target = os.path.join(args.project, PLUGIN_SOURCE, BUILD_CS_RELATIVE)
+            patched_build, _ = build_cs_patch(args.project)
+            if patched_build is not None:
+                if not args.no_backup:
+                    shutil.copy2(build_target, build_target + ".bak")
+                with open(build_target, "w", encoding="utf-8") as handle:
+                    handle.write(patched_build)
+                print(f"wrote    Source/.../{BUILD_CS_RELATIVE}")
+
         if router_changes:
             router_target = os.path.join(project_python, ROUTER_RELATIVE)
             patched, _ = build_router_patch(repo_python, project_python)
@@ -328,7 +422,11 @@ def main() -> int:
         print()
         for line in verify(project_python):
             print(f"OK       {line}")
-        print("\nReconciled. Restart the UE4 listener to pick up the new handlers.")
+        print("\nReconciled. Two follow-ups, both required:\n"
+              "  1. Restart the UE4 listener. Python caches imported modules, so a "
+              "running listener keeps serving the OLD handlers until it restarts.\n"
+              "  2. Rebuild the MCPBridgeGraphBuilder plugin. Until AnimPoseLibrary "
+              "compiles, dry runs work but writes fail with a clear message.")
         return 0
 
     except ReconcileError as exc:

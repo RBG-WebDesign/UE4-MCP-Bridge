@@ -34,6 +34,9 @@ public class MCPBridgeGraphBuilder : ModuleRules
             "GameplayTasks",
             "AnimGraph",
             "AnimGraphRuntime",
+            // UAnimationBlueprintLibrary and FRawAnimSequenceTrack access for
+            // the animation pose re-anchor write path (AnimPoseLibrary).
+            "AnimationModifiers",
             "GameplayTags",
             // Phase 4.5 Batch 2 — needed for FKey marshaling in UK2Node_InputKey /
             // UK2Node_InputAxisKeyEvent / UK2Node_GetInputAxisKeyValue / etc.

@@ -111,6 +111,7 @@ async function main(): Promise<void> {
     "blueprint_component_remove", "blueprint_component_rename",
     "blueprint_node_add", "blueprint_node_delete", "blueprint_node_move",
     "blueprint_node_set_enabled", "blueprint_pins_connect", "blueprint_pins_break",
+    "anim_reanchor", "anim_batch_reanchor",
     "cpp_class_create", "cpp_build",
     "input_mapping_add", "input_mapping_remove", "input_preset_apply",
     "gameplay_framework_create", "project_settings_maps", "camera_rig_create",

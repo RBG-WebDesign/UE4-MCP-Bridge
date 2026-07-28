@@ -288,17 +288,16 @@ public:
 | `anim_pose_snapshot` | `anim_pose_snapshot` | no | no |
 | `anim_pose_delta` | `anim_pose_delta` | no | no |
 | `anim_root_motion_analyze` | `anim_root_motion_analyze` | no | no |
-| `anim_reanchor` | `anim_reanchor` | Pass 3 | Pass 3 |
-| `anim_batch_reanchor` | `anim_batch_reanchor` | Pass 3 | Pass 3 |
+| `anim_reanchor` | `anim_reanchor` | when `dry_run=false` | for writes |
+| `anim_batch_reanchor` | `anim_batch_reanchor` | when `dry_run=false` | for writes |
 
 `anim_root_motion_analyze` takes either `sequence_path` or `folder_path`. Folder mode
 returns one entry per sequence sorted by roughness descending, so the clips most likely to
 be jittering surface first without needing a separate batch tool.
 
-All five are registered in `COMMAND_ROUTES` in `router.py`. None are in the
-`modifyingCommands` set in `mcp-server/src/index.ts` and none carry `@transactional` yet:
-every command is dry-run only until Pass 3, and recording a dry run in the undo history
-would be wrong. Adding both is a Pass 3 step.
+All five are registered in `COMMAND_ROUTES` in `router.py`. The two re-anchor commands are
+in the `modifyingCommands` set and carry `@transactional`; the three analysis commands are
+in neither, since wrapping a pure read in a transaction pollutes the undo stack.
 
 ### Options Contract
 
@@ -346,9 +345,14 @@ that noise does not cause needless recompression.
 
 ## Implementation Passes
 
-Status: Passes 1 and 2 are written and their unit tests pass. Pass 1 has been run against a
-live editor; see Live Verification below for what that did and did not establish. Pass 2 is
-dry-run only and has not been run live. Pass 3 is not started.
+Status: all passes are written and their unit tests pass. Passes 1 and 2 have been run
+against a live editor; see Live Verification for what that did and did not establish.
+
+**Pass 3 has never been compiled or executed.** The `unreal-api` C++ database was
+unavailable when it was written, so no signature in `AnimPoseLibrary.cpp` was verified
+against it. `FRawAnimSequenceTrack::RotKeys`, `FQuat::Slerp`, `FScopedTransaction`, and
+`IsValidRawAnimationTrackName` are all written from prior knowledge, not confirmed. Treat
+the first build as a real integration step, not a formality.
 
 **Pass 1 -- Read path. Python only, no plugin rebuild.** `anim_pose_snapshot`,
 `anim_pose_delta`, and `anim_root_motion_analyze`. No mutating code exists anywhere in the
@@ -378,17 +382,30 @@ inside the BlueprintPure read set. `anim_reanchor` refuses `dry_run=False` with 
 Pass 3 message rather than ignoring the flag, and refuses additive sequences on both sides.
 
 **Pass 3 -- Mutation. First pass that needs C++.** Adds `UAnimPoseLibrary`, the
-`AnimationModifiers` dependency, and a plugin rebuild. Track expansion for constant tracks,
-key mutation through the `GetRawAnimationTrackByName` reference, a single
-`FinalizeBoneAnimation`, then dirty and save. Acceptance: re-anchor a duplicated test clip,
+`AnimationModifiers` dependency, and a plugin rebuild.
+
+The split is deliberately lopsided. Python computes the delta quaternion and the full
+per-key weight array for every bone and hands C++ a finished plan;
+`ApplyReanchorPlan` contains no profile math and no thresholds. It reads the track, widens
+it if the plan has more weights than keys, slerps each key by the supplied weight, and calls
+`FinalizeBoneAnimation` once. That keeps the only unverifiable, uncompilable code in the
+project as close to trivial as it can be, and leaves the single source of truth in the
+Python that has 48 tests behind it.
+
+Two safety mechanisms beyond the dry run:
+
+- **Divergent clips are refused** unless `force=true`. The verdict from Pass 4 is the gate,
+  so the 80-degree Run_180_Left case cannot be written by accident.
+- **The asset is duplicated to `<name>_PreReanchor`** before any write, default on. UE4.27
+  undo of raw animation data through `FinalizeBoneAnimation` is not something this code can
+  guarantee, so Ctrl+Z is not treated as the safety net. An existing backup is never
+  overwritten, so the original pre-modification state survives repeated runs. Acceptance: re-anchor a duplicated test clip,
 confirm frame 0 matches the reference within tolerance, confirm the tail is unchanged under
 `decay`, confirm undo restores the original.
 
-Two registration steps belong to Pass 3 and are easy to miss, since Pass 2 deliberately
-left them undone: add `anim_reanchor` and `anim_batch_reanchor` to the `modifyingCommands`
-set in `mcp-server/src/index.ts`, and add `@transactional` to the two mutating handlers.
-Neither was done earlier because a dry run is not a modification, and recording one in the
-undo history would be wrong.
+Both registration steps that Pass 2 deliberately deferred are now done: `anim_reanchor` and
+`anim_batch_reanchor` are in the `modifyingCommands` set in `mcp-server/src/index.ts`, and
+both handlers carry `@transactional`.
 
 **Pass 4 -- Batch. Dry-run half landed early.** `anim_batch_reanchor` sweeps a folder or an
 explicit list, ranks by drift, and reports per-clip verdicts. Pulled forward ahead of Pass 3
@@ -461,7 +478,14 @@ tracked here and the one running in the game project.
 ## Reconciliation
 
 `Scripts/reconcile_animation_schema.py` merges a game project's animation handlers to this
-repo's canonical schema. Dry run by default; `--apply` writes, with `.bak` copies.
+repo's canonical schema. Dry run by default; `--apply` writes, with `.bak` copies. It also
+copies the two new C++ files and patches one dependency into the project's `Build.cs`,
+since `-SkipPython` on the installer only skips the DefaultEngine.ini step and still
+overwrites `router.py`.
+
+After applying, two things are required and neither is automatic: **restart the listener**,
+because Python caches imported modules and a running listener keeps serving the old
+handlers, and **rebuild the plugin**, because writes fail until `AnimPoseLibrary` compiles.
 
 **The response schema is decided entirely by Python.** The TypeScript tools call
 `client.sendCommand` and `JSON.stringify` the result without reshaping it, so reconciling the

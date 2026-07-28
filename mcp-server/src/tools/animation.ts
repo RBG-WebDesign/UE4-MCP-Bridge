@@ -1,11 +1,10 @@
 /**
- * Animation pose analysis tools (Passes 1 and 2).
+ * Animation pose analysis and re-anchoring tools.
  *
- * Bridges to unreal.AnimationLibrary via the Python listener. Every command
- * here reads raw animation data and mutates nothing, so none of them belong in
- * the modifyingCommands set in index.ts yet. anim_reanchor is dry-run only
- * until Pass 3 adds the C++ write path; registering it as modifying is a
- * Pass 3 step, listed in the design spec.
+ * Bridges to unreal.AnimationLibrary via the Python listener. The three
+ * analysis tools are read-only. anim_reanchor and anim_batch_reanchor default
+ * to dry_run and only write when it is explicitly false, so both are in the
+ * modifyingCommands set in index.ts.
  *
  * Defaults are applied by the Python handler rather than by Zod, so that a
  * caller invoking the handler directly gets the same behavior as one going
@@ -99,8 +98,9 @@ export function createAnimationTools(client: UnrealClient): ToolDefinition[] {
         "Report what re-anchoring a sequence to a reference pose would change: per-bone " +
         "angular delta, how many keys each weight profile would touch, and which tracks " +
         "would need key expansion first. Use it to preview a fix after editing an idle. " +
-        "Dry run only for now; the write path arrives in Pass 3, and dry_run=false is " +
-        "refused rather than ignored. Additive sequences are refused outright. Defaults " +
+        "Defaults to dry_run; set dry_run=false to write, which is " +
+        "refused when the clip is judged divergent. Additive sequences are refused " +
+        "outright. Defaults " +
         "to the spine_01 subtree with root and pelvis excluded, because rebasing those " +
         "breaks root motion and foot planting.",
       inputSchema: z.object({
@@ -131,7 +131,15 @@ export function createAnimationTools(client: UnrealClient): ToolDefinition[] {
           "Also report per-bone translation deltas. Default false; rebasing translation " +
           "on limb bones stretches the character."),
         dry_run: z.boolean().optional().describe(
-          "Must be true until Pass 3 lands. Default true."),
+          "Default true. Set false to actually write raw rotation keys."),
+        force: z.boolean().optional().describe(
+          "Write even when the clip is judged divergent. Default false. A divergent " +
+          "clip usually has a legitimately different start pose rather than drift, so " +
+          "forcing it drags the character toward the reference."),
+        create_backup: z.boolean().optional().describe(
+          "Duplicate the asset to <name>_PreReanchor before writing. Default true. " +
+          "UE4.27 undo of raw animation data is not reliable, so this is the real " +
+          "safety net rather than Ctrl+Z."),
       }),
       handler: async (params) => {
         const result = await client.sendCommand("anim_reanchor", params);
@@ -148,7 +156,7 @@ export function createAnimationTools(client: UnrealClient): ToolDefinition[] {
         "different pose rather than having drifted, so re-anchoring it would drag the " +
         "character somewhere the animator never intended. A sequence that cannot be " +
         "re-anchored is reported in skipped with a reason instead of aborting the sweep. " +
-        "Dry run only until Pass 3.",
+        "Clips judged divergent are refused unless force is set.",
       inputSchema: z.object({
         reference_path: z.string().describe(
           "AnimSequence supplying the anchor pose, normally the idle."),
@@ -183,7 +191,11 @@ export function createAnimationTools(client: UnrealClient): ToolDefinition[] {
         include_translation: z.boolean().optional()
           .describe("Also compute translation deltas. Default false."),
         dry_run: z.boolean().optional()
-          .describe("Must be true until Pass 3 lands. Default true."),
+          .describe("Default true. Set false to write every non-refused clip."),
+        force: z.boolean().optional()
+          .describe("Write divergent clips too. Default false."),
+        create_backup: z.boolean().optional()
+          .describe("Back each asset up to <name>_PreReanchor before writing. Default true."),
       }),
       handler: async (params) => {
         const result = await client.sendCommand("anim_batch_reanchor", params);

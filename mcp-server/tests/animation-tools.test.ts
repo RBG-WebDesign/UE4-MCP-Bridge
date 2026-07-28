@@ -1,11 +1,12 @@
 /**
- * Unit tests for animation pose analysis tools (Pass 1).
+ * Unit tests for animation pose analysis and re-anchoring tools.
  * Mock server; no UE4 instance required.
  *
  * These cover the TS layer only: tool surface, command routing, parameter
- * passthrough, and error plumbing. The statistics themselves are tested in
- * Plugins/MCPBridge/Content/Python/tests/test_anim_math.py, which needs no
- * editor either.
+ * passthrough, the divergent-clip write refusal, and error plumbing. The math
+ * and the handler logic are tested in
+ * Plugins/MCPBridge/Content/Python/tests/test_anim_math.py and
+ * test_animation_handlers.py, neither of which needs an editor.
  */
 
 import { MockUnrealServer } from "./mock-server.js";
@@ -116,7 +117,7 @@ const EXPECTED = [
   "anim_reanchor", "anim_batch_reanchor",
 ];
 
-test("exposes exactly the Pass 1 and Pass 2 tools", async () => {
+test("exposes exactly the five animation tools", async () => {
   for (const name of EXPECTED) {
     assert(toolMap.has(name), `missing tool: ${name}`);
   }
@@ -266,20 +267,71 @@ test("anim_reanchor accepts the three documented profiles", async () => {
   }
 });
 
-test("anim_reanchor surfaces the Pass 3 refusal for dry_run=false", async () => {
-  server.setHandler("anim_reanchor", () => ({
-    success: false,
-    data: {},
-    error: "dry_run=False is not available yet. The write path needs UAnimPoseLibrary "
-      + "from the MCPBridgeGraphBuilder plugin, which lands in Pass 3.",
+test("anim_reanchor refuses to write a divergent clip without force", async () => {
+  server.setHandler("anim_reanchor", (params) => {
+    const p = params as Record<string, unknown>;
+    if (p.dry_run === false && !p.force) {
+      return {
+        success: false,
+        data: { written: false, verdict: { code: "divergent" } },
+        error: "Refusing to write /Game/Run180: max 80.65 deg exceeds the 30 deg review "
+          + "ceiling. Re-run with force=true if this is genuinely what you want.",
+      };
+    }
+    return { success: true, data: { written: true, forced: true, received: params } };
+  });
+  const refused = await callTool("anim_reanchor", {
+    target_path: "/Game/Run180", reference_path: "/Game/Idle", dry_run: false,
+  });
+  assert(refused.success === false, "expected refusal for a divergent clip");
+  assert(String(refused.error).includes("force=true"), `unexpected error: ${refused.error}`);
+
+  const forced = await callTool("anim_reanchor", {
+    target_path: "/Game/Run180", reference_path: "/Game/Idle", dry_run: false, force: true,
+  });
+  assert(forced.success === true, "force should let the write through");
+  assert((forced.data as Record<string, unknown>).forced === true, "forced flag not set");
+});
+
+test("anim_reanchor forwards create_backup", async () => {
+  server.setHandler("anim_reanchor", (params) => ({
+    success: true,
+    data: {
+      written: true,
+      write_report: { bones_written: 14, keys_written: 168, backup: "/Game/X_PreReanchor" },
+      received: params,
+    },
   }));
   const res = await callTool("anim_reanchor", {
-    target_path: "/Game/Possessed",
-    reference_path: "/Game/Idle",
-    dry_run: false,
+    target_path: "/Game/X", reference_path: "/Game/Idle",
+    dry_run: false, create_backup: true,
   });
-  assert(res.success === false, "expected refusal");
-  assert(String(res.error).includes("Pass 3"), `unexpected error: ${res.error}`);
+  const data = res.data as Record<string, unknown>;
+  const received = data.received as Record<string, unknown>;
+  assert(received.create_backup === true, "create_backup not forwarded");
+  const report = data.write_report as Record<string, unknown>;
+  assert(String(report.backup).endsWith("_PreReanchor"), "backup path not reported");
+});
+
+test("anim_batch_reanchor reports written and refused separately", async () => {
+  server.setHandler("anim_batch_reanchor", () => ({
+    success: true,
+    data: {
+      dry_run: false,
+      assets_written: ["/Game/Walk"],
+      refused: [{ sequence: "/Game/Run180", reason: "divergent; max 80.65 deg" }],
+      verdict_counts: { aligned: 0, drifted: 1, divergent: 1 },
+    },
+  }));
+  const res = await callTool("anim_batch_reanchor", {
+    reference_path: "/Game/Idle", folder_path: "/Game/Blends", dry_run: false,
+  });
+  const data = res.data as Record<string, unknown>;
+  const written = data.assets_written as string[];
+  const refused = data.refused as Array<Record<string, unknown>>;
+  assert(written.length === 1 && written[0] === "/Game/Walk", "written list wrong");
+  assert(refused.length === 1, "refused list wrong");
+  assert(String(refused[0].reason).includes("divergent"), "refusal reason not carried");
 });
 
 test("anim_batch_reanchor ranks sequences and reports verdict counts", async () => {

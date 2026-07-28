@@ -1,13 +1,20 @@
-"""Animation pose analysis handlers (Pass 1, read-only).
+"""Animation pose analysis and re-anchoring handlers.
 
 Thin Python bridge over unreal.AnimationLibrary (UAnimationBlueprintLibrary in
-the AnimationModifiers module). Every call in this module is BlueprintPure on
-the C++ side, so nothing here mutates an asset and nothing here needs the
-MCPBridgeGraphBuilder C++ plugin. The mutating re-anchor path lands in Pass 3
-and does need both.
+the AnimationModifiers module). Everything analytical here is BlueprintPure on
+the C++ side, so the read and dry-run paths need no compiled plugin at all.
 
-Deliberately no @transactional decorator: wrapping a pure read in a UE4
-transaction pollutes the undo stack with empty entries.
+The write path is the exception, and it is deliberately lopsided. Python decides
+everything -- which bones, what the correction is, how strongly it applies to
+each key -- and hands UAnimPoseLibrary::ApplyReanchorPlan a finished plan to
+execute. The C++ contains no profile math and no thresholds, because that logic
+is unit tested here without an editor and duplicating it across a language
+boundary would let the two drift apart silently.
+
+Read handlers take no @transactional decorator: wrapping a pure read in a UE4
+transaction pollutes the undo stack with empty entries. The write handlers do
+take it, and additionally back the asset up, because raw animation data undo
+through FinalizeBoneAnimation is not something this code can guarantee.
 
 Binding note: get_bone_poses_for_frame is verified against a live 4.27 editor
 and returns local (parent-relative) transforms, matching raw track data to four
@@ -19,6 +26,7 @@ name when one is missing or throws.
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 from mcp_bridge.utils import anim_math as am
+from mcp_bridge.utils.transactions import transactional
 
 # A root track wandering more than this, with a pelvis that barely moves
 # relative to it, means the motion was baked onto root at export instead of
@@ -37,6 +45,9 @@ DEFAULT_EXCLUDE_BONES = ("root", "pelvis")
 # the clip legitimately starts in a different pose, and re-anchoring it would
 # drag the character somewhere the animator never intended.
 REVIEW_CEILING_DEGREES = 30.0
+
+# Suffix for the pre-write copy taken before any raw track is touched.
+BACKUP_SUFFIX = "_PreReanchor"
 
 
 def _fail(message: str) -> Dict[str, Any]:
@@ -531,7 +542,16 @@ def _reanchor_plan(
         "deltas": deltas,
         "skipped_no_track": skipped,
         "needs_key_expansion": needs_expansion,
+        # Underscore-prefixed entries feed the write path and are stripped
+        # before the plan is returned to a caller.
+        "_reference_rotations": reference_rot,
+        "_target_rotations": target_rot,
     }
+
+
+def _public_plan(plan: Dict[str, Any]) -> Dict[str, Any]:
+    """Strip the internal rotation caches from a plan before returning it."""
+    return {k: v for k, v in plan.items() if not k.startswith("_")}
 
 
 def _reanchor_verdict(max_delta: float, threshold: float, ceiling: float) -> Dict[str, Any]:
@@ -564,6 +584,134 @@ def _reanchor_verdict(max_delta: float, threshold: float, ceiling: float) -> Dic
     }
 
 
+def _anim_pose_library() -> Any:
+    """Return unreal.AnimPoseLibrary, or raise with a usable explanation."""
+    import unreal
+
+    lib = getattr(unreal, "AnimPoseLibrary", None)
+    if lib is None:
+        raise RuntimeError(
+            "unreal.AnimPoseLibrary not found. The write path needs the "
+            "MCPBridgeGraphBuilder C++ plugin compiled with AnimPoseLibrary.cpp and "
+            "the AnimationModifiers module dependency. Read-only and dry-run "
+            "commands work without it."
+        )
+    return lib
+
+
+def _build_write_plan(lib: Any, target: Any, plan: Dict[str, Any]) -> Dict[str, Any]:
+    """Turn a dry-run plan into the JSON payload UAnimPoseLibrary executes.
+
+    Weights are computed here, per bone, rather than in C++. The profile math
+    is unit tested in test_anim_math.py; recomputing it across the language
+    boundary would create a second implementation that could drift.
+    """
+    profile = plan["profile"]
+    window_frames = plan["window_frames"]
+    num_frames = plan["num_frames"]
+
+    reference_rot = plan["_reference_rotations"]
+    target_rot = plan["_target_rotations"]
+
+    bones: List[Dict[str, Any]] = []
+    for entry in plan["deltas"]:
+        bone = entry["bone"]
+        delta = am.quat_delta(reference_rot[bone], target_rot[bone])
+
+        # A time-varying profile needs one weight per frame. A constant track
+        # holds fewer keys than that, so the plan asks C++ to widen it and the
+        # weight array is sized to the post-expansion key count.
+        key_count = entry["key_count"]
+        if profile != "constant" and key_count < num_frames:
+            key_count = num_frames
+
+        weights = [
+            round(am.weight_at(profile, i, key_count, window_frames), 6)
+            for i in range(key_count)
+        ]
+        bones.append({
+            "bone": bone,
+            "delta_quat": [round(c, 9) for c in delta],
+            "weights": weights,
+        })
+
+    return {"bones": bones, "num_frames": num_frames}
+
+
+def _backup_asset(path: str) -> Tuple[Optional[str], Optional[str]]:
+    """Duplicate an asset alongside itself. Returns (backup_path, error).
+
+    Taken before any write because UE4.27 undo of raw animation data through
+    FinalizeBoneAnimation is not reliable enough to be the only safety net.
+    An existing backup is left alone rather than overwritten, so the first
+    pre-modification state survives repeated runs.
+    """
+    import unreal
+
+    clean = path.split(".")[0]
+    folder, _, name = clean.rpartition("/")
+    backup = f"{folder}/{name}{BACKUP_SUFFIX}"
+    if unreal.EditorAssetLibrary.does_asset_exist(backup):
+        return backup, None
+    try:
+        created = unreal.EditorAssetLibrary.duplicate_asset(clean, backup)
+        if created is None:
+            return None, f"Failed to duplicate {clean} to {backup}"
+        unreal.EditorAssetLibrary.save_asset(backup)
+        return backup, None
+    except Exception as exc:
+        return None, f"Backup failed: {exc}"
+
+
+def _execute_reanchor(
+    lib: Any, target: Any, target_path: str, plan: Dict[str, Any], create_backup: bool
+) -> Dict[str, Any]:
+    """Apply a plan to one sequence. Returns the write report."""
+    import unreal
+    import json as _json
+
+    pose_lib = _anim_pose_library()
+    payload = _build_write_plan(lib, target, plan)
+
+    backup_path: Optional[str] = None
+    if create_backup:
+        backup_path, backup_error = _backup_asset(target_path)
+        if backup_error:
+            raise _ReanchorSkip(backup_error)
+
+    raw = pose_lib.apply_reanchor_plan(target, _json.dumps(payload))
+    try:
+        report = _json.loads(raw)
+    except Exception:
+        raise _ReanchorSkip(f"ApplyReanchorPlan returned unparseable output: {raw}")
+
+    if not report.get("success"):
+        raise _ReanchorSkip(report.get("error", "ApplyReanchorPlan failed"))
+
+    saved = False
+    try:
+        saved = bool(unreal.EditorAssetLibrary.save_asset(target_path.split(".")[0]))
+    except Exception as exc:
+        report["save_error"] = str(exc)
+
+    report["backup"] = backup_path
+    report["saved"] = saved
+    return report
+
+
+def _refuse_divergent(plan: Dict[str, Any], force: bool) -> Optional[str]:
+    """Return a refusal message when a clip should not be written unforced."""
+    verdict = plan["verdict"]
+    if verdict["code"] == "divergent" and not force:
+        return (
+            f"Refusing to write {plan['target']}: {verdict['summary']} "
+            "Re-run with force=true if this is genuinely what you want, or narrow "
+            "the bone mask so only the drifting bones are corrected."
+        )
+    return None
+
+
+@transactional("Re-anchor Animation Pose")
 def handle_anim_reanchor(params: Dict[str, Any]) -> Dict[str, Any]:
     """Report what re-anchoring a sequence to a reference pose would change.
 
@@ -592,12 +740,9 @@ def handle_anim_reanchor(params: Dict[str, Any]) -> Dict[str, Any]:
         and a verdict triaging the clip as aligned, drifted, or divergent.
     """
     try:
-        if not params.get("dry_run", True):
-            return _fail(
-                "dry_run=False is not available yet. The write path needs "
-                "UAnimPoseLibrary from the MCPBridgeGraphBuilder plugin, which lands "
-                "in Pass 3. Re-run with dry_run omitted or true."
-            )
+        dry_run = bool(params.get("dry_run", True))
+        force = bool(params.get("force", False))
+        create_backup = bool(params.get("create_backup", True))
 
         target, err = _load_sequence(params.get("target_path", ""))
         if err:
@@ -622,15 +767,41 @@ def handle_anim_reanchor(params: Dict[str, Any]) -> Dict[str, Any]:
                 f"{reference_meta['num_frames']} frames"
             )
 
-        return _ok(_reanchor_plan(
+        plan = _reanchor_plan(
             lib, target, params.get("target_path", ""),
-            reference, params.get("reference_path", ""), reference_meta, opts))
+            reference, params.get("reference_path", ""), reference_meta, opts)
+
+        if dry_run:
+            return _ok(_public_plan(plan))
+
+        refusal = _refuse_divergent(plan, force)
+        if refusal:
+            result = _public_plan(plan)
+            result["written"] = False
+            return {"success": False, "data": result, "error": refusal}
+
+        if not plan["deltas"]:
+            result = _public_plan(plan)
+            result["dry_run"] = False
+            result["written"] = False
+            result["write_report"] = {"reason": "no bone exceeded the threshold"}
+            return _ok(result)
+
+        report = _execute_reanchor(
+            lib, target, params.get("target_path", ""), plan, create_backup)
+        result = _public_plan(plan)
+        result["dry_run"] = False
+        result["written"] = True
+        result["forced"] = force
+        result["write_report"] = report
+        return _ok(result)
     except _ReanchorSkip as exc:
         return _fail(str(exc))
     except Exception as exc:
         return _fail(str(exc))
 
 
+@transactional("Batch Re-anchor Animation Poses")
 def handle_anim_batch_reanchor(params: Dict[str, Any]) -> Dict[str, Any]:
     """Dry-run a re-anchor across many sequences and rank them by drift.
 
@@ -659,12 +830,9 @@ def handle_anim_batch_reanchor(params: Dict[str, Any]) -> Dict[str, Any]:
     try:
         import unreal
 
-        if not params.get("dry_run", True):
-            return _fail(
-                "dry_run=False is not available yet. The write path needs "
-                "UAnimPoseLibrary from the MCPBridgeGraphBuilder plugin, which lands "
-                "in Pass 3. Re-run with dry_run omitted or true."
-            )
+        dry_run = bool(params.get("dry_run", True))
+        force = bool(params.get("force", False))
+        create_backup = bool(params.get("create_backup", True))
 
         folder_path = params.get("folder_path", "")
         target_paths = params.get("target_paths") or []
@@ -734,7 +902,7 @@ def handle_anim_batch_reanchor(params: Dict[str, Any]) -> Dict[str, Any]:
                 skipped.append({"sequence": path, "reason": str(exc)})
                 continue
 
-            rows.append({
+            row = {
                 "sequence": path,
                 "num_frames": plan["num_frames"],
                 "bones_modified": plan["bones_modified"],
@@ -742,18 +910,45 @@ def handle_anim_batch_reanchor(params: Dict[str, Any]) -> Dict[str, Any]:
                 "verdict": plan["verdict"]["code"],
                 "needs_key_expansion": len(plan["needs_key_expansion"]),
                 "worst_bones": [d["bone"] for d in plan["deltas"][:5]],
-            })
+            }
+
+            if not dry_run:
+                refusal = _refuse_divergent(plan, force)
+                if refusal:
+                    row["written"] = False
+                    row["refused"] = refusal
+                elif not plan["deltas"]:
+                    row["written"] = False
+                    row["refused"] = "no bone exceeded the threshold"
+                else:
+                    try:
+                        row["write_report"] = _execute_reanchor(
+                            lib, asset, path, plan, create_backup)
+                        row["written"] = True
+                    except _ReanchorSkip as exc:
+                        row["written"] = False
+                        row["refused"] = str(exc)
+
+            rows.append(row)
 
         rows.sort(key=lambda r: r["max_delta_degrees"], reverse=True)
         counts = {"aligned": 0, "drifted": 0, "divergent": 0}
         for row in rows:
             counts[row["verdict"]] = counts.get(row["verdict"], 0) + 1
+        written = [r["sequence"] for r in rows if r.get("written")]
+        refused = [
+            {"sequence": r["sequence"], "reason": r["refused"]}
+            for r in rows if r.get("refused")
+        ]
 
         return _ok({
             "reference": reference_path,
             "folder": folder_path or None,
             "recursive": recursive if folder_path else None,
-            "dry_run": True,
+            "dry_run": dry_run,
+            "forced": force if not dry_run else None,
+            "assets_written": written,
+            "refused": refused,
             "profile": opts["profile"],
             "window_frames": opts["window_frames"],
             "threshold_degrees": opts["threshold_degrees"],
