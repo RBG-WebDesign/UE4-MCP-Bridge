@@ -15,6 +15,7 @@ Usage:
 
 import argparse
 import json
+import os
 import sys
 import urllib.error
 import urllib.request
@@ -29,8 +30,13 @@ CANONICAL_STEP_KEYS = ("mean", "max", "p95")
 
 def post(url: str, command: str, params: Dict[str, Any], timeout: float) -> Dict[str, Any]:
     body = json.dumps({"command": command, "params": params}).encode("utf-8")
-    request = urllib.request.Request(
-        url, data=body, headers={"Content-Type": "application/json"})
+    headers = {"Content-Type": "application/json"}
+    # Only sent when configured, so a listener without MCP_BRIDGE_TOKEN set
+    # sees exactly the requests it saw before.
+    token = (os.environ.get("UNREAL_BRIDGE_TOKEN") or "").strip()
+    if token:
+        headers["X-MCP-Bridge-Token"] = token
+    request = urllib.request.Request(url, data=body, headers=headers)
     with urllib.request.urlopen(request, timeout=timeout) as response:
         return json.loads(response.read().decode("utf-8"))
 

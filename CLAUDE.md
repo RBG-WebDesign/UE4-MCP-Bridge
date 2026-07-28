@@ -53,12 +53,29 @@ that case and falls back, but the variable still would not take effect.
 The server logs its resolved endpoint at startup, so a mismatch is visible
 immediately rather than as a confusing connection error later.
 
-**Security.** The listener has no authentication, and `python_proxy` executes
-arbitrary Python inside the editor with full `unreal` module access. Anything
-that can reach the port can run code in the editor and read or write project
-files. Only expose it over a private network (Tailscale, WireGuard, an SSH
-tunnel bound to loopback). Never forward the port to the public internet or
-bind it to 0.0.0.0 on an untrusted network.
+**Security.** `python_proxy` executes arbitrary Python inside the editor with
+full `unreal` module access, so anything that can reach the port owns the
+editor and can read or write project files.
+
+Set a shared secret whenever the port is reachable from another machine:
+
+```bash
+# in the environment that launches the EDITOR
+export MCP_BRIDGE_TOKEN=<long-random-string>
+# in the environment that launches the MCP SERVER
+export UNREAL_BRIDGE_TOKEN=<the same string>
+```
+
+The listener then requires an `X-MCP-Bridge-Token` header matching that value
+and answers 401 otherwise, compared in constant time. It is **off by default**:
+with `MCP_BRIDGE_TOKEN` unset the listener behaves exactly as before, so a
+normal loopback setup needs no change and no existing caller breaks.
+
+A token is not a substitute for network isolation. Epic's own UE5 MCP plugin
+binds loopback and rejects non-loopback `Origin` headers outright, calling the
+server "not safe to expose beyond the local machine". Use a private network
+(Tailscale, WireGuard, an SSH tunnel bound to loopback) and treat the token as
+defence in depth. Never forward the port to the public internet.
 
 ## Architecture
 
@@ -320,6 +337,24 @@ Dispatch these for codebase questions instead of guessing. They search actual fi
 | `bridge-http-protocol` | Request/response contract between TS MCP server and Python listener |
 | `mcp-tool-pattern` | Step-by-step template for adding a new MCP tool |
 | `ue4-transaction-system` | Undo/redo transaction scope rules |
+
+## Reloading Code Without Restarting
+
+Three layers cache independently, and each has its own refresh step. Skipping
+one means the running system is not the code on disk, which is silent and has
+caused real damage:
+
+| Layer | Refresh |
+|---|---|
+| Python handlers (`mcp_bridge/`) | `refresh_tools` command, no restart needed |
+| TypeScript MCP server (`mcp-server/dist/`) | `npm run build`, then restart the MCP server. `dist/` is gitignored, so `git pull` never updates it |
+| C++ plugin (`Plugins/MCPBridge/Source/`) | rebuild, then restart the editor. UE4 does not propagate new `UFUNCTION` declarations through Live Coding |
+
+`refresh_tools` reloads utils, then handlers, then the router, in that order,
+and drops each module's cached `.pyc` first. `restart_listener` with
+`reload: true` does the same but also stops and restarts the HTTP server;
+prefer `refresh_tools` when only handler code changed, since it drops no
+in-flight request.
 | `unreal-python-api` | UE4.27 Python API reference (includes Context7 live lookup with 57K+ snippets) |
 
 ## File Ownership

@@ -10,6 +10,8 @@ import threading
 import time
 import traceback
 import queue
+import hmac
+import os
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from typing import Any, Dict, Optional, Callable
 
@@ -47,6 +49,39 @@ _shaderweave_active_sessions: int = 0
 
 HOST = "localhost"
 PORT = 8080
+
+# Optional shared secret. When MCP_BRIDGE_TOKEN is set in the editor's
+# environment, every POST must carry a matching X-MCP-Bridge-Token header.
+#
+# Off by default, deliberately. The listener binds loopback, so on a normal
+# single-machine setup a token adds friction without adding safety, and making
+# it mandatory would break every existing caller. It stops being optional the
+# moment the port is reachable from another machine: there is no other
+# authentication, and python_proxy executes arbitrary Python inside the editor
+# with full unreal access. Anything that can reach the port owns the editor.
+TOKEN_HEADER = "X-MCP-Bridge-Token"
+TOKEN_ENV_VAR = "MCP_BRIDGE_TOKEN"
+
+
+def _expected_token() -> str:
+    """The configured shared secret, or empty when auth is disabled."""
+    return (os.environ.get(TOKEN_ENV_VAR) or "").strip()
+
+
+def auth_enabled() -> bool:
+    return _expected_token() != ""
+
+
+def token_is_valid(supplied: str) -> bool:
+    """Constant-time comparison against the configured token.
+
+    Returns True when no token is configured, which is the documented
+    opt-in behaviour rather than an accidental bypass.
+    """
+    expected = _expected_token()
+    if expected == "":
+        return True
+    return hmac.compare_digest(expected, (supplied or "").strip())
 COMMAND_TIMEOUT_SECONDS = 300.0
 
 
@@ -81,6 +116,12 @@ class BridgeRequestHandler(BaseHTTPRequestHandler):
     def do_POST(self) -> None:
         """Handle POST requests containing JSON commands."""
         try:
+            if not token_is_valid(self.headers.get(TOKEN_HEADER, "")):
+                # Deliberately vague: a caller that cannot authenticate does not
+                # get to learn whether the token was absent or merely wrong.
+                self._send_error(401, "Unauthorized")
+                return
+
             content_length = int(self.headers.get("Content-Length", 0))
             body = self.rfile.read(content_length).decode("utf-8")
 

@@ -96,6 +96,20 @@ export function createSystemTools(client: UnrealClient): ToolDefinition[] {
       },
     },
     {
+      name: "refresh_tools",
+      description:
+        "Reload the Python handler modules in place, without restarting the listener " +
+        "or the editor. Use after editing anything under mcp_bridge/. Unlike " +
+        "restart_listener this drops no in-flight request. C++ changes still need a " +
+        "plugin rebuild and an editor restart, because UE4 does not propagate new " +
+        "UFUNCTION declarations through Live Coding.",
+      inputSchema: z.object({}),
+      handler: async (params) => {
+        const result = await client.sendCommand("refresh_tools", params);
+        return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
+      },
+    },
+    {
       name: "ue_logs",
       description: "Fetch recent UE4 log entries.",
       inputSchema: z.object({

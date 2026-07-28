@@ -11,6 +11,7 @@
  *   UNREAL_BRIDGE_HOST=100.x.y.z      hostname or IP of the listener
  *   UNREAL_BRIDGE_PORT=8080           port
  *   UNREAL_BRIDGE_TIMEOUT_MS=320000   request timeout
+ *   UNREAL_BRIDGE_TOKEN=<secret>      shared secret, sent as X-MCP-Bridge-Token
  *
  * SECURITY: the listener has no authentication and python_proxy executes
  * arbitrary Python inside the editor. Only point this at a host reachable
@@ -30,6 +31,8 @@ export interface UnrealClientOptions {
   host: string;
   port: number;
   timeout: number;
+  /** Shared secret. Empty means send no auth header. */
+  token: string;
 }
 
 // Client timeout must exceed the listener's COMMAND_TIMEOUT_SECONDS (300s)
@@ -85,6 +88,7 @@ export function resolveClientDefaults(): UnrealClientOptions {
     host: envHost(),
     port: envInt("UNREAL_BRIDGE_PORT", FALLBACK_PORT, 1, 65535),
     timeout: envInt("UNREAL_BRIDGE_TIMEOUT_MS", FALLBACK_TIMEOUT, 1000, 3600000),
+    token: (process.env.UNREAL_BRIDGE_TOKEN ?? "").trim(),
   };
 }
 
@@ -120,6 +124,9 @@ export class UnrealClient {
         headers: {
           "Content-Type": "application/json",
           "Content-Length": Buffer.byteLength(payload),
+          // Omitted entirely when unset, so a listener with no token
+          // configured sees exactly the requests it saw before.
+          ...(this.options.token ? { "X-MCP-Bridge-Token": this.options.token } : {}),
         },
         timeout: this.options.timeout,
       };
@@ -136,6 +143,17 @@ export class UnrealClient {
             const parsed = JSON.parse(data) as UnrealResponse;
             resolve(parsed);
           } catch {
+            if (res.statusCode === 401) {
+              resolve({
+                success: false,
+                data: {},
+                error:
+                  `Listener at ${this.endpoint} rejected the request as unauthorized. ` +
+                  `It has MCP_BRIDGE_TOKEN set; set UNREAL_BRIDGE_TOKEN to the same ` +
+                  `value in the environment that launches this MCP server.`,
+              });
+              return;
+            }
             resolve({
               success: false,
               data: {},

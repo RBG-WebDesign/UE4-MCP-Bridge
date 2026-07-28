@@ -15,6 +15,7 @@ from mcp_bridge.handlers.system import (
     handle_bridge_command_manifest,
     handle_bridge_self_test,
     handle_restart_listener,
+    handle_refresh_tools,
 )
 from mcp_bridge.handlers.project import (
     handle_project_info,
@@ -205,6 +206,7 @@ COMMAND_ROUTES: Dict[str, Callable[[Dict[str, Any]], Dict[str, Any]]] = {
     "bridge_command_manifest": handle_bridge_command_manifest,
     "bridge_self_test": handle_bridge_self_test,
     "restart_listener": handle_restart_listener,
+    "refresh_tools": handle_refresh_tools,
 
     # Project & Assets
     "project_info": handle_project_info,

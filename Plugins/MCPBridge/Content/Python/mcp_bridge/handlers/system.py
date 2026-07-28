@@ -412,6 +412,45 @@ def _deep_reload_bridge_modules() -> List[str]:
     return reloaded
 
 
+def handle_refresh_tools(params: Dict[str, Any]) -> Dict[str, Any]:
+    """Reload handler code in place without restarting the listener.
+
+    The listener resolves the router per tick through a function-level import,
+    so replacing the module contents is enough: the next command dispatches
+    through the fresh route table. Nothing is stopped and no in-flight request
+    is dropped, which is the difference between this and restart_listener.
+
+    Use after editing Python under mcp_bridge/. C++ changes still need a plugin
+    rebuild and an editor restart, since UE4 does not propagate new UFUNCTION
+    declarations through Live Coding.
+
+    Args:
+        params: Unused.
+
+    Returns:
+        The module names that were reloaded, in dependency order.
+    """
+    try:
+        reloaded = _deep_reload_bridge_modules()
+        try:
+            import unreal
+            unreal.log(f"[MCP Bridge] refresh_tools reloaded {len(reloaded)} module(s)")
+        except ImportError:
+            pass
+        return {
+            "success": True,
+            "data": {
+                "reloaded": reloaded,
+                "count": len(reloaded),
+                "note": "Python handlers are current. C++ changes still need a "
+                        "plugin rebuild and an editor restart.",
+            },
+            "error": None,
+        }
+    except Exception as e:
+        return {"success": False, "data": {}, "error": str(e)}
+
+
 def handle_restart_listener(params: Dict[str, Any]) -> Dict[str, Any]:
     """Restart the MCP Bridge listener on the next editor tick.
 
