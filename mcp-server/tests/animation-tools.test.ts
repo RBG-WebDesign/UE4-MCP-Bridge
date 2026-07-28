@@ -112,7 +112,8 @@ async function setup(): Promise<void> {
 }
 
 const EXPECTED = [
-  "anim_pose_snapshot", "anim_pose_delta", "anim_root_motion_analyze", "anim_reanchor",
+  "anim_pose_snapshot", "anim_pose_delta", "anim_root_motion_analyze",
+  "anim_reanchor", "anim_batch_reanchor",
 ];
 
 test("exposes exactly the Pass 1 and Pass 2 tools", async () => {
@@ -279,6 +280,60 @@ test("anim_reanchor surfaces the Pass 3 refusal for dry_run=false", async () => 
   });
   assert(res.success === false, "expected refusal");
   assert(String(res.error).includes("Pass 3"), `unexpected error: ${res.error}`);
+});
+
+test("anim_batch_reanchor ranks sequences and reports verdict counts", async () => {
+  server.setHandler("anim_batch_reanchor", (params) => ({
+    success: true,
+    data: {
+      reference: (params as Record<string, unknown>).reference_path,
+      dry_run: true,
+      analyzed: 3,
+      verdict_counts: { aligned: 1, drifted: 1, divergent: 1 },
+      truncated_by_limit: 0,
+      sequences: [
+        { sequence: "/Game/Run180", max_delta_degrees: 80.65, verdict: "divergent" },
+        { sequence: "/Game/Walk", max_delta_degrees: 6.2, verdict: "drifted" },
+        { sequence: "/Game/IdleVar", max_delta_degrees: 0.4, verdict: "aligned" },
+      ],
+      skipped: [{ sequence: "/Game/Additive", reason: "additive sequence (AAT_LocalSpaceBase)" }],
+      received: params,
+    },
+  }));
+  const res = await callTool("anim_batch_reanchor", {
+    reference_path: "/Game/Idle",
+    folder_path: "/Game/Anims/Blends",
+  });
+  assert(res.success === true, "expected success");
+  const data = res.data as Record<string, unknown>;
+  const sequences = data.sequences as Array<Record<string, unknown>>;
+  assert(sequences.length === 3, "expected three rows");
+  assert((sequences[0].max_delta_degrees as number) > (sequences[1].max_delta_degrees as number),
+    "rows not sorted by drift descending");
+  assert(sequences[0].verdict === "divergent", "worst clip should be divergent");
+  const skipped = data.skipped as Array<Record<string, unknown>>;
+  assert(String(skipped[0].reason).includes("additive"), "skip reason not carried");
+});
+
+test("anim_batch_reanchor forwards the review ceiling and limit", async () => {
+  const res = await callTool("anim_batch_reanchor", {
+    reference_path: "/Game/Idle",
+    target_paths: ["/Game/A", "/Game/B"],
+    review_ceiling_degrees: 45,
+    limit: 10,
+  });
+  const received = (res.data as Record<string, unknown>).received as Record<string, unknown>;
+  assert(received.review_ceiling_degrees === 45, "review ceiling not forwarded");
+  assert(received.limit === 10, "limit not forwarded");
+  const targets = received.target_paths as string[];
+  assert(targets.length === 2, "target_paths not forwarded");
+});
+
+test("anim_batch_reanchor requires a reference path at the schema layer", async () => {
+  const tool = toolMap.get("anim_batch_reanchor");
+  if (!tool) throw new Error("anim_batch_reanchor missing");
+  const parsed = tool.inputSchema.safeParse({ folder_path: "/Game/Anims" });
+  assert(parsed.success === false, "expected rejection without reference_path");
 });
 
 test("listener errors surface as success=false with the message", async () => {

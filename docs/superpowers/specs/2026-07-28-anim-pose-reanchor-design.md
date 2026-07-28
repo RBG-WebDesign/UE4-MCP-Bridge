@@ -288,17 +288,17 @@ public:
 | `anim_pose_snapshot` | `anim_pose_snapshot` | no | no |
 | `anim_pose_delta` | `anim_pose_delta` | no | no |
 | `anim_root_motion_analyze` | `anim_root_motion_analyze` | no | no |
-| `anim_reanchor` | `anim_reanchor` | yes | yes |
-| `anim_batch_reanchor` | `anim_batch_reanchor` | yes | yes |
+| `anim_reanchor` | `anim_reanchor` | Pass 3 | Pass 3 |
+| `anim_batch_reanchor` | `anim_batch_reanchor` | Pass 3 | Pass 3 |
 
 `anim_root_motion_analyze` takes either `sequence_path` or `folder_path`. Folder mode
 returns one entry per sequence sorted by roughness descending, so the clips most likely to
 be jittering surface first without needing a separate batch tool.
 
-Register `anim_reanchor` and `anim_batch_reanchor` in the `modifyingCommands` set in
-`mcp-server/src/index.ts`. Register all five in `COMMAND_ROUTES` in `router.py`. The two
-mutating handlers use `@transactional` from `utils/transactions.py`; the read-only three
-must not, since wrapping a pure read in a transaction pollutes the undo stack.
+All five are registered in `COMMAND_ROUTES` in `router.py`. None are in the
+`modifyingCommands` set in `mcp-server/src/index.ts` and none carry `@transactional` yet:
+every command is dry-run only until Pass 3, and recording a dry run in the undo history
+would be wrong. Adding both is a Pass 3 step.
 
 ### Options Contract
 
@@ -390,9 +390,31 @@ set in `mcp-server/src/index.ts`, and add `@transactional` to the two mutating h
 Neither was done earlier because a dry run is not a modification, and recording one in the
 undo history would be wrong.
 
-**Pass 4 -- Batch.** `anim_batch_reanchor` over a content folder with an include filter and
-per-asset dry-run report before any write. Acceptance: sweep the Blends folder, confirm the
-ranked drift report is stable across repeat runs.
+**Pass 4 -- Batch. Dry-run half landed early.** `anim_batch_reanchor` sweeps a folder or an
+explicit list, ranks by drift, and reports per-clip verdicts. Pulled forward ahead of Pass 3
+because the game project had already registered the command, and a route whose handler this
+repo does not define blocks reconciliation entirely. The write half stays in Pass 3.
+Acceptance: sweep the Blends folder, confirm the ranked drift report is stable across
+repeat runs.
+
+### Drift Verdicts
+
+Batch mode triages each clip rather than only ranking it, because ranking alone invites the
+wrong conclusion. A live Pass 2 dry run of `SK_Donathan_Run_180_Left` against
+`SK_Donathan_Idle_Final` reported 80.65 degrees on `index_03_r` and 79.33 on `lowerarm_r`,
+with `spine_01` at 2.68. That is not drift. A run turn legitimately starts with the arms
+somewhere an idle never puts them, and re-anchoring it would drag the character into a pose
+the animator never authored.
+
+| Verdict | Condition | Meaning |
+|---|---|---|
+| `aligned` | max delta < `threshold_degrees` | Already matches; nothing to do |
+| `drifted` | threshold <= max < `review_ceiling_degrees` | Normal re-anchor candidate |
+| `divergent` | max >= `review_ceiling_degrees` | Probably a different start pose, not drift |
+
+`review_ceiling_degrees` defaults to 30 and is configurable. Like the roughness boundary it
+is empirical rather than derived. The `divergent` summary states the reason in full, since
+it is the guard standing between a batch sweep and a bad apply once Pass 3 exists.
 
 **Pass 5 -- Skill and playbook.** `.claude/skills/anim-pose-reanchoring/` with the workflow
 and the safety defaults, plus `docs/playbooks/pose-anchored-animation-set.md` from

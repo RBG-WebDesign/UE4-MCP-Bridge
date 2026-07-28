@@ -138,5 +138,57 @@ export function createAnimationTools(client: UnrealClient): ToolDefinition[] {
         return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
       },
     },
+    {
+      name: "anim_batch_reanchor",
+      description:
+        "Dry-run a re-anchor across a folder or an explicit list of sequences and rank " +
+        "them by drift. This is the tool for the core workflow: edit the idle, then find " +
+        "which clips no longer line up with it. Each clip gets a verdict of aligned, " +
+        "drifted, or divergent. Divergent means the clip legitimately starts in a " +
+        "different pose rather than having drifted, so re-anchoring it would drag the " +
+        "character somewhere the animator never intended. A sequence that cannot be " +
+        "re-anchored is reported in skipped with a reason instead of aborting the sweep. " +
+        "Dry run only until Pass 3.",
+      inputSchema: z.object({
+        reference_path: z.string().describe(
+          "AnimSequence supplying the anchor pose, normally the idle."),
+        folder_path: z.string().optional().describe(
+          "Content folder to sweep. Provide this or target_paths, not both."),
+        target_paths: z.array(z.string()).optional().describe(
+          "Explicit sequences to check. Provide this or folder_path, not both."),
+        recursive: z.boolean().optional()
+          .describe("Folder mode only: recurse into subfolders. Default true."),
+        limit: z.number().int().min(0).optional().describe(
+          "Stop after this many sequences. Truncation is reported in " +
+          "truncated_by_limit rather than applied silently."),
+        reference_frame: z.number().int().min(0).optional()
+          .describe("Frame to read on the reference. Default 0."),
+        anchor_frame: z.number().int().min(0).optional()
+          .describe("Frame of each target to align. Default 0."),
+        bone_mask: z.object({
+          include_bones: z.array(z.string()).optional(),
+          include_subtrees: z.array(z.string()).optional(),
+          exclude_bones: z.array(z.string()).optional(),
+        }).optional().describe(
+          "Omit for the default upper-body mask: the spine_01 subtree, minus root and pelvis."),
+        profile: z.enum(["constant", "decay", "both_ends"]).optional()
+          .describe("Weight profile. Default decay."),
+        window_frames: z.number().int().min(0).optional()
+          .describe("Frames over which decay falls to zero. Default 12."),
+        threshold_degrees: z.number().min(0).optional()
+          .describe("Skip bones whose delta is under this. Default 1.5."),
+        review_ceiling_degrees: z.number().min(0).optional().describe(
+          "Above this worst-bone delta a clip is called divergent rather than drifted. " +
+          "Default 30."),
+        include_translation: z.boolean().optional()
+          .describe("Also compute translation deltas. Default false."),
+        dry_run: z.boolean().optional()
+          .describe("Must be true until Pass 3 lands. Default true."),
+      }),
+      handler: async (params) => {
+        const result = await client.sendCommand("anim_batch_reanchor", params);
+        return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
+      },
+    },
   ];
 }

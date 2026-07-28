@@ -32,6 +32,12 @@ INVERTED_ROOT_PELVIS_RATIO = 0.5
 DEFAULT_INCLUDE_SUBTREES = ("spine_01",)
 DEFAULT_EXCLUDE_BONES = ("root", "pelvis")
 
+# Above this worst-bone delta a clip is called divergent rather than drifted.
+# Drift after an idle edit is small; tens of degrees on a limb usually means
+# the clip legitimately starts in a different pose, and re-anchoring it would
+# drag the character somewhere the animator never intended.
+REVIEW_CEILING_DEGREES = 30.0
+
 
 def _fail(message: str) -> Dict[str, Any]:
     return {"success": False, "data": {}, "error": message}
@@ -392,12 +398,178 @@ def _resolve_bone_mask(
     return selected, explanation
 
 
+class _ReanchorSkip(Exception):
+    """A sequence cannot be re-anchored. Fatal alone, a skip reason in a batch."""
+
+
+def _reanchor_options(params: Dict[str, Any]) -> Dict[str, Any]:
+    """Validate and normalize the shared re-anchor options."""
+    profile = params.get("profile", "decay")
+    if profile not in am.WEIGHT_PROFILES:
+        raise _ReanchorSkip(
+            f"Unknown profile '{profile}'. Expected one of "
+            + ", ".join(am.WEIGHT_PROFILES))
+    return {
+        "profile": profile,
+        "window_frames": int(params.get("window_frames", 12)),
+        "threshold_degrees": float(params.get("threshold_degrees", 1.5)),
+        "include_translation": bool(params.get("include_translation", False)),
+        "reference_frame": int(params.get("reference_frame", 0)),
+        "anchor_frame": int(params.get("anchor_frame", 0)),
+        "bone_mask": params.get("bone_mask") or {},
+        "review_ceiling_degrees": float(params.get("review_ceiling_degrees",
+                                                   REVIEW_CEILING_DEGREES)),
+    }
+
+
+def _reanchor_plan(
+    lib: Any,
+    target: Any,
+    target_path: str,
+    reference: Any,
+    reference_path: str,
+    reference_meta: Dict[str, Any],
+    opts: Dict[str, Any],
+) -> Dict[str, Any]:
+    """Compute what re-anchoring one sequence would change. Never writes.
+
+    Raises _ReanchorSkip when the sequence cannot be re-anchored at all, so a
+    batch can record the reason and continue instead of aborting.
+    """
+    profile = opts["profile"]
+    window_frames = opts["window_frames"]
+    threshold = opts["threshold_degrees"]
+    include_translation = opts["include_translation"]
+    reference_frame = opts["reference_frame"]
+    anchor_frame = opts["anchor_frame"]
+
+    target_meta = _sequence_meta(lib, target)
+    if target_meta["is_additive"]:
+        raise _ReanchorSkip(
+            f"additive sequence ({target_meta['additive_type']}); its raw data is "
+            "already a delta, so re-anchoring would mean something different")
+
+    if anchor_frame < 0 or anchor_frame >= max(target_meta["num_frames"], 1):
+        raise _ReanchorSkip(
+            f"anchor_frame {anchor_frame} out of range; target has "
+            f"{target_meta['num_frames']} frames")
+
+    target_tracks = _track_names(lib, target)
+    reference_tracks = _track_names(lib, reference)
+
+    selected, mask_explanation = _resolve_bone_mask(
+        lib, target, opts["bone_mask"], target_tracks)
+    bones = [b for b in selected if b in reference_tracks]
+    skipped = [b for b in selected if b not in reference_tracks]
+    if not bones:
+        raise _ReanchorSkip(
+            "bone mask selected no bone with a track in both sequences "
+            f"(resolved to: {', '.join(selected[:20]) or 'nothing'})")
+
+    reference_rot = _bone_rotations_at_frame(lib, reference, bones, reference_frame)
+    target_rot = _bone_rotations_at_frame(lib, target, bones, anchor_frame)
+
+    # Fetched once for the whole mask rather than per bone inside the loop;
+    # get_bone_poses_for_frame already takes a bone array.
+    reference_pos: Dict[str, am.Vec3] = {}
+    target_pos: Dict[str, am.Vec3] = {}
+    if include_translation:
+        reference_pos = _bone_translations_at_frame(lib, reference, bones, reference_frame)
+        target_pos = _bone_translations_at_frame(lib, target, bones, anchor_frame)
+
+    num_frames = target_meta["num_frames"]
+    deltas: List[Dict[str, Any]] = []
+    needs_expansion: List[str] = []
+    below_threshold = 0
+
+    for bone in bones:
+        degrees = am.quat_angle_degrees(reference_rot[bone], target_rot[bone])
+        if degrees < threshold:
+            below_threshold += 1
+            continue
+
+        key_count = len(_call(lib, "get_raw_track_rotation_data", target, bone))
+        weights = [
+            am.weight_at(profile, i, key_count, window_frames)
+            for i in range(key_count)
+        ]
+        touched = sum(1 for w in weights if w > 0.0)
+        if profile != "constant" and key_count < num_frames:
+            needs_expansion.append(bone)
+
+        entry: Dict[str, Any] = {
+            "bone": bone,
+            "delta_degrees": round(degrees, 4),
+            "key_count": key_count,
+            "keys_written": touched,
+        }
+        if include_translation:
+            entry["translation_delta_cm"] = round(
+                am.vec_length(am.vec_sub(reference_pos[bone], target_pos[bone])), 4)
+        deltas.append(entry)
+
+    deltas.sort(key=lambda e: e["delta_degrees"], reverse=True)
+    max_delta = deltas[0]["delta_degrees"] if deltas else 0.0
+
+    return {
+        "target": target_path,
+        "reference": reference_path,
+        "dry_run": True,
+        "profile": profile,
+        "window_frames": window_frames,
+        "threshold_degrees": threshold,
+        "include_translation": include_translation,
+        "reference_frame": reference_frame,
+        "anchor_frame": anchor_frame,
+        "num_frames": num_frames,
+        "bone_mask": mask_explanation,
+        "bones_selected": len(bones),
+        "bones_modified": len(deltas),
+        "bones_below_threshold": below_threshold,
+        "max_delta_degrees": max_delta,
+        "verdict": _reanchor_verdict(max_delta, threshold, opts["review_ceiling_degrees"]),
+        "deltas": deltas,
+        "skipped_no_track": skipped,
+        "needs_key_expansion": needs_expansion,
+    }
+
+
+def _reanchor_verdict(max_delta: float, threshold: float, ceiling: float) -> Dict[str, Any]:
+    """Triage a clip as aligned, drifted, or divergent.
+
+    The distinction that matters: re-anchoring corrects a clip that *should*
+    start at the reference pose and no longer does. A clip whose start pose is
+    legitimately different, such as a run turn compared against an idle, will
+    report enormous deltas that are not drift at all. Correcting those drags
+    the character into a pose the animator never intended, so they are called
+    out rather than ranked alongside genuine drift.
+    """
+    if max_delta < threshold:
+        return {
+            "code": "aligned",
+            "summary": "already matches the reference within threshold; nothing to do",
+        }
+    if max_delta < ceiling:
+        return {
+            "code": "drifted",
+            "summary": f"max {max_delta} deg, under the {ceiling} deg review ceiling; "
+                       "a normal re-anchor candidate",
+        }
+    return {
+        "code": "divergent",
+        "summary": f"max {max_delta} deg exceeds the {ceiling} deg review ceiling. This "
+                   "is usually a genuinely different start pose rather than drift. "
+                   "Re-anchoring would drag the clip toward the reference. Review before "
+                   "applying, or narrow the bone mask.",
+    }
+
+
 def handle_anim_reanchor(params: Dict[str, Any]) -> Dict[str, Any]:
     """Report what re-anchoring a sequence to a reference pose would change.
 
-    Pass 2 is dry run only. The write path needs UAnimPoseLibrary in the C++
-    plugin, which lands in Pass 3, so dry_run=False is refused rather than
-    silently ignored.
+    Dry run only. The write path needs UAnimPoseLibrary in the C++ plugin,
+    which lands in Pass 3, so dry_run=False is refused rather than silently
+    ignored.
 
     Args:
         params:
@@ -410,13 +582,14 @@ def handle_anim_reanchor(params: Dict[str, Any]) -> Dict[str, Any]:
             - profile (str): constant, decay, or both_ends. Default decay.
             - window_frames (int): Decay length. Default 12.
             - threshold_degrees (float): Skip bones under this. Default 1.5.
-            - include_translation (bool): Report translation deltas too.
-              Default false.
-            - dry_run (bool): Must be true in Pass 2. Default true.
+            - review_ceiling_degrees (float): Above this the clip is called
+              divergent rather than drifted. Default 30.
+            - include_translation (bool): Report translation deltas. Default false.
+            - dry_run (bool): Must be true. Default true.
 
     Returns:
-        Per-bone deltas, the keys each would touch, and any tracks that would
-        need expanding before a time-varying profile could be applied.
+        Per-bone deltas, the keys each would touch, tracks needing expansion,
+        and a verdict triaging the clip as aligned, drifted, or divergent.
     """
     try:
         if not params.get("dry_run", True):
@@ -434,123 +607,165 @@ def handle_anim_reanchor(params: Dict[str, Any]) -> Dict[str, Any]:
             return _fail(f"reference_path: {err}")
 
         lib = _anim_library()
-        profile = params.get("profile", "decay")
-        if profile not in am.WEIGHT_PROFILES:
-            return _fail(
-                f"Unknown profile '{profile}'. Expected one of "
-                + ", ".join(am.WEIGHT_PROFILES)
-            )
+        opts = _reanchor_options(params)
 
-        window_frames = int(params.get("window_frames", 12))
-        threshold = float(params.get("threshold_degrees", 1.5))
-        include_translation = bool(params.get("include_translation", False))
-        reference_frame = int(params.get("reference_frame", 0))
-        anchor_frame = int(params.get("anchor_frame", 0))
-
-        target_meta = _sequence_meta(lib, target)
         reference_meta = _sequence_meta(lib, reference)
-
-        if target_meta["is_additive"]:
-            return _fail(
-                f"Target is additive ({target_meta['additive_type']}). Its raw data is "
-                "already a delta, so re-anchoring would mean something different. "
-                "Refusing rather than guessing."
-            )
         if reference_meta["is_additive"]:
             return _fail(
                 f"Reference is additive ({reference_meta['additive_type']}). An additive "
                 "clip does not carry an absolute pose to anchor to."
             )
-
-        if anchor_frame < 0 or anchor_frame >= max(target_meta["num_frames"], 1):
+        if (opts["reference_frame"] < 0
+                or opts["reference_frame"] >= max(reference_meta["num_frames"], 1)):
             return _fail(
-                f"anchor_frame {anchor_frame} out of range; target has "
-                f"{target_meta['num_frames']} frames"
-            )
-        if reference_frame < 0 or reference_frame >= max(reference_meta["num_frames"], 1):
-            return _fail(
-                f"reference_frame {reference_frame} out of range; reference has "
+                f"reference_frame {opts['reference_frame']} out of range; reference has "
                 f"{reference_meta['num_frames']} frames"
             )
 
-        target_tracks = _track_names(lib, target)
-        reference_tracks = _track_names(lib, reference)
+        return _ok(_reanchor_plan(
+            lib, target, params.get("target_path", ""),
+            reference, params.get("reference_path", ""), reference_meta, opts))
+    except _ReanchorSkip as exc:
+        return _fail(str(exc))
+    except Exception as exc:
+        return _fail(str(exc))
 
-        selected, mask_explanation = _resolve_bone_mask(
-            lib, target, params.get("bone_mask") or {}, target_tracks)
-        bones = [b for b in selected if b in reference_tracks]
-        skipped = [b for b in selected if b not in reference_tracks]
-        if not bones:
+
+def handle_anim_batch_reanchor(params: Dict[str, Any]) -> Dict[str, Any]:
+    """Dry-run a re-anchor across many sequences and rank them by drift.
+
+    This is the tool for the workflow the whole design exists to serve: edit
+    the idle, then find out which clips no longer line up with it and which of
+    those are safe to correct automatically.
+
+    Dry run only, same as anim_reanchor. A sequence that cannot be re-anchored
+    is recorded in `skipped` with a reason rather than aborting the sweep.
+
+    Args:
+        params:
+            - reference_path (str): Sequence supplying the anchor pose. Required.
+            - folder_path (str): Content folder to sweep. Either this or
+              target_paths is required.
+            - target_paths (list[str]): Explicit sequences instead of a folder.
+            - recursive (bool): Folder mode only. Default true.
+            - limit (int): Stop after this many sequences. Reported explicitly
+              when it truncates; there are no silent caps.
+            - Everything anim_reanchor accepts, applied to every sequence.
+
+    Returns:
+        One summary row per sequence sorted by drift descending, counts by
+        verdict, and an explicit list of what was skipped and why.
+    """
+    try:
+        import unreal
+
+        if not params.get("dry_run", True):
             return _fail(
-                "Bone mask selected no bone that has a track in both sequences. "
-                f"Mask resolved to: {', '.join(selected[:40]) or '(nothing)'}"
+                "dry_run=False is not available yet. The write path needs "
+                "UAnimPoseLibrary from the MCPBridgeGraphBuilder plugin, which lands "
+                "in Pass 3. Re-run with dry_run omitted or true."
             )
 
-        reference_rot = _bone_rotations_at_frame(lib, reference, bones, reference_frame)
-        target_rot = _bone_rotations_at_frame(lib, target, bones, anchor_frame)
+        folder_path = params.get("folder_path", "")
+        target_paths = params.get("target_paths") or []
+        if bool(folder_path) == bool(target_paths):
+            return _fail("Provide exactly one of 'folder_path' or 'target_paths'")
 
-        # Fetched once for the whole mask rather than per bone inside the loop;
-        # get_bone_poses_for_frame already takes a bone array.
-        reference_pos: Dict[str, am.Vec3] = {}
-        target_pos: Dict[str, am.Vec3] = {}
-        if include_translation:
-            reference_pos = _bone_translations_at_frame(
-                lib, reference, bones, reference_frame)
-            target_pos = _bone_translations_at_frame(lib, target, bones, anchor_frame)
+        reference_path = params.get("reference_path", "")
+        reference, err = _load_sequence(reference_path)
+        if err:
+            return _fail(f"reference_path: {err}")
 
-        num_frames = target_meta["num_frames"]
-        deltas: List[Dict[str, Any]] = []
-        needs_expansion: List[str] = []
-        below_threshold = 0
+        lib = _anim_library()
+        opts = _reanchor_options(params)
 
-        for bone in bones:
-            degrees = am.quat_angle_degrees(reference_rot[bone], target_rot[bone])
-            if degrees < threshold:
-                below_threshold += 1
+        reference_meta = _sequence_meta(lib, reference)
+        if reference_meta["is_additive"]:
+            return _fail(
+                f"Reference is additive ({reference_meta['additive_type']}). An additive "
+                "clip does not carry an absolute pose to anchor to."
+            )
+        if (opts["reference_frame"] < 0
+                or opts["reference_frame"] >= max(reference_meta["num_frames"], 1)):
+            return _fail(
+                f"reference_frame {opts['reference_frame']} out of range; reference has "
+                f"{reference_meta['num_frames']} frames"
+            )
+
+        recursive = bool(params.get("recursive", True))
+        if folder_path:
+            candidates = [
+                p.split(".")[0]
+                for p in unreal.EditorAssetLibrary.list_assets(
+                    folder_path, recursive=recursive, include_folder=False)
+            ]
+        else:
+            candidates = [str(p).split(".")[0] for p in target_paths]
+
+        reference_clean = reference_path.split(".")[0]
+        candidates = [p for p in candidates if p != reference_clean]
+
+        limit = params.get("limit")
+        truncated = 0
+        if limit is not None:
+            limit = int(limit)
+            if limit >= 0 and len(candidates) > limit:
+                truncated = len(candidates) - limit
+                candidates = candidates[:limit]
+
+        rows: List[Dict[str, Any]] = []
+        skipped: List[Dict[str, str]] = []
+
+        for path in candidates:
+            if folder_path and not _is_anim_sequence_by_registry(path):
+                continue
+            asset = unreal.load_asset(path)
+            if not isinstance(asset, unreal.AnimSequence):
+                if not folder_path:
+                    skipped.append({"sequence": path, "reason": "not an AnimSequence"})
+                continue
+            try:
+                plan = _reanchor_plan(
+                    lib, asset, path, reference, reference_path, reference_meta, opts)
+            except _ReanchorSkip as exc:
+                skipped.append({"sequence": path, "reason": str(exc)})
+                continue
+            except Exception as exc:
+                skipped.append({"sequence": path, "reason": str(exc)})
                 continue
 
-            key_count = len(_call(lib, "get_raw_track_rotation_data", target, bone))
-            weights = [
-                am.weight_at(profile, i, key_count, window_frames)
-                for i in range(key_count)
-            ]
-            touched = sum(1 for w in weights if w > 0.0)
-            if profile != "constant" and key_count < num_frames:
-                needs_expansion.append(bone)
+            rows.append({
+                "sequence": path,
+                "num_frames": plan["num_frames"],
+                "bones_modified": plan["bones_modified"],
+                "max_delta_degrees": plan["max_delta_degrees"],
+                "verdict": plan["verdict"]["code"],
+                "needs_key_expansion": len(plan["needs_key_expansion"]),
+                "worst_bones": [d["bone"] for d in plan["deltas"][:5]],
+            })
 
-            entry: Dict[str, Any] = {
-                "bone": bone,
-                "delta_degrees": round(degrees, 4),
-                "key_count": key_count,
-                "keys_written": touched,
-            }
-            if include_translation:
-                entry["translation_delta_cm"] = round(
-                    am.vec_length(am.vec_sub(reference_pos[bone], target_pos[bone])), 4)
-            deltas.append(entry)
-
-        deltas.sort(key=lambda e: e["delta_degrees"], reverse=True)
+        rows.sort(key=lambda r: r["max_delta_degrees"], reverse=True)
+        counts = {"aligned": 0, "drifted": 0, "divergent": 0}
+        for row in rows:
+            counts[row["verdict"]] = counts.get(row["verdict"], 0) + 1
 
         return _ok({
-            "target": params.get("target_path"),
-            "reference": params.get("reference_path"),
+            "reference": reference_path,
+            "folder": folder_path or None,
+            "recursive": recursive if folder_path else None,
             "dry_run": True,
-            "profile": profile,
-            "window_frames": window_frames,
-            "threshold_degrees": threshold,
-            "include_translation": include_translation,
-            "reference_frame": reference_frame,
-            "anchor_frame": anchor_frame,
-            "num_frames": num_frames,
-            "bone_mask": mask_explanation,
-            "bones_selected": len(bones),
-            "bones_modified": len(deltas),
-            "bones_below_threshold": below_threshold,
-            "max_delta_degrees": deltas[0]["delta_degrees"] if deltas else 0.0,
-            "deltas": deltas,
-            "skipped_no_track": skipped,
-            "needs_key_expansion": needs_expansion,
+            "profile": opts["profile"],
+            "window_frames": opts["window_frames"],
+            "threshold_degrees": opts["threshold_degrees"],
+            "review_ceiling_degrees": opts["review_ceiling_degrees"],
+            "analyzed": len(rows),
+            "verdict_counts": counts,
+            "truncated_by_limit": truncated,
+            "sequences": rows,
+            "skipped": skipped,
         })
+    except _ReanchorSkip as exc:
+        return _fail(str(exc))
     except Exception as exc:
         return _fail(str(exc))
 

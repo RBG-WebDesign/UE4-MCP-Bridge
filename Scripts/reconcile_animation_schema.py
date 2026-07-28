@@ -39,6 +39,13 @@ MANAGED_FILES = (
     os.path.join("mcp_bridge", "utils", "anim_math.py"),
     os.path.join("mcp_bridge", "handlers", "animation.py"),
     os.path.join("tests", "test_anim_math.py"),
+    os.path.join("tests", "test_animation_handlers.py"),
+)
+
+# Copied test files that the verify step runs inside the target project.
+VERIFY_TESTS = (
+    os.path.join("tests", "test_anim_math.py"),
+    os.path.join("tests", "test_animation_handlers.py"),
 )
 
 ROUTER_RELATIVE = os.path.join("mcp_bridge", "router.py")
@@ -49,6 +56,7 @@ ANIMATION_COMMANDS = (
     "anim_pose_delta",
     "anim_root_motion_analyze",
     "anim_reanchor",
+    "anim_batch_reanchor",
 )
 
 IMPORT_BLOCK_PATTERN = re.compile(
@@ -232,12 +240,15 @@ def verify(project_python: str) -> List[str]:
         raise ReconcileError(f"py_compile failed after writing:\n{compile_run.stderr}")
     results.append("py_compile passed on all touched files")
 
-    test_path = os.path.join(project_python, "tests", "test_anim_math.py")
-    test_run = subprocess.run(
-        [sys.executable, test_path], capture_output=True, text=True)
-    if test_run.returncode != 0:
-        raise ReconcileError(f"anim_math tests failed after writing:\n{test_run.stdout}")
-    results.append(test_run.stdout.strip().splitlines()[-1])
+    for relative in VERIFY_TESTS:
+        test_path = os.path.join(project_python, relative)
+        test_run = subprocess.run(
+            [sys.executable, test_path], capture_output=True, text=True)
+        if test_run.returncode != 0:
+            raise ReconcileError(
+                f"{os.path.basename(relative)} failed after writing:\n{test_run.stdout}")
+        summary = test_run.stdout.strip().splitlines()[-1]
+        results.append(f"{os.path.basename(relative)}: {summary}")
 
     router_source = _read(os.path.join(project_python, ROUTER_RELATIVE))
     routed = _routed_animation_commands(router_source)
