@@ -1098,10 +1098,37 @@ def _analyze_one(
         if yaw is not None and yaw > max(2.0 * excursion, 10.0):
             flags.append(f"{block['bone']}_yaw_range_unreliable")
 
+    # Roughness alone is amplitude-blind on purpose: it answers "does this
+    # oscillate", not "can you see it". Across a 100-bone rig that buries a real
+    # defect under float noise on bones that barely move, so rank by how much
+    # oscillating motion there actually is per frame.
+    ranked = []
+    for block in [b for b in (root_block, pelvis_block) if b is not None] + others:
+        step_mean = block["step_degrees_per_frame"]["mean"]
+        severity = block["rotation_roughness"] * step_mean
+        ranked.append({
+            "bone": block["bone"],
+            "severity_degrees_per_frame": round(severity, 6),
+            "rotation_roughness": block["rotation_roughness"],
+            "step_degrees_mean": round(step_mean, 6),
+            "rotation_excursion_degrees": block["rotation_excursion_degrees"],
+            "rotation_classification": block["rotation_classification"],
+        })
+    # Deduplicate: pelvis appears both as its own block and in `bones`.
+    seen_bones = set()
+    unique_ranked = []
+    for entry in ranked:
+        if entry["bone"] in seen_bones:
+            continue
+        seen_bones.add(entry["bone"])
+        unique_ranked.append(entry)
+    unique_ranked.sort(key=lambda e: e["severity_degrees_per_frame"], reverse=True)
+
     result: Dict[str, Any] = {
         "sequence": path,
         "root": root_block,
         "pelvis": pelvis_block,
+        "wobble_ranking": unique_ranked[:20],
         "other_bones": others,
         "bones_not_found": missing_extra,
         "track_count": len(tracks),
@@ -1152,6 +1179,10 @@ def handle_anim_root_motion_analyze(params: Dict[str, Any]) -> Dict[str, Any]:
             seq, err = _load_sequence(sequence_path)
             if err:
                 return _fail(err)
+            if "*" in extra_bones:
+                # Every animated track. The ranking is what makes this readable
+                # on a rig with a hundred of them.
+                extra_bones = _track_names(lib, seq)
             return _ok(_analyze_one(
                 lib, seq, sequence_path, root_bone, pelvis_bone, extra_bones))
 

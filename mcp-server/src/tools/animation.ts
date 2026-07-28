@@ -89,8 +89,11 @@ export function createAnimationTools(client: UnrealClient): ToolDefinition[] {
         pelvis_bone: z.string().optional().describe("Pelvis bone name. Default \"pelvis\"."),
         bones: z.array(z.string()).optional().describe(
           "Additional bones to analyze alongside root and pelvis, e.g. " +
-          "[\"spine_01\", \"clavicle_l\"]. Each gets the same translation and " +
-          "rotation statistics."),
+          "[\"spine_01\", \"clavicle_l\"]. Pass [\"*\"] for every animated track. " +
+          "Each gets the same translation and rotation statistics, and the response " +
+          "includes wobble_ranking: bones sorted by oscillating motion per frame, " +
+          "which is roughness weighted by amplitude so float noise on a barely-moving " +
+          "bone does not outrank a visible defect."),
         recursive: z.boolean().optional().describe(
           "Folder mode only: recurse into subfolders. Default true."),
       }),
