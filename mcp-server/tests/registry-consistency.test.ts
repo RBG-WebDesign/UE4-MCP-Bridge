@@ -48,8 +48,10 @@ const INTERNAL_ONLY_ROUTES = new Set<string>([
   "bridge_self_test",
 ]);
 
-// Route prefixes reserved for panel-driven internal suites (no MCP schema yet).
-const INTERNAL_ONLY_PREFIXES = ["optimization_"];
+// Route prefixes reserved for panel-driven internal suites.
+// "optimization_" was here until 2026-07-29: 24 working handlers hid behind it
+// with no MCP surface, which the gap audit found. They are tools now.
+const INTERNAL_ONLY_PREFIXES: string[] = [];
 
 let passed = 0;
 let failed = 0;

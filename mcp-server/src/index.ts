@@ -43,6 +43,7 @@ import { createAnimationTools } from "./tools/animation.js";
 // then import and register them here.
 import { createPieAgentTools } from "./tools/pie-agent.js";
 import { createClothTools } from "./tools/cloth.js";
+import { createOptimizationTools } from "./tools/optimization.js";
 import { createEngineSourceTools } from "./tools/engine-source.js";
 import { toolAnnotations } from "./annotations.js";
 import { loadExtensions } from "./extensions.js";
@@ -92,6 +93,7 @@ async function main(): Promise<void> {
     ...createAnimationTools(client),
     ...createPieAgentTools(client),
     ...createClothTools(client),
+    ...createOptimizationTools(client),
     // Server-local tools: no HTTP to the listener, work with the editor closed.
     ...createEngineSourceTools(),
   ];
@@ -156,6 +158,10 @@ async function main(): Promise<void> {
     "cloth_apply_fabric_profile",
     "cloth_smooth_max_distance",
     "cloth_apply_lower_leg_gradient",
+    // The only optimization tools that write asset changes. The captures and
+    // audits touch no project content, so they are not history-worthy.
+    "optimization_apply_low_risk_fixes",
+    "optimization_before_after_verify",
   ]);
 
   // Every tool must carry annotations (per-tool field or the central map)

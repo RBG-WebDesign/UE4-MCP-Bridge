@@ -68,6 +68,40 @@ export const destructiveIdempotent: ToolAnnotations = {
 };
 
 export const toolAnnotations: Record<string, ToolAnnotations> = {
+  // --- Performance analysis and optimization -------------------------------
+  // Audits and catalogs are pure reads. Captures drive the viewport and write
+  // screenshots or reports under Saved/, so they are mutating-but-convergent
+  // rather than read-only: no project content changes, but there are side
+  // effects on disk. Applying fixes writes assets and is destructive.
+  optimization_tool_catalog: readOnly,
+  optimization_asset_audit: readOnly,
+  optimization_scene_audit: readOnly,
+  optimization_vr_audit: readOnly,
+  optimization_texture_harm_rank: readOnly,
+  optimization_asset_cost_rank: readOnly,
+  optimization_fix_candidates: readOnly,
+  optimization_insights_trace_summary: readOnly,
+  optimization_visual_logger_ingest: readOnly,
+
+  optimization_quick_triage: mutatingIdempotent,
+  optimization_run_console_checklist: mutatingIdempotent,
+  optimization_gpu_capture: mutatingIdempotent,
+  optimization_profilegpu_capture: mutatingIdempotent,
+  optimization_rendering_capture: mutatingIdempotent,
+  optimization_viewmode_capture_set: mutatingIdempotent,
+  optimization_cpu_capture: mutatingIdempotent,
+  optimization_memory_streaming_capture: mutatingIdempotent,
+  optimization_camera_path_profile: mutatingIdempotent,
+  optimization_stat_capture: mutatingIdempotent,
+  optimization_generate_report: mutatingIdempotent,
+  optimization_insights_trace_start: mutatingIdempotent,
+  optimization_insights_trace_stop: mutatingIdempotent,
+
+  // Writes asset changes; save_assets puts them beyond a plain editor undo.
+  optimization_apply_low_risk_fixes: destructive,
+  // Only mutates when apply_candidates is set, but the schema allows it.
+  optimization_before_after_verify: destructive,
+
   // --- Animation pose analysis: reads are pure, re-anchoring rewrites assets ---
   anim_pose_snapshot: readOnly,
   anim_pose_delta: readOnly,
