@@ -418,11 +418,11 @@ COMMAND_ROUTES: Dict[str, Callable[[Dict[str, Any]], Dict[str, Any]]] = {
 
 def route_command(command: str, params: Dict[str, Any]) -> Dict[str, Any]:
     """Route a command string to its handler function.
-    
+
     Args:
         command: The command name to execute.
         params: Parameters to pass to the handler.
-    
+
     Returns:
         Standard response dict: {success: bool, data: dict, error?: str}
     """
@@ -433,6 +433,15 @@ def route_command(command: str, params: Dict[str, Any]) -> Dict[str, Any]:
             "data": {},
             "error": f"Unknown command: '{command}'. Available: {sorted(COMMAND_ROUTES.keys())}"
         }
+
+    # UE4.27 editor scripting returns empty results rather than raising while
+    # PIE runs, so an unguarded editor command reports success with no data and
+    # the caller concludes the level is empty. Refuse with a reason instead.
+    from mcp_bridge.utils.editor_state import guard_editor_command
+    blocked = guard_editor_command(command)
+    if blocked is not None:
+        return blocked
+
     return handler(params)
 
 

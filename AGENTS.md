@@ -107,16 +107,16 @@ or the new tools will not appear.
 - `types.ts` - the `ToolDefinition` interface (name, description, inputSchema,
   optional annotations, handler)
 - `annotations.ts` - central read-only / mutating / destructive classification for
-  all 146 tools. Reviewable in one file on purpose.
+  all 170 tools. Reviewable in one file on purpose.
 - `history.ts` - undo/redo/checkpoint tracking
 - `validation.ts` - shared validation helpers
-- `tools/` - 21 modules, each exporting a `create*Tools(client)` factory that
+- `tools/` - 22 modules, each exporting a `create*Tools(client)` factory that
   returns `ToolDefinition[]`
 
-The 21 tool modules: `actors`, `animation`, `blueprint-graph`, `blueprints`,
+The 22 tool modules: `actors`, `animation`, `blueprint-graph`, `blueprints`,
 `cloth`, `content`, `cpp`, `effects`, `engine-source`, `gamedev`, `gameplay`,
-`intelligence`, `level`, `materials`, `operations`, `pie-agent`, `project`,
-`promptbrush`, `system`, `titles`, `viewport`.
+`intelligence`, `level`, `materials`, `operations`, `optimization`, `pie-agent`,
+`project`, `promptbrush`, `system`, `titles`, `viewport`.
 
 `engine-source` is the only module whose factory takes no client: it is
 server-local and reads the engine from disk.
@@ -141,6 +141,20 @@ directly.
 A consequence worth knowing when debugging: if the editor's game thread is busy
 or blocked, the listener accepts the TCP connection and then never replies, so
 requests look like hangs rather than refusals.
+
+### Play In Editor
+
+UE4.27 editor scripting does not raise during PIE. It logs "The Editor is
+currently in a play mode" and returns nothing, so an unguarded handler answers
+success with zero actors while a full level is being played. An empty success is
+worse than an error, because the caller cannot tell it from an empty level.
+
+`route_command` therefore refuses editor-only commands while PIE runs, with a
+message naming the command and pointing at `gameplay_pie_stop` or the
+`pie_agent_*` tools. The policy lives in `utils/editor_state.py` as an
+**allowlist** of PIE-safe commands, so a tool added later is guarded by default
+rather than needing someone to remember. If a new command genuinely works during
+play, add it to `PIE_SAFE_COMMANDS` deliberately.
 
 ### HTTP protocol
 
