@@ -25,9 +25,9 @@ D:\
 │   ├── UE_4.27\                    the engine. UE_ENGINE_ROOT points here.
 │   │                               engine_source_search reads Engine/Source from it.
 │   ├── UE_5.7\                     unrelated. The bridge targets 4.27 only.
-│   ├── UE_Bridge\                  EMPTY SHELL. Retired 2026-07-29. Safe to delete.
 │   └── UE_BridgeDashboard\         separate repo, 1 commit, Slate dashboard plugin.
 │                                   Its own product. Not part of the bridge.
+│                                   (UE_Bridge\ was here. Deleted 2026-07-29.)
 │
 ├── wt\
 │   └── fix\                        git worktree of the game repo on branch `main`.
@@ -135,10 +135,13 @@ branches. It is telling you they differ, not that something is wrong.
 
 ## What was removed
 
-- `D:\UE\UE_Bridge` — April clone on a stale branch, using the retired
+- `D:\UE\UE_Bridge` — deleted. April clone on a stale branch, using the retired
   `ue4-plugin/` and `unreal-plugin/` layout, with 38 uncommitted files. Bundled to
-  the archive first. Eight orphaned node processes were still serving its MCP
-  server against port 8080; a client that connected got three-month-old tools.
+  the archive first: all 10 refs, a 3,294-line patch of its uncommitted tracked
+  changes, and its 12 untracked files, 7 of which existed nowhere else. Eight
+  orphaned node processes were still serving its MCP server against port 8080; a
+  client that connected got three-month-old tools. Restore with
+  `git clone _bridge-archive-2026-07-29/UE_Bridge-april-clone/UE_Bridge-all-refs.bundle`.
 - Five git worktrees under `.claude/worktrees/`, all clean and all on the same
   commit. Their branch refs still exist, so no commit was lost.
 - `_codex_git_merge_backups\` and `_codex_redirector_cleanup_backups\` from the
