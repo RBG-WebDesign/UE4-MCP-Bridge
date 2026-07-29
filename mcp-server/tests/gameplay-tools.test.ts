@@ -97,17 +97,21 @@ async function teardown(): Promise<void> {
 
 // ---- Tool registration ----
 
-test("all 4 gameplay tools are registered", async () => {
+test("all 5 gameplay tools are registered", async () => {
   const expected = [
     "gameplay_pie_start",
     "gameplay_pie_stop",
+    // Added 2026-07-29. gameplay_pie_start cannot wait for readiness: handlers
+    // run on the game thread, so waiting blocks the tick that starts PIE. It
+    // returns as soon as the request is queued, and callers poll this.
+    "gameplay_pie_status",
     "gameplay_telemetry_snapshot",
     "gameplay_run_acceptance_tests",
   ];
   for (const name of expected) {
     assert(toolMap.has(name), `Tool '${name}' should be registered`);
   }
-  assertEqual(toolMap.size, 4, "gameplay tool count");
+  assertEqual(toolMap.size, 5, "gameplay tool count");
 });
 
 // ---- gameplay_pie_start ----

@@ -17,7 +17,18 @@ from mcp_bridge.generation import gameplay_framework as gf
 
 
 def handle_pie_start(params: Dict[str, Any]) -> Dict[str, Any]:
-    """Launch PIE and wait until the session is ready.
+    """Request a PIE session. Returns as soon as the request is queued.
+
+    This does NOT wait for PIE to be ready, and cannot.
+
+    launch_pie defers the play request to the next engine tick precisely so this
+    handler can return and release the game thread. But handlers run ON the game
+    thread, so any wait here blocks the tick that starts PIE: the session cannot
+    begin until this function returns. The previous version waited 30 seconds for
+    a world that was structurally unable to appear, then reported failure, and
+    PIE started the moment the handler gave the thread back.
+
+    Poll gameplay_pie_status to find out when the session is live.
 
     Params:
         level_path (str, optional): Content path to load before PIE.
@@ -26,15 +37,21 @@ def handle_pie_start(params: Dict[str, Any]) -> Dict[str, Any]:
         level_path = params.get("level_path")
         ok = pie_harness.launch_pie(level_path=level_path)
         if not ok:
-            return {"success": False, "data": {}, "error": "Failed to call play_in_editor()"}
-        ready = pie_harness.wait_for_pie_ready()
-        if not ready:
             return {
                 "success": False,
                 "data": {},
-                "error": "PIE did not become ready within 30s",
+                "error": "Failed to request PIE. Neither AutoPIEHelper.start_pie() nor editor_play_simulate() was available.",
             }
-        return {"success": True, "data": {"status": "pie_ready"}}
+        already = tc.get_pie_world()
+        return {
+            "success": True,
+            "data": {
+                "status": "pie_running" if already is not None else "pie_starting",
+                "is_running": already is not None,
+                "pie_world": already.get_name() if already is not None else None,
+                "next": "Poll gameplay_pie_status until is_running is true. PIE cannot start while this call is in flight, because handlers hold the game thread.",
+            },
+        }
     except Exception as e:
         return {"success": False, "data": {}, "error": f"{e}\n{traceback.format_exc()}"}
 

@@ -104,7 +104,7 @@ PIE_SAFE_PREFIXES = (
 
 PIE_SAFE_COMMANDS = frozenset({
     # Session control and observation
-    "gameplay_pie_start", "gameplay_pie_stop",
+    "gameplay_pie_start", "gameplay_pie_stop", "gameplay_pie_status",
     "gameplay_telemetry_snapshot", "gameplay_run_acceptance_tests",
     # Diagnostics and transport
     "test_connection", "ping", "help", "ue_logs",

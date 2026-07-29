@@ -132,6 +132,7 @@ export const toolAnnotations: Record<string, ToolAnnotations> = {
   engine_source_search: readOnly,
   gameplay_pattern_search: readOnly,
   gameplay_telemetry_snapshot: readOnly,
+  gameplay_pie_status: readOnly,
   pie_agent_observe: readOnly,
   pie_agent_status: readOnly,
   help: readOnly,

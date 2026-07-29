@@ -90,6 +90,7 @@ from mcp_bridge.handlers.promptbrush import (
 from mcp_bridge.handlers.gameplay import (
     handle_pie_start,
     handle_pie_stop,
+    handle_pie_status,
     handle_telemetry_snapshot,
     handle_run_acceptance_tests,
 )
@@ -351,6 +352,7 @@ COMMAND_ROUTES: Dict[str, Callable[[Dict[str, Any]], Dict[str, Any]]] = {
     # Gameplay (PIE harness + telemetry)
     "gameplay_pie_start": handle_pie_start,
     "gameplay_pie_stop": handle_pie_stop,
+    "gameplay_pie_status": handle_pie_status,
     "gameplay_telemetry_snapshot": handle_telemetry_snapshot,
     "gameplay_run_acceptance_tests": handle_run_acceptance_tests,
 

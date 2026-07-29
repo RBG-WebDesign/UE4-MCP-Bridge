@@ -107,7 +107,7 @@ or the new tools will not appear.
 - `types.ts` - the `ToolDefinition` interface (name, description, inputSchema,
   optional annotations, handler)
 - `annotations.ts` - central read-only / mutating / destructive classification for
-  all 170 tools. Reviewable in one file on purpose.
+  all 171 tools. Reviewable in one file on purpose.
 - `history.ts` - undo/redo/checkpoint tracking
 - `validation.ts` - shared validation helpers
 - `tools/` - 22 modules, each exporting a `create*Tools(client)` factory that

@@ -1,7 +1,7 @@
 """PIE session lifecycle and acceptance test runner.
 
 launch_pie() / stop_pie() manage the session.
-wait_for_pie_ready() polls the log for the UE4.27 PIE-ready marker.
+wait_for_pie_ready() polls engine state until a PIE world exists.
 run_assertions() evaluates PIETestSpec predicates against live runtime state.
 
 All unreal.* calls must be on the game thread.
@@ -13,8 +13,14 @@ from typing import List, Optional
 from mcp_bridge.generation.spec_schema import PIETestSpec, AssertionResult, TelemetryFrame
 from mcp_bridge.generation import telemetry_capture as tc
 
-# The exact string UE4.27 emits to the output log when PIE is ready.
-_PIE_READY_MARKER = "PIE: play in editor start"
+# Log lines UE4.27.2 actually emits when PIE comes up. Kept as a secondary
+# signal only: engine state is the primary one. The old single marker,
+# "PIE: play in editor start", is not written by this engine version at all.
+_PIE_READY_MARKERS = (
+    "PIE: Play in editor total start time",
+    "PIE: Server logged in",
+    "LogPlayLevel: PIE: World Init took",
+)
 _PIE_READY_TIMEOUT_S = 30.0
 _PIE_POLL_INTERVAL_S = 0.5
 
@@ -76,25 +82,38 @@ def stop_pie() -> bool:
 
 
 def wait_for_pie_ready(timeout_s: float = _PIE_READY_TIMEOUT_S) -> bool:
-    """Poll the log file for the PIE-ready marker.
+    """Wait until a PIE world exists, or timeout_s elapses.
 
-    UE4.27 emits "PIE: play in editor start" when PIE is ready.
-    Returns True if found within timeout_s, False otherwise.
+    Polls engine state rather than the log. The previous version scanned new log
+    lines for "PIE: play in editor start", which UE4.27.2 never writes. The real
+    line is "PIE: Play in editor total start time 0.366 seconds.", so the marker
+    never matched: every gameplay_pie_start blocked the game thread for the full
+    30 seconds and then reported failure, while PIE had in fact started in under
+    half a second.
 
-    Note: time.sleep() is used here. Since this function is called from a
-    handler that executes on the game thread via slate post-tick callback,
-    the sleep will block the editor UI. This is acceptable for Phase 1
-    where PIE start is a synchronous command. A non-blocking tick-based
-    approach should be considered if editor responsiveness becomes an issue.
+    Log scanning was the wrong mechanism regardless of the string. This function
+    runs on the game thread, so its sleep blocks the very thread that flushes the
+    log, which makes a log-derived signal unreliable by construction. The PIE
+    world, by contrast, exists as soon as the engine has created it and can be
+    read without a tick. That is the same signal utils/editor_state.py uses to
+    detect play mode, so start detection and the PIE guard now agree.
+
+    A log marker is still checked as a secondary signal, using the strings this
+    engine version actually emits, in case a future build creates the world
+    later than it reports readiness.
     """
     deadline = time.time() + timeout_s
-    while time.time() < deadline:
-        lines = tc.read_new_log_lines()
-        for line in lines:
-            if _PIE_READY_MARKER in line:
+    while True:
+        if tc.get_pie_world() is not None:
+            return True
+
+        for line in tc.read_new_log_lines():
+            if any(marker in line for marker in _PIE_READY_MARKERS):
                 return True
+
+        if time.time() >= deadline:
+            return False
         time.sleep(_PIE_POLL_INTERVAL_S)
-    return False
 
 
 def _check_predicate(

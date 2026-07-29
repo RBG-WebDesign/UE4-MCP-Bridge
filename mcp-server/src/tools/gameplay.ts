@@ -45,6 +45,18 @@ export function createGameplayTools(client: UnrealClient): ToolDefinition[] {
       },
     },
     {
+      name: "gameplay_pie_status",
+      description:
+        "Report whether a PIE session is live, and if so the possessed pawn class, visible widgets, AI controller " +
+        "count and FPS. Poll this after gameplay_pie_start: that call returns as soon as the request is queued, " +
+        "because PIE cannot initialise while a handler holds the game thread.",
+      inputSchema: z.object({}),
+      handler: async (params) => {
+        const result = await client.sendCommand("gameplay_pie_status", params);
+        return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
+      },
+    },
+    {
       name: "gameplay_telemetry_snapshot",
       description:
         "Capture the current PIE runtime state: new log lines since last snapshot, " +
