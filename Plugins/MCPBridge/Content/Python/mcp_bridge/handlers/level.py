@@ -194,6 +194,33 @@ def handle_level_save(params: Dict[str, Any]) -> Dict[str, Any]:
         return {"success": False, "data": {}, "error": str(e)}
 
 
+def build_folder_tree(folder_actors: Dict[str, List[str]]) -> Dict[str, Any]:
+    """Turn flat World Outliner folder paths into a nested tree.
+
+    Pure logic, no UE4 required, so it is unit testable.
+
+    One pass, setting the actor count on the leaf as we descend. An earlier
+    version walked the path a second time to find the leaf, but that walk
+    indexed each node directly instead of through its "_children" map. Any
+    folder nested two deep therefore raised KeyError on the second segment:
+    "Cinematics/Credits/Opening" failed with KeyError: 'Credits', which took
+    down the whole level_outliner call.
+    """
+    tree: Dict[str, Any] = {}
+    for folder_path in sorted(folder_actors.keys()):
+        parts = [p for p in folder_path.split("/") if p]
+        if not parts:
+            continue
+        node = tree
+        for index, part in enumerate(parts):
+            if part not in node:
+                node[part] = {"_children": {}, "_actor_count": 0}
+            if index == len(parts) - 1:
+                node[part]["_actor_count"] = len(folder_actors[folder_path])
+            node = node[part]["_children"]
+    return tree
+
+
 def handle_level_outliner(params: Dict[str, Any]) -> Dict[str, Any]:
     """Return the World Outliner folder tree structure.
 
@@ -230,20 +257,7 @@ def handle_level_outliner(params: Dict[str, Any]) -> Dict[str, Any]:
                 folder_actors[folder] = []
             folder_actors[folder].append(label)
 
-        # Build a tree structure from flat folder paths
-        tree: Dict[str, Any] = {}
-        for folder_path in sorted(folder_actors.keys()):
-            parts = folder_path.split("/")
-            node = tree
-            for part in parts:
-                if part not in node:
-                    node[part] = {"_children": {}, "_actor_count": 0}
-                node = node[part]["_children"]
-            # Walk back to set the actor count on the leaf
-            node_ref = tree
-            for part in parts:
-                node_ref = node_ref[part]
-            node_ref["_actor_count"] = len(folder_actors[folder_path])
+        tree = build_folder_tree(folder_actors)
 
         # Flatten tree into a list of folder entries
         folder_entries: List[Dict[str, Any]] = []

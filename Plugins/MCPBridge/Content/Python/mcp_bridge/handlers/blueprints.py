@@ -158,19 +158,92 @@ def _extract_event_graphs(bp: Any) -> List[str]:
     return graphs
 
 
-def _get_parent_chain(bp: Any) -> List[str]:
-    """Walk the parent class chain."""
-    chain: List[str] = []
+def _class_name_from_tag(raw: str) -> str:
+    """Turn an asset registry class tag into a bare class name.
+
+    The registry stores these as Class'/Script/Engine.Actor'.
+    """
+    text = str(raw).strip()
+    if "'" in text:
+        parts = text.split("'")
+        if len(parts) >= 2 and parts[1]:
+            text = parts[1]
+    if "." in text:
+        text = text.rsplit(".", 1)[-1]
+    return text.strip("'\" ")
+
+
+def _parent_class_name(bp: Any, asset_path: str = "") -> str:
+    """Return a Blueprint's parent class name, or "" if it cannot be read.
+
+    UBlueprint::ParentClass is a bare UPROPERTY() with no Edit flag, so
+    get_editor_property cannot reach it in UE4.27: it raises "Failed to find
+    property 'parent_class'". Callers used to swallow that in a bare except and
+    report an empty parent, which made every Blueprint look parentless.
+
+    The asset registry exposes the same value as a ParentClass tag, which is the
+    supported path in this engine version. The direct property is still tried
+    first so a future engine that exposes it needs no change here.
+    """
+    import unreal
+
     try:
-        current = bp.get_editor_property("parent_class")
-        while current is not None:
-            name = current.get_name()
-            if name == "Object":
-                break
-            chain.append(name)
-            current = current.get_editor_property("super_class") if hasattr(current, "get_editor_property") else None
+        parent_cls = bp.get_editor_property("parent_class")
+        if parent_cls:
+            return str(parent_cls.get_name())
     except Exception:
         pass
+
+    try:
+        path = asset_path or str(bp.get_path_name())
+        # get_asset_by_object_path wants Package.Object, not just the package.
+        tail = path.rstrip("/").split("/")[-1]
+        if "." not in tail:
+            path = f"{path}.{tail}"
+        registry = unreal.AssetRegistryHelpers.get_asset_registry()
+        asset_data = registry.get_asset_by_object_path(path)
+        if asset_data and asset_data.is_valid():
+            for tag in ("ParentClass", "NativeParentClass"):
+                raw = asset_data.get_tag_value(tag)
+                if raw:
+                    return _class_name_from_tag(raw)
+    except Exception:
+        pass
+
+    return ""
+
+
+def _get_parent_chain(bp: Any, asset_path: str = "") -> List[str]:
+    """Walk the parent class chain, nearest ancestor first.
+
+    Starts from the registry-derived parent name, then climbs the native class
+    hierarchy. UClass exposes no super_class editor property in UE4.27 either,
+    so the climb goes through the loaded class object.
+    """
+    import unreal
+
+    chain: List[str] = []
+    parent_name = _parent_class_name(bp, asset_path)
+    if not parent_name:
+        return chain
+    chain.append(parent_name)
+
+    try:
+        current = unreal.find_object(None, f"/Script/Engine.{parent_name}")
+        seen = {parent_name}
+        while current is not None:
+            nxt = current.get_super_class() if hasattr(current, "get_super_class") else None
+            if nxt is None:
+                break
+            name = str(nxt.get_name())
+            if name in seen or name == "Object":
+                break
+            chain.append(name)
+            seen.add(name)
+            current = nxt
+    except Exception:
+        pass
+
     return chain
 
 
@@ -296,15 +369,15 @@ def handle_blueprint_list(params: Dict[str, Any]) -> Dict[str, Any]:
                 if not fnmatch.fnmatch(asset_name.lower(), name_filter.lower()):
                     continue
 
-            # Get parent class for filtering and reporting
+            # Get parent class for filtering and reporting. Reads through the
+            # asset registry, because UBlueprint::ParentClass is not reachable
+            # via get_editor_property in UE4.27.
             parent_class_name = ""
             is_compiled = False
             try:
                 bp = unreal.EditorAssetLibrary.load_asset(asset_path)
                 if bp:
-                    parent_cls = bp.get_editor_property("parent_class")
-                    if parent_cls:
-                        parent_class_name = parent_cls.get_name()
+                    parent_class_name = _parent_class_name(bp, asset_path)
                     is_compiled = _is_blueprint_compiled(bp)
             except Exception:
                 pass
@@ -370,19 +443,13 @@ def handle_blueprint_info(params: Dict[str, Any]) -> Dict[str, Any]:
                 "error": f"Asset is not a Blueprint: {bp_path}",
             }
 
-        parent_class_name = ""
-        try:
-            parent_cls = bp.get_editor_property("parent_class")
-            if parent_cls:
-                parent_class_name = parent_cls.get_name()
-        except Exception:
-            pass
+        parent_class_name = _parent_class_name(bp, bp_path)
 
         components = _extract_components(bp)
         variables = _extract_variables(bp)
         functions = _extract_functions(bp)
         event_graphs = _extract_event_graphs(bp)
-        parent_chain = _get_parent_chain(bp)
+        parent_chain = _get_parent_chain(bp, bp_path)
         is_compiled = _is_blueprint_compiled(bp)
 
         return {

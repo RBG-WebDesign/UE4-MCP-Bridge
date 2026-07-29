@@ -328,8 +328,12 @@ def handle_material_create(params: Dict[str, Any]) -> Dict[str, Any]:
                     "error": f"Parent is not a Material or MaterialInstanceConstant: {parent_path}",
                 }
 
+            # UMaterialInstanceConstantFactoryNew::InitialParent is a bare
+            # UPROPERTY() with no Edit flag, so set_editor_property cannot reach
+            # it in UE4.27 and fails with "Failed to find property". Create the
+            # instance first, then assign the parent through the editor library,
+            # which is the supported path in this engine version.
             factory = unreal.MaterialInstanceConstantFactoryNew()
-            factory.set_editor_property("initial_parent", parent_mat)
             mat = asset_tools.create_asset(
                 name, path, unreal.MaterialInstanceConstant, factory
             )
@@ -340,6 +344,8 @@ def handle_material_create(params: Dict[str, Any]) -> Dict[str, Any]:
                     "data": {},
                     "error": "Failed to create material instance",
                 }
+
+            unreal.MaterialEditingLibrary.set_material_instance_parent(mat, parent_mat)
 
             # Set initial parameters if provided
             init_params = params.get("parameters", {})
