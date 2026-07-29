@@ -31,6 +31,22 @@
       "WhitelistPlatforms": [
         "Win64"
       ]
+    },
+    {
+      "Name": "MCPBridgePIEAgent",
+      "Type": "Editor",
+      "LoadingPhase": "PostEngineInit",
+      "WhitelistPlatforms": [
+        "Win64"
+      ]
+    },
+    {
+      "Name": "MCPBridgeClothOptimizer",
+      "Type": "Editor",
+      "LoadingPhase": "PostEngineInit",
+      "WhitelistPlatforms": [
+        "Win64"
+      ]
     }
   ],
   "Plugins": [
