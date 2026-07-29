@@ -161,11 +161,15 @@ A directory junction from the game project into the canonical clone was
 considered and rejected: both paths are tracked by the same repo, so a junction
 causes double-tracking, and a broken junction silently unloads the plugin.
 
-### 3. Retiring the stale clones
+### 3. Retiring the stale clones  [DONE 2026-07-29]
 
-- `D:\UE\UE_Bridge` — safe to delete **after** you review the 7 rescued files above.
-- The 7 worktrees — `git worktree list` shows them; 6 sit on the same commit.
-  Prune with `git worktree remove` once you confirm none hold work you want.
+- `D:\UE\UE_Bridge` — retired. Bundled to
+  `_bridge-archive-2026-07-29/UE_Bridge-april-clone/` (all 10 refs, verified), plus
+  its uncommitted patch and 12 untracked files. Eight orphaned node processes were
+  still serving that clone's MCP server against port 8080; all terminated.
+- Worktrees — five confirmed clean and pruned. Their branch refs still point at
+  5d9ad23, so no commit was lost. `youthful-hugle-c78871` and `D:\wt\fix` remain:
+  the first is in use, the second holds four modified locomotion C++ files.
 - `D:\UE\UE_BridgeDashboard` and `D:\Unreal Projects\MCPBridge-Server` are separate
   products with their own remotes. Left alone.
 
@@ -176,17 +180,22 @@ copies of campaign levels from June. They violate the no-manual-backups rule and
 `check:layout` would flag them, but they are game content, so removing them is
 your call.
 
-### 5. Three game-specific tool modules
+### 5. Three tool modules in the incubator  [DECIDED 2026-07-29]
 
-`inspection.ts`, `locomotion.ts` and `fixed-camera-locomotion.ts` define 19 tools
-between them with no Python handler anywhere. They now live in
-`mcp-server/incubator/` with a README on how to finish them. They are also
-Sinfeld-specific rather than general UE4.27 control, so consider whether they
-belong in a project-local extension instead of the shipped tool set.
+`inspection.ts`, `locomotion.ts` and `fixed-camera-locomotion.ts` define 28 tools
+between them with no Python handler anywhere.
 
-### 6. Publishing
+`locomotion.ts` and `fixed-camera-locomotion.ts` are Sinfeld-specific and move to a
+project-local extension, separate from the general bridge. They stay incubated
+until that extension's contract is designed.
 
-Nothing was pushed. The remote is public and local `main` history predates the
-bridge/game boundary, so pushing it would publish game source even though those
-paths are untracked at HEAD. Branch from `origin/main` for anything you intend to
-publish, and enable the guard with `git config core.hooksPath .githooks`.
+`inspection.ts` may graduate into the general bridge, but only once its Python
+handlers, routes, annotations, and live-editor tests all exist.
+
+See `mcp-server/incubator/README.md`.
+
+### 6. Publishing  [PAUSED by decision]
+
+Nothing was pushed. Publishing stays paused. When it resumes, use a sanitized
+branch rooted at `origin/main` and apply the bridge tree as one clean commit.
+Full procedure and reasoning: `docs/PUBLISHING.md`.
