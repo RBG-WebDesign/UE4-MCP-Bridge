@@ -203,6 +203,140 @@ function newestMtime(dir, exts) {
   }
 }
 
+// ------------------------------------- 9. UBT module declarations
+// Every module directory under Source/ must be declared in the .uplugin, or UBT
+// silently never builds it. That is not hypothetical: MCPBridgePIEAgent and
+// MCPBridgeClothOptimizer had sources and compiled DLLs but no declaration, so
+// their sources drifted uncompiled until 2026-07-29.
+{
+  const sourceDir = join(repoRoot, "Plugins", "MCPBridge", "Source");
+  const upluginPath = join(repoRoot, "Plugins", "MCPBridge", "MCPBridge.uplugin");
+  if (existsSync(sourceDir) && existsSync(upluginPath)) {
+    let declared = [];
+    try {
+      const raw = readFileSync(upluginPath, "utf-8").replace(/^﻿/, "");
+      declared = (JSON.parse(raw).Modules ?? []).map((m) => m.Name);
+    } catch (e) {
+      err("uplugin-unparsable", `MCPBridge.uplugin is not valid JSON: ${e.message}`,
+        "Fix the JSON. UBT cannot read the plugin at all in this state.");
+    }
+    const onDisk = readdirSync(sourceDir, { withFileTypes: true })
+      .filter((e) => e.isDirectory())
+      .filter((e) => existsSync(join(sourceDir, e.name, `${e.name}.Build.cs`)))
+      .map((e) => e.name);
+
+    const undeclared = onDisk.filter((m) => !declared.includes(m));
+    const phantom = declared.filter((m) => !onDisk.includes(m));
+
+    if (undeclared.length) {
+      err("uplugin-module-undeclared",
+        `${undeclared.join(", ")} has a .Build.cs but is not declared in MCPBridge.uplugin, so UBT never builds it`,
+        "Add a Modules entry with Name, Type and LoadingPhase. Editor-only tooling is Type 'Editor'; anything registering a Slate tab or creating UObjects at startup wants LoadingPhase 'PostEngineInit'.");
+    }
+    if (phantom.length) {
+      err("uplugin-module-phantom",
+        `${phantom.join(", ")} is declared in MCPBridge.uplugin but has no .Build.cs on disk, so the editor fails to load the plugin`,
+        "Remove the stale Modules entry, or restore the module source.");
+    }
+    if (!undeclared.length && !phantom.length) {
+      ok("uplugin-modules", `${onDisk.length} module(s) on disk, all declared`);
+    }
+  }
+}
+
+// ------------------------------------- 10. port ownership and zombie servers
+// Eight orphaned node processes were found still serving a deleted clone's MCP
+// server against port 8080. A client that connected got three-month-old tools.
+{
+  let procs = [];
+  try {
+    const raw = execSync(
+      'powershell -NoProfile -Command "Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -like \'*mcp-server*dist*index.js*\' } | Select-Object ProcessId,CommandLine | ConvertTo-Json -Compress"',
+      { encoding: "utf-8", stdio: ["ignore", "pipe", "ignore"], timeout: 30000 }
+    ).trim();
+    if (raw) { const p = JSON.parse(raw); procs = Array.isArray(p) ? p : [p]; }
+  } catch { /* non-Windows or powershell unavailable */ }
+
+  if (procs.length) {
+    const canonical = repoRoot.replace(/\\/g, "/").toLowerCase();
+    const foreign = procs.filter((p) => {
+      const cl = (p.CommandLine ?? "").replace(/\\/g, "/").toLowerCase();
+      // a server whose script path no longer exists, or lives outside this tree
+      const m = cl.match(/([a-z]:\/[^"']*?mcp-server\/dist\/index\.js)/);
+      if (!m) return false;
+      return !existsSync(m[1]) || !m[1].startsWith(canonical);
+    });
+    if (foreign.length) {
+      warn("mcp-server-foreign",
+        `${foreign.length} MCP server process(es) running from outside this tree or from a deleted path (PIDs ${foreign.map((p) => p.ProcessId).join(", ")})`,
+        "These answer the same clients and may serve an old tool set. Stop them: Stop-Process -Id <pid> -Force");
+    } else {
+      ok("mcp-server-processes", `${procs.length} running, all from this tree`);
+    }
+  } else {
+    ok("mcp-server-processes", "none running");
+  }
+}
+
+// ------------------------------------- 11. client configuration drift
+// Codex and Gemini do not read .mcp.json. Their templates carry absolute paths,
+// which rot silently when the tree moves.
+{
+  const checks = [
+    { file: ".mcp.json", label: "Claude Code" },
+    { file: join("clients", "codex-config.toml"), label: "Codex" },
+    { file: join("clients", "gemini-settings.json"), label: "Gemini" },
+  ];
+  const problems = [];
+  for (const c of checks) {
+    const p = join(repoRoot, c.file);
+    if (!existsSync(p)) { problems.push(`${c.label}: ${c.file} missing`); continue; }
+    const text = readFileSync(p, "utf-8");
+    if (!/UE_ENGINE_ROOT/.test(text)) {
+      problems.push(`${c.label}: no UE_ENGINE_ROOT, so engine_source_* will fail`);
+    }
+    // absolute server paths must still resolve
+    for (const m of text.matchAll(/([A-Za-z]:[\\/][^"']*?mcp-server[\\/]dist[\\/]index\.js)/g)) {
+      if (!existsSync(m[1].replace(/\\/g, "/"))) {
+        problems.push(`${c.label}: points at ${m[1]}, which does not exist`);
+      }
+    }
+    for (const m of text.matchAll(/UE_ENGINE_ROOT["'\s:=]+([A-Za-z]:[\\/][^"'\n,}]*)/g)) {
+      const root = m[1].trim().replace(/["',]+$/, "");
+      if (!existsSync(join(root, "Engine", "Source"))) {
+        problems.push(`${c.label}: UE_ENGINE_ROOT ${root} has no Engine/Source`);
+      }
+    }
+  }
+  if (problems.length) {
+    err("client-config", problems.join("; "),
+      "Fix the template. A client whose config points at a stale path fails with no useful message.");
+  } else {
+    ok("client-config", "Claude Code, Codex and Gemini configs all resolve");
+  }
+}
+
+// ------------------------------------- 12. unreachable listener handlers
+// A handler module nothing routes to is dead weight that reads as capability.
+{
+  const routerPath = join(repoRoot, "Plugins", "MCPBridge", "Content", "Python", "mcp_bridge", "router.py");
+  const handlersDir = join(repoRoot, "Plugins", "MCPBridge", "Content", "Python", "mcp_bridge", "handlers");
+  if (existsSync(routerPath) && existsSync(handlersDir)) {
+    const router = readFileSync(routerPath, "utf-8");
+    const orphans = readdirSync(handlersDir)
+      .filter((f) => f.endsWith(".py") && f !== "__init__.py")
+      .map((f) => f.replace(/\.py$/, ""))
+      .filter((mod) => !new RegExp(`handlers\\.${mod}\\b|handlers import[^\\n]*\\b${mod}\\b`).test(router));
+    if (orphans.length) {
+      warn("handler-unrouted",
+        `handler module(s) router.py never imports: ${orphans.join(", ")}`,
+        "Either route them, or delete them. An unrouted handler looks like capability and is not.");
+    } else {
+      ok("handler-unrouted", "every handler module is imported by router.py");
+    }
+  }
+}
+
 // ---------------------------------------------------------------- report
 const errors = findings.filter((f) => f.level === "error");
 const warns = findings.filter((f) => f.level === "warn");
