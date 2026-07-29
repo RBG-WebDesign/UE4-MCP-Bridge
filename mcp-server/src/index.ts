@@ -45,6 +45,7 @@ import { createPieAgentTools } from "./tools/pie-agent.js";
 import { createClothTools } from "./tools/cloth.js";
 import { createEngineSourceTools } from "./tools/engine-source.js";
 import { toolAnnotations } from "./annotations.js";
+import { loadExtensions } from "./extensions.js";
 import type { ToolDefinition } from "./types.js";
 
 async function main(): Promise<void> {
@@ -94,6 +95,25 @@ async function main(): Promise<void> {
     // Server-local tools: no HTTP to the listener, work with the editor closed.
     ...createEngineSourceTools(),
   ];
+
+  // Project-local extensions. Namespaced, so they cannot shadow a core tool,
+  // and they carry their own annotations rather than relying on the central map.
+  const extensions = loadExtensions(client);
+  for (const ext of extensions) {
+    const clash = ext.tools.filter((t) => allTools.some((c) => c.name === t.name));
+    if (clash.length > 0) {
+      console.error(
+        `[Unreal MCP Bridge] extension "${ext.manifest.name}" skipped: its tools collide with core tools (${clash
+          .map((t) => t.name)
+          .join(", ")}). Change its toolPrefix.`
+      );
+      continue;
+    }
+    allTools.push(...ext.tools);
+    console.error(
+      `[Unreal MCP Bridge] extension "${ext.manifest.name}" v${ext.manifest.version}: ${ext.tools.length} tool(s) from ${ext.manifestPath}`
+    );
+  }
 
   // Build a lookup map
   const toolMap = new Map<string, ToolDefinition>();

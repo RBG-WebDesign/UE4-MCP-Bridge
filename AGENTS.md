@@ -179,6 +179,46 @@ Builder subsystems inside `MCPBridgeGraphBuilder`:
 
 Specs live in `docs/superpowers/specs/`.
 
+## Project-local extensions
+
+The bridge is a general UE4.27 control surface. Tools that only make sense for one
+game do not belong in the shipped catalog. They go in an extension.
+
+An extension is a directory with an `extension.json` manifest declaring tools that
+forward to listener commands. There is no TypeScript to compile in the host
+project: pass-through tools are the common shape, so a manifest covers them.
+
+Discovery: `UNREAL_BRIDGE_EXTENSIONS` (a `;` or `,` delimited list of directories
+or manifest files) wins; otherwise `<cwd>/BridgeExtensions/<name>/extension.json`.
+
+Three rules make this safe:
+
+- **Namespaced.** Every tool is prefixed with the extension name, so
+  `sinfeld_locomotion_capture_start` is visibly not a bridge tool and cannot
+  shadow one. A collision with a core tool skips the whole extension.
+- **Disabled by default.** `enabled` defaults to `false`. An extension can be
+  written and reviewed long before its listener handlers exist; registering it in
+  that state would advertise tools that fail on every call. Set `enabled: true`
+  only once the commands are real, and record a `disabledReason` until then.
+- **Never fatal.** A malformed manifest is reported on stderr and skipped. A
+  broken project-local file must not stop the bridge from starting.
+
+Validate a manifest without starting the server:
+
+```bash
+npx tsx mcp-server/tests/extension-manifest-check.ts <extension dir>
+```
+
+It prints the tool names that would register, their annotations, and the listener
+commands they need. **The core `registry-consistency` test does not cover
+extensions** — it only scans the bridge's own `src/`. An extension's commands are
+the host project's responsibility.
+
+The Sinfeld extension lives at
+`SF_Repository/Sinfeld_240301/BridgeExtensions/sinfeld/`. It declares 25 locomotion
+and fixed-camera tools and is **disabled**: `locomotion_debug` and
+`fixed_camera_locomotion_debug` do not exist in the listener yet.
+
 ## Adding a new tool
 
 1. Prototype through `python_proxy` first. It is the escape hatch; every new tool

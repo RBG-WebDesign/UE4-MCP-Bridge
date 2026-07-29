@@ -26,7 +26,7 @@
 
 import type { ToolAnnotations } from "@modelcontextprotocol/sdk/types.js";
 
-const readOnly: ToolAnnotations = {
+export const readOnly: ToolAnnotations = {
   readOnlyHint: true,
   destructiveHint: false,
   idempotentHint: true,
@@ -35,7 +35,7 @@ const readOnly: ToolAnnotations = {
 
 /** Mutates editor state additively; a repeat call adds more (new actor,
     new node), so not idempotent. Undoable via the UE4 transaction system. */
-const mutating: ToolAnnotations = {
+export const mutating: ToolAnnotations = {
   readOnlyHint: false,
   destructiveHint: false,
   idempotentHint: false,
@@ -43,7 +43,7 @@ const mutating: ToolAnnotations = {
 };
 
 /** Mutates state but converges: same args, same end state. */
-const mutatingIdempotent: ToolAnnotations = {
+export const mutatingIdempotent: ToolAnnotations = {
   readOnlyHint: false,
   destructiveHint: false,
   idempotentHint: true,
@@ -52,7 +52,7 @@ const mutatingIdempotent: ToolAnnotations = {
 
 /** Removes or overwrites existing state (deletes, restores, arbitrary
     code execution, config changes that need editor restarts). */
-const destructive: ToolAnnotations = {
+export const destructive: ToolAnnotations = {
   readOnlyHint: false,
   destructiveHint: true,
   idempotentHint: false,
@@ -60,7 +60,7 @@ const destructive: ToolAnnotations = {
 };
 
 /** Destructive but convergent (deleting the same thing twice is a no-op). */
-const destructiveIdempotent: ToolAnnotations = {
+export const destructiveIdempotent: ToolAnnotations = {
   readOnlyHint: false,
   destructiveHint: true,
   idempotentHint: true,
