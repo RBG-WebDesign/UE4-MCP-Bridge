@@ -102,6 +102,11 @@ function parseSentCommands(): Set<string> {
     for (const match of src.matchAll(/sendCommand\(\s*["']([a-z0-9_]+)["']/g)) {
       sent.add(match[1]);
     }
+    // Async wrappers still send a literal bridge command, but the client call
+    // is centralized in the wrapper rather than repeated at every tool.
+    for (const match of src.matchAll(/runAsyncOperation\(\s*client\s*,\s*["']([a-z0-9_]+)["']/g)) {
+      sent.add(match[1]);
+    }
   }
   if (sent.size === 0) throw new Error("Parsed zero sendCommand calls from TS source");
   return sent;

@@ -13,7 +13,7 @@ import type { ToolDefinition } from "../types.js";
  * for a frame it would be preventing. Poll for the file here instead, off
  * the game thread, so callers can read the image as soon as the tool returns.
  */
-async function waitForScreenshotFile(data: Record<string, unknown>): Promise<void> {
+export async function waitForScreenshotFile(data: Record<string, unknown>): Promise<void> {
   const filepath = data.filepath;
   if (data.status !== "pending" || typeof filepath !== "string") {
     return;

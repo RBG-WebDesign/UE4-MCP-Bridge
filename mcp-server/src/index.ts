@@ -35,6 +35,16 @@ import { createCppTools } from "./tools/cpp.js";
 import { createGamedevTools } from "./tools/gamedev.js";
 import { createContentTools } from "./tools/content.js";
 import { createAnimationTools } from "./tools/animation.js";
+// NOTE: tools/inspection.ts, tools/locomotion.ts and tools/fixed-camera-locomotion.ts
+// are present in the tree but deliberately NOT registered. They are TypeScript-only
+// work in progress: no matching handlers exist in the Python listener, so registering
+// them would advertise tools that can never succeed. Write the handlers in
+// Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/ and add routes to router.py,
+// then import and register them here.
+import { createPieAgentTools } from "./tools/pie-agent.js";
+import { createClothTools } from "./tools/cloth.js";
+import { createEngineSourceTools } from "./tools/engine-source.js";
+import { toolAnnotations } from "./annotations.js";
 import type { ToolDefinition } from "./types.js";
 
 async function main(): Promise<void> {
@@ -79,6 +89,10 @@ async function main(): Promise<void> {
     ...createGamedevTools(client),
     ...createContentTools(client),
     ...createAnimationTools(client),
+    ...createPieAgentTools(client),
+    ...createClothTools(client),
+    // Server-local tools: no HTTP to the listener, work with the editor closed.
+    ...createEngineSourceTools(),
   ];
 
   // Build a lookup map
@@ -119,7 +133,21 @@ async function main(): Promise<void> {
     "material_instance_create", "material_instance_set_params",
     "data_table_create", "data_table_fill_from_json",
     "audio_component_add", "level_new", "game_template_create",
+    "cloth_apply_fabric_profile",
+    "cloth_smooth_max_distance",
+    "cloth_apply_lower_leg_gradient",
   ]);
+
+  // Every tool must carry annotations (per-tool field or the central map)
+  // so clients can distinguish read-only from destructive calls.
+  const unannotated = allTools
+    .filter((t) => !t.annotations && !toolAnnotations[t.name])
+    .map((t) => t.name);
+  if (unannotated.length > 0) {
+    console.error(
+      `[Unreal MCP Bridge] WARNING: tools missing annotations (add them to src/annotations.ts): ${unannotated.join(", ")}`
+    );
+  }
 
   // Handle tools/list
   server.setRequestHandler(ListToolsRequestSchema, async () => {
@@ -129,6 +157,7 @@ async function main(): Promise<void> {
         description: tool.description,
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         inputSchema: zodToJsonSchema(tool.inputSchema as any) as Record<string, unknown>,
+        annotations: tool.annotations ?? toolAnnotations[tool.name],
       })),
     };
   });

@@ -100,6 +100,14 @@ from mcp_bridge.handlers.animation import (
     handle_anim_reanchor,
     handle_anim_batch_reanchor,
 )
+from mcp_bridge.handlers import pie_agent
+from mcp_bridge.handlers import folder_visibility
+from mcp_bridge.handlers.cloth_optimizer import (
+    handle_cloth_apply_fabric_profile,
+    handle_cloth_apply_lower_leg_gradient,
+    handle_cloth_inspect_asset,
+    handle_cloth_smooth_max_distance,
+)
 from mcp_bridge.handlers.effects import (
     handle_pp_volume_spawn,
     handle_pp_volume_modify,
@@ -216,6 +224,17 @@ COMMAND_ROUTES: Dict[str, Callable[[Dict[str, Any]], Dict[str, Any]]] = {
     "asset_load_diagnostics": handle_asset_load_diagnostics,
     "asset_save_many": handle_asset_save_many,
     "project_enable_plugins": handle_project_enable_plugins,
+
+    # UE4.27 NvCloth inspection and optimization
+    "cloth_inspect_asset": handle_cloth_inspect_asset,
+    "cloth_apply_fabric_profile": handle_cloth_apply_fabric_profile,
+    "cloth_apply_lower_leg_gradient": handle_cloth_apply_lower_leg_gradient,
+    "cloth_smooth_max_distance": handle_cloth_smooth_max_distance,
+
+    # Content Browser folder visibility (display-only hiding)
+    "folder_hide": folder_visibility.handle_folder_hide,
+    "folder_show": folder_visibility.handle_folder_show,
+    "folder_hidden_list": folder_visibility.handle_folder_hidden_list,
 
     # Project intelligence (index, semantic diff, pattern search)
     "project_index_rebuild": handle_project_index_rebuild,
@@ -341,6 +360,17 @@ COMMAND_ROUTES: Dict[str, Callable[[Dict[str, Any]], Dict[str, Any]]] = {
     "anim_root_motion_analyze": handle_anim_root_motion_analyze,
     "anim_reanchor": handle_anim_reanchor,
     "anim_batch_reanchor": handle_anim_batch_reanchor,
+
+    # PIE gameplay agent: runtime-only play-test controls and observation
+    "pie_agent_move_to": pie_agent.handle_pie_agent_move_to,
+    "pie_agent_look_at": pie_agent.handle_pie_agent_look_at,
+    "pie_agent_press": pie_agent.handle_pie_agent_press,
+    "pie_agent_observe": pie_agent.handle_pie_agent_observe,
+    "pie_agent_record_start": pie_agent.handle_pie_agent_record_start,
+    "pie_agent_record_stop": pie_agent.handle_pie_agent_record_stop,
+    "pie_agent_expect": pie_agent.handle_pie_agent_expect,
+    "pie_agent_replay": pie_agent.handle_pie_agent_replay,
+    "pie_agent_status": pie_agent.handle_pie_agent_status,
 
     # Effects (PostProcess, Camera Shake, Visual Effects)
     "pp_volume_spawn": handle_pp_volume_spawn,

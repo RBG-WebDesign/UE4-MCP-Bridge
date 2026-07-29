@@ -32,6 +32,44 @@ export function createProjectTools(client: UnrealClient): ToolDefinition[] {
       },
     },
     {
+      name: "folder_hide",
+      description:
+        "Hide one or more /Game subfolders in the Content Browser (display-only: assets stay on disk, " +
+        "referenced, and cookable). Persists across editor restarts via Config/FolderVisibility.ini. " +
+        "Refuses to hide /Game itself.",
+      inputSchema: z.object({
+        folder: z.string().optional().describe("Single folder path, e.g. /Game/HorrorEngine"),
+        folders: z.array(z.string()).optional().describe("Multiple folder paths to hide at once"),
+      }),
+      handler: async (params) => {
+        const result = await client.sendCommand("folder_hide", params);
+        return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
+      },
+    },
+    {
+      name: "folder_show",
+      description:
+        "Unhide Content Browser folders hidden by folder_hide. Call with no arguments to unhide " +
+        "EVERYTHING (escape hatch).",
+      inputSchema: z.object({
+        folder: z.string().optional().describe("Single folder path to unhide"),
+        folders: z.array(z.string()).optional().describe("Multiple folder paths to unhide"),
+      }),
+      handler: async (params) => {
+        const result = await client.sendCommand("folder_show", params);
+        return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
+      },
+    },
+    {
+      name: "folder_hidden_list",
+      description: "List Content Browser folders currently hidden by folder_hide.",
+      inputSchema: z.object({}),
+      handler: async (params) => {
+        const result = await client.sendCommand("folder_hidden_list", params);
+        return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
+      },
+    },
+    {
       name: "asset_info",
       description: "Return detailed info for a single asset: type, bounds, material slots, LOD count.",
       inputSchema: z.object({
