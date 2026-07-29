@@ -1,0 +1,30 @@
+# OpenAI Codex CLI - MCP server config for the UE4.27 bridge.
+#
+# Codex reads ~/.codex/config.toml. Append this block to that file (create it if
+# it does not exist). Codex does not read .mcp.json, which is why this exists.
+#
+# Paths are absolute on purpose: Codex launches the server with its own working
+# directory, so a relative path like "mcp-server/dist/index.js" will not resolve.
+#
+# Build the server first:  npm run build
+
+[mcp_servers.unreal-bridge]
+command = "node"
+args = ["D:/Unreal Projects/UE4_Bridge/mcp-server/dist/index.js"]
+
+  [mcp_servers.unreal-bridge.env]
+  # Lets engine_source_search / engine_source_read read the installed engine.
+  # Without this the tools fail: a bridge-only clone has no .uproject to read an
+  # EngineAssociation from.
+  UE_ENGINE_ROOT = "D:/UE/UE_4.27"
+  # Point the bridge at a different editor host/port if you are not on defaults.
+  # UNREAL_BRIDGE_HOST = "localhost"
+  # UNREAL_BRIDGE_PORT = "8080"
+
+# UE4.27 C++ API lookup (reflected types). Optional but recommended.
+[mcp_servers.unreal-api]
+command = "uvx"
+args = ["unreal-api-mcp"]
+
+  [mcp_servers.unreal-api.env]
+  UNREAL_VERSION = "4.27"

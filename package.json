@@ -2,7 +2,7 @@
   "name": "unreal-mcp-bridge",
   "version": "1.0.0",
   "private": true,
-  "description": "MCP bridge for controlling UE4.27 editor from Claude Code",
+  "description": "MCP bridge for controlling the UE4.27 editor from Claude Code, OpenAI Codex, Google Gemini, and any other MCP client",
   "workspaces": [
     "mcp-server"
   ],
@@ -10,6 +10,14 @@
     "build": "npm run build --workspace=mcp-server",
     "dev": "npm run dev --workspace=mcp-server",
     "test": "npm test --workspace=mcp-server",
-    "test:integration": "npm run test:integration --workspace=mcp-server"
+    "test:integration": "npm run test:integration --workspace=mcp-server",
+    "smoke": "node Scripts/mcp-smoke.mjs",
+    "smoke:editor": "node Scripts/mcp-smoke.mjs --require-editor",
+    "verify": "npm run build && npm test && npm run smoke",
+    "inspect": "mcp-inspector node mcp-server/dist/index.js",
+    "inspect:list": "mcp-inspector --cli node mcp-server/dist/index.js --method tools/list"
+  },
+  "devDependencies": {
+    "@modelcontextprotocol/inspector": "^2.0.0"
   }
 }

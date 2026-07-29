@@ -3,7 +3,10 @@
     "unreal-bridge": {
       "command": "node",
       "args": ["mcp-server/dist/index.js"],
-      "cwd": "."
+      "cwd": ".",
+      "env": {
+        "UE_ENGINE_ROOT": "D:/UE/UE_4.27"
+      }
     },
     "unreal-api": {
       "command": "uvx",

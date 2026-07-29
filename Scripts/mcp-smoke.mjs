@@ -1,0 +1,171 @@
+#!/usr/bin/env node
+/**
+ * MCP smoke test for the Unreal bridge server.
+ *
+ * Speaks JSON-RPC over stdio directly to mcp-server/dist/index.js, the same way
+ * Claude Code, Codex and Gemini do. No MCP SDK import, no Inspector arg parsing:
+ * if this passes, a real client can drive the server.
+ *
+ * Checks, in order:
+ *   1. initialize            - the server handshakes and reports its info
+ *   2. tools/list            - it advertises tools, and every one has annotations
+ *   3. engine_source_search  - server-local UE4.27 source access (no editor needed)
+ *   4. test_connection       - the live editor link, if the listener is up
+ *
+ * Step 4 is reported as SKIP, not FAIL, when the editor is closed, so this is
+ * usable in CI and with Unreal shut down.
+ *
+ * Usage:
+ *   node Scripts/mcp-smoke.mjs
+ *   node Scripts/mcp-smoke.mjs --require-editor    (turn the SKIP into a FAIL)
+ */
+
+import { spawn } from "node:child_process";
+import { fileURLToPath } from "node:url";
+import { dirname, join } from "node:path";
+import { existsSync } from "node:fs";
+
+const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
+const serverPath = join(repoRoot, "mcp-server", "dist", "index.js");
+const requireEditor = process.argv.includes("--require-editor");
+
+const PROTOCOL_VERSION = "2024-11-05";
+const results = [];
+function record(name, ok, detail) {
+  results.push({ name, ok, detail });
+  const tag = ok === "skip" ? "SKIP" : ok ? "PASS" : "FAIL";
+  console.log(`  ${tag}  ${name}${detail ? ` - ${detail}` : ""}`);
+}
+
+if (!existsSync(serverPath)) {
+  console.error(`Server not built: ${serverPath}\nRun: npm run build`);
+  process.exit(1);
+}
+
+// UE_ENGINE_ROOT lets engine_source_* find the installed engine. The server
+// falls back to the .uproject EngineAssociation, which does not exist in a
+// bridge-only clone, so pass it explicitly when the caller has it set.
+const childEnv = { ...process.env };
+
+const child = spawn(process.execPath, [serverPath], {
+  stdio: ["pipe", "pipe", "pipe"],
+  env: childEnv,
+});
+
+let stderrBuf = "";
+child.stderr.on("data", (d) => { stderrBuf += d.toString(); });
+
+let buf = "";
+const pending = new Map();
+child.stdout.on("data", (chunk) => {
+  buf += chunk.toString();
+  let nl;
+  while ((nl = buf.indexOf("\n")) >= 0) {
+    const line = buf.slice(0, nl).trim();
+    buf = buf.slice(nl + 1);
+    if (!line) continue;
+    let msg;
+    try { msg = JSON.parse(line); } catch { continue; }
+    const resolve = pending.get(msg.id);
+    if (resolve) { pending.delete(msg.id); resolve(msg); }
+  }
+});
+
+let nextId = 1;
+function send(method, params, timeoutMs = 60000) {
+  const id = nextId++;
+  child.stdin.write(JSON.stringify({ jsonrpc: "2.0", id, method, params }) + "\n");
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(
+      () => { pending.delete(id); reject(new Error(`${method} timed out after ${timeoutMs}ms`)); },
+      timeoutMs
+    );
+    pending.set(id, (msg) => { clearTimeout(timer); resolve(msg); });
+  });
+}
+
+/** Tool results come back as a JSON string inside content[0].text. */
+function unwrap(msg) {
+  const text = msg?.result?.content?.[0]?.text;
+  if (typeof text !== "string") return null;
+  try { return JSON.parse(text); } catch { return null; }
+}
+
+async function main() {
+  console.log("MCP smoke test");
+  console.log(`  server: ${serverPath}`);
+  console.log(`  engine: ${process.env.UE_ENGINE_ROOT ?? "(UE_ENGINE_ROOT not set)"}`);
+  console.log("");
+
+  // 1. initialize
+  const init = await send("initialize", {
+    protocolVersion: PROTOCOL_VERSION,
+    capabilities: {},
+    clientInfo: { name: "mcp-smoke", version: "1.0.0" },
+  });
+  const serverName = init?.result?.serverInfo?.name;
+  record("initialize handshake", serverName === "unreal-bridge", serverName ? `serverInfo.name=${serverName}` : "no serverInfo");
+  child.stdin.write(JSON.stringify({ jsonrpc: "2.0", method: "notifications/initialized" }) + "\n");
+
+  // 2. tools/list
+  const listed = await send("tools/list", {});
+  const tools = listed?.result?.tools ?? [];
+  record("tools/list returns tools", tools.length > 0, `${tools.length} tools`);
+
+  const noSchema = tools.filter((t) => !t.inputSchema).map((t) => t.name);
+  record("every tool has an inputSchema", noSchema.length === 0, noSchema.length ? noSchema.join(", ") : undefined);
+
+  const noAnnotations = tools.filter((t) => !t.annotations).map((t) => t.name);
+  record("every tool has annotations", noAnnotations.length === 0,
+    noAnnotations.length ? `missing: ${noAnnotations.slice(0, 8).join(", ")}` : undefined);
+
+  const startupWarning = stderrBuf.includes("missing annotations");
+  record("no annotation warning at startup", !startupWarning);
+
+  // 3. engine_source_search - server-local, works with the editor closed
+  if (tools.some((t) => t.name === "engine_source_search")) {
+    const r = await send("tools/call", {
+      name: "engine_source_search",
+      arguments: { symbol: "FRunnable", module: "Core" },
+    });
+    const payload = unwrap(r);
+    if (payload?.success) {
+      const n = payload.data?.results?.length ?? payload.data?.matches?.length ?? "?";
+      record("engine_source_search finds FRunnable", true, `${n} result(s)`);
+    } else {
+      const err = payload?.error ?? "no payload";
+      const isConfig = /UE_ENGINE_ROOT|locate the UE engine/i.test(err);
+      record("engine_source_search finds FRunnable", isConfig ? "skip" : false,
+        isConfig ? "UE_ENGINE_ROOT not set for this process" : err);
+    }
+  } else {
+    record("engine_source_search registered", false, "tool not present");
+  }
+
+  // 4. test_connection - the live editor
+  const conn = await send("tools/call", { name: "test_connection", arguments: {} });
+  const payload = unwrap(conn);
+  if (payload?.success) {
+    const d = payload.data ?? {};
+    record("test_connection reaches the editor", true, `${d.project} on ${d.engine_version}`);
+  } else {
+    record("test_connection reaches the editor", requireEditor ? false : "skip",
+      "listener not responding (is UE4 open?)");
+  }
+
+  child.stdin.end();
+  child.kill();
+
+  const failed = results.filter((r) => r.ok === false);
+  const skipped = results.filter((r) => r.ok === "skip");
+  console.log("");
+  console.log(`${results.length - failed.length - skipped.length} passed, ${failed.length} failed, ${skipped.length} skipped`);
+  process.exit(failed.length === 0 ? 0 : 1);
+}
+
+main().catch((err) => {
+  console.error("smoke test error:", err.message);
+  if (stderrBuf) console.error("--- server stderr ---\n" + stderrBuf.slice(0, 2000));
+  child.kill();
+  process.exit(1);
+});

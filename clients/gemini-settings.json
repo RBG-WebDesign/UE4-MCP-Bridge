@@ -1,0 +1,28 @@
+{
+  "_comment": [
+    "Google Gemini CLI - MCP server config for the UE4.27 bridge.",
+    "Copy the mcpServers block into ~/.gemini/settings.json (user-wide) or",
+    ".gemini/settings.json in a project. Gemini does not read .mcp.json.",
+    "Paths are absolute because Gemini launches the server with its own cwd.",
+    "Build the server first: npm run build",
+    "Remove this _comment key if your Gemini version rejects unknown fields."
+  ],
+  "mcpServers": {
+    "unreal-bridge": {
+      "command": "node",
+      "args": ["D:/Unreal Projects/UE4_Bridge/mcp-server/dist/index.js"],
+      "env": {
+        "UE_ENGINE_ROOT": "D:/UE/UE_4.27"
+      },
+      "timeout": 120000,
+      "trust": false
+    },
+    "unreal-api": {
+      "command": "uvx",
+      "args": ["unreal-api-mcp"],
+      "env": {
+        "UNREAL_VERSION": "4.27"
+      }
+    }
+  }
+}

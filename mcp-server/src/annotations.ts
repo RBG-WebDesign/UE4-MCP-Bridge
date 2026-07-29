@@ -68,6 +68,19 @@ const destructiveIdempotent: ToolAnnotations = {
 };
 
 export const toolAnnotations: Record<string, ToolAnnotations> = {
+  // --- Animation pose analysis: reads are pure, re-anchoring rewrites assets ---
+  anim_pose_snapshot: readOnly,
+  anim_pose_delta: readOnly,
+  anim_root_motion_analyze: readOnly,
+  // Re-anchoring overwrites keyframes on the source AnimSequence. The write is
+  // convergent (re-anchoring an already-anchored clip is a no-op) but the
+  // original curve is not recoverable by a plain editor undo.
+  anim_reanchor: destructiveIdempotent,
+  anim_batch_reanchor: destructiveIdempotent,
+
+  // Re-reads the tool registry and re-advertises it. Touches no project state.
+  refresh_tools: readOnly,
+
   // --- Pure reads: queries, inspection, docs, diagnostics ---
   asset_info: readOnly,
   asset_list: readOnly,
