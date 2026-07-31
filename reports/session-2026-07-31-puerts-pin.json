@@ -1,0 +1,82 @@
+{
+  "session_date": "2026-07-31",
+  "status": "success",
+  "goal": "P0: Pin the exact PuerTS repository, tag, and commit; enforce the pin with a checksum manifest",
+  "branch": "main",
+  "head": "042828a",
+  "editor_state": {
+    "open": true,
+    "project": "UE427PuerTSMCP",
+    "pid": 28624,
+    "pipe": "\\\\.\\pipe\\UE427PuerTSMCP_UE427PuerTSMCP_81d778e7_skyshader5",
+    "puerts_diagnostic": "passed earlier this session; live spawn/set/undo/delete exercise also passed"
+  },
+  "provenance_finding": {
+    "upstream_repository": "https://github.com/Tencent/puerts",
+    "tag": "Unreal_v1.0.9",
+    "commit": "838ab762d83021c0407f13120f4004dcaf70cffe",
+    "subtree": "unreal/Puerts",
+    "method": "sparse clone of the tag; per-file SHA256 comparison, CRLF-normalized, excluding Binaries/Intermediate/Saved",
+    "upstream_file_count": 947,
+    "identical_files": 945,
+    "local_modifications": [
+      "Source/JsEnv/JsEnv.Build.cs: UseNodejs = false changed to true"
+    ],
+    "missing_from_upstream": [
+      "Content/JavaScript/react-umg/index.js",
+      "ThirdParty/Libnode_APL.xml"
+    ],
+    "local_additions": "93 files, all ThirdParty/nodejs_16/** (separately distributed Node 16 dependency package, libuv 1.43, Win64 libnode.dll/lib)",
+    "version_contradiction_resolution": "Puerts.uplugin VersionName 1.0.5 is upstream's own stale manifest; the file is byte-identical to the Unreal_v1.0.9 tag"
+  },
+  "files_created": [
+    "Scripts/check-puerts-pin.mjs",
+    "Plugins/Puerts.lock.json",
+    "reports/README.md",
+    "reports/session-2026-07-31-puerts-pin.json"
+  ],
+  "files_modified": [
+    ".gitignore",
+    "package.json",
+    "Scripts/install-mcp-bridge.ps1",
+    "docs/PUERTS.md",
+    "docs/UE427_PUERST_MCP_HANDOFF_2026-07-31.md"
+  ],
+  "tests_run": [
+    {
+      "command": "node Scripts/check-puerts-pin.mjs --write",
+      "result": "wrote Plugins/Puerts.lock.json with 1038 file hashes"
+    },
+    {
+      "command": "node Scripts/check-puerts-pin.mjs",
+      "result": "OK: Plugins/Puerts matches the pin (Unreal_v1.0.9 @ 838ab762d830, 1038 files)"
+    },
+    {
+      "command": "npm run verify",
+      "result": "build passed; unit suites passed (13 passed 0 failed in final suite, chain green); check:puerts OK; smoke 8 passed 0 failed 2 skipped (UE_ENGINE_ROOT unset in shell, no token in bridge root - same documented skips as handoff)"
+    }
+  ],
+  "newly_verified": [
+    "PuerTS bundle provenance: Tencent/puerts Unreal_v1.0.9 commit 838ab762d830, one deliberate Build.cs modification",
+    "Pin enforcement in npm run verify and Scripts/install-mcp-bridge.ps1",
+    "Native pipe live: diagnostic, spawn, set_property, read-back, undo, delete, screenshot, logs all passed this session",
+    "docs/PUERTS.md tool count corrected from 16 to 17 (puerts_sky_shader_create was missing)",
+    "Working tree is on branch main, not consolidate/unify-bridge-2026-07-29 as the handoff recorded"
+  ],
+  "defects_found": [
+    "puerts_viewport_screenshot rejects full actor paths that other tools accept and return; short names work (flagged as background task)"
+  ],
+  "still_incomplete": [
+    "Generated-artifact policy for Plugins/MCPBridge/Content/JavaScript",
+    "Python dependencies still declared in MCPBridge.uplugin",
+    "Clean-project install proof",
+    "Working tree uncommitted: the native bridge source exists only in this working tree",
+    "Legacy tool migration / ownership map (17 native vs 187 legacy)"
+  ],
+  "still_unknown": [
+    "Struct/array reflection serializer coverage",
+    "Pipe ACL and token security posture",
+    "ue.d.ts declaration generator command and provenance"
+  ],
+  "recommended_next_goal": "P0: Define and enforce the generated-artifact policy for Plugins/MCPBridge/Content/JavaScript (deterministic npm build output, tracked or reproducibly staged, verified by check-layout)"
+}

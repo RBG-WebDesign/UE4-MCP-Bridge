@@ -4,18 +4,24 @@
   "private": true,
   "description": "MCP bridge for controlling the UE4.27 editor from Claude Code, OpenAI Codex, Google Gemini, and any other MCP client",
   "workspaces": [
-    "mcp-server"
+    "mcp-server",
+    "puerts-runtime"
   ],
   "scripts": {
-    "build": "npm run build --workspace=mcp-server",
+    "build": "npm run build --workspace=puerts-runtime && node Scripts/stage-puerts-runtime.mjs && npm run build --workspace=mcp-server",
     "dev": "npm run dev --workspace=mcp-server",
     "test": "npm test --workspace=mcp-server",
     "test:integration": "npm run test:integration --workspace=mcp-server",
     "doctor": "node Scripts/bridge-doctor.mjs",
+    "check:puerts": "node Scripts/check-puerts-pin.mjs",
+    "check:inventory": "node Scripts/generate-tool-inventory.mjs",
     "check:layout": "node Scripts/check-layout.mjs",
     "smoke": "node Scripts/mcp-smoke.mjs",
     "smoke:editor": "node Scripts/mcp-smoke.mjs --require-editor",
-    "verify": "npm run build && npm test && npm run smoke",
+    "smoke:puerts": "node Scripts/puerts-live-smoke.mjs",
+    "smoke:physics": "node Scripts/puerts-live-smoke.mjs --physics",
+    "acceptance:editor": "node Scripts/editor-acceptance.mjs",
+    "verify": "npm run build && npm test && npm run check:puerts && npm run check:inventory && npm run smoke",
     "inspect": "mcp-inspector node mcp-server/dist/index.js",
     "inspect:list": "mcp-inspector --cli node mcp-server/dist/index.js --method tools/list"
   },

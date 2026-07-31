@@ -1,0 +1,4639 @@
+{
+  "purpose": "Frozen inventory of every bridge tool across both lanes. No tool may be removed until its replacement reaches migrated_verified. See docs/TOOL_MIGRATION.md.",
+  "states": [
+    "native",
+    "server_local",
+    "legacy_verified",
+    "legacy_untested",
+    "native_equivalent",
+    "puerts_equivalent",
+    "hybrid_candidate",
+    "needs_port",
+    "duplicate",
+    "blocked",
+    "deprecated",
+    "migrated_verified"
+  ],
+  "tool_count": 189,
+  "by_backend": {
+    "legacy_http": 170,
+    "server_local": 2,
+    "native_pipe": 17
+  },
+  "tools": [
+    {
+      "name": "actor_delete",
+      "module": "mcp-server/src/tools/actors.ts",
+      "backend": "legacy_http",
+      "migration_state": "hybrid_candidate",
+      "target_replacement": "puerts_delete_actor",
+      "description": "Delete actors by name or name pattern (supports * and ? wildcards).",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "actor_name": "string"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": null
+    },
+    {
+      "name": "actor_duplicate",
+      "module": "mcp-server/src/tools/actors.ts",
+      "backend": "legacy_http",
+      "migration_state": "legacy_untested",
+      "target_replacement": null,
+      "description": "Duplicate an existing actor with an optional offset. Returns validation results by default.",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "actor_name": "string",
+          "offset": "object?",
+          "new_name": "string?",
+          "validate": "boolean?"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": null
+    },
+    {
+      "name": "actor_modify",
+      "module": "mcp-server/src/tools/actors.ts",
+      "backend": "legacy_http",
+      "migration_state": "hybrid_candidate",
+      "target_replacement": "puerts_set_property",
+      "description": "Change an actor's location, rotation, scale, mesh, or visibility. Returns validation results by default.",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "actor_name": "string",
+          "location": "object?",
+          "rotation": "object?",
+          "scale": "object?",
+          "visible": "boolean?",
+          "mesh": "string?",
+          "validate": "boolean?"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": null
+    },
+    {
+      "name": "actor_organize",
+      "module": "mcp-server/src/tools/actors.ts",
+      "backend": "legacy_http",
+      "migration_state": "legacy_untested",
+      "target_replacement": null,
+      "description": "Move actors into World Outliner folders.",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "actors": "array",
+          "folder": "string"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": null
+    },
+    {
+      "name": "actor_selection",
+      "module": "mcp-server/src/tools/actors.ts",
+      "backend": "legacy_http",
+      "migration_state": "legacy_untested",
+      "target_replacement": null,
+      "description": "Return the currently selected level actors and their world transforms.",
+      "schema": {
+        "kind": "object",
+        "params": {}
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": null
+    },
+    {
+      "name": "actor_snap_to_socket",
+      "module": "mcp-server/src/tools/actors.ts",
+      "backend": "legacy_http",
+      "migration_state": "legacy_untested",
+      "target_replacement": null,
+      "description": "Snap one actor to another actor's named socket.",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "actor_name": "string",
+          "target_actor": "string",
+          "socket_name": "string"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": null
+    },
+    {
+      "name": "actor_spawn",
+      "module": "mcp-server/src/tools/actors.ts",
+      "backend": "legacy_http",
+      "migration_state": "hybrid_candidate",
+      "target_replacement": "puerts_spawn_actor",
+      "description": "Spawn an actor from an asset path at a given location/rotation/scale. Returns validation results by default.",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "asset_path": "string",
+          "location": "object?",
+          "rotation": "object?",
+          "scale": "object?",
+          "name": "string?",
+          "folder": "string?",
+          "validate": "boolean?"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": null
+    },
+    {
+      "name": "ai_nav_rebuild",
+      "module": "mcp-server/src/tools/gamedev.ts",
+      "backend": "legacy_http",
+      "migration_state": "legacy_untested",
+      "target_replacement": null,
+      "description": "Rebuild navigation data in the loaded level (RebuildNavigation console command).",
+      "schema": {
+        "kind": "object",
+        "params": {}
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": null
+    },
+    {
+      "name": "anim_batch_reanchor",
+      "module": "mcp-server/src/tools/animation.ts",
+      "backend": "legacy_http",
+      "migration_state": "legacy_untested",
+      "target_replacement": null,
+      "description": "Dry-run a re-anchor across a folder or an explicit list of sequences and rank them by drift. This is the tool for the core workflow: edit the idle, then find which clips no longer line up with it. Each clip gets a verdict of aligned, drifted, or divergent. Divergent means the clip legitimately starts in a different pose rather than having drifted, so re-anchoring it would drag the character somewhere the animator never intended. A sequence that cannot be re-anchored is reported in skipped with a reason instead of aborting the sweep. Clips judged divergent are refused unless force is set.",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "reference_path": "string",
+          "folder_path": "string?",
+          "target_paths": "array?",
+          "recursive": "boolean?",
+          "limit": "number?",
+          "reference_frame": "number?",
+          "anchor_frame": "number?",
+          "bone_mask": "object?",
+          "profile": "enum?",
+          "window_frames": "number?",
+          "threshold_degrees": "number?",
+          "review_ceiling_degrees": "number?",
+          "include_translation": "boolean?",
+          "dry_run": "boolean?",
+          "force": "boolean?",
+          "create_backup": "boolean?"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": "mcp-server/tests/animation-tools.test.ts"
+    },
+    {
+      "name": "anim_blueprint_build_from_json",
+      "module": "mcp-server/src/tools/blueprints.ts",
+      "backend": "legacy_http",
+      "migration_state": "legacy_untested",
+      "target_replacement": null,
+      "description": "Build an Animation Blueprint from a JSON specification. Creates the AnimBP asset with the given skeleton and populates the anim graph from the JSON spec (state machines, blend spaces, slots, etc.).",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "package_path": "string",
+          "asset_name": "string",
+          "skeleton_path": "string",
+          "json_spec": "string"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": null
+    },
+    {
+      "name": "anim_pose_delta",
+      "module": "mcp-server/src/tools/animation.ts",
+      "backend": "legacy_http",
+      "migration_state": "legacy_untested",
+      "target_replacement": null,
+      "description": "Compare two AnimSequences bone by bone at a given frame and report the angular difference in degrees, sorted worst first. Use it to find which clips drifted after an idle was edited, and which bones are responsible. Read-only.",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "reference_path": "string",
+          "target_path": "string",
+          "reference_frame": "number?",
+          "target_frame": "number?",
+          "bones": "array?",
+          "threshold_degrees": "number?"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": "mcp-server/tests/animation-tools.test.ts"
+    },
+    {
+      "name": "anim_pose_snapshot",
+      "module": "mcp-server/src/tools/animation.ts",
+      "backend": "legacy_http",
+      "migration_state": "legacy_untested",
+      "target_replacement": null,
+      "description": "Capture the local (parent-relative) pose of an AnimSequence at one frame: per-bone rotation quaternion, Rotator, translation, and scale. Use this to record an idle's anchor pose before editing it, so later drift can be measured against a known baseline. Read-only.",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "sequence_path": "string",
+          "frame": "number?",
+          "bones": "array?"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": "mcp-server/tests/animation-tools.test.ts"
+    },
+    {
+      "name": "anim_reanchor",
+      "module": "mcp-server/src/tools/animation.ts",
+      "backend": "legacy_http",
+      "migration_state": "legacy_untested",
+      "target_replacement": null,
+      "description": "Report what re-anchoring a sequence to a reference pose would change: per-bone angular delta, how many keys each weight profile would touch, and which tracks would need key expansion first. Use it to preview a fix after editing an idle. Defaults to dry_run; set dry_run=false to write, which is refused when the clip is judged divergent. Additive sequences are refused outright. Defaults to the spine_01 subtree with root and pelvis excluded, because rebasing those breaks root motion and foot planting.",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "target_path": "string",
+          "reference_path": "string",
+          "reference_frame": "number?",
+          "anchor_frame": "number?",
+          "bone_mask": "object?",
+          "profile": "enum?",
+          "window_frames": "number?",
+          "threshold_degrees": "number?",
+          "include_translation": "boolean?",
+          "dry_run": "boolean?",
+          "force": "boolean?",
+          "create_backup": "boolean?"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": "mcp-server/tests/animation-tools.test.ts"
+    },
+    {
+      "name": "anim_root_motion_analyze",
+      "module": "mcp-server/src/tools/animation.ts",
+      "backend": "legacy_http",
+      "migration_state": "legacy_untested",
+      "target_replacement": null,
+      "description": "Measure root track drift on an AnimSequence: per-axis range, per-frame step distribution (mean/max/p95), a roughness ratio that separates smooth authored sway from per-frame step noise, a root-vs-pelvis comparison that flags motion baked onto root at export, a rotation_roughness that detects wobble independently of amplitude, and the bone compression codec. A missing root track is reported as a flag rather than an error, so clips whose root was stripped are still analyzed. Pass folder_path instead of sequence_path to sweep a folder, sorted by roughness descending. Reads import-time data, so runtime causes such as foot IK or decompression artifacts cannot appear here. Read-only.",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "sequence_path": "string?",
+          "folder_path": "string?",
+          "root_bone": "string?",
+          "pelvis_bone": "string?",
+          "bones": "array?",
+          "recursive": "boolean?"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": "mcp-server/tests/animation-tools.test.ts"
+    },
+    {
+      "name": "asset_info",
+      "module": "mcp-server/src/tools/project.ts",
+      "backend": "legacy_http",
+      "migration_state": "legacy_untested",
+      "target_replacement": null,
+      "description": "Return detailed info for a single asset: type, bounds, material slots, LOD count.",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "path": "string"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": null
+    },
+    {
+      "name": "asset_list",
+      "module": "mcp-server/src/tools/project.ts",
+      "backend": "legacy_http",
+      "migration_state": "hybrid_candidate",
+      "target_replacement": "puerts_find_assets",
+      "description": "List assets with optional filters. Returns asset paths, types, and names.",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "path": "string?",
+          "asset_type": "string?",
+          "name_pattern": "string?",
+          "recursive": "boolean?"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": null
+    },
+    {
+      "name": "asset_load_diagnostics",
+      "module": "mcp-server/src/tools/project.ts",
+      "backend": "legacy_http",
+      "migration_state": "legacy_untested",
+      "target_replacement": null,
+      "description": "Diagnose asset loads, Blueprint generated classes, dependencies, referencers, and script class availability.",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "asset_paths": "union?",
+          "class_paths": "union?",
+          "include_dependencies": "boolean?",
+          "include_referencers": "boolean?"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": null
+    },
+    {
+      "name": "asset_save_many",
+      "module": "mcp-server/src/tools/project.ts",
+      "backend": "legacy_http",
+      "migration_state": "legacy_untested",
+      "target_replacement": null,
+      "description": "Save only the explicit asset paths passed in. Safer than project-wide save-all.",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "paths": "union"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": null
+    },
+    {
+      "name": "audio_component_add",
+      "module": "mcp-server/src/tools/content.ts",
+      "backend": "legacy_http",
+      "migration_state": "legacy_untested",
+      "target_replacement": null,
+      "description": "Add an AudioComponent to a Blueprint, optionally assigning a SoundBase asset and auto-activate. Compiles and saves.",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "blueprint_path": "string",
+          "component_name": "string?",
+          "sound": "string?",
+          "attach_to": "string?",
+          "auto_activate": "boolean?"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": "mcp-server/tests/content-tools.test.ts"
+    },
+    {
+      "name": "batch_operations",
+      "module": "mcp-server/src/tools/operations.ts",
+      "backend": "legacy_http",
+      "migration_state": "legacy_untested",
+      "target_replacement": null,
+      "description": "Execute multiple tool calls in a single request with shared validation.",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "operations": "array"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "idempotentHint": false,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": null
+    },
+    {
+      "name": "batch_spawn",
+      "module": "mcp-server/src/tools/actors.ts",
+      "backend": "legacy_http",
+      "migration_state": "legacy_untested",
+      "target_replacement": null,
+      "description": "Spawn multiple actors in one call. Each spawn definition uses the same format as actor_spawn.",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "spawns": "array"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": null
+    },
+    {
+      "name": "behavior_tree_create",
+      "module": "mcp-server/src/tools/gamedev.ts",
+      "backend": "legacy_http",
+      "migration_state": "legacy_untested",
+      "target_replacement": null,
+      "description": "Create a BehaviorTree asset bound to an existing Blackboard, optionally building its node graph from a BehaviorTreeBuilder JSON spec (26 node types: Selector/Sequence/SimpleParallel composites, MoveTo/Wait/etc tasks, Blackboard/Cooldown/etc decorators, services). Optionally adds keys to the blackboard first.",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "path": "string",
+          "name": "string",
+          "blackboard_path": "string",
+          "keys": "array?",
+          "tree": "record?"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": null
+    },
+    {
+      "name": "blackboard_create",
+      "module": "mcp-server/src/tools/gamedev.ts",
+      "backend": "legacy_http",
+      "migration_state": "legacy_untested",
+      "target_replacement": null,
+      "description": "Create a BlackboardData asset with typed keys (Bool, Int, Float, String, Name, Vector, Rotator, Object, Class).",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "path": "string",
+          "name": "string",
+          "keys": "array?"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": null
+    },
+    {
+      "name": "blueprint_add_event_dispatcher",
+      "module": "mcp-server/src/tools/blueprint-graph.ts",
+      "backend": "legacy_http",
+      "migration_state": "legacy_untested",
+      "target_replacement": null,
+      "description": "Create an event dispatcher (multicast delegate) with an optional parameter signature, then compile and save.",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "blueprint_path": "string",
+          "name": "string",
+          "signature": "object?"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": "mcp-server/tests/blueprint-graph-tools.test.ts"
+    },
+    {
+      "name": "blueprint_add_function",
+      "module": "mcp-server/src/tools/blueprint-graph.ts",
+      "backend": "legacy_http",
+      "migration_state": "legacy_untested",
+      "target_replacement": null,
+      "description": "Create a user function graph on a Blueprint with typed inputs/outputs, then compile and save. Returns the function graph name.",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "blueprint_path": "string",
+          "name": "string",
+          "inputs": "array?",
+          "outputs": "array?"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": "mcp-server/tests/blueprint-graph-tools.test.ts"
+    },
+    {
+      "name": "blueprint_add_interface",
+      "module": "mcp-server/src/tools/blueprint-graph.ts",
+      "backend": "legacy_http",
+      "migration_state": "legacy_untested",
+      "target_replacement": null,
+      "description": "Implement a Blueprint Interface on a Blueprint, then compile and save.",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "blueprint_path": "string",
+          "interface_class": "string"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": "mcp-server/tests/blueprint-graph-tools.test.ts"
+    },
+    {
+      "name": "blueprint_add_variable",
+      "module": "mcp-server/src/tools/blueprint-graph.ts",
+      "backend": "legacy_http",
+      "migration_state": "legacy_untested",
+      "target_replacement": null,
+      "description": "Add a member variable to a Blueprint, then compile and save.",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "blueprint_path": "string",
+          "name": "string",
+          "type": "object",
+          "default_value": "unknown?",
+          "category": "string?"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": "mcp-server/tests/blueprint-graph-tools.test.ts"
+    },
+    {
+      "name": "blueprint_build_from_description",
+      "module": "mcp-server/src/tools/blueprints.ts",
+      "backend": "legacy_http",
+      "migration_state": "legacy_untested",
+      "target_replacement": null,
+      "description": "Build a Blueprint event graph from high-level pattern templates. Each step references a named pattern with optional parameters. Exec flow is auto-wired between steps. Available patterns: on_begin_play, print_string, print_float, get_actor_location, loop_print, move_actor_up",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "blueprint_path": "string",
+          "steps": "array",
+          "clear_existing": "boolean?"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": null
+    },
+    {
+      "name": "blueprint_build_from_json",
+      "module": "mcp-server/src/tools/blueprints.ts",
+      "backend": "legacy_http",
+      "migration_state": "legacy_untested",
+      "target_replacement": null,
+      "description": "Builds a Blueprint event graph from a JSON node/connection description. Supported node types: BeginPlay, PrintString, Delay, CallFunction. Node objects accept an optional 'params' key to set pin default values by PinName. Connections use 'nodeId.exec' format for exec pin wiring.",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "blueprint_path": "string",
+          "graph": "object",
+          "clear_existing": "boolean?"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": null
+    },
+    {
+      "name": "blueprint_compile",
+      "module": "mcp-server/src/tools/blueprints.ts",
+      "backend": "legacy_http",
+      "migration_state": "legacy_untested",
+      "target_replacement": null,
+      "description": "Compile a Blueprint and return success/failure with error details. Success means the compile ran, check 'compiled' and 'had_errors' for actual result.",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "blueprint_path": "string"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": null
+    },
+    {
+      "name": "blueprint_component_remove",
+      "module": "mcp-server/src/tools/blueprint-graph.ts",
+      "backend": "legacy_http",
+      "migration_state": "legacy_untested",
+      "target_replacement": null,
+      "description": "Remove a component (SCS node) from a Blueprint; children re-parent to the removed node's parent. Compiles and saves.",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "blueprint_path": "string",
+          "component_name": "string"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": "mcp-server/tests/blueprint-graph-tools.test.ts"
+    },
+    {
+      "name": "blueprint_component_rename",
+      "module": "mcp-server/src/tools/blueprint-graph.ts",
+      "backend": "legacy_http",
+      "migration_state": "legacy_untested",
+      "target_replacement": null,
+      "description": "Rename a component (SCS node) on a Blueprint, then compile and save.",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "blueprint_path": "string",
+          "old_name": "string",
+          "new_name": "string"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": "mcp-server/tests/blueprint-graph-tools.test.ts"
+    },
+    {
+      "name": "blueprint_create",
+      "module": "mcp-server/src/tools/blueprints.ts",
+      "backend": "legacy_http",
+      "migration_state": "legacy_untested",
+      "target_replacement": null,
+      "description": "Create a new Blueprint class with optional components and variables.",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "name": "string",
+          "path": "string?",
+          "parent_class": "string?",
+          "components": "array?",
+          "variables": "array?"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": null
+    },
+    {
+      "name": "blueprint_document",
+      "module": "mcp-server/src/tools/blueprints.ts",
+      "backend": "legacy_http",
+      "migration_state": "legacy_untested",
+      "target_replacement": null,
+      "description": "Generate a human-readable text summary of a Blueprint's structure, variables, and components.",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "blueprint_path": "string",
+          "detail_level": "enum?"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": null
+    },
+    {
+      "name": "blueprint_info",
+      "module": "mcp-server/src/tools/blueprints.ts",
+      "backend": "legacy_http",
+      "migration_state": "legacy_untested",
+      "target_replacement": null,
+      "description": "Get detailed Blueprint structure: components, variables, functions, event graphs, parent chain.",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "blueprint_path": "string"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": null
+    },
+    {
+      "name": "blueprint_inspect",
+      "module": "mcp-server/src/tools/blueprint-graph.ts",
+      "backend": "legacy_http",
+      "migration_state": "legacy_untested",
+      "target_replacement": null,
+      "description": "Read Blueprint structure: graphs, functions, variables, macros, interfaces, event dispatchers, components (SCS), nodes in a graph with pins and links, single node detail, or node search. Use before editing to resolve graph names, node GUIDs, and pin names.",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "blueprint_path": "string",
+          "action": "enum",
+          "graph_name": "string?",
+          "node_guid": "string?",
+          "query": "record?"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": "mcp-server/tests/blueprint-graph-tools.test.ts"
+    },
+    {
+      "name": "blueprint_list",
+      "module": "mcp-server/src/tools/blueprints.ts",
+      "backend": "legacy_http",
+      "migration_state": "legacy_untested",
+      "target_replacement": null,
+      "description": "List Blueprint assets with optional filtering by path, name, and parent class.",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "path_filter": "string?",
+          "name_filter": "string?",
+          "parent_class_filter": "string?",
+          "limit": "number?"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": null
+    },
+    {
+      "name": "blueprint_node_add",
+      "module": "mcp-server/src/tools/blueprint-graph.ts",
+      "backend": "legacy_http",
+      "migration_state": "legacy_untested",
+      "target_replacement": null,
+      "description": "Add a node to a Blueprint graph. Returns the new node's GUID for pin wiring. node_type is a registered factory: CallFunction, Event, CustomEvent, VariableGet, VariableSet, Branch, Sequence, Knot, Comment, Cast, CreateWidget, SpawnActor, MacroInstance, MakeStruct, BreakStruct, Select, FormatText, SwitchEnum, SwitchInt, SwitchName, SwitchString, MultiGate, DoOnceMultiInput, InputAction, InputAxisEvent, InputKey, AddDelegate, RemoveDelegate, CallDelegate, and more. config keys are camelCase and depend on node_type: CallFunction {targetClass, functionName}; Event {parentClass, eventName}; CustomEvent {eventName, parameters?}; VariableGet/VariableSet {varName, scope?}; Cast {targetClass, purity?}; SpawnActor {actorClass}; CreateWidget {widgetClass}; MakeStruct/BreakStruct {structType}; Comment {text}; MacroInstance {macroBP, macroName}. EXCEPTION: input nodes use snake_case keys - InputAction {action_name, consume_input?}, InputAxisEvent {axis_name}, InputKey {key}. Class paths use /Script/Module.Class form. Compiles and saves.",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "blueprint_path": "string",
+          "graph_name": "string",
+          "node_type": "string",
+          "position": "tuple?",
+          "config": "record?"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": "mcp-server/tests/blueprint-graph-tools.test.ts"
+    },
+    {
+      "name": "blueprint_node_delete",
+      "module": "mcp-server/src/tools/blueprint-graph.ts",
+      "backend": "legacy_http",
+      "migration_state": "legacy_untested",
+      "target_replacement": null,
+      "description": "Delete a node by GUID (links broken first), then compile and save.",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "blueprint_path": "string",
+          "graph_name": "string",
+          "node_guid": "string"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": "mcp-server/tests/blueprint-graph-tools.test.ts"
+    },
+    {
+      "name": "blueprint_node_move",
+      "module": "mcp-server/src/tools/blueprint-graph.ts",
+      "backend": "legacy_http",
+      "migration_state": "legacy_untested",
+      "target_replacement": null,
+      "description": "Move a node to a new graph position, then compile and save.",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "blueprint_path": "string",
+          "graph_name": "string",
+          "node_guid": "string",
+          "position": "tuple"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": "mcp-server/tests/blueprint-graph-tools.test.ts"
+    },
+    {
+      "name": "blueprint_node_set_enabled",
+      "module": "mcp-server/src/tools/blueprint-graph.ts",
+      "backend": "legacy_http",
+      "migration_state": "legacy_untested",
+      "target_replacement": null,
+      "description": "Enable or disable a node by GUID, then compile and save.",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "blueprint_path": "string",
+          "graph_name": "string",
+          "node_guid": "string",
+          "enabled": "boolean"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": "mcp-server/tests/blueprint-graph-tools.test.ts"
+    },
+    {
+      "name": "blueprint_pins_break",
+      "module": "mcp-server/src/tools/blueprint-graph.ts",
+      "backend": "legacy_http",
+      "migration_state": "legacy_untested",
+      "target_replacement": null,
+      "description": "Break all links on a single pin of a node, then compile and save.",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "blueprint_path": "string",
+          "graph_name": "string",
+          "node_guid": "string",
+          "pin_name": "string"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": "mcp-server/tests/blueprint-graph-tools.test.ts"
+    },
+    {
+      "name": "blueprint_pins_connect",
+      "module": "mcp-server/src/tools/blueprint-graph.ts",
+      "backend": "legacy_http",
+      "migration_state": "legacy_untested",
+      "target_replacement": null,
+      "description": "Connect two pins between nodes. The connection is validated by UEdGraphSchema_K2::CanCreateConnection before linking - incompatible types fail cleanly with no graph change. Compiles and saves on success.",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "blueprint_path": "string",
+          "graph_name": "string",
+          "source_node_guid": "string",
+          "source_pin": "string",
+          "target_node_guid": "string",
+          "target_pin": "string"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": "mcp-server/tests/blueprint-graph-tools.test.ts"
+    },
+    {
+      "name": "blueprint_remove_event_dispatcher",
+      "module": "mcp-server/src/tools/blueprint-graph.ts",
+      "backend": "legacy_http",
+      "migration_state": "legacy_untested",
+      "target_replacement": null,
+      "description": "Remove an event dispatcher by name, then compile and save.",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "blueprint_path": "string",
+          "name": "string"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": "mcp-server/tests/blueprint-graph-tools.test.ts"
+    },
+    {
+      "name": "blueprint_remove_function",
+      "module": "mcp-server/src/tools/blueprint-graph.ts",
+      "backend": "legacy_http",
+      "migration_state": "legacy_untested",
+      "target_replacement": null,
+      "description": "Remove a user function graph by name, then compile and save.",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "blueprint_path": "string",
+          "name": "string"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": "mcp-server/tests/blueprint-graph-tools.test.ts"
+    },
+    {
+      "name": "blueprint_remove_interface",
+      "module": "mcp-server/src/tools/blueprint-graph.ts",
+      "backend": "legacy_http",
+      "migration_state": "legacy_untested",
+      "target_replacement": null,
+      "description": "Remove an interface implementation (deletes its generated function graphs), then compile and save.",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "blueprint_path": "string",
+          "interface_class": "string"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": "mcp-server/tests/blueprint-graph-tools.test.ts"
+    },
+    {
+      "name": "blueprint_remove_variable",
+      "module": "mcp-server/src/tools/blueprint-graph.ts",
+      "backend": "legacy_http",
+      "migration_state": "legacy_untested",
+      "target_replacement": null,
+      "description": "Remove a member variable from a Blueprint, then compile and save.",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "blueprint_path": "string",
+          "name": "string"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": "mcp-server/tests/blueprint-graph-tools.test.ts"
+    },
+    {
+      "name": "blueprint_set_variable_default",
+      "module": "mcp-server/src/tools/blueprint-graph.ts",
+      "backend": "legacy_http",
+      "migration_state": "legacy_untested",
+      "target_replacement": null,
+      "description": "Set a member variable's default value, then compile and save.",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "blueprint_path": "string",
+          "name": "string",
+          "default_value": "unknown"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": "mcp-server/tests/blueprint-graph-tools.test.ts"
+    },
+    {
+      "name": "bridge_clear_log",
+      "module": "mcp-server/src/tools/system.ts",
+      "backend": "legacy_http",
+      "migration_state": "legacy_untested",
+      "target_replacement": null,
+      "description": "Reset the MCP output-log cursor marker. Does not delete or truncate the UE log.",
+      "schema": {
+        "kind": "object",
+        "params": {}
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": null
+    },
+    {
+      "name": "bridge_command_manifest",
+      "module": "mcp-server/src/tools/system.ts",
+      "backend": "legacy_http",
+      "migration_state": "legacy_untested",
+      "target_replacement": null,
+      "description": "Return command names currently registered in the live Unreal listener.",
+      "schema": {
+        "kind": "object",
+        "params": {}
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": null
+    },
+    {
+      "name": "camera_rig_create",
+      "module": "mcp-server/src/tools/gamedev.ts",
+      "backend": "legacy_http",
+      "migration_state": "legacy_untested",
+      "target_replacement": null,
+      "description": "Add a camera rig to a Pawn/Character Blueprint using a preset: first_person (eye-height camera, pawn control rotation), third_person (300 spring arm with lag), top_down (800 arm at -60 pitch), or side_scroller (500 arm at -90 yaw). Compiles and saves.",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "blueprint_path": "string",
+          "preset": "enum",
+          "camera_name": "string?",
+          "arm_name": "string?"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": null
+    },
+    {
+      "name": "camera_shake_blueprint",
+      "module": "mcp-server/src/tools/effects.ts",
+      "backend": "legacy_http",
+      "migration_state": "legacy_untested",
+      "target_replacement": null,
+      "description": "Create a CameraShake Blueprint asset with oscillation parameters.\nShake presets: explosion, hit, earthquake, gunfire, footstep, ambient, electric_shock, glitch_shake.\nOr set individual rot_pitch/yaw/roll_amp/freq, loc_x/y/z_amp/freq, fov_amp/freq values.",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "name": "string?",
+          "content_path": "string?",
+          "preset": "enum?",
+          "duration": "number?",
+          "blend_in_time": "number?",
+          "blend_out_time": "number?",
+          "rot_pitch_amp": "number?",
+          "rot_pitch_freq": "number?",
+          "rot_yaw_amp": "number?",
+          "rot_yaw_freq": "number?",
+          "rot_roll_amp": "number?",
+          "rot_roll_freq": "number?",
+          "loc_x_amp": "number?",
+          "loc_x_freq": "number?",
+          "loc_y_amp": "number?",
+          "loc_y_freq": "number?",
+          "loc_z_amp": "number?",
+          "loc_z_freq": "number?",
+          "fov_amp": "number?",
+          "fov_freq": "number?",
+          "shake_scale": "number?"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": null
+    },
+    {
+      "name": "camera_shake_play",
+      "module": "mcp-server/src/tools/effects.ts",
+      "backend": "legacy_http",
+      "migration_state": "legacy_untested",
+      "target_replacement": null,
+      "description": "Play a camera shake during PIE. Requires PIE to be running.",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "shake_class": "string",
+          "scale": "number?",
+          "play_space": "enum?"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": null
+    },
+    {
+      "name": "camera_shake_spawn",
+      "module": "mcp-server/src/tools/effects.ts",
+      "backend": "legacy_http",
+      "migration_state": "legacy_untested",
+      "target_replacement": null,
+      "description": "Spawn a CameraShakeSourceActor in the level. Emits shake within inner/outer radius during PIE.",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "name": "string?",
+          "location": "object?",
+          "inner_radius": "number?",
+          "outer_radius": "number?",
+          "shake_class": "string?"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": null
+    },
+    {
+      "name": "camera_shake_trigger",
+      "module": "mcp-server/src/tools/effects.ts",
+      "backend": "legacy_http",
+      "migration_state": "legacy_untested",
+      "target_replacement": null,
+      "description": "Spawn a C++ ShakeTriggerActor: plays camera shake when the player overlaps its trigger box during PIE. Python builds, C++ executes -- the reliable pattern.",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "name": "string?",
+          "location": "object?",
+          "shake_class": "string",
+          "shake_scale": "number?",
+          "box_extent": "object?"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": null
+    },
+    {
+      "name": "checkpoint_create",
+      "module": "mcp-server/src/tools/operations.ts",
+      "backend": "legacy_http",
+      "migration_state": "legacy_untested",
+      "target_replacement": null,
+      "description": "Create a named save point (level save + metadata snapshot).",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "name": "string",
+          "description": "string?"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": null
+    },
+    {
+      "name": "checkpoint_restore",
+      "module": "mcp-server/src/tools/operations.ts",
+      "backend": "legacy_http",
+      "migration_state": "legacy_untested",
+      "target_replacement": null,
+      "description": "Restore to a named checkpoint by undoing operations since it was created.",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "name": "string"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "idempotentHint": false,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": null
+    },
+    {
+      "name": "clear_output_log",
+      "module": "mcp-server/src/tools/system.ts",
+      "backend": "legacy_http",
+      "migration_state": "legacy_untested",
+      "target_replacement": null,
+      "description": "Alias for bridge_clear_log.",
+      "schema": {
+        "kind": "object",
+        "params": {}
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": null
+    },
+    {
+      "name": "cloth_apply_fabric_profile",
+      "module": "mcp-server/src/tools/cloth.ts",
+      "backend": "legacy_http",
+      "migration_state": "legacy_untested",
+      "target_replacement": null,
+      "description": "Apply a bounded UE4.27 NvCloth fabric profile to exactly one embedded clothing asset, with a JSON backup, transaction, and package save. This command does not change cloth paint masks or the Physics Asset.",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "skeletal_mesh": "string",
+          "clothing_asset": "string",
+          "profile": "enum",
+          "confirm": "literal"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": null
+    },
+    {
+      "name": "cloth_apply_lower_leg_gradient",
+      "module": "mcp-server/src/tools/cloth.ts",
+      "backend": "legacy_http",
+      "migration_state": "legacy_untested",
+      "target_replacement": null,
+      "description": "Author a smooth UE4.27 Max Distance gradient from the trouser hem to the knee on one clothing asset. This intentionally activates formerly fixed lower-leg vertices, writes a full backup, and preserves the fabric profile and Physics Asset.",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "skeletal_mesh": "string",
+          "clothing_asset": "string",
+          "knee_height_fraction": "number?",
+          "confirm": "literal"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": null
+    },
+    {
+      "name": "cloth_inspect_asset",
+      "module": "mcp-server/src/tools/cloth.ts",
+      "backend": "legacy_http",
+      "migration_state": "legacy_untested",
+      "target_replacement": null,
+      "description": "Inspect a UE4.27 skeletal mesh and return render-section cloth bindings, physical cloth LOD counts, authoring masks, applied weight maps, NvCloth config, topology hash, and Physics Asset coverage.",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "skeletal_mesh": "string"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": null
+    },
+    {
+      "name": "cloth_smooth_max_distance",
+      "module": "mcp-server/src/tools/cloth.ts",
+      "backend": "legacy_http",
+      "migration_state": "legacy_untested",
+      "target_replacement": null,
+      "description": "Apply topology-aware, non-expanding smoothing to one embedded clothing asset's UE4.27 Max Distance mask, preserving fixed anchors and writing a full backup before saving.",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "skeletal_mesh": "string",
+          "clothing_asset": "string",
+          "iterations": "number?",
+          "strength": "number?",
+          "confirm": "literal"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": null
+    },
+    {
+      "name": "console_effect",
+      "module": "mcp-server/src/tools/effects.ts",
+      "backend": "legacy_http",
+      "migration_state": "legacy_untested",
+      "target_replacement": null,
+      "description": "Toggle rendering features via console commands.\nCommands: freeze_rendering, show_fps, screen_percentage, temporal_aa, fxaa, motion_blur, bloom, eye_adaptation, tonemapper, ssr, ao, dof, aa_quality, shadow_quality, view_distance_quality, post_process_quality.",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "command": "enum",
+          "value": "union?"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": null
+    },
+    {
+      "name": "cpp_build",
+      "module": "mcp-server/src/tools/cpp.ts",
+      "backend": "legacy_http",
+      "migration_state": "legacy_untested",
+      "target_replacement": null,
+      "description": "Compile the project with UnrealBuildTool as a background job. Returns a job_id immediately; poll job_status for progress and structured compiler errors (file, line, code, message).",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "target": "string?",
+          "platform": "string?",
+          "configuration": "string?",
+          "extra_args": "array?",
+          "timeout_seconds": "number?"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": null
+    },
+    {
+      "name": "cpp_class_create",
+      "module": "mcp-server/src/tools/cpp.ts",
+      "backend": "legacy_http",
+      "migration_state": "legacy_untested",
+      "target_replacement": null,
+      "description": "Generate a UCLASS header/source pair in a game module (UE4.27 wizard-style boilerplate with GENERATED_BODY and constructor). Does not compile; run cpp_build afterwards. New classes require an editor restart to load.",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "name": "string",
+          "parent_class": "enum?",
+          "module": "string?",
+          "subdir": "string?",
+          "uclass_specifiers": "string?"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": null
+    },
+    {
+      "name": "data_table_create",
+      "module": "mcp-server/src/tools/content.ts",
+      "backend": "legacy_http",
+      "migration_state": "legacy_untested",
+      "target_replacement": null,
+      "description": "Create a DataTable for a row struct, optionally filling rows from DataTable JSON ([{\"Name\": \"Row1\", ...fields}]). Saves the table.",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "path": "string",
+          "name": "string",
+          "row_struct": "string",
+          "rows_json": "union?"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": "mcp-server/tests/content-tools.test.ts"
+    },
+    {
+      "name": "data_table_fill_from_json",
+      "module": "mcp-server/src/tools/content.ts",
+      "backend": "legacy_http",
+      "migration_state": "legacy_untested",
+      "target_replacement": null,
+      "description": "Replace an existing DataTable's rows from DataTable JSON, then save. Returns the resulting row names.",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "data_table": "string",
+          "rows_json": "union"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": "mcp-server/tests/content-tools.test.ts"
+    },
+    {
+      "name": "engine_source_read",
+      "module": "mcp-server/src/tools/engine-source.ts",
+      "backend": "server_local",
+      "migration_state": "server_local",
+      "target_replacement": null,
+      "description": "Read a line range from a UE4.27 engine source file on disk (path as returned by engine_source_search, relative to <EngineRoot>/Engine). Use to see full declarations, parameter lists, and comments. Works with the editor closed.",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "file": "string",
+          "start_line": "number?",
+          "end_line": "number?"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": "mcp-server/tests/engine-source-tools.test.ts"
+    },
+    {
+      "name": "engine_source_search",
+      "module": "mcp-server/src/tools/engine-source.ts",
+      "backend": "server_local",
+      "migration_state": "server_local",
+      "target_replacement": null,
+      "description": "Search the local UE4.27 engine C++ source on disk for a symbol declaration or regex. Covers plain C++ the reflection database misses (Slate widgets, FRunnable, editor utilities, macros). Returns file, line, matched text, and the #include path when derivable. Works with the editor closed.",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "symbol": "string?",
+          "pattern": "string?",
+          "scope": "enum?",
+          "module": "string?",
+          "include_cpp": "boolean?",
+          "ignore_case": "boolean?",
+          "context_lines": "number?",
+          "max_results": "number?"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": "mcp-server/tests/engine-source-tools.test.ts"
+    },
+    {
+      "name": "folder_hidden_list",
+      "module": "mcp-server/src/tools/project.ts",
+      "backend": "legacy_http",
+      "migration_state": "legacy_untested",
+      "target_replacement": null,
+      "description": "List Content Browser folders currently hidden by folder_hide.",
+      "schema": {
+        "kind": "object",
+        "params": {}
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": null
+    },
+    {
+      "name": "folder_hide",
+      "module": "mcp-server/src/tools/project.ts",
+      "backend": "legacy_http",
+      "migration_state": "legacy_untested",
+      "target_replacement": null,
+      "description": "Hide one or more /Game subfolders in the Content Browser (display-only: assets stay on disk, referenced, and cookable). Persists across editor restarts via Config/FolderVisibility.ini. Refuses to hide /Game itself.",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "folder": "string?",
+          "folders": "array?"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": null
+    },
+    {
+      "name": "folder_show",
+      "module": "mcp-server/src/tools/project.ts",
+      "backend": "legacy_http",
+      "migration_state": "legacy_untested",
+      "target_replacement": null,
+      "description": "Unhide Content Browser folders hidden by folder_hide. Call with no arguments to unhide EVERYTHING (escape hatch).",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "folder": "string?",
+          "folders": "array?"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": null
+    },
+    {
+      "name": "game_template_create",
+      "module": "mcp-server/src/tools/content.ts",
+      "backend": "legacy_http",
+      "migration_state": "legacy_untested",
+      "target_replacement": null,
+      "description": "Generate a playable game skeleton: gameplay framework (GameMode/Character/PlayerController/HUD with class defaults wired), a camera rig matching the template, an input preset, and optionally a new map and project default game mode. Templates: first_person, third_person, top_down, side_scroller. Returns a manifest of everything created.",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "path": "string",
+          "base_name": "string",
+          "template": "enum",
+          "create_map": "boolean?",
+          "set_as_default": "boolean?"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": "mcp-server/tests/content-tools.test.ts"
+    },
+    {
+      "name": "gameplay_framework_create",
+      "module": "mcp-server/src/tools/gamedev.ts",
+      "backend": "legacy_http",
+      "migration_state": "legacy_untested",
+      "target_replacement": null,
+      "description": "Create a linked set of gameplay framework Blueprints (GameMode, Pawn or Character, PlayerController, GameInstance, HUD, GameState, PlayerState) named BP_<base_name><suffix>, with the GameMode's class defaults wired to the created pieces. Compiles and saves everything.",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "path": "string",
+          "base_name": "string",
+          "pieces": "array?"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": null
+    },
+    {
+      "name": "gameplay_pattern_search",
+      "module": "mcp-server/src/tools/intelligence.ts",
+      "backend": "legacy_http",
+      "migration_state": "legacy_untested",
+      "target_replacement": null,
+      "description": "Find reusable gameplay patterns in indexed Blueprints, widgets, and level actors using deterministic heuristics. Patterns include overlap logic, key-door flows, prompt widgets, objective chains, and interactables.",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "pattern": "enum?",
+          "query": "string?",
+          "limit": "number?",
+          "fresh": "boolean?",
+          "path_prefix": "string?"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": "mcp-server/tests/intelligence-tools.test.ts"
+    },
+    {
+      "name": "gameplay_pie_start",
+      "module": "mcp-server/src/tools/gameplay.ts",
+      "backend": "legacy_http",
+      "migration_state": "hybrid_candidate",
+      "target_replacement": "puerts_pie_start",
+      "description": "Launch a Play In Editor (PIE) session and wait until the game world is ready (up to 30s). Returns success once the PIE-ready log marker is found. Call this before gameplay_run_acceptance_tests or gameplay_telemetry_snapshot.",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "level_path": "string?"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": "mcp-server/tests/gameplay-tools.test.ts"
+    },
+    {
+      "name": "gameplay_pie_status",
+      "module": "mcp-server/src/tools/gameplay.ts",
+      "backend": "legacy_http",
+      "migration_state": "legacy_untested",
+      "target_replacement": null,
+      "description": "Report whether a PIE session is live, and if so the possessed pawn class, visible widgets, AI controller count and FPS. Poll this after gameplay_pie_start: that call returns as soon as the request is queued, because PIE cannot initialise while a handler holds the game thread.",
+      "schema": {
+        "kind": "object",
+        "params": {}
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": "mcp-server/tests/gameplay-tools.test.ts"
+    },
+    {
+      "name": "gameplay_pie_stop",
+      "module": "mcp-server/src/tools/gameplay.ts",
+      "backend": "legacy_http",
+      "migration_state": "hybrid_candidate",
+      "target_replacement": "puerts_pie_stop",
+      "description": "End the current PIE session.",
+      "schema": {
+        "kind": "object",
+        "params": {}
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": "mcp-server/tests/gameplay-tools.test.ts"
+    },
+    {
+      "name": "gameplay_run_acceptance_tests",
+      "module": "mcp-server/src/tools/gameplay.ts",
+      "backend": "legacy_http",
+      "migration_state": "legacy_untested",
+      "target_replacement": null,
+      "description": "Run structured acceptance test predicates against a live PIE session. PIE must already be running (call gameplay_pie_start first). Returns pass/fail per predicate with observed value. Predicates: 'pawn_possessed:ClassName', 'widget_visible:WidgetName', 'log_contains:String', 'ai_state:ActorName:StateName', 'survive:N' (N seconds without crash).",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "tests": "array",
+          "timeout_seconds": "number?"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": "mcp-server/tests/gameplay-tools.test.ts"
+    },
+    {
+      "name": "gameplay_telemetry_snapshot",
+      "module": "mcp-server/src/tools/gameplay.ts",
+      "backend": "legacy_http",
+      "migration_state": "legacy_untested",
+      "target_replacement": null,
+      "description": "Capture the current PIE runtime state: new log lines since last snapshot, possessed pawn class, visible widget class names, AI controller states, and PIE world name. PIE must be running.",
+      "schema": {
+        "kind": "object",
+        "params": {}
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": "mcp-server/tests/gameplay-tools.test.ts"
+    },
+    {
+      "name": "help",
+      "module": "mcp-server/src/tools/system.ts",
+      "backend": "legacy_http",
+      "migration_state": "legacy_untested",
+      "target_replacement": null,
+      "description": "Show documentation for available tools.",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "tool_name": "string?"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": null
+    },
+    {
+      "name": "history_list",
+      "module": "mcp-server/src/tools/operations.ts",
+      "backend": "legacy_http",
+      "migration_state": "legacy_untested",
+      "target_replacement": null,
+      "description": "Show operation history with timestamps and parameters.",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "count": "number?"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": null
+    },
+    {
+      "name": "input_mapping_add",
+      "module": "mcp-server/src/tools/gamedev.ts",
+      "backend": "legacy_http",
+      "migration_state": "legacy_untested",
+      "target_replacement": null,
+      "description": "Add an action or axis mapping to project input settings (saved to Config/DefaultInput.ini). Key names use FKey string form: W, SpaceBar, LeftMouseButton, MouseX, Gamepad_LeftTrigger, ...",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "kind": "enum",
+          "name": "string",
+          "key": "string",
+          "scale": "number?",
+          "shift": "boolean?",
+          "ctrl": "boolean?",
+          "alt": "boolean?",
+          "cmd": "boolean?"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": null
+    },
+    {
+      "name": "input_mapping_info",
+      "module": "mcp-server/src/tools/project.ts",
+      "backend": "legacy_http",
+      "migration_state": "legacy_untested",
+      "target_replacement": null,
+      "description": "Inspect Unreal input action and axis mappings. Use this to validate bindings like PF_Pause to Escape when physical key injection is unavailable.",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "action_name": "string?",
+          "axis_name": "string?",
+          "key": "string?"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": null
+    },
+    {
+      "name": "input_mapping_remove",
+      "module": "mcp-server/src/tools/gamedev.ts",
+      "backend": "legacy_http",
+      "migration_state": "legacy_untested",
+      "target_replacement": null,
+      "description": "Remove action or axis mappings. Omit 'key' to remove every key bound to the name.",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "kind": "enum",
+          "name": "string",
+          "key": "string?"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": null
+    },
+    {
+      "name": "input_preset_apply",
+      "module": "mcp-server/src/tools/gamedev.ts",
+      "backend": "legacy_http",
+      "migration_state": "legacy_untested",
+      "target_replacement": null,
+      "description": "Apply a standard control scheme preset: first_person, third_person, top_down, or tank (WASD movement, mouse look where applicable, Jump/Fire/Interact actions). Idempotent.",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "preset": "enum"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": null
+    },
+    {
+      "name": "job_cancel",
+      "module": "mcp-server/src/tools/cpp.ts",
+      "backend": "legacy_http",
+      "migration_state": "legacy_untested",
+      "target_replacement": null,
+      "description": "Cancel a running background job (terminates its subprocess).",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "job_id": "string"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": null
+    },
+    {
+      "name": "job_list",
+      "module": "mcp-server/src/tools/cpp.ts",
+      "backend": "legacy_http",
+      "migration_state": "legacy_untested",
+      "target_replacement": null,
+      "description": "List all background jobs started in this editor session, newest first.",
+      "schema": {
+        "kind": "object",
+        "params": {}
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": null
+    },
+    {
+      "name": "job_status",
+      "module": "mcp-server/src/tools/cpp.ts",
+      "backend": "legacy_http",
+      "migration_state": "legacy_untested",
+      "target_replacement": null,
+      "description": "Get a background job's status (running/succeeded/failed/cancelled), structured result (e.g. parsed compiler errors for cpp_build), and output tail.",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "job_id": "string",
+          "include_output": "boolean?"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": null
+    },
+    {
+      "name": "level_actors",
+      "module": "mcp-server/src/tools/level.ts",
+      "backend": "legacy_http",
+      "migration_state": "hybrid_candidate",
+      "target_replacement": "puerts_find_actors",
+      "description": "List actors in the current level with optional filters. Returns name, class, folder, and optionally transforms and components.",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "class_filter": "string?",
+          "folder_filter": "string?",
+          "name_filter": "string?",
+          "include_transforms": "boolean?",
+          "include_components": "boolean?",
+          "limit": "number?"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": null
+    },
+    {
+      "name": "level_new",
+      "module": "mcp-server/src/tools/content.ts",
+      "backend": "legacy_http",
+      "migration_state": "legacy_untested",
+      "target_replacement": null,
+      "description": "Create and load a new level (optionally from a template map), then save it. WARNING: switches the editor's loaded level; refuses if unsaved changes exist.",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "path": "string",
+          "template": "string?"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "idempotentHint": false,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": "mcp-server/tests/content-tools.test.ts"
+    },
+    {
+      "name": "level_outliner",
+      "module": "mcp-server/src/tools/level.ts",
+      "backend": "legacy_http",
+      "migration_state": "legacy_untested",
+      "target_replacement": null,
+      "description": "Return the World Outliner folder tree structure with actor counts per folder.",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "root_folder": "string?"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": null
+    },
+    {
+      "name": "level_save",
+      "module": "mcp-server/src/tools/level.ts",
+      "backend": "legacy_http",
+      "migration_state": "hybrid_candidate",
+      "target_replacement": "puerts_save",
+      "description": "Save the current level and optionally all dirty assets.",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "save_all": "boolean?"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": null
+    },
+    {
+      "name": "material_apply",
+      "module": "mcp-server/src/tools/materials.ts",
+      "backend": "legacy_http",
+      "migration_state": "legacy_untested",
+      "target_replacement": null,
+      "description": "Apply a material to an actor's mesh component. Returns validation by default.",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "actor_name": "string",
+          "material_path": "string",
+          "slot_index": "number?",
+          "slot_name": "string?",
+          "component_name": "string?"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": null
+    },
+    {
+      "name": "material_create",
+      "module": "mcp-server/src/tools/materials.ts",
+      "backend": "legacy_http",
+      "migration_state": "legacy_untested",
+      "target_replacement": null,
+      "description": "Create a new material, a simple opaque surface, or a material instance. Provide parent and type 'instance' for instances.",
+      "schema": {
+        "kind": "ZodEffects"
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": null
+    },
+    {
+      "name": "material_info",
+      "module": "mcp-server/src/tools/materials.ts",
+      "backend": "legacy_http",
+      "migration_state": "legacy_untested",
+      "target_replacement": null,
+      "description": "Get detailed information about a material: parameters, textures, parent chain.",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "material_path": "string"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": null
+    },
+    {
+      "name": "material_instance_create",
+      "module": "mcp-server/src/tools/content.ts",
+      "backend": "legacy_http",
+      "migration_state": "legacy_untested",
+      "target_replacement": null,
+      "description": "Create a MaterialInstanceConstant from a parent material with optional scalar/vector/texture parameter overrides. Saves the instance.",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "path": "string",
+          "name": "string",
+          "parent_material": "string",
+          "scalar_params": "record?",
+          "vector_params": "record?",
+          "texture_params": "record?"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": "mcp-server/tests/content-tools.test.ts"
+    },
+    {
+      "name": "material_instance_set_params",
+      "module": "mcp-server/src/tools/content.ts",
+      "backend": "legacy_http",
+      "migration_state": "legacy_untested",
+      "target_replacement": null,
+      "description": "Set scalar/vector/texture parameters on an existing material instance, then save.",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "material_instance": "string",
+          "scalar_params": "record?",
+          "vector_params": "record?",
+          "texture_params": "record?"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": "mcp-server/tests/content-tools.test.ts"
+    },
+    {
+      "name": "material_list",
+      "module": "mcp-server/src/tools/materials.ts",
+      "backend": "legacy_http",
+      "migration_state": "legacy_untested",
+      "target_replacement": null,
+      "description": "List materials in the project with optional filtering by path, name, and type.",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "path_filter": "string?",
+          "name_filter": "string?",
+          "type_filter": "enum?",
+          "limit": "number?"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": null
+    },
+    {
+      "name": "optimization_apply_low_risk_fixes",
+      "module": "mcp-server/src/tools/optimization.ts",
+      "backend": "legacy_http",
+      "migration_state": "legacy_untested",
+      "target_replacement": null,
+      "description": "Apply explicit candidates from optimization_fix_candidates. Dry run by default: it reports what it would do and changes nothing until dry_run is false. Setting save_assets writes the modified assets to disk, which a plain editor undo will not recover.",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "candidates": "array",
+          "dry_run": "boolean?",
+          "save_assets": "boolean?"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "idempotentHint": false,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": null
+    },
+    {
+      "name": "optimization_asset_audit",
+      "module": "mcp-server/src/tools/optimization.ts",
+      "backend": "legacy_http",
+      "migration_state": "legacy_untested",
+      "target_replacement": null,
+      "description": "Scan project assets for common optimization risks: oversized textures, excessive material slots, missing LODs. Static analysis, so it needs no PIE session and no capture.",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "path": "string?",
+          "recursive": "boolean?",
+          "large_texture_px": "number?",
+          "max_assets": "number?",
+          "max_findings": "number?",
+          "max_material_slots": "number?",
+          "generate_report": "boolean?"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": null
+    },
+    {
+      "name": "optimization_asset_cost_rank",
+      "module": "mcp-server/src/tools/optimization.ts",
+      "backend": "legacy_http",
+      "migration_state": "legacy_untested",
+      "target_replacement": null,
+      "description": "Rank the meshes in the active level by likely scene cost, combining triangle counts, material slots and instance counts. Use to decide what to optimise first.",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "max_findings": "number?",
+          "generate_report": "boolean?"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": null
+    },
+    {
+      "name": "optimization_before_after_verify",
+      "module": "mcp-server/src/tools/optimization.ts",
+      "backend": "legacy_http",
+      "migration_state": "legacy_untested",
+      "target_replacement": null,
+      "description": "Compare a baseline measurement against an after measurement for a candidate group, so an optimization can be shown to have worked rather than assumed to have. Modifies assets only when apply_candidates is true.",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "baseline": "record",
+          "after": "record",
+          "candidates": "array?",
+          "apply_candidates": "boolean?",
+          "save_assets": "boolean?",
+          "capture_screenshot": "boolean?",
+          "duration_seconds": "number?",
+          "screenshots": "record?"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "idempotentHint": false,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": null
+    },
+    {
+      "name": "optimization_camera_path_profile",
+      "module": "mcp-server/src/tools/optimization.ts",
+      "backend": "legacy_http",
+      "migration_state": "legacy_untested",
+      "target_replacement": null,
+      "description": "Move the viewport through named viewpoints, measure each, and rank them by cost. Use to find which part of a level is expensive rather than which subsystem.",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "viewpoints": "array?",
+          "resolution": "object?",
+          "show_ui": "boolean?",
+          "generate_report": "boolean?"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": null
+    },
+    {
+      "name": "optimization_cpu_capture",
+      "module": "mcp-server/src/tools/optimization.ts",
+      "backend": "legacy_http",
+      "migration_state": "legacy_untested",
+      "target_replacement": null,
+      "description": "Run CPU-side overlays covering the game thread, animation, physics, Blueprint and particles, and return parsed findings. Use when quick triage shows Game rather than Draw or GPU as the dominant cost.",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "commands": "array?",
+          "capture_screenshots": "boolean?",
+          "generate_report": "boolean?",
+          "max_output_findings": "number?",
+          "width": "number?",
+          "height": "number?"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": null
+    },
+    {
+      "name": "optimization_fix_candidates",
+      "module": "mcp-server/src/tools/optimization.ts",
+      "backend": "legacy_http",
+      "migration_state": "legacy_untested",
+      "target_replacement": null,
+      "description": "Return low-risk fix candidates, kept separate from manual recommendations so an automated pass never touches anything needing judgement. Read-only: it proposes, it does not apply. Feed the result to optimization_apply_low_risk_fixes.",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "path": "string?",
+          "recursive": "boolean?",
+          "max_assets": "number?",
+          "max_items": "number?"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": null
+    },
+    {
+      "name": "optimization_generate_report",
+      "module": "mcp-server/src/tools/optimization.ts",
+      "backend": "legacy_http",
+      "migration_state": "legacy_untested",
+      "target_replacement": null,
+      "description": "Write a Markdown optimization report under Saved/. Give it a payload from an earlier capture, or omit the payload to run a fresh quick triage and report on that.",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "payload": "record?",
+          "basename": "string?",
+          "target": "enum?",
+          "include_asset_audit": "boolean?",
+          "include_scene_audit": "boolean?",
+          "include_vr_checks": "boolean?",
+          "capture_screenshots": "boolean?"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": null
+    },
+    {
+      "name": "optimization_gpu_capture",
+      "module": "mcp-server/src/tools/optimization.ts",
+      "backend": "legacy_http",
+      "migration_state": "legacy_untested",
+      "target_replacement": null,
+      "description": "Run GPU-focused console commands and capture the render viewmodes that explain GPU cost (shader complexity, overdraw, lighting). Use when quick triage shows GPU as the dominant frame cost.",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "viewmodes": "array?",
+          "restore_lit": "boolean?",
+          "generate_report": "boolean?",
+          "max_output_findings": "number?",
+          "width": "number?",
+          "height": "number?"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": null
+    },
+    {
+      "name": "optimization_insights_trace_start",
+      "module": "mcp-server/src/tools/optimization.ts",
+      "backend": "legacy_http",
+      "migration_state": "legacy_untested",
+      "target_replacement": null,
+      "description": "Start an Unreal Insights trace. Pair with optimization_insights_trace_stop. Use for a timeline of CPU work across frames, which the stat overlays cannot show.",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "channels": "string?"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": null
+    },
+    {
+      "name": "optimization_insights_trace_stop",
+      "module": "mcp-server/src/tools/optimization.ts",
+      "backend": "legacy_http",
+      "migration_state": "legacy_untested",
+      "target_replacement": null,
+      "description": "Stop the active Unreal Insights trace and summarise the newest trace file when parser support is available. Returns the trace path either way.",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "settle_seconds": "number?"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": null
+    },
+    {
+      "name": "optimization_insights_trace_summary",
+      "module": "mcp-server/src/tools/optimization.ts",
+      "backend": "legacy_http",
+      "migration_state": "legacy_untested",
+      "target_replacement": null,
+      "description": "Summarise an Unreal Insights trace file already on disk. Give a path, or omit it to summarise the newest trace.",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "trace_path": "string?"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": null
+    },
+    {
+      "name": "optimization_memory_streaming_capture",
+      "module": "mcp-server/src/tools/optimization.ts",
+      "backend": "legacy_http",
+      "migration_state": "legacy_untested",
+      "target_replacement": null,
+      "description": "Run memory and texture-streaming overlays and return structured memory findings, optionally with an asset audit in the same pass. Use for hitching, streaming pops, or memory ceilings rather than frame cost.",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "commands": "array?",
+          "capture_screenshots": "boolean?",
+          "generate_report": "boolean?",
+          "include_asset_audit": "boolean?",
+          "large_texture_px": "number?",
+          "path": "string?",
+          "recursive": "boolean?",
+          "width": "number?",
+          "height": "number?",
+          "max_assets": "number?",
+          "max_findings": "number?",
+          "max_material_slots": "number?",
+          "max_output_findings": "number?"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": null
+    },
+    {
+      "name": "optimization_profilegpu_capture",
+      "module": "mcp-server/src/tools/optimization.ts",
+      "backend": "legacy_http",
+      "migration_state": "legacy_untested",
+      "target_replacement": null,
+      "description": "Run ProfileGPU and parse the per-pass GPU timing breakdown from its text or log output. This is the finest grained GPU measurement UE4.27 exposes without an external tool.",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "settle_seconds": "number?",
+          "generate_report": "boolean?",
+          "width": "number?",
+          "height": "number?"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": null
+    },
+    {
+      "name": "optimization_quick_triage",
+      "module": "mcp-server/src/tools/optimization.ts",
+      "backend": "legacy_http",
+      "migration_state": "legacy_untested",
+      "target_replacement": null,
+      "description": "First-pass performance investigation: runs the triage console commands, captures overlays, optionally audits assets and the scene, then classifies findings against a frame budget. Run this before any targeted capture so the follow-up is aimed at the thread that is actually slow.",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "target": "enum?",
+          "custom_frame_ms": "number?",
+          "commands": "array?",
+          "include_asset_audit": "boolean?",
+          "include_scene_audit": "boolean?",
+          "include_vr_checks": "boolean?",
+          "capture_screenshots": "boolean?",
+          "generate_report": "boolean?",
+          "path": "string?",
+          "recursive": "boolean?",
+          "width": "number?",
+          "height": "number?",
+          "max_assets": "number?",
+          "max_findings": "number?"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": null
+    },
+    {
+      "name": "optimization_rendering_capture",
+      "module": "mcp-server/src/tools/optimization.ts",
+      "backend": "legacy_http",
+      "migration_state": "legacy_untested",
+      "target_replacement": null,
+      "description": "Run render-thread and scene-rendering overlays (draw calls, visible primitives, init views) and return parsed findings. Use when the Draw thread rather than the GPU is the bottleneck.",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "commands": "array?",
+          "capture_screenshots": "boolean?",
+          "generate_report": "boolean?",
+          "max_output_findings": "number?",
+          "width": "number?",
+          "height": "number?"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": null
+    },
+    {
+      "name": "optimization_run_console_checklist",
+      "module": "mcp-server/src/tools/optimization.ts",
+      "backend": "legacy_http",
+      "migration_state": "legacy_untested",
+      "target_replacement": null,
+      "description": "Run a list of safe profiling console commands in order and return the parsed findings. Defaults to the standard triage set when no commands are given. Use this when you know which stat commands you want rather than running a full capture.",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "commands": "array?",
+          "delay_seconds": "number?",
+          "capture_screenshots": "boolean?",
+          "include_structured_findings": "boolean?",
+          "max_output_findings": "number?",
+          "width": "number?",
+          "height": "number?"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": null
+    },
+    {
+      "name": "optimization_scene_audit",
+      "module": "mcp-server/src/tools/optimization.ts",
+      "backend": "legacy_http",
+      "migration_state": "legacy_untested",
+      "target_replacement": null,
+      "description": "Inspect the open level for lighting, culling, tick and setup risks: dynamic lights, actors ticking every frame, missing culling distances. Complements the asset audit, which cannot see level composition.",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "include_design_advice": "boolean?",
+          "generate_report": "boolean?"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": null
+    },
+    {
+      "name": "optimization_stat_capture",
+      "module": "mcp-server/src/tools/optimization.ts",
+      "backend": "legacy_http",
+      "migration_state": "legacy_untested",
+      "target_replacement": null,
+      "description": "Capture stat and CSV profiler files over a duration, where UE4.27 exposes them. Use when you need a recording across time rather than a single-frame reading.",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "commands": "array?",
+          "stop_commands": "array?",
+          "duration_seconds": "number?",
+          "capture_screenshot": "boolean?",
+          "generate_report": "boolean?",
+          "width": "number?",
+          "height": "number?"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": null
+    },
+    {
+      "name": "optimization_texture_harm_rank",
+      "module": "mcp-server/src/tools/optimization.ts",
+      "backend": "legacy_http",
+      "migration_state": "legacy_untested",
+      "target_replacement": null,
+      "description": "Rank textures by likely harm, following dependency trails from the active level so the ranking reflects what is actually loaded rather than everything on disk.",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "max_findings": "number?",
+          "max_output_findings": "number?",
+          "generate_report": "boolean?"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": null
+    },
+    {
+      "name": "optimization_tool_catalog",
+      "module": "mcp-server/src/tools/optimization.ts",
+      "backend": "legacy_http",
+      "migration_state": "legacy_untested",
+      "target_replacement": null,
+      "description": "Search the UE4.27 profiling command catalog. Each entry names a console command, the question it answers, when to reach for it, what a bad reading looks like, and what to do next. Start here when you do not yet know which capture to run. Filter by category or free-text query.",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "category": "string?",
+          "query": "string?"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": null
+    },
+    {
+      "name": "optimization_viewmode_capture_set",
+      "module": "mcp-server/src/tools/optimization.ts",
+      "backend": "legacy_http",
+      "migration_state": "legacy_untested",
+      "target_replacement": null,
+      "description": "Capture an explicit set of optimization viewmodes as screenshots and restore the viewport afterwards. Use when you want specific views rather than the curated GPU set.",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "viewmodes": "array?",
+          "restore_lit": "boolean?",
+          "delay_seconds": "number?",
+          "max_output_findings": "number?",
+          "width": "number?",
+          "height": "number?"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": null
+    },
+    {
+      "name": "optimization_visual_logger_ingest",
+      "module": "mcp-server/src/tools/optimization.ts",
+      "backend": "legacy_http",
+      "migration_state": "legacy_untested",
+      "target_replacement": null,
+      "description": "Parse Visual Logger output or log text for gameplay-heavy CPU clues. Use when the game thread is slow but the stat overlays do not say which gameplay system is responsible.",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "paths": "array",
+          "limit": "number?",
+          "generate_report": "boolean?"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": null
+    },
+    {
+      "name": "optimization_vr_audit",
+      "module": "mcp-server/src/tools/optimization.ts",
+      "backend": "legacy_http",
+      "migration_state": "legacy_untested",
+      "target_replacement": null,
+      "description": "Audit against a VR refresh-rate budget, where the frame budget is far tighter than desktop and forward rendering constraints apply. Use for any VR target rather than the desktop audits.",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "target": "enum?",
+          "custom_frame_ms": "number?",
+          "include_asset_audit": "boolean?",
+          "large_texture_px": "number?",
+          "path": "string?",
+          "recursive": "boolean?",
+          "max_assets": "number?",
+          "max_findings": "number?"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": null
+    },
+    {
+      "name": "pie_agent_expect",
+      "module": "mcp-server/src/tools/pie-agent.ts",
+      "backend": "legacy_http",
+      "migration_state": "legacy_untested",
+      "target_replacement": null,
+      "description": "Poll declarative actor_count, player counter, and log regex assertions in-engine until they pass or the deadline expires.",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "conditions": "array",
+          "within_seconds": "number?"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": "mcp-server/tests/pie-agent-tools.test.ts"
+    },
+    {
+      "name": "pie_agent_look_at",
+      "module": "mcp-server/src/tools/pie-agent.ts",
+      "backend": "legacy_http",
+      "migration_state": "legacy_untested",
+      "target_replacement": null,
+      "description": "Point the PIE player camera at a location or named actor.",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "location": "array?",
+          "actor": "string?"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": "mcp-server/tests/pie-agent-tools.test.ts"
+    },
+    {
+      "name": "pie_agent_move_to",
+      "module": "mcp-server/src/tools/pie-agent.ts",
+      "backend": "legacy_http",
+      "migration_state": "legacy_untested",
+      "target_replacement": null,
+      "description": "Walk the PIE player pawn to a location or named actor along a nav path, with a straight-line fallback. Resolves when arrived or timed out.",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "location": "array?",
+          "actor": "string?",
+          "acceptance_radius": "number?",
+          "timeout": "number?"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": "mcp-server/tests/pie-agent-tools.test.ts"
+    },
+    {
+      "name": "pie_agent_observe",
+      "module": "mcp-server/src/tools/pie-agent.ts",
+      "backend": "legacy_http",
+      "migration_state": "legacy_untested",
+      "target_replacement": null,
+      "description": "Capture a PIE snapshot: pawn transform and velocity, nearby actors with physics and collision state, widgets, player counters, and Output Log tail.",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "radius": "number?",
+          "class_filter": "string?",
+          "log_lines": "number?"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": "mcp-server/tests/pie-agent-tools.test.ts"
+    },
+    {
+      "name": "pie_agent_press",
+      "module": "mcp-server/src/tools/pie-agent.ts",
+      "backend": "legacy_http",
+      "migration_state": "legacy_untested",
+      "target_replacement": null,
+      "description": "Press an action mapping through live InputComponent bindings, or a raw key through the PlayerController, then release it after the requested hold.",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "action": "string?",
+          "key": "string?",
+          "hold_seconds": "number?"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": "mcp-server/tests/pie-agent-tools.test.ts"
+    },
+    {
+      "name": "pie_agent_record_start",
+      "module": "mcp-server/src/tools/pie-agent.ts",
+      "backend": "legacy_http",
+      "migration_state": "legacy_untested",
+      "target_replacement": null,
+      "description": "Start frame-accurate spawn, destroy, and overlap event recording for filtered actor classes.",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "events": "array?",
+          "class_filters": "array?",
+          "log_categories": "array?",
+          "max_events": "number?"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": "mcp-server/tests/pie-agent-tools.test.ts"
+    },
+    {
+      "name": "pie_agent_record_stop",
+      "module": "mcp-server/src/tools/pie-agent.ts",
+      "backend": "legacy_http",
+      "migration_state": "legacy_untested",
+      "target_replacement": null,
+      "description": "Stop PIE event recording and return the timestamped event list.",
+      "schema": {
+        "kind": "object",
+        "params": {}
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": "mcp-server/tests/pie-agent-tools.test.ts"
+    },
+    {
+      "name": "pie_agent_replay",
+      "module": "mcp-server/src/tools/pie-agent.ts",
+      "backend": "legacy_http",
+      "migration_state": "legacy_untested",
+      "target_replacement": null,
+      "description": "Replay a PIE agent script with a fixed random seed for regression testing, or export the current session script.",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "script": "array?",
+          "seed": "number?",
+          "export": "boolean?",
+          "budget_seconds": "number?"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": "mcp-server/tests/pie-agent-tools.test.ts"
+    },
+    {
+      "name": "pie_agent_status",
+      "module": "mcp-server/src/tools/pie-agent.ts",
+      "backend": "legacy_http",
+      "migration_state": "legacy_untested",
+      "target_replacement": null,
+      "description": "Poll the current PIE agent asynchronous operation. Operation id 0 means the latest operation.",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "operation_id": "number?"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": "mcp-server/tests/pie-agent-tools.test.ts"
+    },
+    {
+      "name": "placement_validate",
+      "module": "mcp-server/src/tools/actors.ts",
+      "backend": "legacy_http",
+      "migration_state": "legacy_untested",
+      "target_replacement": null,
+      "description": "Check actors for gaps, overlaps, and alignment issues.",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "actors": "array",
+          "check_gaps": "boolean?",
+          "check_overlaps": "boolean?",
+          "gap_threshold": "number?",
+          "overlap_threshold": "number?"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": null
+    },
+    {
+      "name": "pp_preset",
+      "module": "mcp-server/src/tools/effects.ts",
+      "backend": "legacy_http",
+      "migration_state": "legacy_untested",
+      "target_replacement": null,
+      "description": "Apply a named post-processing preset. Creates or updates a PP volume.\nPresets: horror, cyberpunk, noir, dream, underwater, surveillance, vhs_glitch, damage, drunk, frozen, nuclear, sepia, cinematic, neon, thermal.",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "preset": "enum",
+          "name": "string?",
+          "intensity": "number?"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": null
+    },
+    {
+      "name": "pp_volume_modify",
+      "module": "mcp-server/src/tools/effects.ts",
+      "backend": "legacy_http",
+      "migration_state": "legacy_untested",
+      "target_replacement": null,
+      "description": "Modify an existing PostProcessVolume's settings. Settings merge with existing values.",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "actor_name": "string",
+          "unbound": "boolean?",
+          "blend_weight": "number?",
+          "blend_radius": "number?",
+          "priority": "number?",
+          "settings": "object?"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": null
+    },
+    {
+      "name": "pp_volume_spawn",
+      "module": "mcp-server/src/tools/effects.ts",
+      "backend": "legacy_http",
+      "migration_state": "legacy_untested",
+      "target_replacement": null,
+      "description": "Spawn a PostProcessVolume with full settings control. Supports bloom, exposure, color grading, DOF, chromatic aberration, grain, vignette, motion blur, SSR, lens flare, and more.",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "name": "string?",
+          "location": "object?",
+          "unbound": "boolean?",
+          "blend_radius": "number?",
+          "blend_weight": "number?",
+          "priority": "number?",
+          "enabled": "boolean?",
+          "settings": "object?"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": null
+    },
+    {
+      "name": "project_enable_plugins",
+      "module": "mcp-server/src/tools/project.ts",
+      "backend": "legacy_http",
+      "migration_state": "legacy_untested",
+      "target_replacement": null,
+      "description": "Enable one or more plugins in the current .uproject and report whether an editor restart is required.",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "plugins": "union"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "idempotentHint": false,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": null
+    },
+    {
+      "name": "project_index_query",
+      "module": "mcp-server/src/tools/intelligence.ts",
+      "backend": "legacy_http",
+      "migration_state": "legacy_untested",
+      "target_replacement": null,
+      "description": "Search the cached project intelligence index. Use this before editing to find existing assets, Blueprint structures, dependencies, and patterns.",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "query": "string?",
+          "category": "enum?",
+          "path_prefix": "string?",
+          "limit": "number?",
+          "include_raw": "boolean?"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": "mcp-server/tests/intelligence-tools.test.ts"
+    },
+    {
+      "name": "project_index_rebuild",
+      "module": "mcp-server/src/tools/intelligence.ts",
+      "backend": "legacy_http",
+      "migration_state": "legacy_untested",
+      "target_replacement": null,
+      "description": "Rebuild the lightweight project intelligence index under Saved/MCP/index. Scans assets, Blueprints, materials, widgets, level actors, and design memory using existing read-only bridge handlers.",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "categories": "union?",
+          "path_prefix": "string?",
+          "limit": "number?",
+          "blueprint_detail_limit": "number?",
+          "material_detail_limit": "number?",
+          "actor_limit": "number?"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": "mcp-server/tests/intelligence-tools.test.ts"
+    },
+    {
+      "name": "project_info",
+      "module": "mcp-server/src/tools/project.ts",
+      "backend": "legacy_http",
+      "migration_state": "legacy_untested",
+      "target_replacement": null,
+      "description": "Return current UE project name, engine version, project path, content directory, and loaded level.",
+      "schema": {
+        "kind": "object",
+        "params": {}
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": null
+    },
+    {
+      "name": "project_semantic_diff",
+      "module": "mcp-server/src/tools/intelligence.ts",
+      "backend": "legacy_http",
+      "migration_state": "legacy_untested",
+      "target_replacement": null,
+      "description": "Compare indexed before/after snapshots for semantic changes in Blueprints, widgets, materials, level actors, and dependencies. If snapshots are omitted, compares cached index data against a fresh read.",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "before_snapshot": "record?",
+          "after_snapshot": "record?",
+          "asset_paths": "union?",
+          "categories": "union?",
+          "path_prefix": "string?",
+          "limit": "number?"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": "mcp-server/tests/intelligence-tools.test.ts"
+    },
+    {
+      "name": "project_settings_maps",
+      "module": "mcp-server/src/tools/gamedev.ts",
+      "backend": "legacy_http",
+      "migration_state": "legacy_untested",
+      "target_replacement": null,
+      "description": "Set default maps and game mode: game default map, editor startup map, and/or global default game mode. Persists to Config/DefaultEngine.ini.",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "game_default_map": "string?",
+          "editor_startup_map": "string?",
+          "global_default_game_mode": "string?"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": null
+    },
+    {
+      "name": "prompt_generate",
+      "module": "mcp-server/src/tools/promptbrush.ts",
+      "backend": "legacy_http",
+      "migration_state": "legacy_untested",
+      "target_replacement": null,
+      "description": "Generate complete Unreal Engine 4.27 gameplay systems from a natural language prompt. Creates Blueprints, Widget Blueprints, materials, data assets, maps, actors, and input mappings. Supports genres: puzzle_fighter, menu_system, horror, platformer, inventory, generic. Use dry_run=true to preview the build spec without creating any assets.",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "prompt": "string",
+          "dry_run": "boolean?"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": null
+    },
+    {
+      "name": "prompt_spec_list",
+      "module": "mcp-server/src/tools/promptbrush.ts",
+      "backend": "legacy_http",
+      "migration_state": "legacy_untested",
+      "target_replacement": null,
+      "description": "List previously generated build specs from the PromptBrush output directory. Each entry shows feature name, genre, and the original prompt.",
+      "schema": {
+        "kind": "object",
+        "params": {}
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": null
+    },
+    {
+      "name": "prompt_status",
+      "module": "mcp-server/src/tools/promptbrush.ts",
+      "backend": "legacy_http",
+      "migration_state": "legacy_untested",
+      "target_replacement": null,
+      "description": "Check PromptBrush system status: BlueprintGraphBuilder availability, WidgetBlueprintBuilder availability, output directory path, and manifest count.",
+      "schema": {
+        "kind": "object",
+        "params": {}
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": null
+    },
+    {
+      "name": "puerts_call_function",
+      "module": "mcp-server/src/tools/puerts.ts",
+      "backend": "native_pipe",
+      "migration_state": "native",
+      "target_replacement": null,
+      "description": "[PRIMARY NATIVE IPC] Call a native-approved Unreal function.",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "actor": "string",
+          "function": "string",
+          "arguments": "array?"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": "mcp-server/tests/puerts-tools.test.ts"
+    },
+    {
+      "name": "puerts_delete_actor",
+      "module": "mcp-server/src/tools/puerts.ts",
+      "backend": "native_pipe",
+      "migration_state": "native",
+      "target_replacement": null,
+      "description": "[PRIMARY NATIVE IPC] Delete an actor in a transaction. Requires confirm=true.",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "actor": "string",
+          "confirm": "literal"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": "mcp-server/tests/puerts-tools.test.ts"
+    },
+    {
+      "name": "puerts_diagnostic",
+      "module": "mcp-server/src/tools/puerts.ts",
+      "backend": "native_pipe",
+      "migration_state": "native",
+      "target_replacement": null,
+      "description": "[PRIMARY NATIVE IPC] Prove the in-process PuerTS context, game thread, named-pipe transport, and actor-query timing.",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "actor_limit": "number?"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": "mcp-server/tests/puerts-tools.test.ts"
+    },
+    {
+      "name": "puerts_find_actors",
+      "module": "mcp-server/src/tools/puerts.ts",
+      "backend": "native_pipe",
+      "migration_state": "native",
+      "target_replacement": null,
+      "description": "[PRIMARY NATIVE IPC] Find actors in the current editor level.",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "name": "string?",
+          "type": "string?",
+          "limit": "number?"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": "mcp-server/tests/puerts-tools.test.ts"
+    },
+    {
+      "name": "puerts_find_assets",
+      "module": "mcp-server/src/tools/puerts.ts",
+      "backend": "native_pipe",
+      "migration_state": "native",
+      "target_replacement": null,
+      "description": "[PRIMARY NATIVE IPC] Find UE4.27 assets by path, type, or name.",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "path": "string?",
+          "type": "string?",
+          "name": "string?",
+          "recursive": "boolean?",
+          "limit": "number?"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": "mcp-server/tests/puerts-tools.test.ts"
+    },
+    {
+      "name": "puerts_get_logs",
+      "module": "mcp-server/src/tools/puerts.ts",
+      "backend": "native_pipe",
+      "migration_state": "native",
+      "target_replacement": null,
+      "description": "[PRIMARY NATIVE IPC] Read captured Unreal logs and command output.",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "maximum_lines": "number?"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": "mcp-server/tests/puerts-tools.test.ts"
+    },
+    {
+      "name": "puerts_physics_build",
+      "module": "mcp-server/src/tools/puerts.ts",
+      "backend": "native_pipe",
+      "migration_state": "native",
+      "target_replacement": null,
+      "description": "[PRIMARY NATIVE IPC] Build a validated static-mesh rigid-body scene in one transaction.",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "actors": "array"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": "mcp-server/tests/puerts-tools.test.ts"
+    },
+    {
+      "name": "puerts_physics_observe",
+      "module": "mcp-server/src/tools/puerts.ts",
+      "backend": "native_pipe",
+      "migration_state": "native",
+      "target_replacement": null,
+      "description": "[PRIMARY NATIVE IPC] Read rigid-body transforms and velocities from the editor or PIE world.",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "actors": "array?"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": "mcp-server/tests/puerts-tools.test.ts"
+    },
+    {
+      "name": "puerts_pie_start",
+      "module": "mcp-server/src/tools/puerts.ts",
+      "backend": "native_pipe",
+      "migration_state": "native",
+      "target_replacement": null,
+      "description": "[PRIMARY NATIVE IPC] Request Play In Editor start.",
+      "schema": {
+        "kind": "object",
+        "params": {}
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": "mcp-server/tests/puerts-tools.test.ts"
+    },
+    {
+      "name": "puerts_pie_stop",
+      "module": "mcp-server/src/tools/puerts.ts",
+      "backend": "native_pipe",
+      "migration_state": "native",
+      "target_replacement": null,
+      "description": "[PRIMARY NATIVE IPC] Request Play In Editor stop.",
+      "schema": {
+        "kind": "object",
+        "params": {}
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": "mcp-server/tests/puerts-tools.test.ts"
+    },
+    {
+      "name": "puerts_read_property",
+      "module": "mcp-server/src/tools/puerts.ts",
+      "backend": "native_pipe",
+      "migration_state": "native",
+      "target_replacement": null,
+      "description": "[PRIMARY NATIVE IPC] Read an Unreal reflected property.",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "actor": "string?",
+          "object_path": "string?",
+          "property": "string"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": "mcp-server/tests/puerts-tools.test.ts"
+    },
+    {
+      "name": "puerts_save",
+      "module": "mcp-server/src/tools/puerts.ts",
+      "backend": "native_pipe",
+      "migration_state": "native",
+      "target_replacement": null,
+      "description": "[PRIMARY NATIVE IPC] Save approved project assets and the current level.",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "assets": "array?",
+          "level_path": "string?"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "idempotentHint": false,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": "mcp-server/tests/puerts-tools.test.ts"
+    },
+    {
+      "name": "puerts_set_property",
+      "module": "mcp-server/src/tools/puerts.ts",
+      "backend": "native_pipe",
+      "migration_state": "native",
+      "target_replacement": null,
+      "description": "[PRIMARY NATIVE IPC] Set an approved Unreal reflected property in a transaction.",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "actor": "string?",
+          "object_path": "string?",
+          "property": "string",
+          "value": "unknown"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": "mcp-server/tests/puerts-tools.test.ts"
+    },
+    {
+      "name": "puerts_sky_shader_create",
+      "module": "mcp-server/src/tools/puerts.ts",
+      "backend": "native_pipe",
+      "migration_state": "native",
+      "target_replacement": null,
+      "description": "[PRIMARY NATIVE IPC] Create an animated native HLSL aurora sky material and apply it to a sky sphere in one transaction.",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "asset_path": "string?",
+          "sky_actor": "string?"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": "mcp-server/tests/puerts-tools.test.ts"
+    },
+    {
+      "name": "puerts_spawn_actor",
+      "module": "mcp-server/src/tools/puerts.ts",
+      "backend": "native_pipe",
+      "migration_state": "native",
+      "target_replacement": null,
+      "description": "[PRIMARY NATIVE IPC] Spawn an actor in a transaction.",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "class_path": "string",
+          "location": "object?",
+          "rotation": "object?"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": "mcp-server/tests/puerts-tools.test.ts"
+    },
+    {
+      "name": "puerts_undo",
+      "module": "mcp-server/src/tools/puerts.ts",
+      "backend": "native_pipe",
+      "migration_state": "native",
+      "target_replacement": null,
+      "description": "[PRIMARY NATIVE IPC] Undo the exact last PuerTS transaction.",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "transaction_id": "string"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "idempotentHint": false,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": "mcp-server/tests/puerts-tools.test.ts"
+    },
+    {
+      "name": "puerts_viewport_screenshot",
+      "module": "mcp-server/src/tools/puerts.ts",
+      "backend": "native_pipe",
+      "migration_state": "native",
+      "target_replacement": null,
+      "description": "[PRIMARY NATIVE IPC] Fit requested actors and save a PNG of the active editor viewport.",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "actors": "array?",
+          "filename": "string?"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": "mcp-server/tests/puerts-tools.test.ts"
+    },
+    {
+      "name": "python_proxy",
+      "module": "mcp-server/src/tools/system.ts",
+      "backend": "legacy_http",
+      "migration_state": "legacy_untested",
+      "target_replacement": null,
+      "description": "Execute arbitrary Python code inside the UE4 editor. Has full access to the unreal module. Use for prototyping or operations not covered by dedicated tools.",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "code": "string"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "idempotentHint": false,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": null
+    },
+    {
+      "name": "redo",
+      "module": "mcp-server/src/tools/operations.ts",
+      "backend": "legacy_http",
+      "migration_state": "legacy_untested",
+      "target_replacement": null,
+      "description": "Redo previously undone operations.",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "count": "number?"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "idempotentHint": false,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": null
+    },
+    {
+      "name": "refresh_tools",
+      "module": "mcp-server/src/tools/system.ts",
+      "backend": "legacy_http",
+      "migration_state": "legacy_untested",
+      "target_replacement": null,
+      "description": "Reload the Python handler modules in place, without restarting the listener or the editor. Use after editing anything under mcp_bridge/. Unlike restart_listener this drops no in-flight request. C++ changes still need a plugin rebuild and an editor restart, because UE4 does not propagate new UFUNCTION declarations through Live Coding.",
+      "schema": {
+        "kind": "object",
+        "params": {}
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": null
+    },
+    {
+      "name": "restart_listener",
+      "module": "mcp-server/src/tools/system.ts",
+      "backend": "legacy_http",
+      "migration_state": "legacy_untested",
+      "target_replacement": null,
+      "description": "Restart the Python listener without restarting Unreal. Use after modifying listener code.",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "host": "string?",
+          "port": "number?"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "idempotentHint": false,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": null
+    },
+    {
+      "name": "test_connection",
+      "module": "mcp-server/src/tools/system.ts",
+      "backend": "legacy_http",
+      "migration_state": "legacy_untested",
+      "target_replacement": null,
+      "description": "Ping the UE4 Python listener. Returns connection status, engine version, and project info.",
+      "schema": {
+        "kind": "object",
+        "params": {}
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": null
+    },
+    {
+      "name": "title_controller_create",
+      "module": "mcp-server/src/tools/titles.ts",
+      "backend": "legacy_http",
+      "migration_state": "legacy_untested",
+      "target_replacement": null,
+      "description": "Create a BP_TitleController implementation spec that owns the widget and updates cues from Sequencer frame numbers.",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "manifest": "object?",
+          "manifest_path": "string?",
+          "id": "string?",
+          "package_path": "string?",
+          "asset_name": "string?"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": null
+    },
+    {
+      "name": "title_manifest_adjust",
+      "module": "mcp-server/src/tools/titles.ts",
+      "backend": "legacy_http",
+      "migration_state": "legacy_untested",
+      "target_replacement": null,
+      "description": "Apply measured correction passes to a manifest by changing cue boxes, frame timing, text, role, or name fields.",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "manifest": "object?",
+          "manifest_path": "string?",
+          "id": "string?",
+          "adjustments": "array",
+          "output_path": "string?"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": null
+    },
+    {
+      "name": "title_manifest_create",
+      "module": "mcp-server/src/tools/titles.ts",
+      "backend": "legacy_http",
+      "migration_state": "legacy_untested",
+      "target_replacement": null,
+      "description": "Create and persist a JSON title manifest using normalized screen boxes, frame timing, and style metadata. Stores output in Saved/MCP/titles by default.",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "id": "string?",
+          "resolution": "tuple?",
+          "fps": "number?",
+          "style": "object?",
+          "gapFrames": "number?",
+          "cues": "array",
+          "output_path": "string?",
+          "manifest": "object?"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": null
+    },
+    {
+      "name": "title_manifest_from_reference",
+      "module": "mcp-server/src/tools/titles.ts",
+      "backend": "legacy_http",
+      "migration_state": "legacy_untested",
+      "target_replacement": null,
+      "description": "Create a manifest from measured reference-frame pixel boxes by converting them into normalized screen boxes.",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "id": "string?",
+          "frame_size": "tuple?",
+          "reference_size": "tuple?",
+          "resolution": "tuple?",
+          "fps": "number?",
+          "style": "object?",
+          "gapFrames": "number?",
+          "cues": "array",
+          "output_path": "string?"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": null
+    },
+    {
+      "name": "title_manifest_validate",
+      "module": "mcp-server/src/tools/titles.ts",
+      "backend": "legacy_http",
+      "migration_state": "legacy_untested",
+      "target_replacement": null,
+      "description": "Validate a title manifest for normalized boxes, valid cue types, positive frame rate, and frame timing.",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "manifest": "object?",
+          "manifest_path": "string?",
+          "id": "string?"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": null
+    },
+    {
+      "name": "title_render_compare",
+      "module": "mcp-server/src/tools/titles.ts",
+      "backend": "legacy_http",
+      "migration_state": "legacy_untested",
+      "target_replacement": null,
+      "description": "Compare a UE-rendered title frame against a reference still and report pixel error for the full image or region.",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "reference_path": "string",
+          "render_path": "string",
+          "region": "tuple?"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": null
+    },
+    {
+      "name": "title_sequence_bind",
+      "module": "mcp-server/src/tools/titles.ts",
+      "backend": "legacy_http",
+      "migration_state": "legacy_untested",
+      "target_replacement": null,
+      "description": "Create a Level Sequence binding spec for driving BP_TitleController from frame numbers. This is a v1 scaffold until the bridge has full Sequencer event-track authoring.",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "manifest": "object?",
+          "manifest_path": "string?",
+          "id": "string?",
+          "sequence_path": "string?",
+          "controller_path": "string?"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": null
+    },
+    {
+      "name": "title_widget_build_from_manifest",
+      "module": "mcp-server/src/tools/titles.ts",
+      "backend": "legacy_http",
+      "migration_state": "legacy_untested",
+      "target_replacement": null,
+      "description": "Build WBP_TitleRenderer from a title manifest, or return the generated widget spec with dry_run=true.",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "manifest": "object?",
+          "manifest_path": "string?",
+          "id": "string?",
+          "package_path": "string?",
+          "asset_name": "string?",
+          "dry_run": "boolean?"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": null
+    },
+    {
+      "name": "ue_logs",
+      "module": "mcp-server/src/tools/system.ts",
+      "backend": "legacy_http",
+      "migration_state": "legacy_untested",
+      "target_replacement": null,
+      "description": "Fetch recent UE4 log entries.",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "category": "string?",
+          "severity": "string?"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": null
+    },
+    {
+      "name": "undo",
+      "module": "mcp-server/src/tools/operations.ts",
+      "backend": "legacy_http",
+      "migration_state": "hybrid_candidate",
+      "target_replacement": "puerts_undo",
+      "description": "Undo the last N operations using UE4's transaction system.",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "count": "number?"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "idempotentHint": false,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": null
+    },
+    {
+      "name": "viewport_bounds",
+      "module": "mcp-server/src/tools/viewport.ts",
+      "backend": "legacy_http",
+      "migration_state": "legacy_untested",
+      "target_replacement": null,
+      "description": "Return current viewport camera position, rotation, and state. Read-only query.",
+      "schema": {
+        "kind": "object",
+        "params": {}
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": null
+    },
+    {
+      "name": "viewport_camera",
+      "module": "mcp-server/src/tools/viewport.ts",
+      "backend": "legacy_http",
+      "migration_state": "legacy_untested",
+      "target_replacement": null,
+      "description": "Set viewport camera position, rotation, and/or FOV. Preserves existing values for parameters not provided.",
+      "schema": {
+        "kind": "ZodEffects"
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": null
+    },
+    {
+      "name": "viewport_fit",
+      "module": "mcp-server/src/tools/viewport.ts",
+      "backend": "legacy_http",
+      "migration_state": "legacy_untested",
+      "target_replacement": null,
+      "description": "Fit actors into the viewport frame. If actor_names is empty or omitted, fits all actors in the level.",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "actor_names": "array?",
+          "padding": "number?"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": null
+    },
+    {
+      "name": "viewport_focus",
+      "module": "mcp-server/src/tools/viewport.ts",
+      "backend": "legacy_http",
+      "migration_state": "legacy_untested",
+      "target_replacement": null,
+      "description": "Focus the viewport camera on a named actor. Returns camera state and actor bounding box.",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "actor_name": "string",
+          "distance": "number?"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": null
+    },
+    {
+      "name": "viewport_look_at",
+      "module": "mcp-server/src/tools/viewport.ts",
+      "backend": "legacy_http",
+      "migration_state": "legacy_untested",
+      "target_replacement": null,
+      "description": "Point camera at coordinates or actor without moving camera position. If both are provided, actor_name takes priority.",
+      "schema": {
+        "kind": "ZodEffects"
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": null
+    },
+    {
+      "name": "viewport_mode",
+      "module": "mcp-server/src/tools/viewport.ts",
+      "backend": "legacy_http",
+      "migration_state": "legacy_untested",
+      "target_replacement": null,
+      "description": "Switch to a standard view: top, front, right, left, back, bottom, perspective.",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "mode": "enum"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": null
+    },
+    {
+      "name": "viewport_render_mode",
+      "module": "mcp-server/src/tools/viewport.ts",
+      "backend": "legacy_http",
+      "migration_state": "legacy_untested",
+      "target_replacement": null,
+      "description": "Change viewport render mode: lit, unlit, wireframe, detail_lighting, lighting_only, light_complexity, shader_complexity, collision.",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "mode": "enum"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": null
+    },
+    {
+      "name": "viewport_screenshot",
+      "module": "mcp-server/src/tools/viewport.ts",
+      "backend": "legacy_http",
+      "migration_state": "hybrid_candidate",
+      "target_replacement": "puerts_viewport_screenshot",
+      "description": "Capture the active viewport to a PNG file. Returns the absolute filesystem path so Claude Code can read the image.",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "filename": "string?",
+          "resolution": "object?",
+          "show_ui": "boolean?"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": null
+    },
+    {
+      "name": "widget_build_from_json",
+      "module": "mcp-server/src/tools/promptbrush.ts",
+      "backend": "legacy_http",
+      "migration_state": "legacy_untested",
+      "target_replacement": null,
+      "description": "Create a Widget Blueprint from a JSON widget tree using WidgetBlueprintBuilderLibrary. Creates the asset at package_path/asset_name and populates the designer tree.",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "package_path": "string",
+          "asset_name": "string",
+          "widget_json": "record"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": null
+    },
+    {
+      "name": "widget_lower_third_create",
+      "module": "mcp-server/src/tools/promptbrush.ts",
+      "backend": "legacy_http",
+      "migration_state": "legacy_untested",
+      "target_replacement": null,
+      "description": "Create a broadcast-style lower-third Widget Blueprint with styled title/subtitle text and FadeIn/FadeOut animation specs.",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "package_path": "string?",
+          "asset_name": "string?",
+          "title": "string?",
+          "subtitle": "string?",
+          "eyebrow": "string?",
+          "preset": "enum?",
+          "fade_in": "number?",
+          "hold": "number?",
+          "fade_out": "number?",
+          "title_color": "object?",
+          "subtitle_color": "object?",
+          "background_color": "object?",
+          "accent_color": "object?",
+          "title_font_size": "number?",
+          "subtitle_font_size": "number?",
+          "eyebrow_font_size": "number?"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": null
+    },
+    {
+      "name": "widget_title_card_create",
+      "module": "mcp-server/src/tools/promptbrush.ts",
+      "backend": "legacy_http",
+      "migration_state": "legacy_untested",
+      "target_replacement": null,
+      "description": "Create a centered cinematic title-card Widget Blueprint with styled text, background treatment, and FadeIn/FadeOut animation specs.",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "package_path": "string?",
+          "asset_name": "string?",
+          "title": "string?",
+          "subtitle": "string?",
+          "eyebrow": "string?",
+          "preset": "enum?",
+          "fade_in": "number?",
+          "hold": "number?",
+          "fade_out": "number?",
+          "title_color": "object?",
+          "subtitle_color": "object?",
+          "background_color": "object?",
+          "accent_color": "object?",
+          "title_font_size": "number?",
+          "subtitle_font_size": "number?",
+          "eyebrow_font_size": "number?"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": null
+    },
+    {
+      "name": "widget_title_template",
+      "module": "mcp-server/src/tools/promptbrush.ts",
+      "backend": "legacy_http",
+      "migration_state": "legacy_untested",
+      "target_replacement": null,
+      "description": "Return a polished UMG title or lower-third widget JSON spec with named fade-in and fade-out animations. Does not create an asset.",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "package_path": "string?",
+          "asset_name": "string?",
+          "title": "string?",
+          "subtitle": "string?",
+          "eyebrow": "string?",
+          "preset": "enum?",
+          "fade_in": "number?",
+          "hold": "number?",
+          "fade_out": "number?",
+          "title_color": "object?",
+          "subtitle_color": "object?",
+          "background_color": "object?",
+          "accent_color": "object?",
+          "title_font_size": "number?",
+          "subtitle_font_size": "number?",
+          "eyebrow_font_size": "number?",
+          "style": "enum?",
+          "lower_third": "boolean?"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": null
+    }
+  ]
+}

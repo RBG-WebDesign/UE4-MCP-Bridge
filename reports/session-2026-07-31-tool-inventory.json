@@ -1,0 +1,48 @@
+{
+  "session_date": "2026-07-31",
+  "status": "success",
+  "goal": "Freeze the complete tool inventory before legacy migration; establish the salvage policy",
+  "context": "Follow-on to session-2026-07-31-puerts-pin.json in the same working session. Triggered by the decision to salvage the legacy catalog as the capability library for the native system.",
+  "finding": {
+    "actual_tool_count": 189,
+    "by_backend": { "legacy_http": 170, "native_pipe": 17, "server_local": 2 },
+    "note": "The commonly cited 187 was stale. 12 legacy tools have direct native equivalents and are classified hybrid_candidate with target_replacement set; the remaining 158 legacy tools are legacy_untested pending classification."
+  },
+  "files_created": [
+    "Scripts/generate-tool-inventory.mjs",
+    "docs/TOOL_INVENTORY.json",
+    "docs/TOOL_MIGRATION.md",
+    "reports/session-2026-07-31-tool-inventory.json"
+  ],
+  "files_modified": [
+    "package.json",
+    "docs/UE427_PUERST_MCP_HANDOFF_2026-07-31.md"
+  ],
+  "tests_run": [
+    {
+      "command": "node Scripts/generate-tool-inventory.mjs --write",
+      "result": "wrote docs/TOOL_INVENTORY.json: 189 tools"
+    },
+    {
+      "command": "npm run verify",
+      "result": "build green; unit suites green (18/15/13 passed in visible tail, 0 failed); check:puerts OK; check:inventory OK (189 tools match frozen count); smoke 8 passed 0 failed 2 skipped"
+    }
+  ],
+  "policy_decisions": [
+    "Legacy tool names survive as router-level aliases, not default-advertised MCP tools, to keep the default catalog curated",
+    "No tool removal until its replacement reaches migrated_verified under equivalence tests",
+    "C++ builder modules get re-fronted through the MCPBridgePuerTS allowlist, not rewritten",
+    "Migration order follows feature-pipeline need: assets and blueprint compile first"
+  ],
+  "newly_verified": [
+    "Exact tool census: 189 tools, per-tool contract and backend frozen in docs/TOOL_INVENTORY.json",
+    "Inventory drift now fails npm run verify: removal, unrecorded addition, and contract drift are all detected"
+  ],
+  "still_incomplete": [
+    "Per-tool listener command mapping is module-level best-effort, not per-tool",
+    "158 legacy tools await classification into Keep/Wrap/Port/Combine/Retire",
+    "Router alias layer not implemented",
+    "Equivalence test harness not implemented"
+  ],
+  "recommended_next_goal": "P0: generated-artifact policy for Plugins/MCPBridge/Content/JavaScript, then the first Wrap slice (12 hybrid_candidate tools routed to native equivalents behind a compatibility flag)"
+}
