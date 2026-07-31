@@ -1,0 +1,29 @@
+{
+  "session_date": "2026-07-31",
+  "status": "success",
+  "goal": "P0: Remove Python from the default native path (bridge side)",
+  "context": "Third goal of the 2026-07-31 working session, after the PuerTS pin and the tool inventory freeze. Work committed on branch bridge/native-consolidation-2026-07-31.",
+  "changes": {
+    "descriptor": "Plugins/MCPBridge/MCPBridge.uplugin no longer declares PythonScriptPlugin or EditorScriptingUtilities; only Puerts remains. No C++ module ever linked Python (verified by grep over all Build.cs).",
+    "test_project": "UE427PuerTSMCP.uproject sets PythonScriptPlugin and EditorScriptingUtilities to Enabled false; updated descriptor synced to the installed plugin copy."
+  },
+  "proof": [
+    "Editor stopped cleanly (no zombie remnants, no stale pipes) and relaunched via Scripts/start-ue4-project.ps1",
+    "New editor PID 34788; named pipe re-created; log shows 'MCP PuerTS named pipe ready with 17 approved tools'",
+    "puerts_diagnostic green post-restart: game thread, in-process Node/V8, 12 actors, ~1.0 ms native duration",
+    "No legacy listener startup in the editor log"
+  ],
+  "residual_finding": {
+    "observation": "PythonScriptPlugin still mounts (log: 'Mounting plugin PythonScriptPlugin', 'Using Python 3.7.7') despite project-level disable",
+    "cause": "Stock engine plugin chain: Niagara.uplugin force-enables PythonScriptPlugin as a dependency; the log confirms Niagara mounted and SequencerScripting did not",
+    "assessment": "Outside the bridge's control and present in any UE4.27 project that mounts Niagara. The bridge itself is Python-free; the handoff's 'clean project opens with MCPBridge+Puerts only' criterion is met for everything the bridge controls."
+  },
+  "files_changed": [
+    "Plugins/MCPBridge/MCPBridge.uplugin",
+    "docs/UE427_PUERST_MCP_HANDOFF_2026-07-31.md",
+    "D:/Unreal Projects/MASTER_PROJECT/SF_Repository/Sinfeld_240301/Tests/UE427PuerTSMCP/UE427PuerTSMCP.uproject (outside repo)",
+    "D:/Unreal Projects/MASTER_PROJECT/SF_Repository/Sinfeld_240301/Tests/UE427PuerTSMCP/Plugins/MCPBridge/MCPBridge.uplugin (outside repo, synced copy)"
+  ],
+  "evidence_log": "D:/Unreal Projects/MASTER_PROJECT/SF_Repository/Sinfeld_240301/Tests/UE427PuerTSMCP/Saved/Logs/UE427PuerTSMCP.log",
+  "remaining_for_full_p0": "Clean-project install proof (P0 #4) still pending; that run should confirm the installer output works in a project that never had Python enabled at project level."
+}

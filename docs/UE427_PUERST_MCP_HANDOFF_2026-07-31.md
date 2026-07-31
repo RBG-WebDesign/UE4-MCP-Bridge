@@ -310,7 +310,7 @@ Rules:
 
 | Current violation | Action |
 |---|---|
-| Python dependencies in main descriptor | split legacy plugin or remove requirement after migration |
+| Python dependencies in main descriptor | RESOLVED 2026-07-31: descriptor declares only Puerts; test project restarted with PythonScriptPlugin and EditorScriptingUtilities disabled in the .uproject, native pipe up with 17 tools, diagnostic green, no legacy listener. Residual Python mount traced to the stock Niagara plugin's own PythonScriptPlugin dependency, outside the bridge |
 | Panel mixes native status with HTTP actions | make native health primary and legacy explicit |
 | Generated JavaScript untracked | RESOLVED 2026-07-31: policy is generated-never-tracked; `npm run build` produces all of Content/JavaScript (tsc output plus `Scripts/stage-puerts-runtime.mjs` staging from the pinned bundle) |
 | PuerTS ignored/unpinned | use checksum-locked artifact or submodule |
@@ -450,7 +450,7 @@ Open questions: exact PuerTS revision and license/distribution status; whether P
 | P0 | Pin PuerTS | DONE 2026-07-31: revision and checksum manifest verified by installer and npm run verify | upstream access | Low | revision/checksum verified by installer |
 | P0 | Review/commit working tree | recoverable source | code review | Medium | native code/runtime/tests committed |
 | P0 | Correct docs/counts | no false claims | registry | Low | docs match 17 tools and actual bundle |
-| P0 | Native-only dependencies | Python no longer required | descriptor decision | Medium | clean project opens with MCPBridge+PuerTS only |
+| P0 | Native-only dependencies | DONE 2026-07-31 for the bridge: descriptor Python-free, proven by live restart with project-level Python disabled. Engine-side Niagara still pulls PythonScriptPlugin in any 4.27 project | descriptor decision | Medium | clean project opens with MCPBridge+PuerTS only |
 | P0 | Fresh-install smoke | installer proof | pinned bundle | Medium | new project compiles and passes milestone |
 
 ### Reusable plugin packaging
