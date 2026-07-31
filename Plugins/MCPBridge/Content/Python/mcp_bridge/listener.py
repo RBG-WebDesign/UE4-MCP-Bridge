@@ -17,6 +17,17 @@ from typing import Any, Dict, Optional, Callable
 
 from mcp_bridge import state
 
+
+class LoopbackHTTPServer(HTTPServer):
+    """HTTPServer without socket.getfqdn, which needs UE4's missing idna codec."""
+
+    def server_bind(self) -> None:
+        from socketserver import TCPServer
+
+        TCPServer.server_bind(self)
+        self.server_name = "127.0.0.1"
+        self.server_port = self.server_address[1]
+
 # Globals
 _server: Optional[HTTPServer] = None
 _server_thread: Optional[threading.Thread] = None
@@ -47,7 +58,7 @@ _widget_blueprint_builder_version: str = ""
 _shaderweave_registered: bool = False
 _shaderweave_active_sessions: int = 0
 
-HOST = "localhost"
+HOST = state.DEFAULT_HOST
 PORT = 8080
 
 # Optional shared secret. When MCP_BRIDGE_TOKEN is set in the editor's
@@ -380,7 +391,10 @@ def start(host: str = HOST, port: int = PORT) -> bool:
 
     try:
         _start_time = time.time()
-        _server = HTTPServer((host, port), BridgeRequestHandler)
+        if host not in ("localhost", "127.0.0.1"):
+            raise ValueError("MCP Bridge only accepts a loopback listener host")
+        host = "127.0.0.1"
+        _server = LoopbackHTTPServer((b"127.0.0.1", port), BridgeRequestHandler)
         _server_thread = threading.Thread(
             target=_server.serve_forever,
             name="MCPBridgeListener",

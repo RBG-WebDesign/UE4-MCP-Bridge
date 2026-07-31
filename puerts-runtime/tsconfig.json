@@ -1,0 +1,18 @@
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "module": "commonjs",
+    "moduleResolution": "node",
+    "strict": true,
+    "noImplicitAny": true,
+    "noUncheckedIndexedAccess": true,
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    "skipLibCheck": true,
+    "rootDir": "src",
+    "outDir": "../Plugins/MCPBridge/Content/JavaScript",
+    "lib": ["ES2020", "DOM"],
+    "typeRoots": ["./types"]
+  },
+  "include": ["src/**/*.ts", "types/**/*.d.ts"]
+}

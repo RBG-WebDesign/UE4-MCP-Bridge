@@ -10,10 +10,11 @@
  *   1. initialize            - the server handshakes and reports its info
  *   2. tools/list            - it advertises tools, and every one has annotations
  *   3. engine_source_search  - server-local UE4.27 source access (no editor needed)
- *   4. test_connection       - the live editor link, if the listener is up
+ *   4. native-only catalog   - no legacy HTTP tools are advertised by default
+ *   5. puerts_diagnostic     - authenticated named-pipe editor link, if UE4 is up
  *
- * Step 4 is reported as SKIP, not FAIL, when the editor is closed, so this is
- * usable in CI and with Unreal shut down.
+ * Step 5 is reported as SKIP, not FAIL, when the editor is closed, so this is
+ * usable in CI and with Unreal shut down. No HTTP endpoint is contacted.
  *
  * Usage:
  *   node Scripts/mcp-smoke.mjs
@@ -46,6 +47,7 @@ if (!existsSync(serverPath)) {
 // falls back to the .uproject EngineAssociation, which does not exist in a
 // bridge-only clone, so pass it explicitly when the caller has it set.
 const childEnv = { ...process.env };
+delete childEnv.MCP_ENABLE_LEGACY_HTTP;
 
 const child = spawn(process.execPath, [serverPath], {
   stdio: ["pipe", "pipe", "pipe"],
@@ -122,6 +124,14 @@ async function main() {
   const startupWarning = stderrBuf.includes("missing annotations");
   record("no annotation warning at startup", !startupWarning);
 
+  const unexpectedTools = tools
+    .map((tool) => tool.name)
+    .filter((name) => !name.startsWith("puerts_") && !name.startsWith("engine_source_"));
+  record("default catalog is native-only", unexpectedTools.length === 0,
+    unexpectedTools.length ? `unexpected: ${unexpectedTools.join(", ")}` : undefined);
+  record("legacy HTTP tools are hidden", !tools.some((tool) => tool.name === "test_connection"));
+  record("native diagnostic is registered", tools.some((tool) => tool.name === "puerts_diagnostic"));
+
   // 3. engine_source_search - server-local, works with the editor closed
   if (tools.some((t) => t.name === "engine_source_search")) {
     const r = await send("tools/call", {
@@ -142,15 +152,23 @@ async function main() {
     record("engine_source_search registered", false, "tool not present");
   }
 
-  // 4. test_connection - the live editor
-  const conn = await send("tools/call", { name: "test_connection", arguments: {} });
-  const payload = unwrap(conn);
+  // 5. puerts_diagnostic - the authenticated native named-pipe link
+  const diagnostic = await send("tools/call", {
+    name: "puerts_diagnostic",
+    arguments: { actor_limit: 500 },
+  });
+  const payload = unwrap(diagnostic);
   if (payload?.success) {
-    const d = payload.data ?? {};
-    record("test_connection reaches the editor", true, `${d.project} on ${d.engine_version}`);
+    const data = payload.data ?? {};
+    const native = payload.transport === "named_pipe"
+      && payload.is_game_thread === true
+      && data.transport === "named_pipe"
+      && data.execution_context === "puerts_node_v8_in_process";
+    record("puerts_diagnostic proves native IPC", native,
+      native ? `${data.actor_count_measured} actor(s), ${data.native_actor_query_ms} ms` : "missing native telemetry");
   } else {
-    record("test_connection reaches the editor", requireEditor ? false : "skip",
-      "listener not responding (is UE4 open?)");
+    record("puerts_diagnostic proves native IPC", requireEditor ? false : "skip",
+      payload?.error ?? payload?.errors?.join(", ") ?? "named pipe unavailable (is UE4 open?)");
   }
 
   child.stdin.end();

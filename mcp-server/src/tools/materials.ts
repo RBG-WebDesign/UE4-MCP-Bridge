@@ -5,6 +5,12 @@
 import { z } from "zod";
 import { UnrealClient } from "../unreal-client.js";
 import type { ToolDefinition } from "../types.js";
+const SimpleSurfaceSchema = z.object({
+  base_color: z.tuple([z.number().min(0).max(1), z.number().min(0).max(1), z.number().min(0).max(1)]),
+  roughness: z.number().min(0).max(1).optional(),
+  metallic: z.number().min(0).max(1).optional(),
+  emissive_strength: z.number().min(0).max(10).optional(),
+}).strict();
 
 export function createMaterialTools(client: UnrealClient): ToolDefinition[] {
   return [
@@ -64,7 +70,7 @@ export function createMaterialTools(client: UnrealClient): ToolDefinition[] {
     {
       name: "material_create",
       description:
-        "Create a new material or material instance. Provide parent and type 'instance' for material instances.",
+        "Create a new material, a simple opaque surface, or a material instance. Provide parent and type 'instance' for instances.",
       inputSchema: z
         .object({
           name: z.string().min(1).describe("Material name"),
@@ -102,10 +108,15 @@ export function createMaterialTools(client: UnrealClient): ToolDefinition[] {
             })
             .optional()
             .describe("Initial parameter values (instances only)"),
+          simple: SimpleSurfaceSchema.optional().describe("Opaque base-material graph: base color, roughness, metallic, and optional emissive strength"),
         })
         .refine(
           (data) => data.type !== "instance" || data.parent !== undefined,
           { message: "parent is required when type is 'instance'" }
+        )
+        .refine(
+          (data) => data.type === "material" || data.simple === undefined,
+          { message: "simple is only valid when type is 'material'" }
         ),
       handler: async (params) => {
         const result = await client.sendCommand("material_create", params);

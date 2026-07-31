@@ -151,7 +151,13 @@ def handle_level_save(params: Dict[str, Any]) -> Dict[str, Any]:
         level_name = world.get_name()
 
         try:
-            unreal.EditorLevelLibrary.save_current_level()
+            saved = unreal.EditorLevelLibrary.save_current_level()
+            if not saved:
+                return {
+                    "success": False,
+                    "data": {},
+                    "error": f"Failed to save level '{level_name}': the level has no filename or the package is not writable.",
+                }
         except Exception as save_err:
             return {
                 "success": False,

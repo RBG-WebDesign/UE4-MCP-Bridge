@@ -17,6 +17,7 @@ public class MCPBridgeEditorPanel : ModuleRules
             "HTTP",
             "Json",
             "JsonUtilities",
+            "MCPBridgePuerTS",
             "Projects",
             "Slate",
             "SlateCore",

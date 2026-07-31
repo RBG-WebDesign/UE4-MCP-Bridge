@@ -27,6 +27,7 @@ from mcp_bridge.handlers.project import (
     handle_project_enable_plugins,
 )
 from mcp_bridge.handlers.actors import (
+    handle_actor_selection,
     handle_actor_spawn,
     handle_actor_duplicate,
     handle_actor_delete,
@@ -291,6 +292,7 @@ COMMAND_ROUTES: Dict[str, Callable[[Dict[str, Any]], Dict[str, Any]]] = {
     "blueprint_pins_break": handle_blueprint_pins_break,
 
     # Actors
+    "actor_selection": handle_actor_selection,
     "actor_spawn": handle_actor_spawn,
     "actor_duplicate": handle_actor_duplicate,
     "actor_delete": handle_actor_delete,

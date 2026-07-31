@@ -1,11 +1,12 @@
 # UE4 Bridge
 
-UE4 Bridge is a local automation bridge for Unreal Engine 4.27. It lets Claude Code inspect, create, modify, and test Unreal project content through a local MCP server and a Python listener running inside the Unreal editor.
+UE4 Bridge is a local automation bridge for Unreal Engine 4.27. One MCP server exposes the existing HTTP/Python editor tools plus an authenticated native PuerTS named-pipe lane.
 
 This repository contains:
 
-- A TypeScript MCP server for Claude Code
-- A UE4 Python listener that executes commands in the editor
+- One TypeScript MCP server for Claude Code, Codex, Gemini, and other MCP clients
+- A UE4 Python listener that executes the existing HTTP tools
+- A PuerTS Node.js runtime and native C++ module for approved reflection and physics operations
 - C++ UE4 plugin code for Blueprint, Widget Blueprint, Behavior Tree, animation, effects, and gameplay generation helpers
 - PromptBrush, a prompt-driven gameplay generation workflow
 - Agent and skill documents for repeatable Unreal automation work
@@ -44,6 +45,7 @@ The full tool list (150+ tools) is documented in `docs/TOOL_REFERENCE.md`.
 - Node.js 18 or newer
 - npm 9 or newer
 - Python Editor Script Plugin enabled in UE4
+- PuerTS Unreal_v1.0.9 with the Node.js backend at Plugins/Puerts
 - Claude Code or another MCP-compatible client
 
 Optional, depending on the workflow:
@@ -59,7 +61,7 @@ From this repository root:
 .\Scripts\install-mcp-bridge.ps1 "D:\Unreal Projects\MyGame\MyGame.uproject"
 ```
 
-The installer builds the MCP server, installs and enables the unified `MCPBridge` plugin, patches `DefaultEngine.ini`, and writes `.mcp.json` into the target project. Rerun the same command later to update that project. See `docs/MCP_BRIDGE_INSTALLER.md` for installer options and `docs/MCP_BRIDGE_RELEASE_WORKFLOW.md` for packaging.
+The installer builds the MCP server, installs and enables MCPBridge and the local pinned PuerTS plugin, patches DefaultEngine.ini, and writes the MCP client config into the target project. Rerun the same command later to update that project. See docs/PUERTS.md, docs/MCP_BRIDGE_INSTALLER.md, and docs/MCP_BRIDGE_RELEASE_WORKFLOW.md.
 
 Manual server build:
 

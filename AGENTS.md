@@ -10,14 +10,19 @@ broken paths and instructions that described a codebase that did not exist.
 
 ## What this project is
 
-A local bridge that lets an AI client drive the Unreal Engine 4.27 editor through
-the Model Context Protocol. Three layers:
+A local bridge that lets an AI client drive the Unreal Engine 4.27 editor through the Model Context Protocol:
 
 ```
-MCP client  --stdio-->  MCP server (TypeScript)  --HTTP POST :8080-->  Python listener (in UE4)  -->  unreal module
-                                                                                                 -->  C++ plugin modules via Python bindings
+MCP client --stdio--> MCP server (TypeScript) --authenticated named pipe--> PuerTS Node.js runtime (inside UE4) --> native MCPBridgePuerTS module --> UE4 game thread
 ```
 
+## Strict Unreal Engine tooling protocol
+
+1. Use only `puerts_*` tools for Unreal Editor operations.
+2. Never use HTTP, REST, local web servers, Python sockets, shell commands, or workaround scripts to communicate with UE4.
+3. If a native tool fails, report its exact error. Do not attempt a fallback transport.
+4. HTTP/Python code is migration-only, disabled by default, and may be enabled only by a human setting `MCP_ENABLE_LEGACY_HTTP=1` before both UE4 and the MCP server start.
+5. `engine_source_*` tools are allowed because they read local source and do not communicate with the editor.
 The server also ships two tools that never touch the editor at all
 (`engine_source_search`, `engine_source_read`); those read the installed engine
 source from disk and work with Unreal closed.
@@ -32,9 +37,9 @@ Config lives here.
 
 | Path | Owns | Language |
 |---|---|---|
-| `mcp-server/src/` | MCP server: tool definitions, transport, HTTP client | TypeScript only |
-| `mcp-server/incubator/` | Tools with no listener support yet. Not compiled, not registered. | TypeScript |
-| `Plugins/MCPBridge/Content/Python/` | The listener that runs inside UE4 | Python only |
+| `mcp-server/src/` | MCP server: native PuerTS tool definitions and named-pipe client; legacy HTTP code is opt-in | TypeScript only |
+| `mcp-server/incubator/` | Tools with no native support yet. Not compiled, not registered. | TypeScript |
+| `Plugins/MCPBridge/Content/Python/` | Legacy HTTP listener, disabled unless explicitly opted in | Python only |
 | `Plugins/MCPBridge/Source/` | Editor C++ modules, built by UBT (not npm) | C++ only |
 | `docs/` | Documentation, specs, playbooks | Markdown only |
 | `clients/` | Ready-to-paste MCP configs for Codex and Gemini | TOML / JSON |
@@ -99,9 +104,10 @@ or the new tools will not appear.
 
 ## MCP server internals (`mcp-server/src/`)
 
-- `index.ts` - registers every tool, starts the stdio transport, warns at startup
+- `index.ts` - registers the native catalog by default, starts stdio, and warns at startup
   about any registered tool missing annotations
-- `unreal-client.ts` - the only code that makes HTTP calls to the listener.
+- `puerts-client.ts` - authenticated Windows named-pipe client for the native editor runtime.
+- `unreal-client.ts` - legacy HTTP client, reachable only when `MCP_ENABLE_LEGACY_HTTP=1`.
   Configurable host/port, optional auth token, 60s default timeout. Connection
   errors and timeouts resolve with `{success: false}` rather than rejecting.
 - `types.ts` - the `ToolDefinition` interface (name, description, inputSchema,
@@ -121,7 +127,9 @@ The 22 tool modules: `actors`, `animation`, `blueprint-graph`, `blueprints`,
 `engine-source` is the only module whose factory takes no client: it is
 server-local and reads the engine from disk.
 
-## Python listener (`Plugins/MCPBridge/Content/Python/mcp_bridge/`)
+## Legacy Python listener (`Plugins/MCPBridge/Content/Python/mcp_bridge/`)
+
+This listener is disabled by default. It exists for migration testing only and is never an automatic fallback.
 
 - `listener.py` - HTTP server on a background thread; queues commands to the game
   thread via `register_slate_post_tick_callback`
@@ -129,7 +137,7 @@ server-local and reads the engine from disk.
 - `handlers/` - 22 handler modules mirroring the tool groups
 - `utils/` - serialization, UE4 transaction wrappers, validation
 
-Auto-started by `Plugins/MCPBridge/Content/Python/startup.py` when UE4 loads.
+`startup.py` loads with UE4, but starts this listener only when `MCP_ENABLE_LEGACY_HTTP=1`.
 
 ### Threading constraint
 
@@ -156,7 +164,7 @@ message naming the command and pointing at `gameplay_pie_stop` or the
 rather than needing someone to remember. If a new command genuinely works during
 play, add it to `PIE_SAFE_COMMANDS` deliberately.
 
-### HTTP protocol
+### Legacy HTTP protocol
 
 ```json
 POST http://localhost:8080/
@@ -235,27 +243,15 @@ and fixed-camera tools and is **disabled**: `locomotion_debug` and
 
 ## Adding a new tool
 
-1. Prototype through `python_proxy` first. It is the escape hatch; every new tool
-   should be proven there before getting a dedicated handler.
-2. Verify any `unreal` Python API you need against Context7
-   (`/radial-hks/unreal-python-stubhub`) rather than guessing.
-3. Add the Python handler in `Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/`.
-   Wrap editor mutations in the `@transactional` decorator from
-   `utils/transactions.py`.
-4. Register the command in `router.py`'s `COMMAND_ROUTES`.
-5. Add the TypeScript definition in the matching `mcp-server/src/tools/` module.
-6. If it modifies editor state, add it to `modifyingCommands` in `index.ts`.
-7. Classify it in `mcp-server/src/annotations.ts`. The server warns at startup
-   about anything missing, and the smoke test fails on it.
-8. Run `npm run verify`.
+1. Add the MCP schema to `mcp-server/src/tools/puerts.ts`.
+2. Add the TypeScript execution function and registry entry in `puerts-runtime/src/registry.ts`.
+3. Add the minimum UE4.27 C++ method to `MCPBridgePuerTS` when reflection alone is insufficient.
+4. Add the native tool name to the C++ allowlist and keep permissions narrow.
+5. Classify the prefixed MCP tool in `mcp-server/src/annotations.ts`.
+6. Update the PuerTS declarations stored in `puerts-runtime/typing/`.
+7. Run `npm run verify`, compile the isolated UE4.27 test project, then run `npm run smoke:editor`.
 
-`tests/registry-consistency.test.ts` enforces steps 3-5: it fails if the server
-advertises a command with no route in `router.py`, or if a route exists that
-nothing calls and that is not on the internal-only allowlist. Do not work around
-it by adding to the allowlist; write the missing half.
-
-If you have written only the TypeScript half, put the file in
-`mcp-server/incubator/` rather than registering it. See that directory's README.
+Do not prototype new editor operations through `python_proxy`. Do not add HTTP routes for native tools. The old Python route workflow is migration-only and must remain behind the explicit legacy opt-in.
 
 ## API lookup: three systems, use the right one
 
@@ -283,8 +279,8 @@ The server ships this instruction to any project it connects to, via
 
 ## Architecture rules
 
-- The MCP server never imports or references Unreal modules. It only sends HTTP.
-- The Python listener never imports MCP SDK modules. It only receives HTTP.
+- The MCP server never imports Unreal modules. Editor operations use the authenticated named-pipe client.
+- PuerTS executes approved TypeScript in UE4 and delegates privileged operations to the native C++ safety boundary.
 - Every tool that modifies editor state is wrapped in a UE4 transaction.
 - Every actor manipulation tool supports the `validate` parameter.
 - Viewport operations (camera moves, mode switches, render modes) are NOT

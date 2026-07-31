@@ -1,9 +1,9 @@
 {
   "FileVersion": 3,
-  "Version": 4,
-  "VersionName": "0.4.0",
+  "Version": 5,
+  "VersionName": "0.5.0",
   "FriendlyName": "MCP Bridge",
-  "Description": "Editor automation bridge for Unreal Engine 4.27 with a local MCP server, Python listener, dockable status panel, and Blueprint graph builders.",
+  "Description": "Editor automation bridge for Unreal Engine 4.27 with a local MCP server, Python and PuerTS execution lanes, dockable status panel, and Blueprint graph builders.",
   "Category": "Editor",
   "CreatedBy": "RareBird Games",
   "CreatedByURL": "https://github.com/RBG-WebDesign",
@@ -47,6 +47,14 @@
       "WhitelistPlatforms": [
         "Win64"
       ]
+    },
+    {
+      "Name": "MCPBridgePuerTS",
+      "Type": "Editor",
+      "LoadingPhase": "PostEngineInit",
+      "WhitelistPlatforms": [
+        "Win64"
+      ]
     }
   ],
   "Plugins": [
@@ -56,6 +64,10 @@
     },
     {
       "Name": "EditorScriptingUtilities",
+      "Enabled": true
+    },
+    {
+      "Name": "Puerts",
       "Enabled": true
     }
   ],

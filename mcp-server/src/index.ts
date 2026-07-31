@@ -4,7 +4,7 @@
  * Unreal MCP Bridge - MCP Server Entry Point
  * 
  * Registers all tools and starts the MCP server over stdio.
- * Communicates with the UE4 Python listener over HTTP on localhost:8080.
+ * Uses authenticated local named-pipe IPC to the in-process UE4.27 PuerTS runtime.
  */
 
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
@@ -16,6 +16,7 @@ import {
 import { zodToJsonSchema } from "zod-to-json-schema";
 
 import { UnrealClient } from "./unreal-client.js";
+import { PuerTSClient } from "./puerts-client.js";
 import { OperationHistory } from "./history.js";
 import { createSystemTools } from "./tools/system.js";
 import { createProjectTools } from "./tools/project.js";
@@ -45,19 +46,26 @@ import { createPieAgentTools } from "./tools/pie-agent.js";
 import { createClothTools } from "./tools/cloth.js";
 import { createOptimizationTools } from "./tools/optimization.js";
 import { createEngineSourceTools } from "./tools/engine-source.js";
+import { createPuertsTools } from "./tools/puerts.js";
 import { toolAnnotations } from "./annotations.js";
 import { loadExtensions } from "./extensions.js";
 import type { ToolDefinition } from "./types.js";
 
 async function main(): Promise<void> {
-  const client = new UnrealClient();
-  const history = new OperationHistory();
+  const legacyHttpEnabled = process.env.MCP_ENABLE_LEGACY_HTTP === "1";
+  const puertsClient = new PuerTSClient();
+  let legacyClient: UnrealClient | undefined;
+  let operationHistory: OperationHistory | undefined;
 
   const server = new Server(
     { name: "unreal-bridge", version: "1.0.0" },
     {
       capabilities: { tools: {} },
       instructions: [
+        "Use only puerts_* tools for Unreal Editor operations. They execute through the authenticated local named pipe in the in-process UE4.27 PuerTS runtime.",
+        "Never use HTTP, REST, local web servers, Python sockets, shell commands, or workaround scripts to communicate with Unreal.",
+        "If a native tool fails, report its exact error. Do not attempt a fallback transport.",
+        "engine_source_* tools are server-local source readers and do not communicate with the editor.",
         "Before executing any structural engine or blueprint generation task",
         "(gameplay systems, blueprint/widget generation, editor C++, UI",
         "materials), read the contents of docs/playbooks/ in the project",
@@ -71,50 +79,58 @@ async function main(): Promise<void> {
     }
   );
 
-  // Collect all tool definitions
+  // Native IPC is the default and contains no automatic fallback.
   const allTools: ToolDefinition[] = [
-    ...createSystemTools(client),
-    ...createProjectTools(client),
-    ...createActorTools(client),
-    ...createLevelTools(client),
-    ...createViewportTools(client),
-    ...createMaterialTools(client),
-    ...createBlueprintTools(client),
-    ...createOperationsTools(client, history),
-    ...createPromptBrushTools(client),
-    ...createGameplayTools(client),
-    ...createEffectsTools(client),
-    ...createIntelligenceTools(client),
-    ...createTitleTools(client),
-    ...createBlueprintGraphTools(client),
-    ...createCppTools(client),
-    ...createGamedevTools(client),
-    ...createContentTools(client),
-    ...createAnimationTools(client),
-    ...createPieAgentTools(client),
-    ...createClothTools(client),
-    ...createOptimizationTools(client),
-    // Server-local tools: no HTTP to the listener, work with the editor closed.
     ...createEngineSourceTools(),
+    ...createPuertsTools(puertsClient),
   ];
 
-  // Project-local extensions. Namespaced, so they cannot shadow a core tool,
-  // and they carry their own annotations rather than relying on the central map.
-  const extensions = loadExtensions(client);
-  for (const ext of extensions) {
-    const clash = ext.tools.filter((t) => allTools.some((c) => c.name === t.name));
-    if (clash.length > 0) {
-      console.error(
-        `[Unreal MCP Bridge] extension "${ext.manifest.name}" skipped: its tools collide with core tools (${clash
-          .map((t) => t.name)
-          .join(", ")}). Change its toolPrefix.`
-      );
-      continue;
-    }
-    allTools.push(...ext.tools);
-    console.error(
-      `[Unreal MCP Bridge] extension "${ext.manifest.name}" v${ext.manifest.version}: ${ext.tools.length} tool(s) from ${ext.manifestPath}`
+  // The old HTTP/Python catalog is migration-only and invisible unless a human
+  // explicitly opts in before starting the MCP server.
+  if (legacyHttpEnabled) {
+    const client = new UnrealClient();
+    const history = new OperationHistory();
+    legacyClient = client;
+    operationHistory = history;
+    allTools.unshift(
+      ...createSystemTools(client),
+      ...createProjectTools(client),
+      ...createActorTools(client),
+      ...createLevelTools(client),
+      ...createViewportTools(client),
+      ...createMaterialTools(client),
+      ...createBlueprintTools(client),
+      ...createOperationsTools(client, history),
+      ...createPromptBrushTools(client),
+      ...createGameplayTools(client),
+      ...createEffectsTools(client),
+      ...createIntelligenceTools(client),
+      ...createTitleTools(client),
+      ...createBlueprintGraphTools(client),
+      ...createCppTools(client),
+      ...createGamedevTools(client),
+      ...createContentTools(client),
+      ...createAnimationTools(client),
+      ...createPieAgentTools(client),
+      ...createClothTools(client),
+      ...createOptimizationTools(client),
     );
+
+    for (const ext of loadExtensions(client)) {
+      const clash = ext.tools.filter((t) => allTools.some((c) => c.name === t.name));
+      if (clash.length > 0) {
+        console.error(
+          `[Unreal MCP Bridge] extension "${ext.manifest.name}" skipped: its tools collide with core tools (${clash
+            .map((t) => t.name)
+            .join(", ")}). Change its toolPrefix.`
+        );
+        continue;
+      }
+      allTools.push(...ext.tools);
+      console.error(
+        `[Unreal MCP Bridge] extension "${ext.manifest.name}" v${ext.manifest.version}: ${ext.tools.length} tool(s) from ${ext.manifestPath}`
+      );
+    }
   }
 
   // Build a lookup map
@@ -204,7 +220,7 @@ async function main(): Promise<void> {
 
     try {
       if (modifyingCommands.has(name)) {
-        history.record(name, params || {}, tool.description);
+        operationHistory?.record(name, params || {}, tool.description);
       }
       return await tool.handler(params || {});
     } catch (error) {
@@ -224,7 +240,11 @@ async function main(): Promise<void> {
   await server.connect(transport);
 
   console.error(`[Unreal MCP Bridge] Server started with ${allTools.length} tools`);
-  console.error(`[Unreal MCP Bridge] Listener endpoint: ${client.endpoint}`);
+  console.error(`[Unreal MCP Bridge] Native IPC mode: ${legacyHttpEnabled ? "PuerTS plus explicit legacy HTTP" : "PuerTS only"}`);
+  if (legacyClient !== undefined) {
+    console.error(`[Unreal MCP Bridge] Legacy listener endpoint: ${legacyClient.endpoint}`);
+  }
+  console.error(`[Unreal MCP Bridge] PuerTS pipe: ${puertsClient.pipeName}`);
   console.error(`[Unreal MCP Bridge] Tools: ${allTools.map((t) => t.name).join(", ")}`);
 }
 

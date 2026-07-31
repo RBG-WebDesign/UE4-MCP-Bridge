@@ -1,8 +1,10 @@
 // Copyright 2026 RareBird Games. All Rights Reserved.
 
 #include "CoreMinimal.h"
+#include "MCPPuerTSBridgeService.h"
 #include "Windows/WindowsPlatformApplicationMisc.h"
 #include "Editor.h"
+#include "Engine/World.h"
 #include "FileHelpers.h"
 #include "Framework/Application/SlateApplication.h"
 #include "Framework/Docking/TabManager.h"
@@ -13,6 +15,7 @@
 #include "Interfaces/IHttpResponse.h"
 #include "Json.h"
 #include "Misc/FileHelper.h"
+#include "Misc/EngineVersion.h"
 #include "Misc/Paths.h"
 #include "Modules/ModuleManager.h"
 #include "Brushes/SlateColorBrush.h"
@@ -20,6 +23,7 @@
 #include "Styling/SlateTypes.h"
 #include "Styling/CoreStyle.h"
 #include "ToolMenus.h"
+#include "UObject/UObjectIterator.h"
 #include "Widgets/Docking/SDockTab.h"
 #include "Widgets/Images/SImage.h"
 #include "Widgets/Input/SButton.h"
@@ -53,6 +57,8 @@ struct FMCPBridgePanelState
 {
     bool bConnected = false;
     bool bListenerRunning = false;
+    FString PipeName = TEXT("\\\\.\\pipe\\UE427PuerTSMCP");
+    int32 NativeToolCount = 0;
     FString ListenerHost = TEXT("localhost");
     int32 ListenerPort = 8080;
     FString EngineVersion;
@@ -163,8 +169,6 @@ private:
     TSharedPtr<STextBlock> MessageText;
     bool bAutoRefresh = true;
     bool bCompactLayout = false;
-    bool bConnectionProbeInFlight = false;
-    bool bConnectionProbeHasResult = false;
     FString CurrentMessage = TEXT("Ready");
     TMap<FString, TSharedPtr<FSlateImageBrush>> IconBrushes;
 
@@ -279,13 +283,14 @@ private:
         State.Safety.Add(TEXT("allow_actor_delete"), false);
         State.Safety.Add(TEXT("allow_asset_delete"), false);
         State.Safety.Add(TEXT("allow_console_command"), true);
-        State.Safety.Add(TEXT("allow_python_proxy"), true);
+        State.Safety.Add(TEXT("allow_python_proxy"), false);
         State.Safety.Add(TEXT("auto_compile_blueprints"), true);
         State.Safety.Add(TEXT("auto_save_after_operations"), false);
         State.Safety.Add(TEXT("pie_commands_enabled"), true);
 
         LoadStatusFile();
         LoadConfigFile();
+        State.Safety.FindOrAdd(TEXT("allow_python_proxy")) = false;
     }
 
     void LoadStatusFile()
@@ -296,11 +301,6 @@ private:
             return;
         }
 
-        if (!bConnectionProbeHasResult)
-        {
-            Json->TryGetBoolField(TEXT("connected"), State.bConnected);
-            Json->TryGetBoolField(TEXT("listener_running"), State.bListenerRunning);
-        }
         Json->TryGetStringField(TEXT("listener_host"), State.ListenerHost);
         Json->TryGetNumberField(TEXT("listener_port"), State.ListenerPort);
         Json->TryGetStringField(TEXT("engine_version"), State.EngineVersion);
@@ -465,6 +465,18 @@ private:
         return TextMuted;
     }
 
+    UMCPPuerTSBridgeService* FindNativeBridgeService() const
+    {
+        for (TObjectIterator<UMCPPuerTSBridgeService> It; It; ++It)
+        {
+            if (!It->HasAnyFlags(RF_ClassDefaultObject) && It->IsRooted())
+            {
+                return *It;
+            }
+        }
+        return nullptr;
+    }
+
     FString ListenerEndpoint() const
     {
         const FString Host = State.ListenerHost.IsEmpty() ? TEXT("localhost") : State.ListenerHost;
@@ -478,41 +490,29 @@ private:
 
     FText ConnectionChannelText() const
     {
-        return FText::FromString(FString::Printf(TEXT("MCP Bridge HTTP on %s"), *ListenerUrl()));
+        return FText::FromString(FString::Printf(TEXT("PuerTS V8 in-process via %s"), *State.PipeName));
     }
 
     FString BuildConnectionPrompt() const
     {
         const FString Project = State.ProjectName.IsEmpty() ? FPaths::GetBaseFilename(FPaths::GetProjectFilePath()) : State.ProjectName;
-        const FString Engine = State.EngineVersion.IsEmpty() ? TEXT("Unknown") : State.EngineVersion;
-        const FString Level = State.CurrentLevel.IsEmpty() ? TEXT("Unknown") : State.CurrentLevel;
-        const FString Status = State.bConnected ? TEXT("Connected") : TEXT("Disconnected in the panel");
-        const FString LastPing = State.LastPingAt.IsEmpty() ? TEXT("No ping recorded") : State.LastPingAt;
+        const FString Status = State.bConnected ? TEXT("ready") : TEXT("not ready");
 
         return FString::Printf(
-            TEXT("Connect to my Unreal Engine MCP Bridge.\n\n")
-            TEXT("Channel: MCP Bridge HTTP\n")
-            TEXT("Listener URL: %s\n")
-            TEXT("Listener endpoint: %s\n")
+            TEXT("Connect to my Unreal Engine 4.27 MCP Bridge.\n\n")
+            TEXT("Transport: direct PuerTS named pipe\n")
+            TEXT("Pipe: %s\n")
             TEXT("Project: %s\n")
-            TEXT("Engine: %s\n")
-            TEXT("Current level: %s\n")
-            TEXT("Panel status: %s\n")
-            TEXT("Last ping: %s\n\n")
-            TEXT("Fast connection path:\n")
-            TEXT("1. Do not search the repository for bridge schema unless this direct call fails.\n")
-            TEXT("2. If an Unreal MCP tool named test_connection is available, call it first.\n")
-            TEXT("3. If no Unreal MCP tool is preloaded, call the listener directly with POST / and this JSON body: {\"command\":\"test_connection\",\"params\":{}}\n")
-            TEXT("4. PowerShell direct check: Invoke-RestMethod -Uri '%s' -Method Post -ContentType 'application/json' -Body '{\"command\":\"test_connection\",\"params\":{}}'\n\n")
-            TEXT("After test_connection succeeds, continue with my Unreal task using this same listener URL."),
-            *ListenerUrl(),
-            *ListenerEndpoint(),
+            TEXT("Project file: %s\n")
+            TEXT("Native runtime: %s\n")
+            TEXT("Approved tools: %d\n\n")
+            TEXT("Use only puerts_* MCP tools for editor operations. Never use HTTP, REST, Python sockets, or shell scripts as a fallback. ")
+            TEXT("Start with puerts_diagnostic. If it fails, report the exact native error."),
+            *State.PipeName,
             *Project,
-            *Engine,
-            *Level,
+            *FPaths::GetProjectFilePath(),
             *Status,
-            *LastPing,
-            *ListenerUrl()
+            State.NativeToolCount
         );
     }
 
@@ -521,78 +521,56 @@ private:
         const FString Project = State.ProjectName.IsEmpty() ? FPaths::GetBaseFilename(FPaths::GetProjectFilePath()) : State.ProjectName;
         const FString Engine = State.EngineVersion.IsEmpty() ? TEXT("Unknown") : State.EngineVersion;
         const FString Level = State.CurrentLevel.IsEmpty() ? TEXT("Unknown") : State.CurrentLevel;
-        const FString LastCommand = State.LastCommand.IsEmpty() ? TEXT("None") : State.LastCommand;
-        const FString LastResult = State.LastResult.IsEmpty() ? TEXT("Idle") : State.LastResult;
-        const FString LastError = State.LastErrorMessage.IsEmpty() ? State.LastErrorCode : State.LastErrorMessage;
 
         return FString::Printf(
-            TEXT("Use this Unreal MCP Bridge context for my next task.\n\n")
-            TEXT("Listener URL: %s\n")
-            TEXT("Listener endpoint: %s\n")
+            TEXT("Use this Unreal Engine 4.27 MCP Bridge context.\n\n")
+            TEXT("Transport: direct PuerTS named pipe\n")
+            TEXT("Pipe: %s\n")
             TEXT("Project: %s\n")
             TEXT("Project file: %s\n")
             TEXT("Project dir: %s\n")
-            TEXT("Saved MCP dir: %s\n")
             TEXT("Engine: %s\n")
             TEXT("Current level: %s\n")
-            TEXT("Panel connected: %s\n")
-            TEXT("Last ping: %s\n")
-            TEXT("Last command: %s\n")
-            TEXT("Last result: %s\n")
-            TEXT("Last error: %s\n")
-            TEXT("Commands handled: %d\n")
-            TEXT("Failures: %d\n\n")
-            TEXT("Start by checking the bridge with either the Unreal MCP test_connection tool or this direct request:\n")
-            TEXT("Invoke-RestMethod -Uri '%s' -Method Post -ContentType 'application/json' -Body '{\"command\":\"test_connection\",\"params\":{}}'\n\n")
-            TEXT("If that succeeds, continue using this listener without asking me to restate the MCP bridge setup."),
-            *ListenerUrl(),
-            *ListenerEndpoint(),
+            TEXT("Native runtime ready: %s\n")
+            TEXT("Approved tools: %d\n\n")
+            TEXT("Use puerts_diagnostic first, then continue with puerts_* tools only. Do not fall back to HTTP or Python."),
+            *State.PipeName,
             *Project,
             *FPaths::GetProjectFilePath(),
             *FPaths::ProjectDir(),
-            *GetMCPDir(),
             *Engine,
             *Level,
             State.bConnected ? TEXT("true") : TEXT("false"),
-            State.LastPingAt.IsEmpty() ? TEXT("No ping recorded") : *State.LastPingAt,
-            *LastCommand,
-            *LastResult,
-            LastError.IsEmpty() ? TEXT("None") : *LastError,
-            State.CommandsHandled,
-            State.Failures,
-            *ListenerUrl()
+            State.NativeToolCount
         );
     }
 
     FString BuildRecoveryCommand() const
     {
         return FString::Printf(
-            TEXT("cd /d \"%s\" && Scripts\\recover_mcp_bridge.bat"),
-            *FPaths::ProjectDir()
+            TEXT("Restart Unreal Editor. If the native bridge remains offline, rerun the UE4_Bridge installer for: %s"),
+            *FPaths::GetProjectFilePath()
         );
     }
 
     FString BuildLatestResultPrompt() const
     {
-        FString NotificationText;
-        FString ResultText;
-        const bool bHasNotification = FFileHelper::LoadFileToString(NotificationText, *GetLatestNotificationPath());
-        const bool bHasResult = FFileHelper::LoadFileToString(ResultText, *GetLastResultPath());
-
+        UMCPPuerTSBridgeService* Service = FindNativeBridgeService();
+        const FString Logs = Service != nullptr ? Service->GetRecentLogs(100) : TEXT("(native service unavailable)");
         return FString::Printf(
-            TEXT("Use this MCP Bridge result context.\n\n")
-            TEXT("Listener URL: %s\n")
-            TEXT("Latest notification path: %s\n")
-            TEXT("Last result path: %s\n\n")
-            TEXT("Latest notification:\n%s\n\n")
-            TEXT("Last command result:\n%s\n\n")
-            TEXT("If the listener is down, recover it with:\n%s"),
-            *ListenerUrl(),
-            *GetLatestNotificationPath(),
-            *GetLastResultPath(),
-            bHasNotification ? *NotificationText : TEXT("(latest_notification.json not found)"),
-            bHasResult ? *ResultText : TEXT("(last_command_result.json not found)"),
-            *BuildRecoveryCommand()
+            TEXT("Unreal MCP native bridge context.\n\n")
+            TEXT("Pipe: %s\n")
+            TEXT("Runtime ready: %s\n")
+            TEXT("Last command: %s\n")
+            TEXT("Last result: %s\n")
+            TEXT("Last error: %s\n\n")
+            TEXT("Recent native logs:\n%s"),
+            *State.PipeName,
+            State.bConnected ? TEXT("true") : TEXT("false"),
+            State.LastCommand.IsEmpty() ? TEXT("None") : *State.LastCommand,
+            State.LastResult.IsEmpty() ? TEXT("Idle") : *State.LastResult,
+            State.LastErrorMessage.IsEmpty() ? TEXT("None") : *State.LastErrorMessage,
+            *Logs
         );
     }
 
@@ -640,7 +618,7 @@ private:
                 .VAlign(VAlign_Center)
                 [
                     SNew(STextBlock)
-                    .Text(FText::FromString(TEXT("Editor Bridge")))
+                    .Text(FText::FromString(TEXT("PuerTS Editor Bridge")))
                     .Font(FontRegular(13))
                     .ColorAndOpacity(MutedColor())
                 ]
@@ -687,7 +665,7 @@ private:
             .FillWidth(1.0f)
             .Padding(ScaledMargin(0.0f, 0.0f, 10.0f, 0.0f))
             [
-                MakeReadinessItem(TEXT("Bridge"), [this]() { return FText::FromString(State.bConnected ? TEXT("Connected") : TEXT("Disconnected")); }, [this]() { return State.bConnected ? SuccessGreen : ErrorRed; })
+                MakeReadinessItem(TEXT("Native IPC"), [this]() { return FText::FromString(State.bConnected ? TEXT("Ready") : TEXT("Not ready")); }, [this]() { return State.bConnected ? SuccessGreen : ErrorRed; })
             ]
             + SHorizontalBox::Slot()
             .FillWidth(1.0f)
@@ -699,7 +677,7 @@ private:
             .FillWidth(1.0f)
             .Padding(ScaledMargin(10.0f, 0.0f, 0.0f, 0.0f))
             [
-                MakeReadinessItem(TEXT("Python Proxy"), [this]() { return FText::FromString(IsSafetyEnabled(TEXT("allow_python_proxy")) ? TEXT("Python enabled") : TEXT("Python disabled")); }, [this]() { return IsSafetyEnabled(TEXT("allow_python_proxy")) ? PrimaryBlue : TextMuted; })
+                MakeReadinessItem(TEXT("PuerTS Tools"), [this]() { return FText::FromString(State.NativeToolCount > 0 ? FString::Printf(TEXT("%d approved"), State.NativeToolCount) : TEXT("Unavailable")); }, [this]() { return State.NativeToolCount > 0 ? PrimaryBlue : TextMuted; })
             ]);
     }
 
@@ -764,11 +742,11 @@ private:
         return MakeCard(TEXT("Connection"), TEXT("Current Unreal editor target."),
             SNew(SVerticalBox)
             + SVerticalBox::Slot().AutoHeight().Padding(ScaledMargin(0.0f, 0.0f, 0.0f, 10.0f))[MakeKeyValue(TEXT("Channel"), [this]() { return ConnectionChannelText(); })]
-            + SVerticalBox::Slot().AutoHeight().Padding(ScaledMargin(0.0f, 0.0f, 0.0f, 10.0f))[MakeKeyValue(TEXT("Listener"), [this]() { return FText::FromString(ListenerEndpoint()); })]
+            + SVerticalBox::Slot().AutoHeight().Padding(ScaledMargin(0.0f, 0.0f, 0.0f, 10.0f))[MakeKeyValue(TEXT("Pipe"), [this]() { return FText::FromString(State.PipeName); })]
             + SVerticalBox::Slot().AutoHeight().Padding(ScaledMargin(0.0f, 0.0f, 0.0f, 10.0f))[MakeKeyValue(TEXT("Engine"), [this]() { return TextFor(State.EngineVersion); })]
             + SVerticalBox::Slot().AutoHeight().Padding(ScaledMargin(0.0f, 0.0f, 0.0f, 10.0f))[MakeKeyValue(TEXT("Project"), [this]() { return TextFor(State.ProjectName); })]
             + SVerticalBox::Slot().AutoHeight().Padding(ScaledMargin(0.0f, 0.0f, 0.0f, 10.0f))[MakeKeyValue(TEXT("Level"), [this]() { return TextFor(State.CurrentLevel); })]
-            + SVerticalBox::Slot().AutoHeight().Padding(ScaledMargin(0.0f, 0.0f, 0.0f, 12.0f))[MakeKeyValue(TEXT("Last ping"), [this]() { return TextFor(State.LastPingAt, TEXT("Waiting for ping")); })]
+            + SVerticalBox::Slot().AutoHeight().Padding(ScaledMargin(0.0f, 0.0f, 0.0f, 12.0f))[MakeKeyValue(TEXT("Runtime"), [this]() { return TextFor(State.LastPingAt, TEXT("Waiting for PuerTS")); })]
             + SVerticalBox::Slot().AutoHeight()[MakeActionButton(TEXT("Copy Chat Prompt"), TEXT("bridge_copy_connection_prompt"))]);
     }
 
@@ -787,6 +765,14 @@ private:
 
     void HandleSafetyToggle(const FString& Key)
     {
+        if (Key == TEXT("allow_python_proxy"))
+        {
+            State.Safety.FindOrAdd(Key) = false;
+            SaveConfigFile();
+            SetMessage(TEXT("Legacy Python proxy is disabled in native-only mode."));
+            return;
+        }
+
         State.Safety.FindOrAdd(Key) = !IsSafetyEnabled(Key);
         if (SaveConfigFile())
         {
@@ -862,7 +848,7 @@ private:
     {
         if (bCompactLayout)
         {
-            return MakeCard(TEXT("Optimization"), TEXT("Run UE4.27 profiling captures, audits, and reports."),
+            return MakeCard(TEXT("Legacy HTTP Optimization"), TEXT("Disabled by default; port these tools before use."),
                 SNew(SVerticalBox)
                 + SVerticalBox::Slot()
                 .AutoHeight()
@@ -883,7 +869,7 @@ private:
                 ]);
         }
 
-        return MakeCard(TEXT("Optimization"), TEXT("Run UE4.27 profiling captures, audits, and reports."),
+        return MakeCard(TEXT("Legacy HTTP Optimization"), TEXT("Disabled by default; port these tools before use."),
             SNew(SVerticalBox)
             + SVerticalBox::Slot()
             .AutoHeight()
@@ -1088,7 +1074,7 @@ private:
             .Padding(ScaledMargin(12.0f, 6.0f, 12.0f, 6.0f))
             [
                 SNew(STextBlock)
-                .Text_Lambda([this]() { return FText::FromString(State.bConnected ? TEXT("Connected") : TEXT("Disconnected")); })
+                .Text_Lambda([this]() { return FText::FromString(State.bConnected ? TEXT("Native Ready") : TEXT("Native Offline")); })
                 .Font(FontBold(13))
                 .ColorAndOpacity(FSlateColor(FLinearColor::White))
             ];
@@ -1490,7 +1476,7 @@ private:
                 + SVerticalBox::Slot().AutoHeight().HAlign(HAlign_Center).Padding(ScaledMargin(0.0f, 5.0f, 0.0f, 0.0f))
                 [
                     SNew(STextBlock)
-                    .Text(FText::FromString(TEXT("Run Self-Test or Test Connection to verify the bridge.")))
+                    .Text(FText::FromString(TEXT("Run Self-Test or Test Connection to verify the native bridge.")))
                     .Font(FontRegular(13))
                     .ColorAndOpacity(MutedColor())
                 ]
@@ -1553,8 +1539,60 @@ private:
             ];
     }
 
+    void RunNativeSelfTest()
+    {
+        ProbeConnection(false);
+        UMCPPuerTSBridgeService* Service = FindNativeBridgeService();
+        State.LastCommand = TEXT("puerts_diagnostic");
+        State.CommandsHandled++;
+        if (Service == nullptr || !Service->IsRuntimeReady())
+        {
+            State.LastResult = TEXT("failed");
+            State.LastErrorMessage = TEXT("Native PuerTS runtime is not ready.");
+            State.Failures++;
+            State.Errors++;
+            SetMessage(State.LastErrorMessage);
+            return;
+        }
+
+        const FString Diagnostics = Service->GetDiagnosticsJson(500);
+        TSharedPtr<FJsonObject> Json;
+        TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(Diagnostics);
+        FString Transport;
+        bool bGameThread = false;
+        const bool bPassed = FJsonSerializer::Deserialize(Reader, Json)
+            && Json.IsValid()
+            && Json->TryGetStringField(TEXT("transport"), Transport)
+            && Transport == TEXT("named_pipe")
+            && Json->TryGetBoolField(TEXT("is_game_thread"), bGameThread)
+            && bGameThread;
+        State.LastResult = bPassed ? TEXT("success") : TEXT("failed");
+        State.LastErrorMessage = bPassed ? TEXT("") : TEXT("Native diagnostic returned an invalid execution context.");
+        if (!bPassed)
+        {
+            State.Failures++;
+            State.Errors++;
+        }
+        FPlatformApplicationMisc::ClipboardCopy(*Diagnostics);
+        SetMessage(bPassed
+            ? TEXT("Native self-test passed; diagnostic JSON copied")
+            : TEXT("Native self-test failed; diagnostic JSON copied"));
+    }
+
     FReply QueueBridgeCommand(const FString& CommandName)
     {
+        if (CommandName == TEXT("test_connection"))
+        {
+            ProbeConnection(true);
+            return FReply::Handled();
+        }
+
+        if (CommandName == TEXT("bridge_self_test"))
+        {
+            RunNativeSelfTest();
+            return FReply::Handled();
+        }
+
         if (CommandName == TEXT("bridge_copy_connection_prompt"))
         {
             CopyConnectionPrompt();
@@ -1586,7 +1624,7 @@ private:
         }
 
         // level_save and viewport_screenshot run natively instead of through
-        // the Python listener: they are pure editor operations, respond
+        // the legacy listener: they are pure editor operations, respond
         // instantly, and keep working when the listener is disabled.
         if (CommandName == TEXT("level_save"))
         {
@@ -1679,58 +1717,41 @@ private:
 
     void ProbeConnection(const bool bShowFailures)
     {
-        if (bConnectionProbeInFlight)
+        UMCPPuerTSBridgeService* Service = FindNativeBridgeService();
+        State.bConnected = Service != nullptr && Service->IsRuntimeReady();
+        State.bListenerRunning = State.bConnected;
+        State.NativeToolCount = Service != nullptr ? Service->GetRuntimeToolCount() : 0;
+        if (Service != nullptr)
         {
-            return;
+            State.PipeName = Service->GetPipeName();
         }
 
-        bConnectionProbeInFlight = true;
-
-        TSharedRef<IHttpRequest, ESPMode::ThreadSafe> Request = FHttpModule::Get().CreateRequest();
-        Request->SetURL(FString::Printf(TEXT("%s/ping"), *ListenerUrl()));
-        Request->SetVerb(TEXT("GET"));
-        Request->SetTimeout(2.0f);
-        Request->OnProcessRequestComplete().BindSP(this, &SMCPBridgePanel::OnConnectionProbeResponse, bShowFailures);
-        Request->ProcessRequest();
-    }
-
-    void OnConnectionProbeResponse(FHttpRequestPtr Request, FHttpResponsePtr Response, bool bSucceeded, bool bShowFailures)
-    {
-        bConnectionProbeInFlight = false;
-
-        const bool bHttpOk = bSucceeded && Response.IsValid() && Response->GetResponseCode() >= 200 && Response->GetResponseCode() < 300;
-        bool bBridgeOk = bHttpOk;
-        bConnectionProbeHasResult = true;
-
-        if (bHttpOk)
+        State.EngineVersion = FEngineVersion::Current().ToString();
+        State.ProjectName = FPaths::GetBaseFilename(FPaths::GetProjectFilePath());
+        if (GEditor != nullptr && GEditor->GetEditorWorldContext().World() != nullptr)
         {
-            TSharedPtr<FJsonObject> Root;
-            const FString ResponseText = Response->GetContentAsString();
-            TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(ResponseText);
-            if (FJsonSerializer::Deserialize(Reader, Root) && Root.IsValid())
-            {
-                bool bSuccess = false;
-                if (Root->TryGetBoolField(TEXT("success"), bSuccess))
-                {
-                    bBridgeOk = bSuccess;
-                }
-            }
+            State.CurrentLevel = GEditor->GetEditorWorldContext().World()->GetOutermost()->GetName();
         }
+        State.LastPingAt = State.bConnected
+            ? FString::Printf(TEXT("Ready with %d approved tools"), State.NativeToolCount)
+            : TEXT("PuerTS named-pipe runtime is not ready");
 
-        State.bConnected = bBridgeOk;
-        State.bListenerRunning = bBridgeOk;
-        if (bBridgeOk)
+        if (bShowFailures)
         {
-            State.LastPingAt = FDateTime::UtcNow().ToIso8601();
-        }
-        else if (bShowFailures)
-        {
-            SetMessage(FString::Printf(TEXT("Connection probe failed for %s"), *ListenerUrl()));
+            SetMessage(State.bConnected
+                ? FString::Printf(TEXT("Native PuerTS bridge ready on %s"), *State.PipeName)
+                : TEXT("Native PuerTS bridge is not ready. Check the Output Log for LogMCPPuerTSBridge."));
         }
     }
 
     void PostCommand(const FString& Command, const FString& ParamsJson = TEXT("{}"))
     {
+        if (FPlatformMisc::GetEnvironmentVariable(TEXT("MCP_ENABLE_LEGACY_HTTP")) != TEXT("1"))
+        {
+            SetMessage(FString::Printf(TEXT("%s is a legacy HTTP panel action and is disabled. Port it to a puerts_* tool before use."), *Command));
+            return;
+        }
+
         const FString Url = ListenerUrl();
         const FString Payload = FString::Printf(TEXT("{\"command\":\"%s\",\"params\":%s}"), *Command, *ParamsJson);
 
@@ -1833,14 +1854,14 @@ private:
     {
         const FString Prompt = BuildConnectionPrompt();
         FPlatformApplicationMisc::ClipboardCopy(*Prompt);
-        SetMessage(FString::Printf(TEXT("Copied chat prompt for %s"), *ListenerUrl()));
+        SetMessage(FString::Printf(TEXT("Copied native chat prompt for %s"), *State.PipeName));
     }
 
     void CopyProjectInfo()
     {
         const FString Text = BuildProjectInfoPrompt();
         FPlatformApplicationMisc::ClipboardCopy(*Text);
-        SetMessage(FString::Printf(TEXT("Copied MCP project handoff for %s"), *ListenerUrl()));
+        SetMessage(FString::Printf(TEXT("Copied native MCP project handoff for %s"), *State.PipeName));
     }
 
     void CopyLatestResult()
@@ -1854,7 +1875,7 @@ private:
     {
         const FString Text = BuildRecoveryCommand();
         FPlatformApplicationMisc::ClipboardCopy(*Text);
-        SetMessage(TEXT("Copied MCP recovery command"));
+        SetMessage(TEXT("Copied native MCP recovery steps"));
     }
 
     void OpenOutputLog()

@@ -11,15 +11,17 @@
 [mcp_servers.unreal-bridge]
 command = "node"
 args = ["D:/Unreal Projects/UE4_Bridge/mcp-server/dist/index.js"]
+cwd = "D:/Unreal Projects/UE4_Bridge"
 
   [mcp_servers.unreal-bridge.env]
   # Lets engine_source_search / engine_source_read read the installed engine.
   # Without this the tools fail: a bridge-only clone has no .uproject to read an
   # EngineAssociation from.
   UE_ENGINE_ROOT = "D:/UE/UE_4.27"
-  # Point the bridge at a different editor host/port if you are not on defaults.
-  # UNREAL_BRIDGE_HOST = "localhost"
-  # UNREAL_BRIDGE_PORT = "8080"
+  # Required for the native bearer-token file. Replace this project path.
+  MCP_UNREAL_PROJECT_ROOT = "D:/Path/To/Your/UE427Project"
+  # Legacy HTTP tools stay hidden unless you explicitly set this to "1".
+  # MCP_ENABLE_LEGACY_HTTP = "1"
 
 # UE4.27 C++ API lookup (reflected types). Optional but recommended.
 [mcp_servers.unreal-api]

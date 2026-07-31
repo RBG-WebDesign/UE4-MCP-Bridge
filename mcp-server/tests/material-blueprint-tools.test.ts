@@ -233,6 +233,22 @@ test("material_create base material (no parent needed)", async () => {
   assertEqual(data.type, "material", "type");
   assertEqual(data.parent, null, "no parent");
 });
+test("material_create schema accepts a simple opaque surface", async () => {
+  const tool = toolMap.get("material_create")!;
+  assert(tool.inputSchema.safeParse({
+    name: "M_Simple",
+    path: "/Game/Materials",
+    type: "material",
+    simple: { base_color: [0.2, 0.3, 0.4], roughness: 0.6, metallic: 0.1 },
+  }).success, "Should accept a simple material graph");
+  assert(!tool.inputSchema.safeParse({
+    name: "MI_InvalidSimple",
+    path: "/Game/Materials",
+    type: "instance",
+    parent: "/Game/Materials/M_BrickWall",
+    simple: { base_color: [0.2, 0.3, 0.4] },
+  }).success, "Should reject a simple graph on an instance");
+});
 
 test("material_create rejects duplicate path", async () => {
   server.reset();

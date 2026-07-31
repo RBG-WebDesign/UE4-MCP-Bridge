@@ -12,6 +12,7 @@ MaterialEditingLibrary availability in 4.27:
 """
 
 import fnmatch
+import math
 import os
 from typing import Any, Dict, List, Optional
 from mcp_bridge.utils.transactions import transactional
@@ -122,6 +123,60 @@ def _extract_base_material_parameters(mat: Any) -> Dict[str, List[Dict[str, Any]
         pass
     return params
 
+
+
+
+def _normalize_simple_surface(value: Any) -> Optional[Dict[str, Any]]:
+    """Validate a small, opaque material graph specification."""
+    if not isinstance(value, dict):
+        return None
+    color = value.get("base_color")
+    if not isinstance(color, (list, tuple)) or len(color) not in (3, 4):
+        return None
+    try:
+        normalized_color = [float(component) for component in color[:3]]
+        roughness = float(value.get("roughness", 0.72))
+        metallic = float(value.get("metallic", 0.0))
+        emissive_strength = float(value.get("emissive_strength", 0.0))
+    except (TypeError, ValueError):
+        return None
+    if (not all(math.isfinite(component) and 0.0 <= component <= 1.0 for component in normalized_color)
+            or not math.isfinite(roughness) or not 0.0 <= roughness <= 1.0
+            or not math.isfinite(metallic) or not 0.0 <= metallic <= 1.0
+            or not math.isfinite(emissive_strength) or not 0.0 <= emissive_strength <= 10.0):
+        return None
+    return {
+        "base_color": normalized_color,
+        "roughness": roughness,
+        "metallic": metallic,
+        "emissive_strength": emissive_strength,
+    }
+
+
+def _apply_simple_surface(mat: Any, surface: Dict[str, Any]) -> None:
+    """Build the fixed graph used by the public simple-material option."""
+    import unreal
+
+    library = unreal.MaterialEditingLibrary
+    color = surface["base_color"]
+    base = library.create_material_expression(mat, unreal.MaterialExpressionConstant3Vector, -400, 0)
+    base.set_editor_property("constant", unreal.LinearColor(color[0], color[1], color[2], 1.0))
+    library.connect_material_property(base, "", unreal.MaterialProperty.MP_BASE_COLOR)
+
+    for material_property, scalar, y in (
+        (unreal.MaterialProperty.MP_ROUGHNESS, surface["roughness"], 200),
+        (unreal.MaterialProperty.MP_METALLIC, surface["metallic"], 400),
+    ):
+        expression = library.create_material_expression(mat, unreal.MaterialExpressionConstant, -400, y)
+        expression.set_editor_property("r", scalar)
+        library.connect_material_property(expression, "", material_property)
+
+    if surface["emissive_strength"] > 0.0:
+        emissive = library.create_material_expression(mat, unreal.MaterialExpressionConstant3Vector, -400, 600)
+        strength = surface["emissive_strength"]
+        emissive.set_editor_property("constant", unreal.LinearColor(color[0] * strength, color[1] * strength, color[2] * strength, 1.0))
+        library.connect_material_property(emissive, "", unreal.MaterialProperty.MP_EMISSIVE_COLOR)
+    library.recompile_material(mat)
 
 def handle_material_list(params: Dict[str, Any]) -> Dict[str, Any]:
     """List materials with optional filters.
@@ -291,6 +346,17 @@ def handle_material_create(params: Dict[str, Any]) -> Dict[str, Any]:
 
         mat_type = params.get("type", "instance" if params.get("parent") else "material")
         parent_path = params.get("parent", "")
+        simple_surface = params.get("simple")
+        if simple_surface is not None:
+            if mat_type != "material":
+                return {"success": False, "data": {}, "error": "simple is only valid when type is 'material'"}
+            simple_surface = _normalize_simple_surface(simple_surface)
+            if simple_surface is None:
+                return {
+                    "success": False,
+                    "data": {},
+                    "error": "simple requires base_color [r,g,b] in 0..1, roughness and metallic in 0..1, and emissive_strength in 0..10",
+                }
 
         # Check if asset already exists
         full_path = f"{path}/{name}"
@@ -397,6 +463,8 @@ def handle_material_create(params: Dict[str, Any]) -> Dict[str, Any]:
                     "data": {},
                     "error": "Failed to create base material",
                 }
+            if simple_surface is not None:
+                _apply_simple_surface(mat, simple_surface)
 
         # Save the asset when the caller or safety toggle allows it.
         from mcp_bridge import state
@@ -416,6 +484,7 @@ def handle_material_create(params: Dict[str, Any]) -> Dict[str, Any]:
                 "type": mat_type,
                 "parent": parent_path if mat_type == "instance" else None,
                 "parameters_set": parameters_set,
+                "simple": simple_surface,
                 "saved": should_save,
             },
         }

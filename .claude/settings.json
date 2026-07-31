@@ -6,5 +6,43 @@
       "Bash(npm test:*)",
       "Bash(npx tsx:*)"
     ]
+  },
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/session-start.mjs\"",
+            "timeout": 10,
+            "statusMessage": "UE4_Bridge startup hook"
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Bash|PowerShell",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/guard-legacy-http.mjs\"",
+            "timeout": 10,
+            "statusMessage": "Checking for legacy HTTP activation"
+          }
+        ]
+      },
+      {
+        "matcher": "mcp__unreal-bridge__puerts_delete_.*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/guard-destructive.mjs\"",
+            "timeout": 10,
+            "statusMessage": "Destructive Unreal action check"
+          }
+        ]
+      }
+    ]
   }
 }

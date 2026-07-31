@@ -73,15 +73,15 @@ async function teardown(): Promise<void> {
 
 // ---- Tool Registration Tests ----
 
-test("all 8 actor tools are registered", async () => {
+test("all 9 actor tools are registered", async () => {
   const expectedNames = [
-    "actor_spawn", "actor_duplicate", "actor_delete", "actor_modify",
+    "actor_selection", "actor_spawn", "actor_duplicate", "actor_delete", "actor_modify",
     "actor_organize", "actor_snap_to_socket", "batch_spawn", "placement_validate",
   ];
   for (const name of expectedNames) {
     assert(toolMap.has(name), `Tool '${name}' should be registered`);
   }
-  assertEqual(tools.length, 8, "total tool count");
+  assertEqual(tools.length, 9, "total tool count");
 });
 
 test("actor_spawn schema requires asset_path", async () => {

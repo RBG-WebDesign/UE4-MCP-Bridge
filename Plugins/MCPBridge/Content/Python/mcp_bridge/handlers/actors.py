@@ -29,6 +29,24 @@ def _validate_scale(scale: Dict[str, float]) -> Optional[str]:
     return None
 
 
+
+def handle_actor_selection(params: Dict[str, Any]) -> Dict[str, Any]:
+    """Return the currently selected level actors and their transforms."""
+    try:
+        import unreal
+
+        actors = unreal.EditorLevelLibrary.get_selected_level_actors()
+        return {
+            "success": True,
+            "data": {
+                "count": len(actors),
+                "actors": [actor_to_dict(actor) for actor in actors],
+            },
+        }
+    except Exception as e:
+        return {"success": False, "data": {}, "error": str(e)}
+
+
 @transactional("Spawn Actor")
 def handle_actor_spawn(params: Dict[str, Any]) -> Dict[str, Any]:
     """Spawn an actor from an asset path.

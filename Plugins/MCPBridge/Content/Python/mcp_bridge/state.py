@@ -9,7 +9,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 
 HISTORY_LIMIT = 50
-DEFAULT_HOST = "localhost"
+DEFAULT_HOST = "127.0.0.1"
 DEFAULT_PORT = 8080
 
 DEFAULT_SAFETY: Dict[str, bool] = {

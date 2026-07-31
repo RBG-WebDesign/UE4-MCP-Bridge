@@ -21,6 +21,15 @@ const RotationSchema = z.object({
 export function createActorTools(client: UnrealClient): ToolDefinition[] {
   return [
     {
+      name: "actor_selection",
+      description: "Return the currently selected level actors and their world transforms.",
+      inputSchema: z.object({}),
+      handler: async () => {
+        const result = await client.sendCommand("actor_selection", {});
+        return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
+      },
+    },
+    {
       name: "actor_spawn",
       description: "Spawn an actor from an asset path at a given location/rotation/scale. Returns validation results by default.",
       inputSchema: z.object({

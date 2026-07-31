@@ -472,7 +472,7 @@ def handle_restart_listener(params: Dict[str, Any]) -> Dict[str, Any]:
     try:
         import unreal
 
-        host = params.get("host", "localhost")
+        host = params.get("host", "127.0.0.1")
         port = params.get("port", 8080)
         do_reload = bool(params.get("reload", False))
 

@@ -68,6 +68,24 @@ export const destructiveIdempotent: ToolAnnotations = {
 };
 
 export const toolAnnotations: Record<string, ToolAnnotations> = {
+  // --- PuerTS native named-pipe lane ---------------------------------------
+  puerts_diagnostic: readOnly,
+  puerts_find_assets: readOnly,
+  puerts_find_actors: readOnly,
+  puerts_read_property: readOnly,
+  puerts_get_logs: readOnly,
+  puerts_physics_observe: readOnly,
+  puerts_viewport_screenshot: mutatingIdempotent,
+  puerts_set_property: mutatingIdempotent,
+  puerts_call_function: mutating,
+  puerts_spawn_actor: mutating,
+  puerts_sky_shader_create: mutating,
+  puerts_physics_build: mutating,
+  puerts_pie_start: mutatingIdempotent,
+  puerts_pie_stop: mutatingIdempotent,
+  puerts_delete_actor: destructiveIdempotent,
+  puerts_save: destructive,
+  puerts_undo: destructive,
   // --- Performance analysis and optimization -------------------------------
   // Audits and catalogs are pure reads. Captures drive the viewport and write
   // screenshots or reports under Saved/, so they are mutating-but-convergent
@@ -119,6 +137,7 @@ export const toolAnnotations: Record<string, ToolAnnotations> = {
   asset_info: readOnly,
   asset_list: readOnly,
   asset_load_diagnostics: readOnly,
+  actor_selection: readOnly,
   blueprint_document: readOnly,
   blueprint_info: readOnly,
   blueprint_inspect: readOnly,
