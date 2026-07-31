@@ -1,0 +1,41 @@
+{
+  "session_date": "2026-07-31",
+  "status": "success",
+  "goal": "P0: Prove installation in a clean Unreal Engine 4.27 project",
+  "context": "Fourth and final P0 of the 2026-07-31 working session. Branch bridge/native-consolidation-2026-07-31.",
+  "test_target": {
+    "path": "D:/Unreal Projects/BridgeInstallTest",
+    "origin": "Minimal UE4.27 C++ project written from scratch this session: uproject, game and editor Target.cs, one runtime module. Never had Python, EditorScriptingUtilities, or any bridge component before this run."
+  },
+  "steps_proven": [
+    "Scripts/install-mcp-bridge.ps1 copied MCPBridge and the pinned Puerts bundle, wrote the [MCPPuerTSBridge] pipe config, ran npm build (including the puerts JS staging step), and finished with the pin check green",
+    "UnrealBuildTool compiled BridgeInstallTestEditor Win64 Development: 78 actions, 137 seconds, zero errors, all five MCPBridge modules plus PuertsEditor and JsEnv",
+    "Editor started via Scripts/start-ue4-project.ps1; project-hashed pipe UE427PuerTSMCP_BridgeInstallTest_eb10ef4f appeared with no manual suffix",
+    "Plugin wrote the bearer token to Saved/MCPPuerTSBridge/token.txt on first boot",
+    "npm run smoke:puerts against the new project passed the consolidated milestone: find_actors, read_property, set_property, save, undo, read-back, save"
+  ],
+  "defect_found_and_fixed": {
+    "symptom": "Installer crashed with 'property Count cannot be found' on the clean project",
+    "cause": "PowerShell 5.1 binds an empty array argument to a [string[]] parameter as null; strict mode rejects null.Count. Triggered only when the target has no DefaultEngine.ini, which every truly clean project lacks.",
+    "fix": "Null guard in Set-ManagedIniSection, commit 950d611"
+  },
+  "python_finding": "PythonScriptPlugin mounts even in this blank project because stock Niagara mounts and force-enables it. Confirms the Python presence is engine-default behavior on this build and not caused by the bridge. The bridge descriptor is Python-free and the milestone ran with no Python involvement.",
+  "evidence": {
+    "build_log": "session background task output, 78/78 actions, 'Total execution time: 136.85 seconds'",
+    "editor_log": "D:/Unreal Projects/BridgeInstallTest/Saved/Logs/BridgeInstallTest.log ('MCP PuerTS named pipe ready with 17 approved tools')",
+    "smoke_output": "'Consolidated UE4.27 PuerTS milestone passed.'"
+  },
+  "session_p0_summary": {
+    "pin_puerts": "done, enforced",
+    "generated_artifact_policy": "done, enforced",
+    "python_free_descriptor": "done, proven live",
+    "clean_install_proof": "done, milestone passed",
+    "bonus": [
+      "ue.d.ts DeclarationGenerator provenance resolved with version-stamped snapshot",
+      "189-tool inventory frozen with migration policy",
+      "installer null-array crash fixed",
+      "viewport_screenshot path-matching defect found and flagged"
+    ]
+  },
+  "recommended_next_goal": "P1: Wrap slice - route the 12 hybrid_candidate legacy tool names to their native equivalents behind a compatibility flag, with equivalence tests, proving the router model for the remaining migration"
+}

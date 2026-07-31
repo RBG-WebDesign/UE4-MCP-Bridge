@@ -345,7 +345,7 @@ Current risks: global serial command queue, incomplete serializer, broad asset s
 |---|---|---|---|---|
 | Native named pipe | Working prototype | live diagnostic/tool calls | Win64 only; ACL unverified | security test/release config |
 | First MCP milestone | Tested successfully | list, property edit, save, JSON, undo | no committed editor transcript | automate result fixture |
-| C++ native module | Compiled/loaded | UE4.27 editor build passed | no fresh final install proof | install to new disposable project |
+| C++ native module | Compiled/loaded | UE4.27 editor build passed; fresh install proven 2026-07-31 in disposable project D:\Unreal Projects\BridgeInstallTest (all five modules plus JsEnv compiled, milestone passed) | none for install proof | keep the disposable project for regression runs |
 | TS registry | Built/unit-tested | 17 tools, test passed | docs corrected to 17 on 2026-07-31 | none |
 | PuerTS pin | Verified 2026-07-31 | full-tree diff vs upstream tag; `Plugins/Puerts.lock.json`; enforced in verify and installer | uplugin VersionName stale upstream | none |
 | Actor/property | Partially tested | core path successful | structs/arrays serialize as `{}` | type coverage/tests |
@@ -451,7 +451,7 @@ Open questions: exact PuerTS revision and license/distribution status; whether P
 | P0 | Review/commit working tree | recoverable source | code review | Medium | native code/runtime/tests committed |
 | P0 | Correct docs/counts | no false claims | registry | Low | docs match 17 tools and actual bundle |
 | P0 | Native-only dependencies | DONE 2026-07-31 for the bridge: descriptor Python-free, proven by live restart with project-level Python disabled. Engine-side Niagara still pulls PythonScriptPlugin in any 4.27 project | descriptor decision | Medium | clean project opens with MCPBridge+PuerTS only |
-| P0 | Fresh-install smoke | installer proof | pinned bundle | Medium | new project compiles and passes milestone |
+| P0 | Fresh-install smoke | DONE 2026-07-31: minimal C++ project created from scratch, installer ran (after fixing a null-array crash on missing DefaultEngine.ini), 78 build actions compiled in 137 s, editor started, project-hashed pipe came up with no manual suffix, and the consolidated PuerTS milestone passed live | pinned bundle | Medium | new project compiles and passes milestone |
 
 ### Reusable plugin packaging
 
