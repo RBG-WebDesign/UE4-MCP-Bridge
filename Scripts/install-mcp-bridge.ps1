@@ -146,6 +146,11 @@ function Set-ManagedIniSection {
         [string[]]$RequiredLines
     )
 
+    # A clean project has no DefaultEngine.ini yet. PowerShell 5.1 binds an
+    # empty array argument to an array parameter as $null, and strict mode
+    # rejects $null.Count.
+    if ($null -eq $Lines) { $Lines = @() }
+
     $sectionStart = -1
     for ($i = 0; $i -lt $Lines.Count; $i++) {
         if ($Lines[$i].Trim() -eq $SectionName) {
