@@ -50,7 +50,7 @@ The local PuerTS bundle lives at `Plugins/Puerts`. It is ignored by Git because 
 | `Plugins/MCPBridge/Source/MCPBridgePuerTS/` | Native safety boundary, transactions, approved UE4.27 operations |
 | `Plugins/MCPBridge/Content/JavaScript/` | Generated, not tracked: tsc output from `puerts-runtime` plus the `puerts/` support subtree staged from the pinned bundle by `Scripts/stage-puerts-runtime.mjs`. `npm run build` produces all of it. |
 | `puerts-runtime/src/` | TypeScript source and tool registry |
-| `puerts-runtime/typing/ue/ue.d.ts` | Generated declarations for the reflected Unreal API |
+| `puerts-runtime/typing/ue/ue.d.ts` | Generated declarations for the reflected Unreal API. Produced by the PuerTS editor toolbar button (DeclarationGenerator); regeneration steps and version stamp in `puerts-runtime/typing/ue/PROVENANCE.md` |
 | `mcp-server/src/puerts-client.ts` | Authenticated named-pipe client used by the existing MCP server |
 | `mcp-server/src/tools/puerts.ts` | MCP schemas for the PuerTS tools |
 

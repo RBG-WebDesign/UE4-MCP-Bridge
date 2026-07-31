@@ -124,7 +124,7 @@ Use TypeScript for structured orchestration, schema validation, approved reflect
 
 ### Limits
 
-- `puerts-runtime/typing/ue/ue.d.ts` is approximately 120,042 lines, but the exact generator command and source revision are Unknown. PuerTS has a `DeclarationGenerator` module; regenerate with a documented command and version stamp.
+- `puerts-runtime/typing/ue/ue.d.ts` provenance RESOLVED 2026-07-31: it is the output of the PuerTS editor toolbar button (DeclarationGenerator), regenerated live from the test project. The snapshot now matches the native-only default (Python and EditorScriptingUtilities disabled, 118,976 lines) and carries a version stamp in `puerts-runtime/typing/ue/PROVENANCE.md`. The declared API depends on the enabled plugins of the generating project.
 - The reflection serializer returned `{}` for some structs and arrays in live inspection, including material overrides and `RelativeScale3D`.
 - The native catalog is allowlisted, not general reflection RPC.
 - JavaScript filesystem/module guards are defense in depth, not an OS sandbox.
