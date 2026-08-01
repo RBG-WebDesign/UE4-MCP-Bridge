@@ -6114,7 +6114,7 @@
       "name": "puerts_behavior_tree_build",
       "module": "mcp-server/src/tools/puerts.ts",
       "backend": "native_pipe",
-      "migration_state": "native_pending_live",
+      "migration_state": "native_live_partial",
       "target_replacement": null,
       "description": "[PRIMARY NATIVE IPC] Create or update a UE4.27 BehaviorTree asset with its Blackboard from one JSON spec, in one transaction: blackboard keys, blackboard assignment, and the full node graph, then compile-free save (Behavior Trees have no compile step). The graph replaces the tree's root only when every node builds, so a failed spec leaves an existing tree untouched, and a rerun of the same spec converges. Node structure: {id, type, name?, params?, children?, decorators?, services?}. Composites: Selector, Sequence, SimpleParallel. Tasks: MoveTo, Wait, WaitBlackboardTime, RotateToFaceBBEntry, PlayAnimation, MakeNoise, RunBehavior, PlaySound, FinishWithResult, SetTagCooldown. Decorators: Blackboard, ForceSuccess, Loop, TimeLimit, Cooldown, CompareBBEntries, IsAtLocation, DoesPathExist, TagCooldown, ConditionalLoop, KeepInCone, IsBBEntryOfClass. Services: DefaultFocus, RunEQS. Unknown types are rejected before the asset is touched. params values are strings (\"5.0\", \"TargetActor\"); a params key naming a blackboard key is validated against the keys that exist. The response reports the keys actually on the blackboard asset, read back rather than echoed.",
       "schema": {
@@ -6146,12 +6146,13 @@
       "cpp_entry_point": "BuildBehaviorTreeFromJSON",
       "python_handler": null,
       "live_evidence": [
-        "Scripts/behavior-tree-acceptance.mjs"
+        "Scripts/behavior-tree-acceptance.mjs",
+        "docs/evidence/behavior-tree-acceptance-2026-08-01.txt"
       ],
       "migration_risk": "low",
       "capability_loss_risk": "low",
-      "notes": "acceptance exists but has not run against a live editor (blocked on editor-remnant reboot)",
-      "verification": "pending_live"
+      "notes": "live acceptance passed 2026-08-01 (22 checks: assets on disk and in registry, keys with types read back, blackboard reference via independent reflection read, rerun convergence, failed build saves nothing, restart reload). live_partial, not live_verified: the node graph is still the builder's own report until a Behavior Tree inspector exists",
+      "verification": "live_partial"
     },
     {
       "name": "puerts_blueprint_build",

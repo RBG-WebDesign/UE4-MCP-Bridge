@@ -12,8 +12,7 @@
     "untested": 122,
     "mock_only": 60,
     "live_verified": 14,
-    "pending_live": 1,
-    "live_partial": 8
+    "live_partial": 9
   },
   "by_migration_action": {
     "ALIAS": 29,

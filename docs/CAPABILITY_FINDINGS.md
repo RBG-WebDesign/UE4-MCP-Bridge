@@ -88,6 +88,31 @@ maintains this file; Phase L consumes it.
    assertion now fails loudly on any silent drop. Both fixes are builder-side
    graph mutation work and are deliberately not part of the inspector change.
 
+0c. **Editor exit persists failed-build transients and hangs on the
+   unattended source-control flow** (found 2026-08-01 by the BT live
+   acceptance). A failed `behavior_tree_build` on a fresh path correctly
+   saves nothing (proven by the acceptance's filesystem check), but the
+   in-memory dirty transient survives, and closing the editor auto-saves it
+   to disk AND opens it for `p4 add` - `BT_AcceptanceBadType(.uasset,_BB)`
+   hit disk at 16:24:12, seconds after the close request. Every probe asset
+   from earlier sessions (`BP_CastWireProbe`, `BP_GateProbe`, ...) shows the
+   same saved-plus-opened-for-add pattern, so "unsaved probes vanish on
+   restart" was wrong. The unattended save/add flow on exit is also the
+   leading explanation for the reproducible teardown hangs (window closes,
+   process becomes unkillable even by taskkill, survives until reboot).
+   Recovery without reboot: bump `[MCPPuerTSBridge] PipeName` and relaunch -
+   pipe.txt discovery routes clients to the new editor automatically. Real
+   fixes are builder-side (purge the transient package when a create-path
+   build fails) and editor-side (suppress source-control modals for
+   unattended runs); both are out of this session's scope and tracked here.
+
+0d. **BT editor-graph nodes have no NodeGuid** (found 2026-08-01 on reload).
+   Loading a built Behavior Tree logs "missing NodeGuid, this can cause
+   deterministic cooking issues please resave package" for every editor graph
+   node FBTEditorGraphSync created. Builder-side fix: assign
+   `FGuid::NewGuid()` during sync, then resave. Cosmetic in the editor,
+   real for deterministic cooking.
+
 0b. **MultiGate ignores num_outputs** (found 2026-08-01 by the same
    acceptance). `{"type": "MultiGate", "params": {"num_outputs": 4}}` builds a
    MultiGate with the default 2 exec outputs and no warning; the identical key
@@ -431,13 +456,14 @@ maintains this file; Phase L consumes it.
 ## Pending capabilities (tracked, deliberately not started)
 
 - **Behavior Tree inspection** (tracked 2026-08-01). `puerts_behavior_tree_build`
-  landed compiled and unit-tested (`native_pending_live` in the inventory), but
-  its live acceptance can only verify the node graph through the builder's own
-  report: there is no BT equivalent of `graph_inspect`. Until a Behavior Tree
-  reader exists, a full live pass classifies the tool `native_live_partial`,
-  never `native`. The reader is its own capability, same pattern as Blueprint
-  inspection: re-front the runtime tree (composites, tasks, decorators,
-  services, key bindings) as canonical JSON, read-only, no transaction.
+  passed its live acceptance on 2026-08-01 (`native_live_partial` in the
+  inventory, evidence in `docs/evidence/`), but the acceptance can only verify
+  the node graph through the builder's own report: there is no BT equivalent
+  of `graph_inspect`. Until a Behavior Tree reader exists the tool stays
+  `native_live_partial`, never `native`. The reader is its own capability,
+  same pattern as Blueprint inspection: re-front the runtime tree (composites,
+  tasks, decorators, services, key bindings) as canonical JSON, read-only, no
+  transaction.
 
 ## Unknown (tracked, not explained)
 

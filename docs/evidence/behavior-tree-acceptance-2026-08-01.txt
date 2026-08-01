@@ -1,0 +1,75 @@
+[Unreal MCP Bridge] Server started with 23 tools
+[Unreal MCP Bridge] Native IPC mode: PuerTS only
+[Unreal MCP Bridge] PuerTS pipe: \\.\pipe\UE427PuerTSMCP_UE427PuerTSMCP_81d778e7_skyshader5
+[Unreal MCP Bridge] Tools: engine_source_search, engine_source_read, puerts_diagnostic, puerts_find_assets, puerts_find_actors, puerts_read_property, puerts_set_property, puerts_call_function, puerts_spawn_actor, puerts_delete_actor, puerts_sky_shader_create, puerts_blueprint_build, puerts_widget_build, puerts_graph_inspect, puerts_behavior_tree_build, puerts_physics_build, puerts_physics_observe, puerts_viewport_screenshot, puerts_save, puerts_pie_start, puerts_pie_stop, puerts_get_logs, puerts_undo
+  PASS  the catalog is native-only (23 tools, no legacy or HTTP names)
+  PASS  patrol tree built (no errors)
+  PASS  the response names the native transport
+  PASS  the build ran in a transaction
+  PASS  the builder reports a root and a save
+  PASS  both changed assets are reported
+  PASS  both key names read back from the blackboard asset
+  PASS  both key types read back from the blackboard asset
+  PASS  the BehaviorTree asset exists at its expected path (asset registry)
+  PASS  the Blackboard asset exists at its expected path (asset registry)
+  PASS  the tree asset has the BehaviorTree class
+  PASS  the blackboard asset has the BlackboardData class
+  PASS  both .uasset files exist on disk
+  PASS  the tree references its blackboard (independent reflection read)
+  PASS  the same spec reruns cleanly
+  PASS  a rerun updates instead of duplicating assets
+  PASS  the rerun tree still has its root
+  PASS  a rerun adds no duplicate blackboard keys
+  PASS  an unknown node type is rejected
+  PASS  the failed build reports no save
+  PASS  the failed build wrote nothing to disk (filesystem check)
+  PASS  the editor log has no Behavior Tree errors (clean)
+
+behavior_tree_build acceptance passed: native_live_partial.
+The node graph itself is still the builder's own report; a Behavior Tree
+inspector (the graph_inspect pattern) is the tracked follow-on capability.
+
+=== Unreal Editor log excerpt (puerts_get_logs, same session) ===
+[Puerts] MCP PuerTS named pipe ready with 21 approved tools
+[LogTemp] [BehaviorTreeBuilder] BuildBehaviorTreeFromJSON called
+[LogTemp] [BTEditorGraphSync] synced editor graph for 'BT_AcceptancePatrol'
+[LogTemp] [BTBuilder] built BT 'BT_AcceptancePatrol' with 8 nodes
+[LogSavePackage] Moving '...BT_AcceptancePatrol<tmp>' to '...Content/MCPGenerated/BT_AcceptancePatrol.uasset'
+[LogSavePackage] Moving '...BT_AcceptancePatrol_BB<tmp>' to '...Content/MCPGenerated/BT_AcceptancePatrol_BB.uasset'
+[LogContentValidation] Validating BehaviorTree /Game/MCPGenerated/BT_AcceptancePatrol.BT_AcceptancePatrol
+[LogContentValidation] Validating BlackboardData /Game/MCPGenerated/BT_AcceptancePatrol_BB.BT_AcceptancePatrol_BB
+(rerun) [LogTemp] [BTBuilder] built BT 'BT_AcceptancePatrol' with 8 nodes  <- same count, converged
+(bad type) [LogTemp] [BehaviorTreeBuilder] BuildBehaviorTreeFromJSON called
+(bad type) only p4 fstat follows; no LogSavePackage line for BT_AcceptanceBadType
+Editor: PID 23272, started 2026-08-01 16:21:57, pipe \.\pipe\UE427PuerTSMCP_UE427PuerTSMCP_81d778e7_skyshader5
+Diagnostic: named_pipe, puerts_node_v8_in_process, game thread, 21 approved tools
+
+=== Restart and reload verification (editor PID 14060, pipe _skyshader6) ===
+- First editor (PID 23272) hung on close, unkillable (Stop-Process -Force and
+  taskkill both ineffective; "no running instance" while still listed). Known
+  remnant pattern; recovered WITHOUT reboot by bumping [MCPPuerTSBridge]
+  PipeName and relaunching: pipe.txt discovery routed the client to the new
+  editor automatically.
+- puerts_diagnostic on the new editor: named_pipe, _skyshader6, game thread.
+- puerts_find_assets: BT_AcceptancePatrol (BehaviorTree) and
+  BT_AcceptancePatrol_BB (BlackboardData) listed from disk.
+- Cold-load proof: graph_inspect's typed rejection ("is a BehaviorTree, not a
+  Blueprint") required a successful GetAsset() load of the reloaded package.
+- puerts_read_property BlackboardAsset on the reloaded tree:
+  "BlackboardData'/Game/MCPGenerated/BT_AcceptancePatrol_BB.BT_AcceptancePatrol_BB'"
+
+=== Failed-probe persistence discovery (defect, recorded in findings) ===
+BT_AcceptanceBadType(.uasset,_BB.uasset) reached disk at 16:24:12, seconds
+after the close request, although the failed build correctly saved nothing
+(acceptance disk check passed at 16:23). The editor exit path auto-saved the
+dirty transient packages and opened them for p4 add; every earlier probe
+asset (BP_CastWireProbe, BP_GateProbe, ...) shows the same pattern. The
+unattended source-control add/save flow on exit is the leading explanation
+for the reproducible teardown hangs. Cleanup: p4 revert + file deletion of
+the two BadType files; the intentional patrol fixtures remain (opened for
+add, left for human decision).
+
+=== Load-time warning (defect, recorded in findings) ===
+[LogBlueprint] "missing NodeGuid ... please resave package" on all 7 synced
+BehaviorTreeGraph editor nodes: FBTEditorGraphSync creates editor-graph nodes
+without NodeGuids.
