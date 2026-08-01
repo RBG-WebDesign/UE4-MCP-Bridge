@@ -265,6 +265,35 @@ Before writing a UE C++ call you have not verified in the current conversation,
 look it up. When `unreal-api` reports "not found", fall back to
 `engine_source_search` with a `module` filter to keep the scan fast.
 
+## Capability-first development
+
+A reference feature is an acceptance test for the bridge, not the product. It
+may expose a platform gap; the gap must be fixed before the feature expands.
+
+For every feature task:
+
+1. Identify the reusable bridge capability the feature requires.
+2. Implement and test that capability separately.
+3. Prove it on a small feature fixture.
+4. Return to the full feature only after the capability passes.
+5. Never solve a bridge limitation with a feature-specific generator or
+   workaround. A schema limit is something to remove, not bend a feature
+   around.
+
+One capability per session. A session that lands one capability with evidence
+beats a session that half-lands three.
+
+Debugging discipline: list at most three likely causes, add one diagnostic
+that distinguishes them, run one test, remove disproven causes, make the
+smallest fix. Do not stack hypotheses before measuring.
+
+Separate gameplay assets from test-driver assets. Validation sequencing never
+lives inside a production graph.
+
+Any project-state query discrepancy (wrong actor count, empty result that
+should not be) becomes a tracked Unknown in docs/CAPABILITY_FINDINGS.md
+immediately. A tool that controls Unreal must trust its state queries.
+
 ## Architecture playbooks (`docs/playbooks/`)
 
 Before any structural engine or blueprint generation task, read
