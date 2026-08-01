@@ -44,8 +44,25 @@ async function readToken(): Promise<string> {
   return token;
 }
 
+/** The pipe to connect to, resolved the same way the token is: an explicit
+    MCP_PUERTS_PIPE wins, otherwise the pipe name the editor advertised beside
+    its token (so a [MCPPuerTSBridge] PipeName override in the project needs no
+    matching client config), otherwise the plugin's compiled-in default. */
+export async function resolvePipeName(): Promise<string> {
+  const configured = process.env.MCP_PUERTS_PIPE?.trim();
+  if (configured) return configured;
+  const projectRoot = process.env.MCP_UNREAL_PROJECT_ROOT ?? process.cwd();
+  try {
+    const advertised =
+      (await readFile(join(projectRoot, "Saved", "MCPPuerTSBridge", "pipe.txt"), "utf8")).trim();
+    if (advertised) return advertised;
+  } catch {
+    // No advertised pipe; the editor may predate pipe.txt. Use the default.
+  }
+  return "\\\\.\\pipe\\UE427PuerTSMCP";
+}
+
 export class PuerTSClient {
-  readonly pipeName = process.env.MCP_PUERTS_PIPE ?? "\\\\.\\pipe\\UE427PuerTSMCP";
 
   /** Send one command. `timeoutMs` is the budget for the whole round trip:
       the editor runs these on the game thread, so a command that authors and
@@ -59,8 +76,9 @@ export class PuerTSClient {
     timeoutMs = 7000,
   ): Promise<PuerTSResponse> {
     const token = await readToken();
+    const pipeName = await resolvePipeName();
     return new Promise<PuerTSResponse>((resolve, reject) => {
-      const socket = createConnection(this.pipeName);
+      const socket = createConnection(pipeName);
       socket.setEncoding("utf8");
       let buffer = "";
       let settled = false;

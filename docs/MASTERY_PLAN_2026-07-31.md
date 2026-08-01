@@ -85,8 +85,31 @@ project until something breaks; every break loops back to Phase L:
    spawned, verified in PIE.
 3. Gameplay slice: trigger volume + door + sound + HUD widget, PIE-verified
    via pie_agent-style observation or logs.
-4. Stamina/sprint feature per the standing /goal (the full pipeline reference
-   feature) once the above pass.
+4. Stamina/sprint feature per the standing /goal once the above pass. What it
+   produced is **a verified SaveGame persistence path**, not a complete feature
+   pipeline: a float crossed a session boundary through a generated SaveGame
+   subclass. Read it as an acceptance test for the plugin, which is what it is.
+
+## Working rule: capability first, feature second
+
+Set by the user on 2026-08-01, after reviewing the stamina work. It overrides
+the phase order above wherever the two disagree.
+
+The stamina system is **an acceptance test for the plugin, not the product**.
+Feature construction is paused until the plugin supports safe graph inspection
+and idempotent graph patching. For every feature task from here:
+
+1. Name the reusable plugin capability the feature needs.
+2. Implement and test that capability on its own.
+3. Prove it against a small fixture.
+4. Only then return to the feature.
+5. Never solve a plugin limitation with a feature-specific generator or a
+   workaround in the feature. Improve the primitive.
+
+Rule 5 is the one the stamina chunk broke: extending that Blueprint meant
+regenerating its whole graph from a 593-line one-off script, because the
+builder had no way to patch a graph. That script is the shape of a workaround,
+and the answer is limitation 32, not a better script.
 
 ## Cadence and reporting
 
@@ -253,3 +276,33 @@ project until something breaks; every break loops back to Phase L:
       `diagnostic` answered `actor_count_total 0` once for a 12-actor level.
       Evidence in `reports/session-2026-08-02-stamina-save.json` and
       `reports/session-2026-08-02-f4-stamina.json`; level back to 12 actors.
+      **Read the save/load result as a verified SaveGame persistence path, not
+      as a complete feature pipeline.**
+- [x] Capability: read-only Blueprint graph inspection (`puerts_graph_inspect`).
+      The first capability delivered under the capability-first rule above, and
+      the first half of limitation 32: you cannot patch a graph you cannot
+      read. `blueprint_build` in reverse - parent class, components, variables,
+      interfaces, functions, the graph list, and one graph as nodes carrying
+      their builder node type and params, plus connections. Read-only and
+      checkably so: no transaction, no transaction id, no compile, no save, and
+      the package's own dirty flag reported before and after the read.
+      Mostly a re-front, again: `UBlueprintInspectorLibrary` and its readers
+      were already compiled into `MCPBridgeGraphBuilder` with no caller,
+      exactly like the widget builder. What is new is `GetNodeTypeForNode`, the
+      inverse of the builder's own dispatch chain, kept in the same file so the
+      two cannot drift.
+      Acceptance: `BP_ProbeConn` read twice, 3 nodes / 2 connections / 14 pins,
+      the two payloads **byte-identical** at 14,049 bytes;
+      `BP_StaminaCharacter` read twice, **198 nodes / 252 connections** against
+      the build report's own 198 / 252, 783 pins, byte-identical at 847,143
+      bytes; zero unmapped node types and zero lossy pin defaults on both.
+      Zero mutations: `LogSavePackage` 0, Blueprint compiles 0,
+      `BuildBlueprintFromJSON` 0 and transactions 0 across the whole editor
+      session, and every fixture `.uasset` unchanged by SHA-256.
+      In the same run the tracked `actor_count_total 0` Unknown reproduced on
+      the first call after an editor restart, and was resolved. Details in
+      docs/CAPABILITY_FINDINGS.md; evidence in
+      `reports/session-2026-08-02-graph-inspect.json`.
+      Deferred deliberately, by the user's instruction: authored node identity,
+      graph upsert, section ownership, the 200-node cap, the test map, and any
+      further stamina work.

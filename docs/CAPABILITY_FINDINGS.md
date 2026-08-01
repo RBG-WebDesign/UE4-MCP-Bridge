@@ -63,7 +63,12 @@ maintains this file; Phase L consumes it.
 | DeterminesOutputType from a pin default | The same root cause, the other half. A pin default is now announced with `PinDefaultValueChanged`, which is where `UK2Node_CallFunction::PinDefaultValueChanged` -> `FDynamicOutputHelper::ConformOutputType` (`K2Node_CallFunction.cpp:1239`) retypes the output. `GameplayStatics.CreateSaveGameObject` carries `meta=(DeterminesOutputType="SaveGameClass")` (`GameplayStatics.h:976`) and now hands back the requested subclass instead of a bare `USaveGame*` (2026-08-02) |
 | The `AsResult` cast pin role | A dynamic cast names its result pin `"As"` plus the target type's **display** name (`K2Node_DynamicCast.cpp:63`), which for a Blueprint generated class is neither the asset name nor anything a caller can compute from its own spec. The connection resolver takes the role `AsResult` and asks the node through `GetCastResultPin()`. Three connections in the F4 graph use it (2026-08-02) |
 | Target-scoped variable access | `VariableGet` and `VariableSet` take `scope "target"` with `target_class`; the node's member reference becomes `SetExternalMember` and it grows a `self` input pin (`UK2Node_Variable::CreatePinForSelf`, `K2Node_Variable.cpp:112`) for the object to read or write. The F4 save path wires the cast result into `VariableSet SavedStamina` on `BP_StaminaSave_C`, and the load path reads it back with `VariableGet`. A `target_class` that names no such property is refused by the factory before the node exists (2026-08-02) |
-| Cross-session save and load through generated Blueprints | Limitation 24 closed, which was the last unmet part of Phase F4. Two PIE sessions, one slot, one value. Session one: `MCP_SAVE_PRECHECK slot_exists_at_boot=false`, `[LogStreaming] Failed to read file '.../Saved/SaveGames/MCPStamina.sav' error.`, `MCP_LOAD found=false restored=none`, then `MCP_SAVE object_valid=true wrote=true stamina_at_save=16.133768`. On disk afterwards: `Saved/SaveGames/MCPStamina.sav`, 1325 bytes. Session two, fresh state: `MCP_SAVE_PRECHECK slot_exists_at_boot=true`, `MCP_STAM t=1.009965 stamina=100.0` (the variable's own default), then `MCP_LOAD found=true restored=16.133768 stamina_now=16.133768` - the exact value the previous session wrote (2026-08-02, Phase F4) |
+| Cross-session save and load through generated Blueprints | **A verified SaveGame persistence path, not a complete feature pipeline.** Limitation 24 closed, which was the last unmet part of Phase F4. Two PIE sessions, one slot, one value. Session one: `MCP_SAVE_PRECHECK slot_exists_at_boot=false`, `[LogStreaming] Failed to read file '.../Saved/SaveGames/MCPStamina.sav' error.`, `MCP_LOAD found=false restored=none`, then `MCP_SAVE object_valid=true wrote=true stamina_at_save=16.133768`. On disk afterwards: `Saved/SaveGames/MCPStamina.sav`, 1325 bytes. Session two, fresh state: `MCP_SAVE_PRECHECK slot_exists_at_boot=true`, `MCP_STAM t=1.009965 stamina=100.0` (the variable's own default), then `MCP_LOAD found=true restored=16.133768 stamina_now=16.133768` - the exact value the previous session wrote (2026-08-02, Phase F4) |
+| Reading a Blueprint back as JSON | `puerts_graph_inspect` on `/Game/MCPGenerated/BP_ProbeConn` returns `parent_class /Script/Engine.Actor`, `compile_status "UpToDate"`, one component (`DefaultSceneRoot`, `/Script/Engine.SceneComponent`, `is_root true`), two graphs (`EventGraph` Ubergraph, `UserConstructionScript` Function), and an `EventGraph` of **3 nodes and 2 connections** - the same 3 and 2 the build that made it reported. Node types come back as the builder's own words: `BeginPlay`, `CallFunction` (`{class: /Script/Engine.KismetSystemLibrary, function: IsValid}`) and `PrintString`. Connections read `K2Node_Event_6.then -> K2Node_CallFunction_7.execute` and `K2Node_CallFunction_6.ReturnValue -> K2Node_CallFunction_7.bPrintToScreen`, each also carrying both endpoint NodeGuids and PinIds (2026-08-01) |
+| Inspection is deterministic, byte for byte | Two reads of `BP_ProbeConn` with `include_pins`, nothing between them: **byte-identical payloads, 14,049 bytes**, SHA-256 `eebd873da251f489d6aa82f591b38020d1d1a1121880bec7ef0685ea5613dfd2` twice, across two separate server processes. Two reads of `BP_StaminaCharacter`: byte-identical at **847,143 bytes**, SHA-256 `29f1a9239811955bb39c1c54976a75b957fb685a23ab1f32c7c6f46ffb14672c`. No exclusion list was needed. This is not luck: every array is sorted by a stable identity (nodes by NodeGuid, pins by direction then PinId, connections by their four endpoint identities, components/variables/functions/graphs by name) and no `TMap` is iterated to produce output anywhere on the path (2026-08-01) |
+| The 198-node graph reads back whole | `puerts_graph_inspect` on `/Game/MCPGenerated/BP_StaminaCharacter` reports **198 nodes and 252 connections**, against `reports/session-2026-08-02-stamina-save.json`'s build report of "198 nodes, 252 of 252 connections made". 783 pins, 37 variables, 1 component, `parent_class /Script/Engine.Character`. `unmapped_nodes` is empty and `lossy_pin_defaults` is empty, so every node in the hardest graph the builder has produced maps back to a builder node type. The histogram: Operator 72, CallFunction 46, VariableGet 24, VariableSet 18, Branch 13, PrintString 12, CustomEvent 4, InputKey 3, Cast 2, Sequence 2, BeginPlay 1, Tick 1 (2026-08-01) |
+| Inspection does not write, and proves it | Six inspection calls in one editor session against two Blueprints. `package_dirty_before` and `package_dirty_after` were `false` on every call; `transaction_id` was `""` on every response and `changed_assets` empty. Across the whole editor log: `LogSavePackage` 0 lines, Blueprint compile 0 lines, `BuildBlueprintFromJSON` 0 lines, `MCP PuerTS: <tool>` transaction descriptions 0 lines, and 30 `LogBlueprintInspector` reader lines, which is exactly 6 calls times 5 readers and nothing else. `BP_ProbeConn.uasset`, `BP_ProbeDoor.uasset` and `BP_StaminaCharacter.uasset` all held their byte size, their mtime to the nanosecond and their SHA-256 across the run (2026-08-01) |
+| Limitation 32's variable accumulation, measured | The inspector put a number on it without touching anything: `BP_StaminaCharacter` carries **37 member variables** where the current spec declares 23. The extra 14 are the previous session's set, which a rerun cannot remove because the variable pass is additive. Recorded here because it is the first time the drift has been counted rather than described (2026-08-01) |
 | Property validate-before-mutate | Eight rejected specs against the unused path `/Game/MCPGenerated/BP_ProbeProps`, each naming component, property, and reason: unknown property name, unloadable asset path, asset of the wrong class, wrong class inside a material array (`element 0: ... is a StaticMesh, but the property holds a MaterialInterface`), a string where an array belongs, a string where a struct belongs, and an out-of-range or misspelled enumerator (`expects a EComponentMobility enumerator: Static=0, Stationary=1, Movable=2`). `find_assets` for that name returned `count 0` afterwards (2026-08-01) |
 
 ## Defects and limitations (Phase L queue)
@@ -375,6 +380,14 @@ maintains this file; Phase L consumes it.
     accumulates dead members while its graph cannot be patched. The next
     primitive is node upsert plus a declared-set variable pass; both are
     deliberately out of this chunk.
+    **Half open as of 2026-08-01.** The read half landed:
+    `puerts_graph_inspect` returns the whole graph, and it put a number on the
+    drift this entry described - `BP_StaminaCharacter` carries **37** member
+    variables where its current spec declares 23. The write half is untouched
+    and is the next capability. Its blocker is named in the Fixed section
+    above: a spec's `id` is not persisted on the node, so there is still
+    nothing to merge against. An authored node identity that survives save,
+    load and recompile is the prerequisite, not the upsert algorithm.
 33. **The 200-node cap in `blueprint_build`'s schema is a real ceiling for one
     feature.** The F4 graph is 198 nodes at 252 connections, and roughly a
     quarter of that is string composition: every logged value costs one
@@ -396,21 +409,109 @@ maintains this file; Phase L consumes it.
 
 ## Unknown (tracked, not explained)
 
-- **`puerts_diagnostic` reported `actor_count_total 0` once, in a level that
-  had 12 actors.** 2026-08-02, on the first call of a freshly spawned
-  `mcp-server/dist` child process, moments after the editor had finished
-  loading. The very next call in the same session, and every call after it,
-  reported 12; the session's own long-lived MCP server reported 12 throughout;
-  `find_actors` never returned an empty list. So the two candidate readings are
-  a real race between editor startup and the actor query, and a first-call path
-  that answers before the world is attached. Neither is confirmed and there is
-  no repro. It is recorded rather than shrugged off because a bridge that
-  answers "no actors" for a full level is indistinguishable, to a caller, from
-  an empty level - the same failure shape limitation 20 was closed for. Next
-  step when this is picked up: call `diagnostic` in a loop across an editor
-  start and record the first ten answers with timestamps.
+None open. The one entry that was here is resolved below.
+
+## Resolved Unknowns
+
+**`actor_count_total 0` for a full level is a startup race, not a bad
+first-call path** (was the tracked Unknown; reproduced and resolved
+2026-08-01).
+
+What was recorded: `puerts_diagnostic` answered `actor_count_total 0` once, in
+a level that had 12 actors, on the first call after an editor start, with no
+repro. Two candidate readings were written down - a real race between editor
+startup and the actor query, or a first-call code path that answers before the
+world is attached.
+
+It reproduced on the first `puerts_diagnostic` after the editor restart in this
+chunk, at no extra cost, and the follow-up call settled it:
+
+- first call: `actor_count_total 0`, `actor_count_measured 0`,
+  `json_snapshot_bytes 13`, `native_actor_query_ms 0.0215`,
+  `is_game_thread true`, `service_address 000001C4BFA1F380`
+- next call, same session, same service address:
+  `actor_count_total 12`, `json_snapshot_bytes 1158`,
+  `native_actor_query_ms 0.0141`, `is_game_thread true`
+
+**It is the race, and the second reading is refuted.** A first-call path that
+answered before the world was attached would have to be a different path, and
+there is only one: the same service address, the same query, on the game
+thread, in both calls, with the second answering correctly milliseconds later.
+The query genuinely ran and genuinely found nothing, because at that instant
+the editor world held no actors yet.
+
+The window is real and reachable: the bridge's named pipe is up and accepting
+authenticated commands before the map has finished loading. The editor log
+puts `MCP PuerTS named pipe ready with 20 approved tools` well before
+`[LogLoad] (Engine Initialization) Total time: 43.06 seconds`, and both of the
+calls above landed between them.
+
+Not fixed, because the fix is a design decision rather than a bug repair, and
+this chunk was scoped to inspection. The honest options, cheapest first: have
+`diagnostic` report a `world_ready` flag alongside the count so zero-with-no-
+world is distinguishable from zero-with-empty-level; or hold the pipe closed
+until the editor's initial map load completes, which trades a clear signal for
+a longer startup during which the bridge is simply absent. **The caller-facing
+lesson stands either way: a `0` from the first call after an editor start is
+not evidence of an empty level. Call twice.**
 
 ## Fixed
+
+**Read-only Blueprint graph inspection** (`puerts_graph_inspect`; landed
+2026-08-01). The inverse direction of `blueprint_build`, and the first half of
+limitation 32: a graph cannot be patched before it can be read. Patching itself
+is deliberately **not** in this change.
+
+Most of it was already written. `UBlueprintInspectorLibrary` and its readers -
+`ListSCSNodes`, `ListVariables`, `ListGraphs`, `ListFunctions`,
+`ListInterfaces`, plus `FBPGraphReader` and `FBPNodeSerializer` - have been
+compiled into `MCPBridgeGraphBuilder` all along with no caller, exactly as the
+widget builder was. **That is twice now.** Read the module before writing a
+subsystem for it.
+
+Four decisions:
+
+- **The reverse type map lives next to the forward one.**
+  `UBlueprintGraphBuilderLibrary::GetNodeTypeForNode` is the mirror of the
+  dispatch chain in `BuildBlueprintFromJSON`, in the same file, deliberately a
+  chain rather than a table: `UK2Node_CustomEvent` derives from
+  `UK2Node_Event` and `UK2Node_MultiGate` from `UK2Node_ExecutionSequence`, so
+  asking the base first reports both as their base and would rebuild the wrong
+  node. A mapping table in the command layer would have been a second place to
+  forget a node type; here, a type added to one side and not the other shows up
+  immediately as an inspected node whose `type` is null, listed under
+  `graph.unmapped_nodes` with the K2 class it could not name.
+- **Node identity is observed, and says so.** A node is addressed by its object
+  name and its `NodeGuid`. The `id` a build spec wrote is **not persisted
+  anywhere on the node**, so an inspected node cannot be matched back to the
+  spec line that made it. Synthesising a plausible-looking `id` would have
+  hidden exactly the gap that has to be closed next.
+- **Read-only is measured, not asserted.** The command is kept out of
+  `IsToolMutating`, so no transaction is opened and the response carries no
+  transaction id; nothing on the path calls `Modify`, `MarkPackageDirty` or a
+  compile; and the package's own dirty flag is read before and after the work
+  and returned as `package_dirty_before` / `package_dirty_after`. An annotation
+  is a promise, and this one is checkable by the caller.
+- **Every array is canonically ordered.** Unreal's array order is an
+  implementation detail that a reconstruct, a paste or a load can permute, so
+  nodes sort by `NodeGuid`, pins by direction then `PinId`, connections by
+  their four endpoint identities, and components, variables, functions and
+  graphs by name. JSON *object key* order is `FJsonObject`'s `TMap` and is not
+  canonical; a caller comparing runs byte for byte should sort keys first. In
+  practice both test payloads came back byte-identical without that step.
+
+Two gaps recorded rather than papered over. `MakeStruct`, `BreakStruct`,
+`SpawnActor`, `Select`, `Knot` and `FormatText` hold their configuration in
+their pins rather than in a `UPROPERTY`, so they report pin defaults and no
+routing params. And a struct pin default other than vector, rotator or linear
+color is reported as its raw pin text and named in `graph.lossy_pin_defaults`,
+because only those three are written in the comma form the reader can invert.
+Neither fired on any graph tested, including the 198-node one.
+
+Three fidelity holes in the pre-existing pin serializer were closed on the way:
+it reported `DefaultValue` alone, so every object-pin asset reference and every
+`FText` literal in a graph read back as empty, and there was no
+`AutogeneratedDefaultValue` to tell an authored default from the node's own.
 
 **A Blueprint no longer has to be an Actor** (was limitation 23; fixed
 2026-08-02, Phase L). `BuildBlueprintJson` dropped its own

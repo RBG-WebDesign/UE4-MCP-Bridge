@@ -1,0 +1,197 @@
+{
+  "session_date": "2026-08-01",
+  "status": "success",
+  "chunk": "read-only Blueprint graph inspection",
+  "goal": "Add puerts_graph_inspect: read an existing Blueprint back into machine-readable JSON, the inverse of blueprint_build. Read-only, deterministic, zero mutations.",
+
+  "scope_note": {
+    "dispatched_as": "platform-primitives: graph inspection, node identity, upsert, section ownership, the 200-node cap, a TestArena map, re-authored stamina, scratch-script conversion, and the tracked Unknown",
+    "narrowed_to": "item 1 only, by user directive mid-run. The stamina system is an acceptance test for the plugin, not the product; feature work is paused until the plugin supports safe graph inspection and idempotent graph patching.",
+    "not_started": [
+      "authored node identity",
+      "idempotent graph upsert",
+      "graph-section ownership",
+      "the 200-node schema cap",
+      "the TestArena functional-test map",
+      "re-authoring the stamina feature",
+      "converting the scratch scripts into committed integration tests"
+    ],
+    "tracked_unknown": "Run only if free. It was free: the diagnostic reproduced on the first call after the editor restart this chunk already required. Resolved, see below."
+  },
+
+  "what_landed": {
+    "tool": "puerts_graph_inspect -> native command graph_inspect",
+    "annotation": "readOnly",
+    "returns": "asset_path, object_path, package_name, generated_class_path, parent_class, is_actor, compile_status, package_dirty_before, package_dirty_after, components, variables, interfaces, functions, graphs, and one graph as {name, graph_guid, node_count, connection_count, nodes[], connections[], unmapped_nodes[], lossy_pin_defaults[]}",
+    "params": "asset_path (required, /Game or /Engine, package or object path), graph_name (optional, defaults to the event graph), include_pins (optional, default false)"
+  },
+
+  "it_was_mostly_a_re_front": {
+    "already_present_with_no_caller": "UBlueprintInspectorLibrary plus FBPMemberReader, FBPGraphReader, FBPNodeSerializer, FBPPinSerializer and FBPTypeDescriptor - 934 lines under MCPBridgeGraphBuilder/Private/BlueprintInspector/, compiled into the module every build, never called from MCP.",
+    "lesson": "This is the second time. The widget builder was the first (2026-08-02: 'Read the source before believing a spec's status line'). Read the module before writing a subsystem for it.",
+    "genuinely_new": [
+      "UBlueprintGraphBuilderLibrary::GetNodeTypeForNode - the inverse of the builder's dispatch chain",
+      "UBlueprintGraphBuilderLibrary::DescribeBlueprintGraphJSON - the builder-shaped graph view, canonically ordered",
+      "UMCPPuerTSBridgeService::InspectBlueprintJson - asset resolution, the read root limit, the dirty-flag measurement, composition",
+      "three fidelity fixes in FBPPinSerializer (see below)"
+    ]
+  },
+
+  "design_decisions": {
+    "reverse_type_map_beside_the_forward_one": "GetNodeTypeForNode lives in BlueprintGraphBuilderLibrary.cpp next to BuildBlueprintFromJSON's dispatch chain, and is itself a chain rather than a table. UK2Node_CustomEvent derives from UK2Node_Event and UK2Node_MultiGate from UK2Node_ExecutionSequence, so asking the base first reports both as their base and would rebuild the wrong node. A mapping table in the command layer would have been a second place to forget a node type. Drift is visible instead of silent: a node with no word comes back type null and is listed in graph.unmapped_nodes with its K2 class.",
+    "node_identity_is_observed_not_authored": "A node is addressed by its object name (id) and its NodeGuid. The id a build spec wrote is NOT persisted on the node, so an inspected node cannot be matched back to the spec line that made it. Synthesising a plausible-looking id would have hidden the exact gap the deferred upsert work has to close. This is stated in the tool description, the header comment and the response contract.",
+    "read_only_is_measured": "graph_inspect is kept out of IsToolMutating, so no transaction is opened and no transaction id is returned; nothing on the path calls Modify, MarkPackageDirty or a compile; and the package's own IsDirty flag is read before and after the work and returned as package_dirty_before / package_dirty_after. An annotation is a promise; this one is checkable by the caller.",
+    "canonical_ordering": "Unreal array order is an implementation detail a reconstruct, a paste or a load can permute. Nodes sort by NodeGuid, pins by direction then PinId, connections by their four endpoint identities, components / variables / functions / graphs by name. No TMap is iterated to produce output anywhere on the path. JSON object KEY order is FJsonObject's TMap and is not canonical; that is documented in the tool description, and the driver sorts keys before hashing. In practice both payloads came back byte-identical without that step.",
+    "identity_tuple_repeated": "Every node carries asset_path and graph_name alongside its own id and node_guid, and every connection carries from_node_guid / from_pin_id / to_node_guid / to_pin_id beside the readable from / to. A NodeGuid is unique inside one graph and says nothing about which graph of which asset it came from.",
+    "read_root_is_wider_than_the_write_root": "Authoring is limited to /Game/MCPGenerated/. Reading is allowed anywhere under /Game and /Engine, the same roots find_assets uses: the point of an inspector is to read a Blueprint somebody else wrote."
+  },
+
+  "pin_serializer_fidelity_fixes": [
+    "DefaultObject was not reported at all, so every object-pin asset reference in a graph read back as empty. The stamina graph's SaveGameClass and Sound pin defaults are exactly this shape.",
+    "DefaultTextValue was not reported, so every FText literal read back as empty.",
+    "AutogeneratedDefaultValue was not reported, so there was no way to tell a default the caller authored from the one the node gave itself. That distinction is what keeps params to authored values instead of dumping every pin's schema."
+  ],
+
+  "known_gaps_recorded_not_papered_over": [
+    "MakeStruct, BreakStruct, SpawnActor, Select, Knot and FormatText keep their configuration in their pins rather than in a UPROPERTY, so they report pin defaults and no routing params. None appeared in any graph tested.",
+    "A struct pin default other than vector, rotator or linear color is reported as its raw pin text and named in graph.lossy_pin_defaults, because only those three are written in the comma form the reader can invert. lossy_pin_defaults was empty on both fixtures."
+  ],
+
+  "acceptance": {
+    "small_fixture": {
+      "asset": "/Game/MCPGenerated/BP_ProbeConn",
+      "why_this_one": "It already existed on disk from an earlier chunk, so no setup mutation was needed. Committed generated asset, 3 nodes, the smallest graph available.",
+      "expected_node_count": 3,
+      "reported_node_count": 3,
+      "expected_connection_count": 2,
+      "reported_connection_count": 2,
+      "expected_source": "docs/CAPABILITY_FINDINGS.md 'Unresolved graph connections fail the build': the corrected spec answered 'success true, connection_count 2 of 2, saved'",
+      "pins": 14,
+      "node_types_recovered": ["BeginPlay", "CallFunction", "PrintString"],
+      "unmapped_nodes": 0,
+      "lossy_pin_defaults": 0,
+      "hash_run_1": "eebd873da251f489d6aa82f591b38020d1d1a1121880bec7ef0685ea5613dfd2",
+      "hash_run_2": "eebd873da251f489d6aa82f591b38020d1d1a1121880bec7ef0685ea5613dfd2",
+      "hashes_match": true,
+      "byte_identical": "yes, raw payloads compared with cmp: 14,049 bytes, no difference. No exclusion list needed.",
+      "runs": "4 reads total, in two separate server processes; same hash every time",
+      "asset_remained_clean": "package_dirty_before false, package_dirty_after false on every call; .uasset SHA-256 a483ce2ad5d99b0c3161d05f1ebfbe142ff1368911761d21e8b08cdf089ca67d before and after; mtime 2026-08-01 00:37:23.368414100 unchanged"
+    },
+    "stamina_stress_test": {
+      "asset": "/Game/MCPGenerated/BP_StaminaCharacter",
+      "read_only": "yes - inspected, never modified",
+      "expected_from_build_report": "198 nodes, 252 of 252 connections (reports/session-2026-08-02-stamina-save.json, convergence.full_rerun.pass2)",
+      "reported_node_count": 198,
+      "reported_connection_count": 252,
+      "missing_items": "none",
+      "extra_items": "none",
+      "pins": 783,
+      "variables_reported": 37,
+      "variables_in_current_spec": 23,
+      "variable_note": "The 14-variable difference is limitation 32's additive-variable drift, now counted rather than described. Read, not changed.",
+      "components": 1,
+      "parent_class": "/Script/Engine.Character",
+      "compile_status": "UpToDate",
+      "unmapped_nodes": 0,
+      "lossy_pin_defaults": 0,
+      "node_type_histogram": {
+        "Operator": 72, "CallFunction": 46, "VariableGet": 24, "VariableSet": 18,
+        "Branch": 13, "PrintString": 12, "CustomEvent": 4, "InputKey": 3,
+        "Cast": 2, "Sequence": 2, "BeginPlay": 1, "Tick": 1
+      },
+      "hash_run_1": "29f1a9239811955bb39c1c54976a75b957fb685a23ab1f32c7c6f46ffb14672c",
+      "hash_run_2": "29f1a9239811955bb39c1c54976a75b957fb685a23ab1f32c7c6f46ffb14672c",
+      "hashes_match": true,
+      "byte_identical": "yes: 847,143 bytes, cmp reports no difference",
+      "asset_remained_clean": "package_dirty_before false, package_dirty_after false on both calls; .uasset SHA-256 ad489bfb1a593c4b07f125da7e4797cb3c13b900016cfcb07e419d46b8f5d76f before and after; mtime 2026-08-01 10:27:22.602393900 unchanged"
+    }
+  },
+
+  "pipe_discovery_added_in_flight": {
+    "what": "MCPPuerTSBridgeService::Initialize now writes the active pipe name to Saved/MCPPuerTSBridge/pipe.txt beside the bearer token, and the MCP client resolves the pipe the same way it resolves the token: explicit MCP_PUERTS_PIPE wins, otherwise the advertised name, otherwise the compiled-in default.",
+    "why_it_is_here": "This session hit the exact failure it fixes. The project's [MCPPuerTSBridge] section vanished from Config/DefaultEngine.ini between two editor restarts, the editor fell back to the compiled-in pipe name, and every session tool failed with 'connect ENOENT \\\\.\\pipe\\UE427PuerTSMCP_UE427PuerTSMCP_81d778e7_skyshader5' because the client's name was pinned by env and had no way to discover the real one.",
+    "evidence_status": "Proven live, both halves. Saved/MCPPuerTSBridge/pipe.txt exists beside token.txt and holds '\\\\.\\pipe\\UE427PuerTSMCP_UE427PuerTSMCP_81d778e7_skyshader5'. With MCP_PUERTS_PIPE and MCP_PUERTS_TOKEN_PATH both unset and only MCP_UNREAL_PROJECT_ROOT given, resolvePipeName returned that name and a graph_inspect call against BP_ProbeConn answered success true, 3 nodes, 2 connections, transaction_id \"\", package_dirty_after false. The unit half is the new discoverySuite in mcp-server/tests/puerts-tools.test.ts.",
+    "config_loss_incident": {
+      "observed": "Config/DefaultEngine.ini was rewritten at 12:11:06 and came back without its [MCPPuerTSBridge] section. Before that restart the editor logged 'PuerTS command pipe configured: \\\\.\\pipe\\UE427PuerTSMCP_UE427PuerTSMCP_81d778e7_skyshader5'; after it, '\\\\.\\pipe\\UE427PuerTSMCP'.",
+      "cause": "NOT DIAGNOSED. Two candidates, neither confirmed: the editor's own config flush at shutdown rewrote the file and dropped a section it does not own, or the forced process termination interrupted that rewrite. The previous forced close of the same editor did not lose it, so a simple 'force-kill truncates config' reading does not fit either. The editor's Perforce integration was also touching that exact file ('p4 fstat -Or .../Config/DefaultEngine.ini', with the source-control session expired), which is a third possibility and equally unproven.",
+      "repaired": "The section was restored by hand, with the editor confirmed exited first so its shutdown flush could not overwrite the fix. The restored file is [MCPPuerTSBridge] / PipeName=\\\\.\\pipe\\UE427PuerTSMCP_UE427PuerTSMCP_81d778e7_skyshader5, matching .mcp.json and the plan's standing environment facts. Verified in the next editor start's log.",
+      "scope_note": "This is test-project configuration, not a Blueprint or asset. The zero-mutation attestation is unaffected: every fixture .uasset was SHA-256 identical throughout."
+    }
+  },
+
+  "environment_hazards_hit": {
+    "stuck_editor_process": "After the second forced close, PID 11660 stayed listed by Win32_Process with 1 thread and 1697 handles while .NET reported HasExited=True and taskkill answered 'There is no running instance of the task'. It did not clear in ~15 minutes. This matches the recorded 'zombie UE4Editor remnants' triage note, whose stated recovery is a reboot; a reboot was not taken unilaterally.",
+    "consequence": "UnrealBuildTool detected a UE4Editor process and produced hot-reload DLLs (UE4Editor-MCPBridgePuerTS-0001.dll) for the third build instead of relinking the base names. This was expected to leave the third build's change out of a freshly launched editor; it did not. The editor launched afterwards loaded the -0001 modules, and pipe.txt was written at 12:22, one minute after that build. Checked rather than assumed, because the opposite would have meant reporting a change as live when it was not.",
+    "what_the_running_editor_contains": "Everything: the second build's graph_inspect with the FDefaultValueHelper refactor, and the third build's pipe advertisement. All acceptance evidence in this report was gathered against the running editor."
+  },
+
+  "cleanliness_proof": {
+    "package_dirty": "false before and false after, on every inspection call, reported by the command itself out of UPackage::IsDirty",
+    "asset_file_timestamps": "BP_ProbeConn.uasset, BP_ProbeDoor.uasset and BP_StaminaCharacter.uasset all unchanged in size, mtime (nanosecond precision) and SHA-256 across the run",
+    "git_status": "unchanged apart from the source files this chunk deliberately edited; no asset or generated file appeared",
+    "no_blueprint_compile": "grep -icE 'CompileBlueprint|Compiling.*Blueprint' over the whole editor log: 0. The log's own line reads '(Engine Initialization) Total Blueprint compile time: 0.00 seconds'",
+    "no_package_save": "grep -c LogSavePackage over the whole editor log: 0",
+    "no_builder_ran": "grep -c BuildBlueprintFromJSON over the whole editor log: 0",
+    "no_transactions": "grep -c 'MCP PuerTS: ' over the whole editor log: 0. Every response carried transaction_id \"\" and empty changed_assets. graph_inspect is absent from IsToolMutating, so no FScopedTransaction is ever constructed for it.",
+    "reads_accounted_for": "Final session log Saved/Logs/UE427PuerTSMCP_2.log: 20 LogBlueprintInspector lines = 4 inspection calls x 5 readers, exactly, and nothing else in the log from this tool. The earlier session log recorded 30 lines for its 6 calls, the same ratio.",
+    "counts_are_from_the_final_run": "The acceptance numbers and hashes in this report were re-gathered after the second C++ build, against the binaries the committed source produces. They are identical to the first run's, which additionally shows the FDefaultValueHelper refactor of the struct pin-default reader is behaviour-preserving on both fixtures.",
+    "attestation": "No Blueprint, asset, actor, level or config was created, modified or deleted at any point in this chunk. No PIE session was started."
+  },
+
+  "tracked_unknown_resolved": {
+    "was": "puerts_diagnostic reported actor_count_total 0 once, in a level that had 12 actors, on the first call after an editor start. Two candidate readings: a real startup race, or a first-call code path that answers before the world is attached. No repro.",
+    "cost": "zero extra work - it reproduced on the first diagnostic after the editor restart this chunk already needed",
+    "first_call": "actor_count_total 0, actor_count_measured 0, json_snapshot_bytes 13, native_actor_query_ms 0.0215, is_game_thread true, service_address 000001C4BFA1F380",
+    "next_call": "actor_count_total 12, json_snapshot_bytes 1158, native_actor_query_ms 0.0141, is_game_thread true, same service address",
+    "verdict": "It is the startup race. The second reading is refuted: a first-call path that answered before the world was attached would have to be a different path, and there is only one - same service address, same query, on the game thread, in both calls, correct milliseconds later. The query ran and genuinely found nothing, because the editor world held no actors at that instant.",
+    "mechanism": "The bridge's named pipe accepts authenticated commands before the initial map finishes loading. The editor log puts 'MCP PuerTS named pipe ready with 20 approved tools' at 19:04:34 and '(Engine Initialization) Total time: 43.06 seconds' after it; both calls landed in between.",
+    "not_fixed_because": "The fix is a design decision, not a bug repair, and this chunk was scoped to inspection. Options, cheapest first: report a world_ready flag beside the count so zero-with-no-world is distinguishable from zero-with-empty-level; or hold the pipe closed until the initial map load completes, trading a clear signal for a startup window in which the bridge is simply absent.",
+    "caller_lesson": "A 0 from the first call after an editor start is not evidence of an empty level. Call twice."
+  },
+
+  "files_changed": {
+    "Plugins/MCPBridge/Source/MCPBridgeGraphBuilder/Public/BlueprintGraphBuilderLibrary.h": "GetNodeTypeForNode and DescribeBlueprintGraphJSON declared, with the observed-identity contract and the canonical-ordering contract written down",
+    "Plugins/MCPBridge/Source/MCPBridgeGraphBuilder/Private/BlueprintGraphBuilderLibrary.cpp": "the reverse node-type chain, the routing-param reader, the pin-default inverse, and the canonically ordered graph description",
+    "Plugins/MCPBridge/Source/MCPBridgeGraphBuilder/Private/BlueprintInspector/BPPinSerializer.cpp": "DefaultObject, DefaultTextValue and AutogeneratedDefaultValue reported; pin_name / pin_direction identity fields; links sorted by the far end's identity",
+    "Plugins/MCPBridge/Source/MCPBridgePuerTS/Private/MCPPuerTSBridgeInspect.cpp": "new: the graph_inspect command",
+    "Plugins/MCPBridge/Source/MCPBridgePuerTS/Public/MCPPuerTSBridgeService.h": "InspectBlueprintJson declared with the read-only contract",
+    "Plugins/MCPBridge/Source/MCPBridgePuerTS/Private/MCPPuerTSBridgeService.cpp": "graph_inspect added to the default tool allowlist, and deliberately NOT to IsToolMutating",
+    "puerts-runtime/types/puerts-bootstrap.d.ts": "InspectBlueprintJson",
+    "puerts-runtime/src/registry.ts": "the graph_inspect tool, permission assets.read",
+    "mcp-server/src/tools/puerts.ts": "the puerts_graph_inspect spec and its timeout budget",
+    "mcp-server/src/puerts-client.ts": "resolvePipeName: MCP_PUERTS_PIPE, else the pipe the editor advertised beside its token, else the compiled-in default",
+    "mcp-server/src/index.ts": "the startup banner reports the resolved pipe rather than the hardcoded field",
+    "mcp-server/src/annotations.ts": "puerts_graph_inspect: readOnly",
+    "mcp-server/tests/puerts-tools.test.ts": "graphInspectSuite; the tool count moved 19 -> 20",
+    "docs/TOOL_INVENTORY.json": "regenerated; 204 tools, native_pipe 20",
+    "docs/CAPABILITY_FINDINGS.md": "five new Working rows, a new Fixed section, limitation 32 marked half open, the tracked Unknown resolved into a new Resolved Unknowns section, and the save/load row re-phrased as a verified SaveGame persistence path",
+    "docs/MASTERY_PLAN_2026-07-31.md": "the capability-first working rule, the new progress entry, and the same phrasing correction",
+    "reports/session-2026-08-02-graph-inspect.json": "this file"
+  },
+
+  "build_and_verify": {
+    "cpp_builds": 3,
+    "first_build": "12 actions, 23.98 s parallel / 41.76 s total, zero errors on the first attempt. Only the pre-existing C4996 deprecation warnings in AutoPIEHelper and GarmentMeshLibrary.",
+    "second_build": "The same six files after the struct pin-default reader was refactored onto FDefaultValueHelper::ParseVector / ParseRotator / ParseLinearColor and two local sort-key structs became TPair. 12 actions, 23.11 s parallel / 27.97 s total, zero errors. Rebuilt so the committed source and the binary the evidence came from are the same code. This is the build the running editor holds and the build every acceptance number was gathered against.",
+    "third_build": "The pipe.txt advertisement. 28 actions, 27.45 s total, zero errors. Produced hot-reload DLLs (-0001) because a stuck editor process made UnrealBuildTool think an editor was running; the editor launched afterwards loaded them anyway, verified by pipe.txt existing with the right contents. See environment_hazards_hit.",
+    "editor_restarts": 3,
+    "npm_run_verify": "green - build, 17 unit suites, PuerTS pin check, inventory check (204 tools, frozen count 204), and the stdio smoke (8 passed, 0 failed, 2 skipped for want of a token path in that process)",
+    "new_tests": "graphInspectSuite in mcp-server/tests/puerts-tools.test.ts: read-only annotation, empty transaction id, empty changed_assets, the runtime command name, its own timeout budget, /Engine reads allowed, graph_name and include_pins reaching the pipe, and two rejections that never leave the client (missing asset_path, and an authoring key offered to a read). Plus discoverySuite: pipe and token discovery from MCP_UNREAL_PROJECT_ROOT alone.",
+    "final_state": "editor running on \\\\.\\pipe\\UE427PuerTSMCP_UE427PuerTSMCP_81d778e7_skyshader5, PIE never started, puerts_diagnostic actor_count_total 12 and is_game_thread true, transport named_pipe, 20 approved tools, 12 actors in the level. One stuck editor process from an earlier restart is still listed by the OS and will clear on the next reboot; it holds no pipe this session's tools use."
+  },
+
+  "not_committed": {
+    "reason": "Acceptance driver, not test infrastructure. Converting the stdio-driver pattern into a maintained Scripts/ entry point was explicitly dropped from this chunk.",
+    "path": "C:/Users/austi/AppData/Local/Temp/claude/D--Unreal-Projects-UE4-Bridge/02ab2dfe-190c-4b76-9daa-2f18aa762abe/scratchpad/inspect-drive.mjs",
+    "what_it_does": "spawns a fresh mcp-server/dist over stdio, calls puerts_graph_inspect twice against one asset, canonicalizes object keys, SHA-256s both payloads and writes them to disk for a byte-level cmp. Read-only; it can make no other call.",
+    "note": "Scripts/mcp-smoke.mjs already carries the stdio client pattern this duplicates. If a driver belongs in the tree it is that one grown, not this one moved."
+  },
+
+  "notes": [
+    "Two of the last three capabilities were already written and uncalled. The widget builder was 1840 lines; the Blueprint inspector was 934. Both had specs or plans saying the work had not been done. The habit that finds these is reading the module's source tree before designing.",
+    "The determinism requirement paid for itself in design rather than in testing: sorting every array by a stable identity and refusing to iterate a TMap for output is what made the payloads byte-identical, and it is also what makes the tool safe to diff later when patching exists.",
+    "The read half of limitation 32 is done and the write half is not, and the blocker for the write half is now precisely stated rather than vague: a spec's node id is not persisted anywhere, so there is nothing to merge against. The next chunk's real question is what carries an authored id across save, load and recompile."
+  ],
+
+  "explicitly_not_done": "No node identity, no upsert, no section ownership, no cap change, no TestArena map, no stamina re-authoring, no scratch-script conversion, and no mutation of any kind."
+}

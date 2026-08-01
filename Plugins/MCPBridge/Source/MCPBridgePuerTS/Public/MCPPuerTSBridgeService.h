@@ -180,6 +180,36 @@ public:
         FString& OutResultJson,
         FString& OutError);
 
+    /** Read a Blueprint back as machine-readable JSON: parent class, SCS
+        components, member variables, interfaces, functions, the graph list,
+        and one graph in the shape blueprint_build writes it.
+
+        READ ONLY, and that is the contract rather than a hope. The command is
+        not in IsToolMutating, so no transaction is opened and the response
+        carries no transaction id; nothing here calls Modify,
+        MarkPackageDirty or a compile; and the package's dirty flag is read
+        before and after the work and reported as package_dirty_before /
+        package_dirty_after, so a caller can see that reading did not write
+        instead of trusting the annotation.
+
+        The member half is UBlueprintInspectorLibrary's readers, which were
+        already compiled into MCPBridgeGraphBuilder with no caller. What this
+        command adds is the asset resolution, the /Game and /Engine limit,
+        canonical ordering, and the graph view, whose node types come from
+        UBlueprintGraphBuilderLibrary::GetNodeTypeForNode - the inverse of the
+        builder's own dispatch, kept beside it so the two cannot drift.
+
+        Node identity in the response is OBSERVED, not authored: a node is
+        addressed by its object name and its NodeGuid, because the "id" a
+        build spec wrote is not persisted on the node. Matching an inspected
+        node back to the spec line that made it needs an authored identity
+        that does not exist yet. */
+    UFUNCTION(BlueprintCallable, Category="MCP PuerTS Bridge")
+    bool InspectBlueprintJson(
+        const FString& RequestJson,
+        FString& OutResultJson,
+        FString& OutError) const;
+
     UFUNCTION(BlueprintCallable, Category="MCP PuerTS Bridge")
     bool BuildPhysicsSceneJson(
         const FString& SpecJson,

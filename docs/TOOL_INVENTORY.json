@@ -15,12 +15,12 @@
     "deprecated",
     "migrated_verified"
   ],
-  "tool_count": 203,
+  "tool_count": 204,
   "by_backend": {
     "legacy_http": 170,
     "native_pipe_alias": 12,
     "server_local": 2,
-    "native_pipe": 19
+    "native_pipe": 20
   },
   "tools": [
     {
@@ -3951,6 +3951,30 @@
         "kind": "object",
         "params": {
           "maximum_lines": "number?"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": "mcp-server/tests/puerts-tools.test.ts"
+    },
+    {
+      "name": "puerts_graph_inspect",
+      "module": "mcp-server/src/tools/puerts.ts",
+      "backend": "native_pipe",
+      "migration_state": "native",
+      "target_replacement": null,
+      "description": "[PRIMARY NATIVE IPC] Read an existing Blueprint back as machine-readable JSON: parent class, SimpleConstructionScript components, member variables, implemented interfaces, user functions, the graph list, and one graph described in the shape puerts_blueprint_build writes. This is the inverse direction of the builder and it is READ ONLY: no transaction is opened, the response carries no transaction id, nothing is compiled or saved, and the asset's package dirty flag is read before and after the work and reported as package_dirty_before / package_dirty_after so a caller can verify that reading did not write. Each graph node reports its builder node type (BeginPlay, CallFunction, Operator, VariableSet and the rest of the 26-word vocabulary), or null with node_class when this builder has no word for it, in which case the node is also listed under graph.unmapped_nodes. params holds the routing keys the node type keeps as fields plus every input pin default the caller authored, in the JSON shape a spec writes it; a struct pin default other than vector, rotator or linear color is reported as its raw pin text and named in graph.lossy_pin_defaults. Node identity is OBSERVED, not authored: a node is addressed by its object name (id) and its NodeGuid, because the id a build spec wrote is not persisted on the node, so an inspected node cannot be matched back to the spec line that made it. Every array is canonically ordered - nodes by NodeGuid, pins by direction then PinId, connections by their endpoint identities, components, variables, functions and graphs by name - so two reads of an unchanged Blueprint produce the same content. Object key order is the JSON serializer's and is not canonical; hash a key-sorted form if you are comparing runs byte for byte. Reading is allowed anywhere under /Game and /Engine, unlike authoring, which is limited to /Game/MCPGenerated/.",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "asset_path": "string",
+          "graph_name": "string?",
+          "include_pins": "boolean?"
         }
       },
       "annotations": {

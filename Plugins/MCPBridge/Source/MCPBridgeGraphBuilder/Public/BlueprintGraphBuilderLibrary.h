@@ -223,4 +223,68 @@ public:
         UUserDefinedEnum* Enum,
         const TArray<FString>& DisplayNames
     );
+
+    /**
+     * The builder node type a spawned node would be written as, or an empty
+     * string when this builder has no vocabulary word for it.
+     *
+     * This is the inverse of the dispatch chain in BuildBlueprintFromJSON and
+     * it lives beside it on purpose: a node type added to one and not the
+     * other shows up immediately as an inspected node whose type is null, and
+     * the caller can see the K2 class it could not name. The alternative, a
+     * mapping table in the command layer, would be a second place to forget.
+     *
+     * Subclass order matters and is the reason this is a chain rather than a
+     * map: UK2Node_CustomEvent derives from UK2Node_Event, and
+     * UK2Node_MultiGate derives from UK2Node_ExecutionSequence, so the
+     * narrower type has to be asked first or it reports as its base.
+     */
+    static FString GetNodeTypeForNode(const UEdGraphNode* Node);
+
+    /**
+     * Read one graph back as JSON, in the shape blueprint_build writes.
+     *
+     * READ ONLY. Nothing on the Blueprint is modified, no transaction is
+     * needed, and the Blueprint is not compiled or marked dirty.
+     *
+     * {
+     *   "name": "EventGraph",
+     *   "node_count": 3, "connection_count": 2,
+     *   "nodes": [{"id": "K2Node_Event_0", "node_guid": "...",
+     *              "type": "BeginPlay", "node_class": "K2Node_Event",
+     *              "title": "Event BeginPlay", "params": {...},
+     *              "x": 0, "y": 0, "comment": "", "enabled": "Enabled",
+     *              "pins": [...]}],
+     *   "connections": [{"from": "K2Node_Event_0.then",
+     *                    "to": "K2Node_CallFunction_1.execute"}],
+     *   "unmapped_nodes": [{"id": ..., "node_class": ...}],
+     *   "lossy_pin_defaults": ["node.pin (struct default reported as its raw
+     *                           pin text)"]
+     * }
+     *
+     * `id` is the node's own object name. It is unique inside the graph and
+     * stable across reads, so connections can address it, but it is an
+     * OBSERVED identifier: the "id" a build spec wrote is not persisted
+     * anywhere today, so a node cannot be matched back to the spec that made
+     * it. That gap is what a future authored-identity pass has to close; this
+     * function does not create one.
+     *
+     * Every array is canonically ordered - nodes by NodeGuid, pins by
+     * direction then PinId, connections and links by their endpoint
+     * identities - so two reads of an unchanged graph produce identical JSON
+     * even after an editor operation permutes the underlying arrays.
+     *
+     * @param GraphName  Empty for the Blueprint's event graph; otherwise the
+     *                   name of any ubergraph, function, macro or delegate
+     *                   signature graph.
+     * @param bIncludePins  Attach the full pin list per node. Off by default
+     *                   because it is roughly ten times the payload on a large
+     *                   graph, and the node and connection views already carry
+     *                   the shape.
+     */
+    static FString DescribeBlueprintGraphJSON(
+        UBlueprint* Blueprint,
+        const FString& GraphName,
+        bool bIncludePins
+    );
 };

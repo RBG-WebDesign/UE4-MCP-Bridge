@@ -75,6 +75,11 @@ export const toolAnnotations: Record<string, ToolAnnotations> = {
   puerts_read_property: readOnly,
   puerts_get_logs: readOnly,
   puerts_physics_observe: readOnly,
+  // The inverse of puerts_blueprint_build, and the one Blueprint command that
+  // is genuinely read-only: the native side keeps it out of IsToolMutating so
+  // no transaction is opened, and it reports the package's dirty flag before
+  // and after the read so the claim is checkable rather than asserted.
+  puerts_graph_inspect: readOnly,
   puerts_viewport_screenshot: mutatingIdempotent,
   puerts_set_property: mutatingIdempotent,
   puerts_call_function: mutating,

@@ -26,6 +26,25 @@
 #include "Kismet2/CompilerResultsLog.h"
 #include "Logging/TokenizedMessage.h"
 #include "BlueprintMutator/BPNodeRegistry.h"
+#include "BlueprintInspector/BPPinSerializer.h"
+#include "BlueprintInspector/BPGraphReader.h"
+#include "Misc/DefaultValueHelper.h"
+#include "K2Node_BreakStruct.h"
+#include "K2Node_CustomEvent.h"
+#include "K2Node_DoOnceMultiInput.h"
+#include "K2Node_FormatText.h"
+#include "K2Node_InputKey.h"
+#include "K2Node_Knot.h"
+#include "K2Node_MakeStruct.h"
+#include "K2Node_MultiGate.h"
+#include "K2Node_Select.h"
+#include "K2Node_SpawnActorFromClass.h"
+#include "K2Node_Switch.h"
+#include "K2Node_SwitchInteger.h"
+#include "K2Node_SwitchString.h"
+#include "K2Node_Variable.h"
+#include "K2Node_VariableGet.h"
+#include "K2Node_VariableSet.h"
 #include "Engine/Blueprint.h"
 #include "Kismet/KismetMathLibrary.h"
 #include "Kismet/KismetStringLibrary.h"
@@ -1746,6 +1765,554 @@ FString UBlueprintGraphBuilderLibrary::CompileAndReport(UBlueprint* Blueprint)
 
     const bool bSuccess = (Blueprint->Status == BS_UpToDate || Blueprint->Status == BS_UpToDateWithWarnings);
     return ToJson(bSuccess, StatusLabel);
+}
+
+namespace
+{
+    /** The operator name whose table entry produced this function call, or an
+        empty string. The forward direction resolves a name to a class and a
+        function; this walks the same single table backwards, so a table entry
+        added or removed changes both directions at once. */
+    FString OperatorNameFor(const UClass* OwningClass, const FName& FunctionName)
+    {
+        if (OwningClass == nullptr)
+        {
+            return FString();
+        }
+        const FString ClassName = OwningClass->GetName();
+        for (const FOperatorEntry& Entry : OperatorTable())
+        {
+            if (ClassName == Entry.ClassName && FunctionName == FName(Entry.FunctionName))
+            {
+                return Entry.Op;
+            }
+        }
+        return FString();
+    }
+
+    /** The four AActor override events the builder spawns by name, mapped back
+        to the spec words for them. */
+    FString ActorEventTypeFor(const FName& MemberName)
+    {
+        if (MemberName == FName(TEXT("ReceiveBeginPlay")))          { return TEXT("BeginPlay"); }
+        if (MemberName == FName(TEXT("ReceiveTick")))               { return TEXT("Tick"); }
+        if (MemberName == FName(TEXT("ReceiveActorBeginOverlap")))  { return TEXT("ActorBeginOverlap"); }
+        if (MemberName == FName(TEXT("ReceiveActorEndOverlap")))    { return TEXT("ActorEndOverlap"); }
+        return FString();
+    }
+
+    /** One pin default, back in the JSON shape a spec would have written.
+        The inverse of ApplyPinDefault, category by category. Struct pins are
+        the one lossy case and say so: only the three the builder writes as a
+        comma triple can be read back as an object, and anything else is
+        reported as the pin's raw text with the pin named in
+        lossy_pin_defaults, rather than being dropped or guessed at. */
+    TSharedPtr<FJsonValue> PinDefaultAsJson(const UEdGraphPin* Pin, bool& bOutLossy)
+    {
+        bOutLossy = false;
+        const FName Category = Pin->PinType.PinCategory;
+
+        if (Category == UEdGraphSchema_K2::PC_Object
+            || Category == UEdGraphSchema_K2::PC_Class
+            || Category == UEdGraphSchema_K2::PC_SoftObject
+            || Category == UEdGraphSchema_K2::PC_SoftClass
+            || Category == UEdGraphSchema_K2::PC_Interface)
+        {
+            if (Pin->DefaultObject != nullptr)
+            {
+                return MakeShared<FJsonValueString>(Pin->DefaultObject->GetPathName());
+            }
+            if (Pin->DefaultValue.IsEmpty() || Pin->DefaultValue == TEXT("None"))
+            {
+                return MakeShared<FJsonValueNull>();
+            }
+            return MakeShared<FJsonValueString>(Pin->DefaultValue);
+        }
+        if (Category == UEdGraphSchema_K2::PC_Boolean)
+        {
+            return MakeShared<FJsonValueBoolean>(Pin->DefaultValue.ToBool());
+        }
+        if (Category == UEdGraphSchema_K2::PC_Byte && Pin->PinType.PinSubCategoryObject.IsValid())
+        {
+            // An enum pin holds the enumerator name, which is what the spec writes.
+            return MakeShared<FJsonValueString>(Pin->DefaultValue);
+        }
+        if (Category == UEdGraphSchema_K2::PC_Int
+            || Category == UEdGraphSchema_K2::PC_Int64
+            || Category == UEdGraphSchema_K2::PC_Byte
+            || Category == UEdGraphSchema_K2::PC_Float)
+        {
+            return MakeShared<FJsonValueNumber>(FCString::Atod(*Pin->DefaultValue));
+        }
+        if (Category == UEdGraphSchema_K2::PC_Text)
+        {
+            return MakeShared<FJsonValueString>(Pin->DefaultTextValue.ToString());
+        }
+        if (Category == UEdGraphSchema_K2::PC_String || Category == UEdGraphSchema_K2::PC_Name)
+        {
+            return MakeShared<FJsonValueString>(Pin->DefaultValue);
+        }
+        if (Category == UEdGraphSchema_K2::PC_Struct)
+        {
+            // FDefaultValueHelper is the engine's own parser for these pin
+            // default strings; it accepts both the comma form the builder
+            // writes and the X= form, so anything it rejects is genuinely
+            // lossy.
+            const UScriptStruct* Struct = Cast<UScriptStruct>(Pin->PinType.PinSubCategoryObject.Get());
+            if (Struct == TBaseStructure<FVector>::Get())
+            {
+                FVector Vector;
+                if (FDefaultValueHelper::ParseVector(Pin->DefaultValue, Vector))
+                {
+                    TSharedPtr<FJsonObject> Object = MakeShared<FJsonObject>();
+                    Object->SetNumberField(TEXT("x"), Vector.X);
+                    Object->SetNumberField(TEXT("y"), Vector.Y);
+                    Object->SetNumberField(TEXT("z"), Vector.Z);
+                    return MakeShared<FJsonValueObject>(Object);
+                }
+            }
+            if (Struct == TBaseStructure<FRotator>::Get())
+            {
+                FRotator Rotator;
+                if (FDefaultValueHelper::ParseRotator(Pin->DefaultValue, Rotator))
+                {
+                    TSharedPtr<FJsonObject> Object = MakeShared<FJsonObject>();
+                    Object->SetNumberField(TEXT("pitch"), Rotator.Pitch);
+                    Object->SetNumberField(TEXT("yaw"), Rotator.Yaw);
+                    Object->SetNumberField(TEXT("roll"), Rotator.Roll);
+                    return MakeShared<FJsonValueObject>(Object);
+                }
+            }
+            if (Struct == TBaseStructure<FLinearColor>::Get())
+            {
+                FLinearColor Color;
+                if (FDefaultValueHelper::ParseLinearColor(Pin->DefaultValue, Color))
+                {
+                    TSharedPtr<FJsonObject> Object = MakeShared<FJsonObject>();
+                    Object->SetNumberField(TEXT("r"), Color.R);
+                    Object->SetNumberField(TEXT("g"), Color.G);
+                    Object->SetNumberField(TEXT("b"), Color.B);
+                    Object->SetNumberField(TEXT("a"), Color.A);
+                    return MakeShared<FJsonValueObject>(Object);
+                }
+            }
+            bOutLossy = true;
+            return MakeShared<FJsonValueString>(Pin->DefaultValue);
+        }
+        bOutLossy = true;
+        return MakeShared<FJsonValueString>(Pin->DefaultValue);
+    }
+
+    /** Does this pin carry a default the caller wrote, rather than the one the
+        node gave itself? An exec pin has none, a wired pin's default is not
+        read, and a hidden pin is not a caller's to set. */
+    bool PinCarriesAuthoredDefault(const UEdGraphPin* Pin)
+    {
+        if (Pin == nullptr
+            || Pin->Direction != EGPD_Input
+            || Pin->bHidden
+            || Pin->bOrphanedPin
+            || Pin->LinkedTo.Num() > 0
+            || Pin->PinType.PinCategory == UEdGraphSchema_K2::PC_Exec)
+        {
+            return false;
+        }
+        if (Pin->DefaultObject != nullptr)
+        {
+            return true;
+        }
+        if (!Pin->DefaultTextValue.IsEmpty())
+        {
+            return true;
+        }
+        return !Pin->DefaultValue.IsEmpty() && Pin->DefaultValue != Pin->AutogeneratedDefaultValue;
+    }
+
+    void SetClassPathField(const TSharedPtr<FJsonObject>& Params, const TCHAR* Key, const UClass* Class)
+    {
+        if (Class != nullptr)
+        {
+            Params->SetStringField(Key, Class->GetPathName());
+        }
+        else
+        {
+            Params->SetField(Key, MakeShared<FJsonValueNull>());
+        }
+    }
+
+    int32 CountExecPins(const UEdGraphNode* Node, EEdGraphPinDirection Direction)
+    {
+        int32 Count = 0;
+        for (const UEdGraphPin* Pin : Node->Pins)
+        {
+            if (Pin != nullptr
+                && Pin->Direction == Direction
+                && Pin->PinType.PinCategory == UEdGraphSchema_K2::PC_Exec)
+            {
+                Count++;
+            }
+        }
+        return Count;
+    }
+
+    /** The routing params of a node: the keys that are not pin defaults but
+        the words a spec used to choose this node in the first place. Only the
+        types whose routing is a UPROPERTY the node actually keeps are
+        reported. MakeStruct, BreakStruct, SpawnActor, Select, Knot and
+        FormatText hold their configuration in their pins rather than in a
+        field, so they report pin defaults alone; that is a real gap and it is
+        recorded rather than guessed at. */
+    void AddRoutingParams(
+        const UEdGraphNode* Node,
+        const FString& NodeType,
+        const TSharedPtr<FJsonObject>& Params)
+    {
+        if (const UEdGraphNode_Comment* Comment = Cast<UEdGraphNode_Comment>(Node))
+        {
+            Params->SetStringField(TEXT("text"), Comment->NodeComment);
+            Params->SetNumberField(TEXT("width"), Comment->NodeWidth);
+            Params->SetNumberField(TEXT("height"), Comment->NodeHeight);
+            return;
+        }
+        if (const UK2Node_CustomEvent* CustomEvent = Cast<UK2Node_CustomEvent>(Node))
+        {
+            Params->SetStringField(TEXT("event_name"), CustomEvent->CustomFunctionName.ToString());
+            return;
+        }
+        if (const UK2Node_Event* Event = Cast<UK2Node_Event>(Node))
+        {
+            Params->SetStringField(TEXT("event_name"), Event->EventReference.GetMemberName().ToString());
+            if (NodeType == TEXT("Event"))
+            {
+                SetClassPathField(Params, TEXT("parent_class"),
+                    Event->EventReference.GetMemberParentClass(nullptr));
+            }
+            return;
+        }
+        if (const UK2Node_InputKey* InputKey = Cast<UK2Node_InputKey>(Node))
+        {
+            Params->SetStringField(TEXT("fkey_name"), InputKey->InputKey.GetFName().ToString());
+            Params->SetBoolField(TEXT("consume_input"), InputKey->bConsumeInput != 0);
+            Params->SetBoolField(TEXT("execute_when_paused"), InputKey->bExecuteWhenPaused != 0);
+            Params->SetBoolField(TEXT("override_parent"), InputKey->bOverrideParentBinding != 0);
+            return;
+        }
+        if (const UK2Node_CallFunction* Call = Cast<UK2Node_CallFunction>(Node))
+        {
+            const UClass* Owner = Call->FunctionReference.GetMemberParentClass(nullptr);
+            const FName FunctionName = Call->FunctionReference.GetMemberName();
+            if (NodeType == TEXT("Operator"))
+            {
+                Params->SetStringField(TEXT("op"), OperatorNameFor(Owner, FunctionName));
+                return;
+            }
+            if (NodeType == TEXT("CallFunction"))
+            {
+                SetClassPathField(Params, TEXT("class"), Owner);
+                Params->SetStringField(TEXT("function"), FunctionName.ToString());
+            }
+            // PrintString and Delay are the function itself; a spec names
+            // neither class nor function for them.
+            return;
+        }
+        if (const UK2Node_DynamicCast* CastNode = Cast<UK2Node_DynamicCast>(Node))
+        {
+            SetClassPathField(Params, TEXT("target_class"), CastNode->TargetType);
+            Params->SetBoolField(TEXT("purity"), CastNode->IsNodePure());
+            return;
+        }
+        if (const UK2Node_Variable* Variable = Cast<UK2Node_Variable>(Node))
+        {
+            Params->SetStringField(TEXT("var_name"), Variable->GetVarName().ToString());
+            const bool bSelfContext = Variable->VariableReference.IsSelfContext();
+            Params->SetStringField(TEXT("scope"), bSelfContext ? TEXT("self") : TEXT("target"));
+            if (!bSelfContext)
+            {
+                SetClassPathField(Params, TEXT("target_class"),
+                    Variable->VariableReference.GetMemberParentClass(nullptr));
+            }
+            return;
+        }
+        if (const UK2Node_SwitchInteger* SwitchInt = Cast<UK2Node_SwitchInteger>(Node))
+        {
+            Params->SetNumberField(TEXT("start_index"), SwitchInt->StartIndex);
+            Params->SetBoolField(TEXT("has_default"), SwitchInt->bHasDefaultPin != 0);
+            return;
+        }
+        if (const UK2Node_SwitchString* SwitchString = Cast<UK2Node_SwitchString>(Node))
+        {
+            TArray<TSharedPtr<FJsonValue>> Cases;
+            for (const FName& PinName : SwitchString->PinNames)
+            {
+                Cases.Add(MakeShared<FJsonValueString>(PinName.ToString()));
+            }
+            Params->SetArrayField(TEXT("case_values"), Cases);
+            Params->SetBoolField(TEXT("is_case_sensitive"), SwitchString->bIsCaseSensitive != 0);
+            Params->SetBoolField(TEXT("has_default"), SwitchString->bHasDefaultPin != 0);
+            return;
+        }
+        if (const UK2Node_DoOnceMultiInput* DoOnce = Cast<UK2Node_DoOnceMultiInput>(Node))
+        {
+            // The factory takes the total, the node keeps the count above its
+            // built-in one.
+            Params->SetNumberField(TEXT("num_inputs"), DoOnce->NumAdditionalInputs + 1);
+            return;
+        }
+        // MultiGate derives from ExecutionSequence, so it has to be asked
+        // first; both report their exec output count the same way.
+        if (Node->IsA<UK2Node_MultiGate>() || Node->IsA<UK2Node_ExecutionSequence>())
+        {
+            Params->SetNumberField(TEXT("num_outputs"), CountExecPins(Node, EGPD_Output));
+            return;
+        }
+    }
+}
+
+FString UBlueprintGraphBuilderLibrary::GetNodeTypeForNode(const UEdGraphNode* Node)
+{
+    if (Node == nullptr)
+    {
+        return FString();
+    }
+    // Narrowest first. UK2Node_CustomEvent derives from UK2Node_Event and
+    // UK2Node_MultiGate from UK2Node_ExecutionSequence, so asking the base
+    // first would report both as their base type and rebuild the wrong node.
+    if (Node->IsA<UEdGraphNode_Comment>())      { return TEXT("Comment"); }
+    if (Node->IsA<UK2Node_CustomEvent>())       { return TEXT("CustomEvent"); }
+    if (const UK2Node_Event* Event = Cast<UK2Node_Event>(Node))
+    {
+        if (Event->bOverrideFunction)
+        {
+            const FString ActorEvent = ActorEventTypeFor(Event->EventReference.GetMemberName());
+            if (!ActorEvent.IsEmpty())
+            {
+                return ActorEvent;
+            }
+        }
+        return TEXT("Event");
+    }
+    if (Node->IsA<UK2Node_InputKey>())          { return TEXT("InputKey"); }
+    if (const UK2Node_CallFunction* Call = Cast<UK2Node_CallFunction>(Node))
+    {
+        const UClass* Owner = Call->FunctionReference.GetMemberParentClass(nullptr);
+        const FName FunctionName = Call->FunctionReference.GetMemberName();
+        if (Owner == UKismetSystemLibrary::StaticClass())
+        {
+            if (FunctionName == FName(TEXT("PrintString"))) { return TEXT("PrintString"); }
+            if (FunctionName == FName(TEXT("Delay")))       { return TEXT("Delay"); }
+        }
+        const FString Operator = OperatorNameFor(Owner, FunctionName);
+        return Operator.IsEmpty() ? TEXT("CallFunction") : TEXT("Operator");
+    }
+    if (Node->IsA<UK2Node_IfThenElse>())        { return TEXT("Branch"); }
+    if (Node->IsA<UK2Node_MultiGate>())         { return TEXT("MultiGate"); }
+    if (Node->IsA<UK2Node_ExecutionSequence>()) { return TEXT("Sequence"); }
+    if (Node->IsA<UK2Node_MakeStruct>())        { return TEXT("MakeStruct"); }
+    if (Node->IsA<UK2Node_BreakStruct>())       { return TEXT("BreakStruct"); }
+    if (Node->IsA<UK2Node_VariableSet>())       { return TEXT("VariableSet"); }
+    if (Node->IsA<UK2Node_VariableGet>())       { return TEXT("VariableGet"); }
+    if (Node->IsA<UK2Node_DynamicCast>())       { return TEXT("Cast"); }
+    if (Node->IsA<UK2Node_Select>())            { return TEXT("Select"); }
+    if (Node->IsA<UK2Node_Knot>())              { return TEXT("Knot"); }
+    if (Node->IsA<UK2Node_FormatText>())        { return TEXT("FormatText"); }
+    if (Node->IsA<UK2Node_SpawnActorFromClass>()) { return TEXT("SpawnActor"); }
+    if (Node->IsA<UK2Node_SwitchInteger>())     { return TEXT("SwitchInt"); }
+    if (Node->IsA<UK2Node_SwitchString>())      { return TEXT("SwitchString"); }
+    if (Node->IsA<UK2Node_DoOnceMultiInput>())  { return TEXT("DoOnceMultiInput"); }
+    return FString();
+}
+
+FString UBlueprintGraphBuilderLibrary::DescribeBlueprintGraphJSON(
+    UBlueprint* Blueprint,
+    const FString& GraphName,
+    bool bIncludePins)
+{
+    TSharedPtr<FJsonObject> Root = MakeShared<FJsonObject>();
+    if (Blueprint == nullptr)
+    {
+        Root->SetStringField(TEXT("error"), TEXT("blueprint null"));
+        return SerializeReport(Root);
+    }
+
+    UEdGraph* Graph = nullptr;
+    if (GraphName.IsEmpty())
+    {
+        Graph = FBlueprintEditorUtils::FindEventGraph(Blueprint);
+        if (Graph == nullptr && Blueprint->UbergraphPages.Num() > 0)
+        {
+            Graph = Blueprint->UbergraphPages[0];
+        }
+    }
+    else
+    {
+        Graph = FBPGraphReader::FindGraphByName(Blueprint, GraphName);
+    }
+    if (Graph == nullptr)
+    {
+        Root->SetStringField(TEXT("error"), GraphName.IsEmpty()
+            ? TEXT("This Blueprint has no event graph.")
+            : FString::Printf(TEXT("Graph '%s' was not found on this Blueprint."), *GraphName));
+        return SerializeReport(Root);
+    }
+
+    const FString AssetPath = Blueprint->GetPathName();
+    const FString ResolvedGraphName = Graph->GetName();
+
+    // Canonical ordering, not graph order. Unreal's own array order is an
+    // implementation detail that a reconstruct, a paste or a load can permute,
+    // so every array this function emits is sorted by a stable identity:
+    // nodes by NodeGuid, pins by direction then PinId, connections by their
+    // two endpoint strings. Sorted keys make two reads comparable by hash
+    // rather than only by content.
+    using FSortedEntry = TPair<FString, TSharedPtr<FJsonValue>>;
+    auto EmitSorted = [](TArray<FSortedEntry>& Entries) -> TArray<TSharedPtr<FJsonValue>>
+    {
+        Entries.Sort([](const FSortedEntry& A, const FSortedEntry& B) { return A.Key < B.Key; });
+        TArray<TSharedPtr<FJsonValue>> Out;
+        Out.Reserve(Entries.Num());
+        for (const FSortedEntry& Entry : Entries) { Out.Add(Entry.Value); }
+        return Out;
+    };
+
+    TArray<FSortedEntry> NodeEntries;
+    TArray<FSortedEntry> ConnectionEntries;
+    TArray<FSortedEntry> UnmappedEntries;
+    TArray<FSortedEntry> LossyEntries;
+    int32 ConnectionCount = 0;
+
+    for (UEdGraphNode* Node : Graph->Nodes)
+    {
+        if (Node == nullptr)
+        {
+            continue;
+        }
+        const FString NodeId = Node->GetName();
+        const FString NodeGuid = Node->NodeGuid.ToString();
+        const FString NodeType = GetNodeTypeForNode(Node);
+
+        TSharedPtr<FJsonObject> Entry = MakeShared<FJsonObject>();
+        // The identity tuple, repeated on the node rather than only on the
+        // graph: a NodeGuid is unique inside one graph and says nothing about
+        // which graph of which asset it came from, so a node lifted out of
+        // this array on its own would otherwise be ambiguous.
+        Entry->SetStringField(TEXT("asset_path"), AssetPath);
+        Entry->SetStringField(TEXT("graph_name"), ResolvedGraphName);
+        Entry->SetStringField(TEXT("id"), NodeId);
+        Entry->SetStringField(TEXT("node_guid"), NodeGuid);
+        if (NodeType.IsEmpty())
+        {
+            Entry->SetField(TEXT("type"), MakeShared<FJsonValueNull>());
+            TSharedPtr<FJsonObject> Miss = MakeShared<FJsonObject>();
+            Miss->SetStringField(TEXT("id"), NodeId);
+            Miss->SetStringField(TEXT("node_guid"), NodeGuid);
+            Miss->SetStringField(TEXT("node_class"), Node->GetClass()->GetName());
+            UnmappedEntries.Emplace(NodeGuid, MakeShared<FJsonValueObject>(Miss));
+        }
+        else
+        {
+            Entry->SetStringField(TEXT("type"), NodeType);
+        }
+        Entry->SetStringField(TEXT("node_class"), Node->GetClass()->GetName());
+        Entry->SetStringField(TEXT("title"), Node->GetNodeTitle(ENodeTitleType::ListView).ToString());
+        Entry->SetNumberField(TEXT("x"), Node->NodePosX);
+        Entry->SetNumberField(TEXT("y"), Node->NodePosY);
+        Entry->SetStringField(TEXT("comment"), Node->NodeComment);
+        Entry->SetStringField(TEXT("enabled"),
+            Node->GetDesiredEnabledState() == ENodeEnabledState::Disabled ? TEXT("Disabled")
+            : Node->GetDesiredEnabledState() == ENodeEnabledState::DevelopmentOnly ? TEXT("DevelopmentOnly")
+            : TEXT("Enabled"));
+
+        TSharedPtr<FJsonObject> Params = MakeShared<FJsonObject>();
+        AddRoutingParams(Node, NodeType, Params);
+        for (const UEdGraphPin* Pin : Node->Pins)
+        {
+            if (!PinCarriesAuthoredDefault(Pin))
+            {
+                continue;
+            }
+            bool bLossy = false;
+            Params->SetField(Pin->PinName.ToString(), PinDefaultAsJson(Pin, bLossy));
+            if (bLossy)
+            {
+                const FString Text = FString::Printf(
+                    TEXT("%s.%s (%s default reported as its raw pin text)"),
+                    *NodeId, *Pin->PinName.ToString(), *Pin->PinType.PinCategory.ToString());
+                LossyEntries.Emplace(NodeGuid + Pin->PinId.ToString(), MakeShared<FJsonValueString>(Text));
+            }
+        }
+        Entry->SetObjectField(TEXT("params"), Params);
+
+        if (bIncludePins)
+        {
+            TArray<FSortedEntry> PinEntries;
+            for (UEdGraphPin* Pin : Node->Pins)
+            {
+                if (Pin == nullptr)
+                {
+                    continue;
+                }
+                // Inputs before outputs, then by PinId, so a node that
+                // reconstructs its pins in a different order still reads the
+                // same way.
+                const FString Key = FString::Printf(TEXT("%d|%s"),
+                    Pin->Direction == EGPD_Input ? 0 : 1, *Pin->PinId.ToString());
+                PinEntries.Emplace(Key, MakeShared<FJsonValueObject>(FBPPinSerializer::Serialize(Pin)));
+            }
+            Entry->SetArrayField(TEXT("pins"), EmitSorted(PinEntries));
+        }
+        NodeEntries.Emplace(NodeGuid, MakeShared<FJsonValueObject>(Entry));
+
+        // Output pins only, so each link is reported once and in the direction
+        // a spec writes it.
+        for (const UEdGraphPin* Pin : Node->Pins)
+        {
+            if (Pin == nullptr || Pin->Direction != EGPD_Output)
+            {
+                continue;
+            }
+            for (const UEdGraphPin* Linked : Pin->LinkedTo)
+            {
+                UEdGraphNode* LinkedNode = Linked != nullptr ? Linked->GetOwningNodeUnchecked() : nullptr;
+                if (LinkedNode == nullptr)
+                {
+                    continue;
+                }
+                const FString From = FString::Printf(TEXT("%s.%s"), *NodeId, *Pin->PinName.ToString());
+                const FString To = FString::Printf(
+                    TEXT("%s.%s"), *LinkedNode->GetName(), *Linked->PinName.ToString());
+
+                TSharedPtr<FJsonObject> Connection = MakeShared<FJsonObject>();
+                Connection->SetStringField(TEXT("from"), From);
+                Connection->SetStringField(TEXT("to"), To);
+                // Endpoints again as identity rather than as display: two pins
+                // of one node can share a name across directions, and a node
+                // name is only unique inside its own graph.
+                Connection->SetStringField(TEXT("from_node_guid"), NodeGuid);
+                Connection->SetStringField(TEXT("from_pin_id"), Pin->PinId.ToString());
+                Connection->SetStringField(TEXT("to_node_guid"), LinkedNode->NodeGuid.ToString());
+                Connection->SetStringField(TEXT("to_pin_id"), Linked->PinId.ToString());
+
+                const FString Key = FString::Printf(TEXT("%s|%s|%s|%s"),
+                    *NodeGuid, *Pin->PinId.ToString(),
+                    *LinkedNode->NodeGuid.ToString(), *Linked->PinId.ToString());
+                ConnectionEntries.Emplace(Key, MakeShared<FJsonValueObject>(Connection));
+                ConnectionCount++;
+            }
+        }
+    }
+
+    Root->SetStringField(TEXT("asset_path"), AssetPath);
+    Root->SetStringField(TEXT("name"), ResolvedGraphName);
+    Root->SetStringField(TEXT("graph_name"), ResolvedGraphName);
+    Root->SetStringField(TEXT("graph_guid"), Graph->GraphGuid.ToString());
+    Root->SetNumberField(TEXT("node_count"), NodeEntries.Num());
+    Root->SetNumberField(TEXT("connection_count"), ConnectionCount);
+    Root->SetBoolField(TEXT("pins_included"), bIncludePins);
+    Root->SetArrayField(TEXT("nodes"), EmitSorted(NodeEntries));
+    Root->SetArrayField(TEXT("connections"), EmitSorted(ConnectionEntries));
+    Root->SetArrayField(TEXT("unmapped_nodes"), EmitSorted(UnmappedEntries));
+    Root->SetArrayField(TEXT("lossy_pin_defaults"), EmitSorted(LossyEntries));
+    return SerializeReport(Root);
 }
 
 bool UBlueprintGraphBuilderLibrary::ConfigureUserDefinedEnum(

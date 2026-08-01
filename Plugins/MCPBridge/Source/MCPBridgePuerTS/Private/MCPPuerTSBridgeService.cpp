@@ -121,7 +121,10 @@ bool UMCPPuerTSBridgeService::Initialize(FString& OutError)
             TEXT("call_function"), TEXT("spawn_actor"), TEXT("delete_actor"), TEXT("save"),
             TEXT("pie_start"), TEXT("pie_stop"), TEXT("get_logs"), TEXT("undo"),
             TEXT("physics_build"), TEXT("physics_observe"), TEXT("viewport_screenshot"), TEXT("sky_shader_create"),
-            TEXT("blueprint_build"), TEXT("widget_build")
+            TEXT("blueprint_build"), TEXT("widget_build"),
+            // Read only. Deliberately absent from IsToolMutating below, so it
+            // opens no transaction and returns no transaction id.
+            TEXT("graph_inspect")
         };
         for (const TCHAR* Value : Defaults) { AllowedTools.Add(Value); }
     }
@@ -168,6 +171,17 @@ bool UMCPPuerTSBridgeService::Initialize(FString& OutError)
     if (!ValidateScriptConfiguration(OutError) || !LoadOrCreateBearerToken(OutError))
     {
         return false;
+    }
+
+    // Advertise the active pipe name beside the token so a client can discover
+    // it from the project root alone, whatever [MCPPuerTSBridge] renamed it to.
+    // Best effort: the MCP_PUERTS_PIPE override still works without this file.
+    const FString PipeAdvertisePath =
+        FPaths::ProjectSavedDir() / TEXT("MCPPuerTSBridge") / TEXT("pipe.txt");
+    if (!FFileHelper::SaveStringToFile(PipeName, *PipeAdvertisePath, FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM))
+    {
+        UE_LOG(LogMCPPuerTSBridge, Warning,
+            TEXT("Could not advertise the pipe name at %s"), *PipeAdvertisePath);
     }
 
     LogCapture = MakeShared<FBridgeLogCapture>();

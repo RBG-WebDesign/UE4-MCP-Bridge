@@ -372,6 +372,40 @@ async function buildWidget(context: ToolContext, input: JsonObject): Promise<Com
   return result;
 }
 
+/** Read a Blueprint back as JSON. The inverse of blueprint_build, and the
+    only Blueprint command that is not a build: it opens no transaction, marks
+    nothing dirty, and answers with the asset's own dirty flag read before and
+    after the work so the caller can check that for itself. Everything below
+    the envelope is the native reader's; this function owns nothing but the
+    response shape, the same way buildBlueprint does. */
+async function inspectGraph(context: ToolContext, input: JsonObject): Promise<CommandResponse> {
+  const assetPath = requireString(input, "asset_path");
+  if (!assetPath.startsWith("/Game/") && !assetPath.startsWith("/Engine/")) {
+    throw new Error("Blueprint inspection is limited to /Game and /Engine");
+  }
+  const request: JsonObject = {
+    asset_path: assetPath,
+    graph_name: optionalString(input, "graph_name") ?? "",
+    include_pins: optionalBoolean(input, "include_pins", false),
+  };
+
+  const resultJson = puerts.$ref<string>("");
+  const error = puerts.$ref<string>("");
+  if (!context.bridge.InspectBlueprintJson(JSON.stringify(request), resultJson, error)) {
+    throw new Error(puerts.$unref(error));
+  }
+  const parsed = JSON.parse(puerts.$unref(resultJson)) as JsonObject;
+  const warnings = stringArray(parsed, "warnings");
+  delete parsed.warnings;
+
+  const result = response(true, "Blueprint inspected.", parsed);
+  result.warnings.push(...warnings);
+  // No changed_assets and no changed_actors on purpose: reading changed
+  // nothing, and a read that reports a changed asset would tell a client to
+  // save something nobody edited.
+  return result;
+}
+
 async function buildPhysics(context: ToolContext, input: JsonObject): Promise<CommandResponse> {
   const actors = input.actors;
   if (!Array.isArray(actors) || actors.length === 0 || actors.length > 200) {
@@ -498,6 +532,7 @@ export const toolDefinitions: readonly ToolDefinition[] = [
   { name: "sky_shader_create", inputSchema: schema({ asset_path: { type: "string" }, sky_actor: { type: "string" } }), outputSchema, permissions: ["assets.write", "reflection.write"], executionTimeoutMs: 10000, execute: createSkyShader },
   { name: "blueprint_build", inputSchema: schema({ asset_path: { type: "string" }, parent_class: { type: "string" }, components: { type: "array", items: { type: "object" } }, variables: { type: "array", items: { type: "object" } }, graph: { type: "object" }, compile: { type: "boolean" }, save: { type: "boolean" }, clear_existing_graph: { type: "boolean" } }, ["asset_path"]), outputSchema, permissions: ["assets.write"], executionTimeoutMs: 30000, execute: buildBlueprint },
   { name: "widget_build", inputSchema: schema({ asset_path: { type: "string" }, tree: { type: "object" }, save: { type: "boolean" } }, ["asset_path", "tree"]), outputSchema, permissions: ["assets.write"], executionTimeoutMs: 30000, execute: buildWidget },
+  { name: "graph_inspect", inputSchema: schema({ asset_path: { type: "string" }, graph_name: { type: "string" }, include_pins: { type: "boolean" } }, ["asset_path"]), outputSchema, permissions: ["assets.read"], executionTimeoutMs: 15000, execute: inspectGraph },
   { name: "physics_build", inputSchema: schema({ actors: { type: "array", items: { type: "object" } } }, ["actors"]), outputSchema, permissions: ["actors.spawn"], executionTimeoutMs: 10000, execute: buildPhysics },
   { name: "physics_observe", inputSchema: schema({ actors: { type: "array", items: { type: "string" } } }), outputSchema, permissions: ["actors.read"], executionTimeoutMs: 2000, execute: observePhysics },
   { name: "viewport_screenshot", inputSchema: schema({ actors: { type: "array", items: { type: "string" } }, filename: { type: "string" } }), outputSchema, permissions: ["viewport.capture"], executionTimeoutMs: 2000, execute: captureViewport },

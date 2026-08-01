@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
@@ -55,10 +55,11 @@ async function main(): Promise<void> {
     });
     const client = new PuerTSClient();
     const tools = createPuertsTools(client);
-    assert(tools.length === 19, "expected all 19 PuerTS tools");
+    assert(tools.length === 20, "expected all 20 PuerTS tools");
     assert(tools.some((tool) => tool.name === "puerts_sky_shader_create"), "native sky shader tool is missing");
     assert(tools.some((tool) => tool.name === "puerts_blueprint_build"), "native Blueprint builder tool is missing");
     assert(tools.some((tool) => tool.name === "puerts_widget_build"), "native widget builder tool is missing");
+    assert(tools.some((tool) => tool.name === "puerts_graph_inspect"), "native Blueprint inspector tool is missing");
     const response = await client.call("find_actors", {});
     assert(response.success && response.message === "Actors found.", "valid response was rejected");
     const actorTool = tools.find((tool) => tool.name === "puerts_find_actors");
@@ -771,12 +772,168 @@ async function nonActorParentSuite(): Promise<void> {
   }
 }
 
+/** puerts_graph_inspect is the read-only inverse of the builder. The three
+    things a read has to promise, and that a client can get wrong long before
+    the pipe answers: it is annotated read-only and carries no transaction id,
+    it reaches any Blueprint under /Game or /Engine rather than only the
+    authoring root, and its optional pin detail is off unless asked for. */
+async function graphInspectSuite(): Promise<void> {
+  const { toolAnnotations } = await import("../src/annotations.js");
+  const inspectAnnotations = toolAnnotations.puerts_graph_inspect;
+  assert(inspectAnnotations !== undefined, "puerts_graph_inspect has no annotation");
+  assert(inspectAnnotations.readOnlyHint === true, "the inspector is not annotated read-only");
+  assert(inspectAnnotations.destructiveHint === false, "the inspector is annotated destructive");
+
+  const directory = await mkdtemp(join(tmpdir(), "ue4-puerts-inspect-"));
+  const tokenPath = join(directory, "token.txt");
+  const pipeName = `\\\\.\\pipe\\ue4-puerts-inspect-${process.pid}-${Date.now()}`;
+  await writeFile(tokenPath, "test-token", "utf8");
+  process.env.MCP_PUERTS_TOKEN_PATH = tokenPath;
+  process.env.MCP_PUERTS_PIPE = pipeName;
+
+  const received: Record<string, unknown>[] = [];
+  const server = createServer((socket) => socket.once("data", (data: Buffer) => {
+    const request = JSON.parse(data.toString("utf8")) as {
+      params?: Record<string, unknown>;
+      tool?: string;
+      timeout_ms?: number;
+    };
+    received.push({ ...(request.params ?? {}), __tool: request.tool, __timeout: request.timeout_ms });
+    socket.end(JSON.stringify({
+      success: true,
+      message: "Blueprint inspected.",
+      data: {
+        asset_path: "/Game/MCPGenerated/BP_ProbeDoor",
+        package_dirty_before: false,
+        package_dirty_after: false,
+        graph: { name: "EventGraph", node_count: 3, connection_count: 2 },
+      },
+      changed_assets: [],
+      changed_actors: [],
+      warnings: [],
+      errors: [],
+      log_output: [],
+      transaction_id: "",
+    }) + "\n");
+  }));
+
+  try {
+    await new Promise<void>((resolve, reject) => {
+      server.once("error", reject);
+      server.listen(pipeName, resolve);
+    });
+    const tool = createPuertsTools(new PuerTSClient())
+      .find((entry) => entry.name === "puerts_graph_inspect");
+    assert(tool !== undefined, "puerts_graph_inspect is missing");
+
+    const read = await tool.handler({ asset_path: "/Game/MCPGenerated/BP_ProbeDoor" });
+    const payload = JSON.parse(read.content[0]?.text ?? "null") as Record<string, unknown>;
+    assert(payload.success === true, "a valid inspection request was rejected");
+    // Read-only is not a comment: a response that carried a transaction id
+    // would mean the native side had opened one.
+    assert(payload.transaction_id === "", "a read-only inspection returned a transaction id");
+    assert(
+      Array.isArray(payload.changed_assets) && (payload.changed_assets as unknown[]).length === 0,
+      "a read reported a changed asset",
+    );
+    const sent = received[0];
+    assert(sent?.__tool === "graph_inspect", "the runtime command name is wrong");
+    assert(
+      typeof sent?.__timeout === "number" && (sent.__timeout as number) > 5000,
+      "inspection did not get its own timeout budget",
+    );
+
+    // Reading is allowed outside the authoring root. Authoring is limited to
+    // /Game/MCPGenerated/; refusing to read anywhere else would make the
+    // inspector useless on a Blueprint somebody else wrote.
+    const engineRead = await tool.handler({ asset_path: "/Engine/Some/BP_Thing", graph_name: "EventGraph" });
+    assert(
+      JSON.parse(engineRead.content[0]?.text ?? "null").success === true,
+      "the inspector refused an /Engine path",
+    );
+    assert(received[1]?.graph_name === "EventGraph", "graph_name did not reach the pipe");
+
+    // Pin detail is opt-in, and the schema is strict about everything else.
+    const withPins = await tool.handler({ asset_path: "/Game/X/BP_Y", include_pins: true });
+    assert(JSON.parse(withPins.content[0]?.text ?? "null").success === true, "include_pins was rejected");
+    assert(received[2]?.include_pins === true, "include_pins did not reach the pipe");
+
+    const missingPath = await tool.handler({ graph_name: "EventGraph" });
+    assert(
+      JSON.parse(missingPath.content[0]?.text ?? "null").success === false,
+      "an inspection with no asset_path was accepted",
+    );
+    const unknownKey = await tool.handler({ asset_path: "/Game/X/BP_Y", clear_existing_graph: true });
+    assert(
+      JSON.parse(unknownKey.content[0]?.text ?? "null").success === false,
+      "the inspector accepted an authoring key, so a mutating spec could be sent to a read",
+    );
+    assert(received.length === 3, "a rejected request still reached the pipe");
+    console.log("  PASS  read-only Blueprint inspection contract");
+  } finally {
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+    await rm(directory, { recursive: true, force: true });
+    delete process.env.MCP_PUERTS_TOKEN_PATH;
+    delete process.env.MCP_PUERTS_PIPE;
+  }
+}
+
+/** Zero-config discovery: with only MCP_UNREAL_PROJECT_ROOT set, the client
+    finds both the token and the pipe name the editor advertised under
+    Saved/MCPPuerTSBridge/. This is the contract that lets .mcp.json carry no
+    machine-specific pipe or token path. */
+async function discoverySuite(): Promise<void> {
+  const projectRoot = await mkdtemp(join(tmpdir(), "ue4-puerts-discovery-"));
+  const bridgeDir = join(projectRoot, "Saved", "MCPPuerTSBridge");
+  await mkdir(bridgeDir, { recursive: true });
+  const pipeName = `\\\\.\\pipe\\ue4-puerts-discovery-${process.pid}-${Date.now()}`;
+  await writeFile(join(bridgeDir, "token.txt"), "discovered-token", "utf8");
+  // Trailing newline on purpose: the editor writes the name with SaveStringToFile
+  // and the client must trim what it reads.
+  await writeFile(join(bridgeDir, "pipe.txt"), `${pipeName}\n`, "utf8");
+  delete process.env.MCP_PUERTS_PIPE;
+  delete process.env.MCP_PUERTS_TOKEN_PATH;
+  delete process.env.MCP_PUERTS_TOKEN;
+  process.env.MCP_UNREAL_PROJECT_ROOT = projectRoot;
+
+  const server = createServer((socket) => socket.once("data", (data: Buffer) => {
+    const request = JSON.parse(data.toString("utf8")) as { auth?: string };
+    assert(request.auth === "discovered-token", "the token was not discovered from the project root");
+    socket.end(JSON.stringify({
+      success: true,
+      message: "Actors found.",
+      data: { count: 0 },
+      changed_assets: [],
+      changed_actors: [],
+      warnings: [],
+      errors: [],
+      log_output: [],
+      transaction_id: "",
+    }) + "\n");
+  }));
+  try {
+    await new Promise<void>((resolve, reject) => {
+      server.once("error", reject);
+      server.listen(pipeName, resolve);
+    });
+    const response = await new PuerTSClient().call("find_actors", {});
+    assert(response.success, "a call with discovery-resolved pipe and token failed");
+    console.log("  PASS  pipe and token discovery from MCP_UNREAL_PROJECT_ROOT alone");
+  } finally {
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+    await rm(projectRoot, { recursive: true, force: true });
+    delete process.env.MCP_UNREAL_PROJECT_ROOT;
+  }
+}
+
 main()
   .then(marshalingSuite)
   .then(blueprintBuildSuite)
   .then(widgetBuildSuite)
   .then(connectionContractSuite)
   .then(nonActorParentSuite)
+  .then(graphInspectSuite)
+  .then(discoverySuite)
   .catch((error: unknown) => {
     console.error(`  FAIL  ${error instanceof Error ? error.message : String(error)}`);
     process.exit(1);

@@ -16,7 +16,7 @@ import {
 import { zodToJsonSchema } from "zod-to-json-schema";
 
 import { UnrealClient } from "./unreal-client.js";
-import { PuerTSClient } from "./puerts-client.js";
+import { PuerTSClient, resolvePipeName } from "./puerts-client.js";
 import { OperationHistory } from "./history.js";
 import { createSystemTools } from "./tools/system.js";
 import { createProjectTools } from "./tools/project.js";
@@ -252,7 +252,7 @@ async function main(): Promise<void> {
   if (legacyClient !== undefined) {
     console.error(`[Unreal MCP Bridge] Legacy listener endpoint: ${legacyClient.endpoint}`);
   }
-  console.error(`[Unreal MCP Bridge] PuerTS pipe: ${puertsClient.pipeName}`);
+  console.error(`[Unreal MCP Bridge] PuerTS pipe: ${await resolvePipeName()}`);
   console.error(`[Unreal MCP Bridge] Tools: ${allTools.map((t) => t.name).join(", ")}`);
 }
 
