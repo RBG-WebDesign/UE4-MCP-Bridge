@@ -1,0 +1,157 @@
+{
+  "session_date": "2026-08-02",
+  "status": "success",
+  "goal": "Close Phase F3 by adding the two missing authoring surfaces: sound playback from a generated Blueprint graph, and a native Widget Blueprint builder, both proven in PIE",
+  "context": "docs/MASTERY_PLAN_2026-07-31.md Phase F3. Branch bridge/native-consolidation-2026-07-31. Live editor UE427PuerTSMCP, pipe UE427PuerTSMCP_UE427PuerTSMCP_81d778e7_skyshader5, level /Temp/Untitled_1. Every live call went through a freshly built mcp-server/dist over stdio with MCP_UNREAL_PROJECT_ROOT / MCP_PUERTS_TOKEN_PATH / MCP_PUERTS_PIPE, because the session's own MCP server process predates the new tool.",
+
+  "part_a_sound": {
+    "new_cpp": "none",
+    "why_none": "CallFunction has never been gated to a function list: BuildBlueprintFromJSON resolves params.class through ResolveGraphClass and params.function through UClass::FindFunctionByName, then builds a UK2Node_CallFunction with SetFromFunction. ApplyPinDefault already loads an object pin's default with LoadObject. So GameplayStatics.SpawnSoundAtLocation with an engine SoundWave on its Sound pin was inside the 26-type vocabulary the previous session shipped. The earlier reading of 'no audio authoring surface at all' was wrong about the cause: there was no audio *proof*, not no audio *reach*.",
+    "asset_lookup": "puerts_find_assets {path /Engine, type SoundWave, recursive true, limit 50} returned count 50: /Engine/EditorSounds/Notifications/CompileSuccess and CompileFailed, the six /Engine/EditorSounds/GamePreview cues, /Engine/EngineSounds/WhiteNoise, /Engine/Tutorial/Audio/InterestingStuff, and the /Engine/VREditor/Sounds UI bank. CompileSuccess was chosen because it is short, so its completion is observable within the door's existing 1 s Delay.",
+    "api_verification": [
+      "UGameplayStatics::SpawnSoundAtLocation returns UAudioComponent* (GameplayStatics.h:621); the sibling PlaySoundAtLocation (line 599) returns void and can prove nothing after the call.",
+      "UAudioComponent::IsPlaying, UFUNCTION(BlueprintCallable), AudioComponent.h:505-506.",
+      "UKismetSystemLibrary::IsValid, UFUNCTION(BlueprintPure), KismetSystemLibrary.h:93-94.",
+      "UKismetStringLibrary::Conv_BoolToString(bool InBool), KismetStringLibrary.h:29, which is the bool_to_string operator's target and fixes the pin name InBool."
+    ],
+    "asset": "/Game/MCPGenerated/BP_ProbeDoorV3",
+    "spec": "BP_ProbeDoorV2's four components and bIsOpen variable, plus five sound nodes. Graph: 31 nodes, 33 connections, compile_status UpToDate, saved, 101 ms.",
+    "sound_chain": "printA -> CallFunction GameplayStatics.SpawnSoundAtLocation (Sound = /Engine/EditorSounds/Notifications/CompileSuccess.CompileSuccess as a pin default, Location literal {700,0,220}) -> Branch on CallFunction KismetSystemLibrary.IsValid(Object = the returned AudioComponent) -> then: CallFunction AudioComponent.IsPlaying(self = the same component) -> bool_to_string -> append_string \"MCP_DOOR_SOUND spawned=1 playing=\" -> PrintString; else: PrintString \"MCP_DOOR_SOUND spawned=0 component=null\". Both branches rejoin the door's 1 s Delay, after which a second IsValid on the same reference is printed.",
+    "pie_log_lines": [
+      "[LogBlueprintUserMessages] [BP_ProbeDoorV3_C_1] MCP_DOOR_OPENING panel=X=950.000 Y=0.000 Z=220.000",
+      "[LogBlueprintUserMessages] [BP_ProbeDoorV3_C_1] MCP_DOOR_SOUND spawned=1 playing=true",
+      "[LogBlueprintUserMessages] [BP_ProbeDoorV3_C_1] MCP_DOOR_OPENED panel=X=950.000 Y=0.000 Z=620.000",
+      "[LogBlueprintUserMessages] [BP_ProbeDoorV3_C_1] MCP_DOOR_SOUND after_1s component_valid=false"
+    ],
+    "audio_device_lines": [
+      "[LogAudio] Creating Audio Device:                 Id: 3, Scope: Unique, Realtime: True",
+      "[LogAudioMixer] Using Audio Device Speakers (High Definition Audio Device)",
+      "[LogAudioMixer] Output buffers initialized: Frames=1024, Channels=2, Samples=2048",
+      "[LogAudio] Audio Device (ID: 3) registered with world 'Untitled_1'."
+    ],
+    "proof_standard": "spawned=1 says SpawnSoundAtLocation returned a live UAudioComponent, playing=true says that component's own IsPlaying answered yes, and component_valid=false one second later says bAutoDestroy destroyed it because the sound finished. That is a whole playback lifecycle observed through three independent reads. Audible is NOT provable from this environment and is not claimed: nothing here reads the mixer's output buffer. The LogAudioMixer lines prove a real hardware device was initialised for the session, not that a human would have heard anything."
+  },
+
+  "part_b_widget": {
+    "headline_finding": "The Widget Blueprint builder was already implemented. docs/superpowers/specs/2026-03-18-widget-blueprint-builder-design.md is marked design-complete/implementation-not-started and the mastery plan repeated it, but Plugins/MCPBridge/Source/MCPBridgeGraphBuilder holds 1840 lines of it across WidgetBlueprintBuilderLibrary.cpp and eleven WidgetBuilder/ files, compiled into the module on every build, with 18 widget types rather than the spec's 10 and a widget-animation pass the spec never mentions. It had no caller. This chunk is therefore a re-front, the same shape the Blueprint builder got, not a new subsystem.",
+    "new_cpp": {
+      "Plugins/MCPBridge/Source/MCPBridgePuerTS/Private/MCPPuerTSBridgeWidget.cpp": "new, 156 lines: UMCPPuerTSBridgeService::BuildWidgetJson plus the DescribeWidget read-back walker",
+      "Plugins/MCPBridge/Source/MCPBridgePuerTS/Public/MCPPuerTSBridgeService.h": "BuildWidgetJson declared",
+      "Plugins/MCPBridge/Source/MCPBridgePuerTS/Private/MCPPuerTSBridgeService.cpp": "widget_build added to the default tool allowlist and to IsToolMutating",
+      "Plugins/MCPBridge/Source/MCPBridgePuerTS/MCPBridgePuerTS.Build.cs": "UMG and UMGEditor added as private dependencies, for the read-back only"
+    },
+    "design_decisions": [
+      "The library owns the grammar; the command owns the contract. Widget types, per-category child-count rules, property names and their JSON types stay in FWidgetClassRegistry and FWidgetBlueprintValidator. BuildWidgetJson adds the /Game/MCPGenerated/ limit, a ValidateWidgetJSON pass before anything is touched, the create-versus-rebuild decision, and the read-back. Nothing about UMG was reimplemented.",
+      "The response is read back from the built asset, not echoed from the request. DescribeWidget walks the live UWidgetTree from RootWidget through UPanelWidget::GetChildAt, and for a UCanvasPanelSlot reports position and size out of LayoutData.Offsets plus GetZOrder(). Slot layout is applied by a different code path than widget construction, so a tree built with every slot silently at the origin would otherwise read as a success.",
+      "A widget tree converges as a whole, not per widget. Components and variables have stable names to merge against; a widget tree has no identity that survives a caller renaming or reordering a node, so a rerun replaces the tree of the asset already at that path. Hence the destructiveIdempotent annotation and a description that says so, rather than a merge that would quietly drop widgets.",
+      "BuildWidgetFromJSON refuses a path that already holds an asset, by design, so the existing-asset case routes to RebuildWidgetFromJSON rather than retrying. Creation saves inside the library; Rebuild deliberately does not, so the command saves that path itself and skips the save when the tree did not compile.",
+      "The MCP schema is recursive through z.lazy, and zod-to-json-schema terminates the recursion with $ref \"#/properties/tree/properties/root/properties/children/items\". 4711 bytes of schema, valid JSON Schema, no definitions block. A flat 'tree is an object' schema would have pushed every type error to the far end of a pipe round trip."
+    ],
+    "api_verification": [
+      "UWidgetBlueprintFactory through FAssetToolsModule::CreateAsset is the 4.27 creation path the spec called for and works unchanged.",
+      "FKismetEditorUtilities::CompileBlueprint compiles a UWidgetBlueprint with no special casing; WidgetBlueprint->Status is checked against BS_UpToDate.",
+      "FAnchorData::Offsets is an FMargin and LayoutData is public (CanvasPanelSlot.h:26, :74); UCanvasPanelSlot::GetZOrder() is const (line 153). SetPosition writes Offsets.Left/Top and SetSize writes Offsets.Right/Bottom under a point anchor, which is what the read-back reports."
+    ],
+    "acceptance": {
+      "asset": "/Game/MCPGenerated/WBP_ProbeHUD",
+      "tree": "CanvasPanel RootCanvas; TextBlock Title (text MCP_HUD_TITLE, justification Left, color {1,0.85,0.2,1}) at {60,40} size {480,48} z 2; ProgressBar StaminaBar (percent 0.42, barFillType LeftToRight, fillColorAndOpacity {0.1,0.8,0.4,1}) at {60,100} size {480,28} z 1; TextBlock Readout (text 'STAMINA 42', justification Right) at {60,136} size {480,32} z 2",
+      "build": "widget_count 4, compile_status UpToDate, saved, generated_class_path /Game/MCPGenerated/WBP_ProbeHUD.WBP_ProbeHUD_C, 102 ms",
+      "property_read_back_by_object_path": {
+        "WidgetTree.StaminaBar Percent": 0.41999998688697815,
+        "WidgetTree.StaminaBar FillColorAndOpacity": "{r 0.1, g 0.8, b 0.4, a 1}",
+        "WidgetTree.Title Text": "MCP_HUD_TITLE",
+        "WidgetTree.Readout Justification": "Right"
+      },
+      "slot_read_back": "Title position {60,40} size {480,48} z_order 2; StaminaBar {60,100}/{480,28} z 1; Readout {60,136}/{480,32} z 2, all reported as CanvasPanelSlot from the built asset",
+      "convergence": "The identical spec rerun answered created false, 'Widget Blueprint updated.', widget_count 4, UpToDate, saved, 54 ms.",
+      "nested_tree": "/Game/MCPGenerated/WBP_ProbeNest: CanvasPanel -> VerticalBox (canvas slot) -> [TextBlock with box padding and horizontalAlignment Fill, Border -> Button -> TextBlock]. widget_count 6, built in one pass, so panel, content and leaf attachment all work.",
+      "rejections": [
+        "R.T: Unsupported property 'percent' on TextBlock",
+        "R.P: Property 'percent' has wrong type  (percent given as the string \"half\")",
+        "R.Same: Duplicate widget name 'Same'",
+        "R.T: Leaf widget 'TextBlock' cannot have children",
+        "R.B: Content widget 'Button' can have at most 1 child, got 2",
+        "Root widget must be a Panel type, got 'TextBlock'",
+        "Unknown top-level key 'theme'",
+        "unknown slot key 'offset' and a missing tree, both refused by the client schema before the pipe",
+        "after all eight, find_assets for /Game/MCPGenerated/WBP_ProbeReject2 returned count 0"
+      ]
+    },
+    "display_proof": {
+      "asset": "/Game/MCPGenerated/BP_ProbeHUDHost",
+      "spec": "parent Actor, SceneComponent Root, variable HUDClass:class:UserWidget defaulted to /Game/MCPGenerated/WBP_ProbeHUD.WBP_ProbeHUD_C, 22-node graph, 26 connections, UpToDate, saved",
+      "graph": "BeginPlay -> CallFunction WidgetBlueprintLibrary.Create(WidgetType = VariableGet HUDClass) -> Branch on IsValid -> CallFunction UserWidget.AddToViewport(self = the created widget) -> PrintString(append_string \"MCP_HUD created=1 in_viewport=\" + bool_to_string(UserWidget.IsInViewport)) -> Delay 1.0 -> the same IsInViewport read again -> CallFunction UserWidget.GetCachedGeometry -> SlateBlueprintLibrary.GetLocalSize -> KismetStringLibrary.Conv_Vector2dToString -> PrintString",
+      "pie_log_lines": [
+        "[LogBlueprintUserMessages] [BP_ProbeHUDHost_C_1] MCP_HUD created=1 in_viewport=true",
+        "[LogBlueprintUserMessages] [BP_ProbeHUDHost_C_1] MCP_HUD after_1s in_viewport=true",
+        "[LogBlueprintUserMessages] [BP_ProbeHUDHost_C_1] MCP_HUD painted_size=X=1480.908 Y=1080.192"
+      ],
+      "why_geometry": "IsInViewport is registration state: it says AddToViewport was called and not undone. GetCachedGeometry is Slate's own arranged geometry, written during layout, so a non-zero local size is evidence the widget was measured and painted. 1480.908 x 1080.192 is the PIE viewport, which is what a CanvasPanel root filling the screen should report. This is the strongest display proof available here, because limitation 14 blocks viewport_screenshot during PIE: there is no picture of the running game to take."
+    }
+  },
+
+  "combined_pie_run": {
+    "setup": "level at 12 actors; spawn BP_ProbeDoorV3 at (700,0,20), BP_ProbeDropper at (700,0,1100), BP_ProbeHUDHost at (0,400,100); 15 actors",
+    "log_lines_in_order": [
+      "[LogBlueprintUserMessages] [BP_ProbeDropper_C_1] MCP_DROPPER_ALIVE F2-2026-08-01",
+      "[LogBlueprintUserMessages] [BP_ProbeHUDHost_C_1] MCP_HUD created=1 in_viewport=true",
+      "[PIE] Play in editor total start time 0.15 seconds.",
+      "[LogBlueprintUserMessages] [BP_ProbeHUDHost_C_1] MCP_HUD after_1s in_viewport=true",
+      "[LogBlueprintUserMessages] [BP_ProbeHUDHost_C_1] MCP_HUD painted_size=X=1480.908 Y=1080.192",
+      "[LogBlueprintUserMessages] [BP_ProbeDoorV3_C_1] MCP_DOOR_OPENING panel=X=950.000 Y=0.000 Z=220.000",
+      "[LogBlueprintUserMessages] [BP_ProbeDoorV3_C_1] MCP_DOOR_SOUND spawned=1 playing=true",
+      "[LogBlueprintUserMessages] [BP_ProbeDoorV3_C_1] MCP_DOOR_OPENED panel=X=950.000 Y=0.000 Z=620.000",
+      "[LogBlueprintUserMessages] [BP_ProbeDoorV3_C_1] MCP_DOOR_SOUND after_1s component_valid=false"
+    ],
+    "clean": "no 'Accessed None', no 'Blueprint Runtime Error' in the window. Reproduced across two PIE sessions; the first predates the geometry nodes and is otherwise identical.",
+    "screenshots": [
+      {
+        "path": "D:/Unreal Projects/MASTER_PROJECT/SF_Repository/Sinfeld_240301/Tests/UE427PuerTSMCP/Saved/Screenshots/MCPBridge/phase-f3-door-sound-hud.png",
+        "description": "2085x1138, read by the agent. Framed close on BP_ProbeDoorV3: the pale Pedestal block fills the lower half, the DoorPanel slab stands behind it, and the dark-red wireframe of the BoxComponent trigger volume encloses both, on the light grid floor. Legible but cropped tight, the opposite failure to limitation 18's usual one."
+      },
+      {
+        "path": "D:/Unreal Projects/MASTER_PROJECT/SF_Repository/Sinfeld_240301/Tests/UE427PuerTSMCP/Saved/Screenshots/MCPBridge/phase-f3-door-sound-before-pie.png",
+        "description": "2085x1138, read by the agent. The same assembly from far away, with the dark checkered floor and the dropper above it. Requested with one actor and still framed the whole level, which is limitation 18."
+      }
+    ]
+  },
+
+  "walls": [
+    "A graph connection that cannot be resolved is a log line, not an error. The first BP_ProbeDoorV3 build wired brSnd.exec -> playing.exec and playing.exec -> printS.exec, both were dropped with 'Could not resolve pins for connection', and the command still answered compile_status UpToDate, errors [], saved true, connection_count 34. connection_count is the requested count, not the made count. Found by reading log_output, not by anything in the response. New limitation 20.",
+    "The cause of that: UAudioComponent::IsPlaying is declared UFUNCTION(BlueprintCallable) but is const, and UHT promotes a const BlueprintCallable function with a return value to FUNC_BlueprintPure, so it has no exec pins. Same for UWidget::GetCachedGeometry. Read the declaration for const, not for the macro. New limitation 21.",
+    "UWidgetBlueprintLibrary::Create carries meta=(BlueprintInternalUseOnly=\"true\"), which was expected to block a raw CallFunction node. It does not: that metadata only makes UEdGraphSchema_K2::CanUserKismetCallFunction answer false and keep the function out of the palette. A node built with SetFromFunction compiles UpToDate and runs. This saved a second C++ cycle to advertise the registry's CreateWidget factory. New limitation 22.",
+    "No PIE screenshot exists, so 'the HUD is on screen' can only be a number. Limitation 14 stands and shaped both proofs in this chunk, exactly as it shaped the door's.",
+    "One probe labelled 'reject: unknown slot key' used 'position', which is a legitimate slot key, so it built successfully and left /Game/MCPGenerated/WBP_ProbeReject behind. That asset is a probe artefact, not evidence of a validation hole; the genuine eight-case rejection sweep ran against WBP_ProbeReject2 and left nothing."
+  ],
+
+  "changes": {
+    "Plugins/MCPBridge/Source/MCPBridgePuerTS/Private/MCPPuerTSBridgeWidget.cpp": "new: BuildWidgetJson, validate-before-mutate through ValidateWidgetJSON, create-versus-rebuild, save policy, and the UWidgetTree read-back with canvas-slot layout",
+    "Plugins/MCPBridge/Source/MCPBridgePuerTS/Public/MCPPuerTSBridgeService.h": "BuildWidgetJson declared with the boundary it owns written down",
+    "Plugins/MCPBridge/Source/MCPBridgePuerTS/Private/MCPPuerTSBridgeService.cpp": "widget_build allowlisted and marked mutating",
+    "Plugins/MCPBridge/Source/MCPBridgePuerTS/MCPBridgePuerTS.Build.cs": "UMG and UMGEditor private dependencies",
+    "puerts-runtime/src/registry.ts": "buildWidget execution function and the widget_build registry entry",
+    "puerts-runtime/types/puerts-bootstrap.d.ts": "BuildWidgetJson on the bridge service declaration",
+    "mcp-server/src/tools/puerts.ts": "widgetType enum, widgetSlot schema, the recursive widgetNode, the puerts_widget_build spec, tree in structuredParameters, 30 s timeout",
+    "mcp-server/src/annotations.ts": "puerts_widget_build classified destructiveIdempotent with the reason",
+    "mcp-server/tests/puerts-tools.test.ts": "tool count 18 -> 19, and a widgetBuildSuite covering the schema, three-level recursion, JSON-text decoding, and four rejections that never reach the pipe",
+    "docs/CAPABILITY_FINDINGS.md": "seven new Working rows, limitation 8's widget/audio clause corrected, new limitations 20-22, and a Fixed section for the widget re-front and the sound reach",
+    "docs/MASTERY_PLAN_2026-07-31.md": "Phase F3 ticked complete with the log lines, and the old entry's wrong claim kept and corrected rather than deleted",
+    "docs/TOOL_INVENTORY.json": "regenerated: 203 tools, native_pipe 18 -> 19",
+    "reports/session-2026-08-02-sound-widget.json": "this file"
+  },
+
+  "build_and_verify": {
+    "cpp_builds": 1,
+    "cpp_build_detail": "Build.bat UE427PuerTSMCPEditor Win64 Development after syncing Plugins/MCPBridge/Source and Content/JavaScript into the test project. 21 actions, 21.35 s parallel / 28.19 s total, zero errors on the first attempt; the only warnings are the pre-existing C4996 deprecations in AutoPIEHelper and GarmentMeshLibrary.",
+    "why_one": "The widget builder was already written and already compiling, so the only new C++ was the front. Part A needed none at all.",
+    "editor_restarts": 1,
+    "npm_verify": "green: build, 17 unit suites, PuerTS pin check (Unreal_v1.0.9 @ 838ab762d830, 1038 files), inventory check (203 tools, frozen count 203), smoke (21 tools, 8 passed / 0 failed / 2 skipped for the unset UE_ENGINE_ROOT and token path in that process)",
+    "final_state": "editor running, PIE stopped, puerts_diagnostic actor_count_total 12, is_game_thread true, transport named_pipe, no probe actors in the level"
+  },
+
+  "notes": [
+    "The most expensive assumption in this chunk was free to check and nobody had checked it: a spec said 'implementation not started' and 1840 lines of implementation were sitting in the module, compiled, for months. The plan inherited the claim. Reading WidgetClassRegistry.cpp took two minutes and turned a from-scratch UMG builder into a 156-line front.",
+    "Both halves of F3 ended up proving themselves the same way the door did, and for the same reason: no runtime property read and no screenshot during PIE, so the graph has to report its own state. The pattern generalises - find the call that returns a handle rather than the one that returns void, then have the handle answer a question in the log.",
+    "Every widget_build save logs 'Unable to Check Out From Source Control' as an auto-dismissed modal, exactly as blueprint_build does; the save succeeds."
+  ]
+}

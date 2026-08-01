@@ -135,7 +135,30 @@ project until something breaks; every break loops back to Phase L:
       diverge. Named `Operator` nodes cover the comparison and math calls a door
       and a stamina bar need. All 26 types built live and compiled clean;
       details and two engine gotchas in docs/CAPABILITY_FINDINGS.md)
-- [ ] Phase F3 gameplay slice - PARTLY met. The **door is done**:
+- [x] Phase F3 gameplay slice - **complete**. Trigger volume, moving door,
+      sound and HUD widget all fire in one PIE session, from JSON specs and
+      three spawns:
+      `[BP_ProbeHUDHost_C_1] MCP_HUD created=1 in_viewport=true`,
+      `MCP_HUD after_1s in_viewport=true`,
+      `MCP_HUD painted_size=X=1480.908 Y=1080.192`,
+      `[BP_ProbeDoorV3_C_1] MCP_DOOR_OPENING panel=X=950.000 Y=0.000 Z=220.000`,
+      `MCP_DOOR_SOUND spawned=1 playing=true`,
+      `MCP_DOOR_OPENED panel=X=950.000 Y=0.000 Z=620.000`,
+      `MCP_DOOR_SOUND after_1s component_valid=false`.
+      **Sound** needed no new C++: `CallFunction` was never gated to a function
+      list, so `GameplayStatics.SpawnSoundAtLocation` with an engine SoundWave
+      on its `Sound` pin was already reachable. It returns the AudioComponent,
+      which is what makes the playing state readable; a void `PlaySound*` would
+      have proved nothing. Audible is not provable from here and is not claimed.
+      **Widget** got one new native command, `puerts_widget_build`, fronting the
+      `UWidgetBlueprintBuilderLibrary` that was already implemented and compiled
+      in `MCPBridgeGraphBuilder` despite its spec saying otherwise. Details,
+      rejection sweep and three new limitations (20 unresolved connections are
+      log-only, 21 const BlueprintCallable is pure, 22 BlueprintInternalUseOnly
+      does not block a spawned CallFunction) in docs/CAPABILITY_FINDINGS.md;
+      evidence in reports/session-2026-08-02-sound-widget.json; screenshot
+      `Saved/Screenshots/MCPBridge/phase-f3-door-sound-hud.png`.
+      The earlier state of this line, for the record: the **door was done**:
       `/Game/MCPGenerated/BP_ProbeDoorV2` is authored from one JSON spec with a
       `bIsOpen` variable, a BoxComponent trigger and a 19-node graph, and in PIE
       it logs `MCP_DOOR_OPENING panel=X=950.000 Y=0.000 Z=220.000` then, after a
@@ -143,8 +166,8 @@ project until something breaks; every break loops back to Phase L:
       reporting its own position 400 uu higher, so the motion is measured rather
       than claimed, and the guard variable limits it to one opening per run.
       Evidence in reports/session-2026-08-02-mutator-refront.json; screenshot
-      `Saved/Screenshots/MCPBridge/phase-f3-door-fit.png`. **Sound and the HUD
-      widget are still not reachable**: there is no audio and no widget
-      authoring surface in the native catalog, and no Timeline node. Those two
-      are what is left of this phase.
+      `Saved/Screenshots/MCPBridge/phase-f3-door-fit.png`. That entry called
+      sound and the HUD unreachable "because there is no tool". Half of that was
+      a wrong reading: the audio half needed no tool. Still true: there is no
+      Timeline node of any kind.
 - [ ] Phase F4 stamina feature

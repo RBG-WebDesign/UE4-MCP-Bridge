@@ -176,6 +176,78 @@ const blueprintGraph = z.object({
   + "SpawnActor's Spawn Transform is a by-ref pin that needs a wired input.",
 );
 
+/** The widget types FWidgetClassRegistry resolves, grouped by the child rule
+    each one carries. The authority is RegisterTypes() in
+    Plugins/MCPBridge/Source/MCPBridgeGraphBuilder/Private/WidgetBuilder/
+    WidgetClassRegistry.cpp; the native command re-validates against it, so
+    this enum can only reject earlier. */
+const widgetType = z.enum([
+  // Panel: 0..N children.
+  "CanvasPanel", "VerticalBox", "HorizontalBox", "Overlay", "ScrollBox", "GridPanel", "WrapBox",
+  // Content: 0..1 child.
+  "Button", "Border", "SizeBox", "ScaleBox",
+  // Leaf: no children.
+  "TextBlock", "RichTextBlock", "Image", "Spacer", "ProgressBar", "Slider", "CheckBox", "EditableTextBox",
+]);
+
+/** Layout owned by the parent, not by the widget. Which fields apply depends
+    on the slot class the parent creates: a canvas slot takes position, size,
+    alignment, zOrder and autoSize; a box or overlay slot takes padding and
+    the two alignment enums; a grid slot takes row and column. Fields that do
+    not apply to the slot the parent made are ignored rather than refused,
+    because the same subtree is often moved between parents. */
+const widgetSlot = z.object({
+  position: z.object({ x: z.number(), y: z.number() }).strict().optional(),
+  size: z.object({ x: z.number(), y: z.number() }).strict().optional(),
+  alignment: z.object({ x: z.number(), y: z.number() }).strict().optional(),
+  padding: z.object({
+    left: z.number(), top: z.number(), right: z.number(), bottom: z.number(),
+  }).strict().optional(),
+  zOrder: z.number().optional(),
+  autoSize: z.boolean().optional(),
+  row: z.number().optional(),
+  column: z.number().optional(),
+  rowSpan: z.number().optional(),
+  columnSpan: z.number().optional(),
+  horizontalAlignment: z.string().optional().describe("Left, Center, Right or Fill."),
+  verticalAlignment: z.string().optional().describe("Top, Center, Bottom or Fill."),
+}).strict();
+
+/** One widget of the tree. Recursive, because a widget tree is a tree; the
+    native validator enforces the per-category child counts and unique names,
+    which a schema cannot express. */
+interface WidgetNodeInput {
+  type: z.infer<typeof widgetType>;
+  name: string;
+  properties?: Record<string, unknown>;
+  slot?: z.infer<typeof widgetSlot>;
+  children?: WidgetNodeInput[];
+}
+
+const widgetNode: z.ZodType<WidgetNodeInput> = z.lazy(() => z.object({
+  type: widgetType,
+  name: z.string().min(1).max(64).regex(/^[A-Za-z0-9_]+$/).describe(
+    "Unique across the whole tree. This is the widget's name in the asset, so "
+    + "it is what a read-back and a BindWidget both address.",
+  ),
+  properties: z.record(z.unknown()).optional().describe(
+    "Widget-intrinsic values by name. All types take visibility (Visible, "
+    + "Hidden, Collapsed, HitTestInvisible, SelfHitTestInvisible), renderOpacity "
+    + "and isEnabled. TextBlock and RichTextBlock take text and justification "
+    + "(Left, Center, Right), TextBlock also color {r,g,b,a} in 0..1. ProgressBar "
+    + "takes percent (0..1), fillColorAndOpacity, barFillType and isMarquee. "
+    + "Slider takes value, minValue, maxValue, stepSize and orientation. CheckBox "
+    + "takes isChecked. EditableTextBox takes text, hintText and isReadOnly. "
+    + "ScaleBox takes stretch, stretchDirection and userSpecifiedScale. A name "
+    + "the widget type does not support rejects the whole spec.",
+  ),
+  slot: widgetSlot.optional(),
+  children: z.array(widgetNode).max(64).optional().describe(
+    "Panel types take any number, content types take at most one, leaf types "
+    + "take none. Array order is tree order.",
+  ),
+}).strict());
+
 const specs = [
   ["puerts_diagnostic", "diagnostic", "Prove the in-process PuerTS context, game thread, named-pipe transport, and actor-query timing.", z.object({ actor_limit: z.number().optional() }).strict()],
   ["puerts_find_assets", "find_assets", "Find UE4.27 assets by path, type, or name.", z.object({ path: z.string().optional(), type: z.string().optional(), name: z.string().optional(), recursive: z.boolean().optional(), limit: z.number().optional() }).strict()],
@@ -219,6 +291,32 @@ const specs = [
       clear_existing_graph: z.boolean().optional().describe(
         "Default true: the event graph is replaced by the spec rather than appended to.",
       ),
+    }).strict()],
+  ["puerts_widget_build", "widget_build",
+    "Create or replace a compiled UMG Widget Blueprint from one JSON widget tree. The tree "
+    + "is a hierarchy of typed, named widgets: each carries optional widget-intrinsic "
+    + "properties and an optional slot object holding the layout its parent owns. The whole "
+    + "tree is validated before any asset is touched, so an unsupported widget type, a "
+    + "duplicate name, a property the type does not have, or a child under a leaf widget is "
+    + "a rejection rather than a half-built asset. Rerunning a spec converges by replacing "
+    + "the tree of the asset already at that path; unlike a Blueprint's components and "
+    + "variables, a widget tree has no per-widget identity to merge against, so the spec is "
+    + "the whole tree. Assets are limited to /Game/MCPGenerated/. The response reports the "
+    + "hierarchy read back out of the built asset, not the request, along with "
+    + "generated_class_path, which is the class a graph needs to create the widget at "
+    + "runtime.",
+    z.object({
+      asset_path: z.string().regex(/^\/Game\/MCPGenerated\/[A-Za-z0-9_]+(\/[A-Za-z0-9_]+)*$/).describe(
+        "Package path under /Game/MCPGenerated/, no asset-name suffix. The native "
+        + "command enforces the same limit; this rejects earlier, at the client.",
+      ),
+      tree: z.object({
+        root: widgetNode.describe("The root widget. Its own slot is ignored: it has no parent."),
+      }).passthrough().describe(
+        "The widget tree. Only root is required; the native builder also accepts an "
+        + "animations array, which is not schema-checked here.",
+      ),
+      save: z.boolean().optional().describe("Default true. A tree that did not compile is never saved."),
     }).strict()],
   ["puerts_physics_build", "physics_build", "Build a validated static-mesh rigid-body scene in one transaction.", z.object({ actors: z.array(physicsActor).min(1).max(200) }).strict()],
   ["puerts_physics_observe", "physics_observe", "Read rigid-body transforms and velocities from the editor or PIE world.", z.object({ actors: z.array(z.string()).max(200).optional() }).strict()],
@@ -287,6 +385,7 @@ const structuredParameters: Readonly<Record<string, readonly string[]>> = {
   puerts_viewport_screenshot: ["actors"],
   puerts_save: ["assets"],
   puerts_blueprint_build: ["components", "variables", "graph"],
+  puerts_widget_build: ["tree"],
 };
 
 /** Round-trip budget per tool, in milliseconds. Absent means the 7 second
@@ -295,6 +394,7 @@ const structuredParameters: Readonly<Record<string, readonly string[]>> = {
     the editor is still working reports a failure for work that succeeds. */
 const commandTimeouts: Readonly<Record<string, number>> = {
   puerts_blueprint_build: 30000,
+  puerts_widget_build: 30000,
 };
 
 /** Decode a JSON-encoded object or array back into the structure it encodes.

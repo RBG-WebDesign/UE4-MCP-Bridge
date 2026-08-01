@@ -323,6 +323,55 @@ async function buildBlueprint(context: ToolContext, input: JsonObject): Promise<
   return result;
 }
 
+/** Create or replace a UMG Widget Blueprint from one JSON widget tree. The
+    tree grammar belongs to the MCPBridgeGraphBuilder widget builder, reached
+    through the native service; this function owns nothing but the envelope,
+    exactly as buildBlueprint does. The native side validates the whole tree
+    before it touches an asset, so an unsupported widget type is a rejection
+    rather than a half-built hierarchy. */
+async function buildWidget(context: ToolContext, input: JsonObject): Promise<CommandResponse> {
+  const assetPath = requireString(input, "asset_path");
+  if (!assetPath.startsWith("/Game/MCPGenerated/")) {
+    throw new Error("Widget Blueprints are limited to /Game/MCPGenerated/");
+  }
+  const tree = optionalObject(input, "tree");
+  if (tree === undefined) {
+    throw new Error("tree is required and must hold the root widget");
+  }
+  const spec: JsonObject = {
+    asset_path: assetPath,
+    tree,
+    save: optionalBoolean(input, "save", true),
+  };
+
+  const resultJson = puerts.$ref<string>("");
+  const error = puerts.$ref<string>("");
+  if (!context.bridge.BuildWidgetJson(JSON.stringify(spec), resultJson, error)) {
+    throw new Error(puerts.$unref(error));
+  }
+  const parsed = JSON.parse(puerts.$unref(resultJson)) as JsonObject;
+  const errors = stringArray(parsed, "errors");
+  const warnings = stringArray(parsed, "warnings");
+  delete parsed.errors;
+  delete parsed.warnings;
+
+  const created = parsed.created === true;
+  const result = response(
+    errors.length === 0,
+    errors.length > 0
+      ? "Widget Blueprint build reported errors."
+      : created ? "Widget Blueprint created." : "Widget Blueprint updated.",
+    parsed,
+  );
+  result.errors.push(...errors);
+  result.warnings.push(...warnings);
+  const objectPath = parsed.object_path;
+  if (typeof objectPath === "string" && objectPath.length > 0) {
+    result.changed_assets.push(objectPath);
+  }
+  return result;
+}
+
 async function buildPhysics(context: ToolContext, input: JsonObject): Promise<CommandResponse> {
   const actors = input.actors;
   if (!Array.isArray(actors) || actors.length === 0 || actors.length > 200) {
@@ -448,6 +497,7 @@ export const toolDefinitions: readonly ToolDefinition[] = [
   { name: "delete_actor", inputSchema: schema({ actor: { type: "string" }, confirm: { type: "boolean" } }, ["actor", "confirm"]), outputSchema, permissions: ["actors.delete"], executionTimeoutMs: 2000, execute: deleteActor },
   { name: "sky_shader_create", inputSchema: schema({ asset_path: { type: "string" }, sky_actor: { type: "string" } }), outputSchema, permissions: ["assets.write", "reflection.write"], executionTimeoutMs: 10000, execute: createSkyShader },
   { name: "blueprint_build", inputSchema: schema({ asset_path: { type: "string" }, parent_class: { type: "string" }, components: { type: "array", items: { type: "object" } }, variables: { type: "array", items: { type: "object" } }, graph: { type: "object" }, compile: { type: "boolean" }, save: { type: "boolean" }, clear_existing_graph: { type: "boolean" } }, ["asset_path"]), outputSchema, permissions: ["assets.write"], executionTimeoutMs: 30000, execute: buildBlueprint },
+  { name: "widget_build", inputSchema: schema({ asset_path: { type: "string" }, tree: { type: "object" }, save: { type: "boolean" } }, ["asset_path", "tree"]), outputSchema, permissions: ["assets.write"], executionTimeoutMs: 30000, execute: buildWidget },
   { name: "physics_build", inputSchema: schema({ actors: { type: "array", items: { type: "object" } } }, ["actors"]), outputSchema, permissions: ["actors.spawn"], executionTimeoutMs: 10000, execute: buildPhysics },
   { name: "physics_observe", inputSchema: schema({ actors: { type: "array", items: { type: "string" } } }), outputSchema, permissions: ["actors.read"], executionTimeoutMs: 2000, execute: observePhysics },
   { name: "viewport_screenshot", inputSchema: schema({ actors: { type: "array", items: { type: "string" } }, filename: { type: "string" } }), outputSchema, permissions: ["viewport.capture"], executionTimeoutMs: 2000, execute: captureViewport },

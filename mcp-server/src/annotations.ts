@@ -86,6 +86,9 @@ export const toolAnnotations: Record<string, ToolAnnotations> = {
   // Converges on a rerun, but clear_existing_graph defaults to true, so a
   // build aimed at an existing Blueprint replaces its event graph.
   puerts_blueprint_build: destructiveIdempotent,
+  // Converges on a rerun, and the spec is the whole widget tree, so a build
+  // aimed at an existing Widget Blueprint replaces the hierarchy it had.
+  puerts_widget_build: destructiveIdempotent,
   puerts_delete_actor: destructiveIdempotent,
   puerts_save: destructive,
   puerts_undo: destructive,

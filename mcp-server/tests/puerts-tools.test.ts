@@ -55,9 +55,10 @@ async function main(): Promise<void> {
     });
     const client = new PuerTSClient();
     const tools = createPuertsTools(client);
-    assert(tools.length === 18, "expected all 18 PuerTS tools");
+    assert(tools.length === 19, "expected all 19 PuerTS tools");
     assert(tools.some((tool) => tool.name === "puerts_sky_shader_create"), "native sky shader tool is missing");
     assert(tools.some((tool) => tool.name === "puerts_blueprint_build"), "native Blueprint builder tool is missing");
+    assert(tools.some((tool) => tool.name === "puerts_widget_build"), "native widget builder tool is missing");
     const response = await client.call("find_actors", {});
     assert(response.success && response.message === "Actors found.", "valid response was rejected");
     const actorTool = tools.find((tool) => tool.name === "puerts_find_actors");
@@ -381,9 +382,152 @@ async function blueprintBuildSuite(): Promise<void> {
   }
 }
 
+/** puerts_widget_build advertises the widget types the C++ registry can
+    actually resolve, and the tree is recursive. A client told "any object"
+    writes hierarchies the builder rejects at the far end of a pipe round
+    trip; these assertions pin the advertised surface, the recursion, and the
+    rejections that never leave the client. */
+async function widgetBuildSuite(): Promise<void> {
+  const directory = await mkdtemp(join(tmpdir(), "ue4-puerts-widget-"));
+  const tokenPath = join(directory, "token.txt");
+  const pipeName = `\\\\.\\pipe\\ue4-puerts-widget-${process.pid}-${Date.now()}`;
+  await writeFile(tokenPath, "test-token", "utf8");
+  process.env.MCP_PUERTS_TOKEN_PATH = tokenPath;
+  process.env.MCP_PUERTS_PIPE = pipeName;
+
+  const received: Record<string, unknown>[] = [];
+  const server = createServer((socket) => socket.once("data", (data: Buffer) => {
+    const request = JSON.parse(data.toString("utf8")) as {
+      params?: Record<string, unknown>;
+      tool?: string;
+      timeout_ms?: number;
+    };
+    received.push({ ...(request.params ?? {}), __tool: request.tool, __timeout: request.timeout_ms });
+    socket.end(JSON.stringify({
+      success: true,
+      message: "Widget Blueprint created.",
+      data: { asset_path: "/Game/MCPGenerated/WBP_Probe", created: true, compile_status: "UpToDate" },
+      changed_assets: ["/Game/MCPGenerated/WBP_Probe.WBP_Probe"],
+      changed_actors: [],
+      warnings: [],
+      errors: [],
+      log_output: [],
+      transaction_id: "T3",
+    }) + "\n");
+  }));
+
+  try {
+    await new Promise<void>((resolve, reject) => {
+      server.once("error", reject);
+      server.listen(pipeName, resolve);
+    });
+    const tool = createPuertsTools(new PuerTSClient())
+      .find((entry) => entry.name === "puerts_widget_build");
+    assert(tool !== undefined, "puerts_widget_build is missing");
+
+    const built = await tool.handler({
+      asset_path: "/Game/MCPGenerated/WBP_Probe",
+      tree: {
+        root: {
+          type: "CanvasPanel",
+          name: "RootCanvas",
+          children: [
+            {
+              type: "TextBlock",
+              name: "Label",
+              properties: { text: "MCP", color: { r: 1, g: 1, b: 1, a: 1 } },
+              slot: { position: { x: 60, y: 40 }, size: { x: 400, y: 48 }, zOrder: 1 },
+            },
+            {
+              type: "ProgressBar",
+              name: "Bar",
+              properties: { percent: 0.42 },
+              slot: { position: { x: 60, y: 96 }, size: { x: 400, y: 24 } },
+            },
+          ],
+        },
+      },
+    });
+    assert(JSON.parse(built.content[0]?.text ?? "null").success === true, "a valid widget tree was rejected");
+    const sent = received[0];
+    assert(sent?.__tool === "widget_build", "the runtime command name is wrong");
+    assert(
+      typeof sent?.__timeout === "number" && (sent.__timeout as number) > 5000,
+      "widget authoring did not get its own timeout budget",
+    );
+    const sentRoot = (sent?.tree as { root?: { children?: unknown[] } } | undefined)?.root;
+    assert(sentRoot?.children?.length === 2, "the tree did not reach the pipe as a nested object");
+
+    // Three levels deep, so the recursion is exercised past the one the flat
+    // shape would also satisfy.
+    const nested = await tool.handler({
+      asset_path: "/Game/MCPGenerated/WBP_Probe",
+      tree: {
+        root: {
+          type: "CanvasPanel",
+          name: "RootCanvas",
+          children: [{
+            type: "VerticalBox",
+            name: "Column",
+            children: [{
+              type: "Border",
+              name: "Frame",
+              children: [{ type: "TextBlock", name: "Deep", properties: { text: "deep" } }],
+            }],
+          }],
+        },
+      },
+    });
+    assert(JSON.parse(nested.content[0]?.text ?? "null").success === true, "a three-level tree was rejected");
+
+    const fromText = await tool.handler({
+      asset_path: "/Game/MCPGenerated/WBP_Probe",
+      tree: '{"root":{"type":"CanvasPanel","name":"RootCanvas"}}',
+    });
+    assert(
+      JSON.parse(fromText.content[0]?.text ?? "null").success === true,
+      "a widget tree sent as JSON text was rejected",
+    );
+    assert(
+      ((received[2]?.tree as { root?: { name?: string } } | undefined)?.root)?.name === "RootCanvas",
+      "the tree text was not decoded before the pipe",
+    );
+
+    const badType = await tool.handler({
+      asset_path: "/Game/MCPGenerated/WBP_Probe",
+      tree: { root: { type: "NotAWidget", name: "RootCanvas" } },
+    });
+    assert(
+      JSON.parse(badType.content[0]?.text ?? "null").success === false,
+      "an unsupported widget type was accepted",
+    );
+    assert(received.length === 3, "the unsupported widget type still reached the editor");
+
+    const badPath = await tool.handler({
+      asset_path: "/Game/UI/WBP_Probe",
+      tree: { root: { type: "CanvasPanel", name: "RootCanvas" } },
+    });
+    assert(
+      JSON.parse(badPath.content[0]?.text ?? "null").success === false,
+      "a path outside /Game/MCPGenerated was accepted",
+    );
+
+    const noTree = await tool.handler({ asset_path: "/Game/MCPGenerated/WBP_Probe" });
+    assert(JSON.parse(noTree.content[0]?.text ?? "null").success === false, "a spec with no tree was accepted");
+    assert(received.length === 3, "a malformed widget spec still reached the editor");
+    console.log("  PASS  widget build schema, recursive tree marshaling, and rejected specs");
+  } finally {
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+    await rm(directory, { recursive: true, force: true });
+    delete process.env.MCP_PUERTS_TOKEN_PATH;
+    delete process.env.MCP_PUERTS_PIPE;
+  }
+}
+
 main()
   .then(marshalingSuite)
   .then(blueprintBuildSuite)
+  .then(widgetBuildSuite)
   .catch((error: unknown) => {
     console.error(`  FAIL  ${error instanceof Error ? error.message : String(error)}`);
     process.exit(1);

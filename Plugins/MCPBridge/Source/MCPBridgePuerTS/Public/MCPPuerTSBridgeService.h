@@ -153,6 +153,19 @@ public:
         FString& OutResultJson,
         FString& OutError);
 
+    /** Create or replace a UMG Widget Blueprint from one JSON widget tree,
+        handed to the existing MCPBridgeGraphBuilder widget builder. The tree
+        grammar (widget types, child-count rules per category, property names
+        and their JSON types) is the builder's; this command owns the asset
+        path limit, the validate-before-mutate pass, the create-versus-rebuild
+        decision, and the hierarchy read-back that proves the tree exists in
+        the asset rather than only in the request. */
+    UFUNCTION(BlueprintCallable, Category="MCP PuerTS Bridge")
+    bool BuildWidgetJson(
+        const FString& SpecJson,
+        FString& OutResultJson,
+        FString& OutError);
+
     UFUNCTION(BlueprintCallable, Category="MCP PuerTS Bridge")
     bool BuildPhysicsSceneJson(
         const FString& SpecJson,

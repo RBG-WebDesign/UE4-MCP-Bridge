@@ -15,12 +15,12 @@
     "deprecated",
     "migrated_verified"
   ],
-  "tool_count": 202,
+  "tool_count": 203,
   "by_backend": {
     "legacy_http": 170,
     "native_pipe_alias": 12,
     "server_local": 2,
-    "native_pipe": 18
+    "native_pipe": 19
   },
   "tools": [
     {
@@ -4204,6 +4204,30 @@
       "annotations": {
         "readOnlyHint": false,
         "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": "mcp-server/tests/puerts-tools.test.ts"
+    },
+    {
+      "name": "puerts_widget_build",
+      "module": "mcp-server/src/tools/puerts.ts",
+      "backend": "native_pipe",
+      "migration_state": "native",
+      "target_replacement": null,
+      "description": "[PRIMARY NATIVE IPC] Create or replace a compiled UMG Widget Blueprint from one JSON widget tree. The tree is a hierarchy of typed, named widgets: each carries optional widget-intrinsic properties and an optional slot object holding the layout its parent owns. The whole tree is validated before any asset is touched, so an unsupported widget type, a duplicate name, a property the type does not have, or a child under a leaf widget is a rejection rather than a half-built asset. Rerunning a spec converges by replacing the tree of the asset already at that path; unlike a Blueprint's components and variables, a widget tree has no per-widget identity to merge against, so the spec is the whole tree. Assets are limited to /Game/MCPGenerated/. The response reports the hierarchy read back out of the built asset, not the request, along with generated_class_path, which is the class a graph needs to create the widget at runtime.",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "asset_path": "string",
+          "tree": "object",
+          "save": "boolean?"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": true,
         "idempotentHint": true,
         "openWorldHint": false
       },
