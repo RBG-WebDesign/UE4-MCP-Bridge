@@ -101,7 +101,10 @@ project until something breaks; every break loops back to Phase L:
 - [x] Plan authored
 - [x] Phase W complete and verified (commit 92ee569; 12 aliases, 148-assertion suite, verify green; agent also fixed a stale overlap table - real count was 10, restored to 12 with substitutes ue_logs and asset_save_many)
 - [x] Phase P findings documented (docs/CAPABILITY_FINDINGS.md; first batch - serializer/marshaling localized, call_function surface mapped, BP spawn proven)
-- [ ] Phase L: serializer fixed
+- [x] Phase L: serializer fixed (struct and array marshaling in both directions;
+      reads now go through native FJsonObjectConverter for object paths too, and
+      the untyped `value` schema that made clients stringify structs is gone;
+      live acceptance in docs/CAPABILITY_FINDINGS.md, verify green)
 - [ ] Phase L: builder re-fronted
 - [ ] Phase F1 material
 - [ ] Phase F2 blueprint actor

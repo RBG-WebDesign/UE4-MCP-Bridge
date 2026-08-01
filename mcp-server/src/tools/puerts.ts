@@ -17,12 +17,28 @@ const physicsActor = z.object({
   angular_damping: z.number().optional(),
 }).strict();
 
+/** The value of a reflected property. Spelling the alternatives out matters:
+    an untyped schema tells a client nothing, and a client with nothing to go
+    on sends a struct or an array as JSON text instead of as JSON. */
+const reflectedValue = z.union([
+  z.string(),
+  z.number(),
+  z.boolean(),
+  z.null(),
+  z.array(z.unknown()),
+  z.record(z.unknown()),
+]).describe(
+  "Value in the property's own reflected shape: a number for a float, "
+  + "{\"x\":0,\"y\":0,\"z\":0} for a vector, {\"pitch\":0,\"yaw\":0,\"roll\":0} for a rotator, "
+  + "an array of strings for Tags.",
+);
+
 const specs = [
   ["puerts_diagnostic", "diagnostic", "Prove the in-process PuerTS context, game thread, named-pipe transport, and actor-query timing.", z.object({ actor_limit: z.number().optional() }).strict()],
   ["puerts_find_assets", "find_assets", "Find UE4.27 assets by path, type, or name.", z.object({ path: z.string().optional(), type: z.string().optional(), name: z.string().optional(), recursive: z.boolean().optional(), limit: z.number().optional() }).strict()],
   ["puerts_find_actors", "find_actors", "Find actors in the current editor level.", z.object({ name: z.string().optional(), type: z.string().optional(), limit: z.number().optional() }).strict()],
   ["puerts_read_property", "read_property", "Read an Unreal reflected property.", z.object({ ...target, property: z.string() }).strict()],
-  ["puerts_set_property", "set_property", "Set an approved Unreal reflected property in a transaction.", z.object({ ...target, property: z.string(), value: z.unknown() }).strict()],
+  ["puerts_set_property", "set_property", "Set an approved Unreal reflected property in a transaction.", z.object({ ...target, property: z.string(), value: reflectedValue }).strict()],
   ["puerts_call_function", "call_function", "Call a native-approved Unreal function.", z.object({ actor: z.string(), function: z.string(), arguments: z.array(z.unknown()).optional() }).strict()],
   ["puerts_spawn_actor", "spawn_actor", "Spawn an actor in a transaction.", z.object({ class_path: z.string(), location: vector.optional(), rotation: rotator.optional() }).strict()],
   ["puerts_delete_actor", "delete_actor", "Delete an actor in a transaction. Requires confirm=true.", z.object({ actor: z.string(), confirm: z.literal(true) }).strict()],
@@ -80,6 +96,54 @@ export function nativeFailureEnvelope(
   };
 }
 
+/** Parameters that carry an object or an array. An MCP client that has no
+    type information for a parameter sends structured input as JSON text, and
+    that text reaches Unreal reflection as a string: a struct write dies in the
+    runtime validator, an array write reaches C++ as a non-array. Listing the
+    parameters here, one line per tool, keeps that decision reviewable. */
+const structuredParameters: Readonly<Record<string, readonly string[]>> = {
+  puerts_set_property: ["value"],
+  puerts_call_function: ["arguments"],
+  puerts_spawn_actor: ["location", "rotation"],
+  puerts_physics_build: ["actors"],
+  puerts_physics_observe: ["actors"],
+  puerts_viewport_screenshot: ["actors"],
+  puerts_save: ["assets"],
+};
+
+/** Decode a JSON-encoded object or array back into the structure it encodes.
+    Anything else is returned untouched, so a string property value stays a
+    string even when it happens to be valid JSON for a number or a quoted
+    string. Only text that both opens and closes as an object or an array is
+    considered. */
+export function decodeStructuredValue(value: unknown): unknown {
+  if (typeof value !== "string") return value;
+  const text = value.trim();
+  const looksStructured = (text.startsWith("{") && text.endsWith("}"))
+    || (text.startsWith("[") && text.endsWith("]"));
+  if (!looksStructured) return value;
+  try {
+    const parsed: unknown = JSON.parse(text);
+    return parsed !== null && typeof parsed === "object" ? parsed : value;
+  } catch {
+    return value;
+  }
+}
+
+/** Apply decodeStructuredValue to the structured parameters of one tool. */
+export function decodeStructuredParams(
+  toolName: string,
+  params: Record<string, unknown>,
+): Record<string, unknown> {
+  const keys = structuredParameters[toolName];
+  if (keys === undefined) return params;
+  const decoded: Record<string, unknown> = { ...params };
+  for (const key of keys) {
+    if (key in decoded) decoded[key] = decodeStructuredValue(decoded[key]);
+  }
+  return decoded;
+}
+
 /** The single execution path for every native command. Both the puerts_*
     tools and the compatibility aliases go through this, so an alias cannot
     drift from the tool it fronts. */
@@ -89,7 +153,9 @@ export async function executeNativeCommand(
   params: Record<string, unknown>,
 ): Promise<Record<string, unknown>> {
   try {
-    const parsed = spec.inputSchema.parse(params) as Record<string, unknown>;
+    const parsed = spec.inputSchema.parse(
+      decodeStructuredParams(spec.name, params),
+    ) as Record<string, unknown>;
     return await client.call(spec.command, parsed) as unknown as Record<string, unknown>;
   } catch (error: unknown) {
     return nativeFailureEnvelope([error instanceof Error ? error.message : String(error)]);

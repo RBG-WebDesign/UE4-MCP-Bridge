@@ -562,20 +562,19 @@ UObject* UMCPPuerTSBridgeService::FindObjectByPath(const FString& ObjectPath) co
         : StaticFindObject(UObject::StaticClass(), nullptr, *ObjectPath);
 }
 
-bool UMCPPuerTSBridgeService::ReadActorPropertyJson(
-    const FString& NameOrPath,
+bool UMCPPuerTSBridgeService::ReadObjectPropertyJson(
+    UObject* Object,
     const FString& PropertyName,
     FString& OutValueJson,
-    FString& OutActorPath,
+    FString& OutObjectPath,
     FString& OutError) const
 {
-    AActor* Actor = FindLevelActor(NameOrPath);
-    if (Actor == nullptr)
+    if (Object == nullptr)
     {
-        OutError = TEXT("Actor not found.");
+        OutError = TEXT("Object not found.");
         return false;
     }
-    FProperty* Property = FindFProperty<FProperty>(Actor->GetClass(), *PropertyName);
+    FProperty* Property = FindFProperty<FProperty>(Object->GetClass(), *PropertyName);
     if (Property == nullptr)
     {
         OutError = TEXT("Reflected property not found.");
@@ -583,7 +582,7 @@ bool UMCPPuerTSBridgeService::ReadActorPropertyJson(
     }
     TSharedPtr<FJsonValue> Value = FJsonObjectConverter::UPropertyToJsonValue(
         Property,
-        Property->ContainerPtrToValuePtr<void>(Actor));
+        Property->ContainerPtrToValuePtr<void>(Object));
     if (!Value.IsValid())
     {
         OutError = TEXT("Property could not be serialized.");
@@ -592,30 +591,29 @@ bool UMCPPuerTSBridgeService::ReadActorPropertyJson(
     TSharedPtr<FJsonObject> Wrapper = MakeShared<FJsonObject>();
     Wrapper->SetField(TEXT("value"), Value);
     OutValueJson = SerializeJson(Wrapper);
-    OutActorPath = Actor->GetPathName();
+    OutObjectPath = Object->GetPathName();
     return true;
 }
 
-bool UMCPPuerTSBridgeService::SetActorPropertyJson(
-    const FString& NameOrPath,
+bool UMCPPuerTSBridgeService::SetObjectPropertyJson(
+    UObject* Object,
     const FString& PropertyName,
     const FString& ValueJson,
-    FString& OutActorPath,
+    FString& OutObjectPath,
     FString& OutError)
 {
-    AActor* Actor = FindLevelActor(NameOrPath);
-    if (Actor == nullptr)
+    if (Object == nullptr)
     {
-        OutError = TEXT("Actor not found.");
+        OutError = TEXT("Object not found.");
         return false;
     }
-    FProperty* Property = FindFProperty<FProperty>(Actor->GetClass(), *PropertyName);
+    FProperty* Property = FindFProperty<FProperty>(Object->GetClass(), *PropertyName);
     if (Property == nullptr)
     {
         OutError = TEXT("Reflected property not found.");
         return false;
     }
-    if (!IsWritablePropertyAllowed(Actor, PropertyName))
+    if (!IsWritablePropertyAllowed(Object, PropertyName))
     {
         OutError = TEXT("Writable property is not approved.");
         return false;
@@ -635,7 +633,7 @@ bool UMCPPuerTSBridgeService::SetActorPropertyJson(
     }
     TSharedPtr<FJsonValue> PreviousValue = FJsonObjectConverter::UPropertyToJsonValue(
         Property,
-        Property->ContainerPtrToValuePtr<void>(Actor));
+        Property->ContainerPtrToValuePtr<void>(Object));
     if (!PreviousValue.IsValid())
     {
         OutError = TEXT("Previous property value could not be serialized.");
@@ -643,7 +641,7 @@ bool UMCPPuerTSBridgeService::SetActorPropertyJson(
     }
     TSharedPtr<FJsonObject> PreviousWrapper = MakeShared<FJsonObject>();
     PreviousWrapper->SetField(TEXT("value"), PreviousValue);
-    if (!PrepareObjectMutation(Actor, PropertyName))
+    if (!PrepareObjectMutation(Object, PropertyName))
     {
         OutError = TEXT("Native transaction preparation failed.");
         return false;
@@ -651,17 +649,57 @@ bool UMCPPuerTSBridgeService::SetActorPropertyJson(
     if (!FJsonObjectConverter::JsonValueToUProperty(
             Value,
             Property,
-            Property->ContainerPtrToValuePtr<void>(Actor)))
+            Property->ContainerPtrToValuePtr<void>(Object)))
     {
         OutError = TEXT("Property value is invalid for its reflected type.");
         return false;
     }
-    FinalizeObjectMutation(Actor);
-    ActiveUndoActorName = Actor->GetName();
-    ActiveUndoPropertyName = PropertyName;
-    ActiveUndoValueJson = SerializeJson(PreviousWrapper);
-    OutActorPath = Actor->GetPathName();
+    // Name the property that changed. USceneComponent only refreshes its world
+    // transform when the event identifies RelativeLocation/Rotation/Scale3D, so
+    // the bare PostEditChange() would leave a moved component stale.
+    FPropertyChangedEvent ChangedEvent(Property, EPropertyChangeType::ValueSet);
+    Object->PostEditChangeProperty(ChangedEvent);
+    Object->MarkPackageDirty();
+    if (AActor* Actor = Cast<AActor>(Object))
+    {
+        ActiveUndoActorName = Actor->GetName();
+        ActiveUndoPropertyName = PropertyName;
+        ActiveUndoValueJson = SerializeJson(PreviousWrapper);
+    }
+    OutObjectPath = Object->GetPathName();
     return true;
+}
+
+bool UMCPPuerTSBridgeService::ReadActorPropertyJson(
+    const FString& NameOrPath,
+    const FString& PropertyName,
+    FString& OutValueJson,
+    FString& OutActorPath,
+    FString& OutError) const
+{
+    AActor* Actor = FindLevelActor(NameOrPath);
+    if (Actor == nullptr)
+    {
+        OutError = TEXT("Actor not found.");
+        return false;
+    }
+    return ReadObjectPropertyJson(Actor, PropertyName, OutValueJson, OutActorPath, OutError);
+}
+
+bool UMCPPuerTSBridgeService::SetActorPropertyJson(
+    const FString& NameOrPath,
+    const FString& PropertyName,
+    const FString& ValueJson,
+    FString& OutActorPath,
+    FString& OutError)
+{
+    AActor* Actor = FindLevelActor(NameOrPath);
+    if (Actor == nullptr)
+    {
+        OutError = TEXT("Actor not found.");
+        return false;
+    }
+    return SetObjectPropertyJson(Actor, PropertyName, ValueJson, OutActorPath, OutError);
 }
 bool UMCPPuerTSBridgeService::CallActorFunctionJson(
     const FString& NameOrPath,

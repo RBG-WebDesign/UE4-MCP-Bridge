@@ -68,6 +68,27 @@ public:
 
     UFUNCTION(BlueprintPure, Category="MCP PuerTS Bridge")
     UObject* FindObjectByPath(const FString& ObjectPath) const;
+    /** Serialize any reflected property of any UObject through
+        FJsonObjectConverter, so structs, arrays, maps, and enums marshal the
+        same way for actors and for components addressed by object path. */
+    UFUNCTION(BlueprintCallable, Category="MCP PuerTS Bridge")
+    bool ReadObjectPropertyJson(
+        UObject* Object,
+        const FString& PropertyName,
+        FString& OutValueJson,
+        FString& OutObjectPath,
+        FString& OutError) const;
+
+    /** Write any approved reflected property of any UObject from the JSON
+        {"value": ...} wrapper, inside the active transaction. */
+    UFUNCTION(BlueprintCallable, Category="MCP PuerTS Bridge")
+    bool SetObjectPropertyJson(
+        UObject* Object,
+        const FString& PropertyName,
+        const FString& ValueJson,
+        FString& OutObjectPath,
+        FString& OutError);
+
     UFUNCTION(BlueprintCallable, Category="MCP PuerTS Bridge")
     bool ReadActorPropertyJson(
         const FString& NameOrPath,

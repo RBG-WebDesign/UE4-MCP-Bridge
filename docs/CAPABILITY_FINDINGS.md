@@ -16,39 +16,60 @@ maintains this file; Phase L consumes it.
 | Scalar property writes | `LightComponent0.Intensity` 5000 to 50000 and back via undo, verified by read-back |
 | Targeted undo | `puerts_undo` with a transaction id reverted exactly that transaction |
 | Full lifecycle | spawn, screenshot, modify, undo, delete, verify-gone exercised end to end |
+| Struct reads | `read_property object_path .../PlayerStart.CollisionCapsule RelativeLocation` returns `{"x":0,"y":0,"z":112.00068664550781}`; `RelativeRotation` returns `{"pitch":0,"yaw":0,"roll":0}` (2026-08-01, Phase L) |
+| Struct writes | `set_property` the same target to `{"x":10,"y":20,"z":112}` returned success with the reflection read-back `{"x":10,"y":20,"z":112}`; `puerts_undo` on its transaction restored `{"x":0,"y":0,"z":112.00068664550781}` (2026-08-01) |
+| Array writes and non-empty array reads | `set_property actor PlayerStart Tags ["probe_a","probe_b"]` succeeded, read back `["probe_a","probe_b"]`, undo restored `[]` (2026-08-01) |
+| Arbitrary struct writes | `set_property LightComponent0.LightColor {"r":20,"g":40,"b":60,"a":255}` succeeded and read back, proving the write path is no longer limited to the three hand-coded vector and rotator cases (2026-08-01) |
 
 ## Defects and limitations (Phase L queue)
 
-1. STRUCT READS RETURN `{}` (P1). `read_property CollisionCapsule.RelativeLocation`
-   returns `{}`. The `Actor.GetActorLocation` native executor returns a correct
-   `{x,y,z}`, so FVector serialization itself works; the defect is confined to
-   the generic reflection read path (`ReadActorPropertyJson` C++ / runtime
-   serializer).
-2. STRUCTURED WRITES MANGLED (P1, same family). `set_property RelativeLocation`
-   with `{"x":10,"y":20,"z":112}` fails with `value must be an object` (thrown
-   by the compiled runtime validator, generated from puerts-runtime/src).
-   `set_property Tags ["a","b"]` reaches C++ as a non-array:
-   `LogJson: JsonValueToUProperty - Attempted to import TArray from non-array JSON key`.
-   Net effect with (1): the reflection lane is scalars-only in both directions.
-3. call_function requires QUALIFIED names (`Actor.GetActorLocation`); the bare
+1. call_function requires QUALIFIED names (`Actor.GetActorLocation`); the bare
    name fails with `Function is not approved.` Undocumented. Default allowlist
    is 3 functions and each approved function also needs a hand-written native
    executor (`Approved function has no native executor`, service line ~735).
-4. Failed and read-only commands still emit transaction ids and undo warnings.
+2. Failed and read-only commands still emit transaction ids and undo warnings.
    Read-only calls should not transact.
-5. viewport_screenshot rejects full actor paths other tools return; matches
+3. viewport_screenshot rejects full actor paths other tools return; matches
    short names only (task chip filed).
-6. Default writable-property allowlist is 8 entries (Actor.bHidden/Tags/
+4. Default writable-property allowlist is 8 entries (Actor.bHidden/Tags/
    ActorLabel, SceneComponent.RelativeLocation/Rotation/Scale3D,
    LightComponentBase.Intensity/LightColor). Configurable via
    `[MCPPuerTSBridge]` ini keys `AllowedFunctions` / `AllowedWritableProperties`;
    neither surface is documented in docs/PUERTS.md.
-7. No native map-load tool: the 17-tool catalog cannot open a different level.
+5. No native map-load tool: the 17-tool catalog cannot open a different level.
    Blocks titled-map save probes and Phase F work on a persistent map.
+
+## Fixed
+
+**Struct and array marshaling, both directions** (was defects 1 and 2; fixed
+2026-08-01, commit on bridge/native-consolidation-2026-07-31). Two independent
+causes, one per direction:
+
+- READ. The `object_path` branch of `read_property` walked the property in
+  TypeScript and serialized it with `Object.keys`. A PuerTS struct wrapper
+  exposes its fields as prototype accessors and owns no enumerable keys, so
+  every struct flattened to `{}`. A trace build confirmed it: the value was a
+  live `/Script/CoreUObject.Vector` whose `own_keys` was `[]` while `.X` read
+  `112.00068664550781`. Fixed by routing both target kinds through the native
+  `UMCPPuerTSBridgeService::ReadObjectPropertyJson`, which uses
+  `FJsonObjectConverter::UPropertyToJsonValue` - the same call the actor branch
+  already used, which is why `Tags` and object references had always worked.
+- WRITE. `puerts_set_property` published `value` with the empty JSON Schema
+  `{}` (from `z.unknown()`). With no type information a client sends structured
+  input as JSON text, and the same trace build caught it arriving as
+  `kind=string json="{\"x\":10,\"y\":20,\"z\":112}"`. That string failed the
+  runtime object validator, and on the actor branch it reached C++ as a string,
+  which is the reported
+  `LogJson: JsonValueToUProperty - Attempted to import TArray from non-array JSON key`.
+  Fixed by publishing a real union schema for `value` and decoding
+  JSON-encoded objects and arrays at the MCP server boundary, with the same
+  guard at the runtime's last gate before reflection. The write itself now goes
+  through native `SetObjectPropertyJson`/`FJsonObjectConverter`, so any
+  reflected type works rather than the three hand-coded vector and rotator
+  property names.
 
 ## Untested
 
-Non-empty array reads after (2) is fixed; map/set/FText/FName reads;
-sky_shader_create rerun behavior; physics_build/observe; pie_start/stop round
-trip; get_logs bounds; find_assets path/name filters; undo stack depth;
-two-editor pipe isolation.
+Map/set/FText/FName reads; sky_shader_create rerun behavior;
+physics_build/observe; pie_start/stop round trip; get_logs bounds; find_assets
+path/name filters; undo stack depth; two-editor pipe isolation.

@@ -16,14 +16,11 @@ import {
 } from "./types";
 import {
   commandFailure,
-  objectIdentity,
+  decodeStructuredValue,
   optionalObject,
   outputSchema,
   resolveObject,
-  rotatorFrom,
   stringArray,
-  toJsonValue,
-  vectorFrom,
 } from "./runtime";
 
 const allPermissions: readonly Permission[] = [
@@ -96,94 +93,65 @@ async function findActors(context: ToolContext, input: JsonObject): Promise<Comm
   }
   return response(true, "Actors found.", { actors, count: actors.length });
 }
+/** Read one reflected property. Actors and object paths resolve to the same
+    UObject and marshal through the same native FJsonObjectConverter call, so a
+    struct, array, or map reads back as real JSON rather than as the empty
+    object a PuerTS struct wrapper produces under Object.keys. */
 async function readProperty(context: ToolContext, input: JsonObject): Promise<CommandResponse> {
-  if (typeof input.actor === "string") {
-    const valueJson = puerts.$ref<string>("");
-    const actorPath = puerts.$ref<string>("");
-    const error = puerts.$ref<string>("");
-    const property = requireString(input, "property");
-    if (!context.bridge.ReadActorPropertyJson(input.actor, property, valueJson, actorPath, error)) {
-      throw new Error(puerts.$unref(error));
-    }
-    const parsed = JSON.parse(puerts.$unref(valueJson)) as { value?: JsonValue };
-    return response(true, "Property read.", {
-      target: { path: puerts.$unref(actorPath) },
-      property,
-      value: parsed.value ?? null,
-    });
-  }
-
-  const objectPath = requireString(input, "object_path");
   const object = resolveObject(context.bridge, input);
   const property = requireString(input, "property");
-  const record = object as unknown as Readonly<Record<string, unknown>>;
-  if (!(property in record)) {
-    throw new Error("Reflected property not found: " + property);
+  const valueJson = puerts.$ref<string>("");
+  const objectPath = puerts.$ref<string>("");
+  const error = puerts.$ref<string>("");
+  if (!context.bridge.ReadObjectPropertyJson(object, property, valueJson, objectPath, error)) {
+    throw new Error(puerts.$unref(error));
   }
+  const parsed = JSON.parse(puerts.$unref(valueJson)) as { value?: JsonValue };
   return response(true, "Property read.", {
-    target: { path: objectPath },
+    target: { path: puerts.$unref(objectPath) },
     property,
-    value: toJsonValue(record[property]),
+    value: parsed.value === undefined ? null : parsed.value,
   });
 }
 
+/** Write one approved reflected property. The value travels as JSON into the
+    native writer, which drives FJsonObjectConverter, so any reflected type
+    works instead of the three hand-coded vector and rotator cases. The
+    response reports the value read back from reflection, not the request. */
 async function setProperty(context: ToolContext, input: JsonObject): Promise<CommandResponse> {
-  if (typeof input.actor === "string") {
-    const property = requireString(input, "property");
-    if (input.value === undefined) {
-      throw new Error("value is required");
-    }
-    const actorPath = puerts.$ref<string>("");
-    const error = puerts.$ref<string>("");
-    if (!context.bridge.SetActorPropertyJson(
-      input.actor,
-      property,
-      JSON.stringify({ value: input.value }),
-      actorPath,
-      error,
-    )) {
-      throw new Error(puerts.$unref(error));
-    }
-    const path = puerts.$unref(actorPath);
-    const result = response(true, "Property changed.", { target: { path }, property, value: input.value });
-    result.changed_actors.push(path);
-    return result;
-  }
-
-  const objectPath = requireString(input, "object_path");
   const object = resolveObject(context.bridge, input);
   const property = requireString(input, "property");
-  const value = input.value;
-  if (value === undefined) {
+  if (input.value === undefined) {
     throw new Error("value is required");
   }
-  if (!context.bridge.IsWritablePropertyAllowed(object, property)) {
-    throw new Error("Writable property is not approved: " + property);
-  }
-  const record = object as unknown as Record<string, unknown>;
-  if (!(property in record)) {
-    throw new Error("Reflected property not found: " + property);
-  }
-  if (!context.bridge.PrepareObjectMutation(object, property)) {
-    throw new Error("Native transaction preparation failed");
-  }
-  let reflectedValue: unknown = value;
-  if (property === "RelativeLocation" || property === "RelativeScale3D") {
-    reflectedValue = vectorFrom(optionalObject({ value }, "value"));
-  } else if (property === "RelativeRotation") {
-    reflectedValue = rotatorFrom(optionalObject({ value }, "value"));
-  }
-  record[property] = reflectedValue;
-  context.bridge.FinalizeObjectMutation(object);
-  const result = response(true, "Property changed.", {
-    target: { path: objectPath },
+  const value = decodeStructuredValue(input.value);
+  const objectPath = puerts.$ref<string>("");
+  const error = puerts.$ref<string>("");
+  if (!context.bridge.SetObjectPropertyJson(
+    object,
     property,
-    value: toJsonValue(record[property]),
+    JSON.stringify({ value }),
+    objectPath,
+    error,
+  )) {
+    throw new Error(puerts.$unref(error));
+  }
+  const path = puerts.$unref(objectPath);
+  const valueJson = puerts.$ref<string>("");
+  const readBackPath = puerts.$ref<string>("");
+  const readBackError = puerts.$ref<string>("");
+  const readBack = context.bridge.ReadObjectPropertyJson(object, property, valueJson, readBackPath, readBackError)
+    ? (JSON.parse(puerts.$unref(valueJson)) as { value?: JsonValue }).value
+    : undefined;
+  const result = response(true, "Property changed.", {
+    target: { path },
+    property,
+    value: readBack === undefined ? value : readBack,
   });
-  if (objectPath.includes(":PersistentLevel.")) {
-    result.changed_actors.push(objectPath);
+  if (path.includes(":PersistentLevel.")) {
+    result.changed_actors.push(path);
   } else {
-    result.changed_assets.push(objectPath);
+    result.changed_assets.push(path);
   }
   return result;
 }
@@ -191,7 +159,9 @@ async function setProperty(context: ToolContext, input: JsonObject): Promise<Com
 async function callApprovedFunction(context: ToolContext, input: JsonObject): Promise<CommandResponse> {
   const qualifiedName = requireString(input, "function");
   const actorName = requireString(input, "actor");
-  const argumentsValue = input.arguments;
+  const argumentsValue = input.arguments === undefined
+    ? undefined
+    : decodeStructuredValue(input.arguments);
   if (argumentsValue !== undefined && !Array.isArray(argumentsValue)) {
     throw new Error("arguments must be an array");
   }

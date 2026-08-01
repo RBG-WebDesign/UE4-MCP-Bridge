@@ -1,0 +1,84 @@
+{
+  "session_date": "2026-08-01",
+  "status": "success",
+  "goal": "Phase L items 1-2: structs and arrays round-trip through the reflection lane in both directions",
+  "context": "docs/MASTERY_PLAN_2026-07-31.md Phase L, consuming defects 1 and 2 of docs/CAPABILITY_FINDINGS.md. Branch bridge/native-consolidation-2026-07-31. Live editor UE427PuerTSMCP, pipe UE427PuerTSMCP_UE427PuerTSMCP_81d778e7_skyshader5.",
+  "diagnosis": {
+    "method": "Temporary trace build of the PuerTS runtime: readProperty reported the constructor, own keys, prototype keys, and field access of the raw reflected value; setProperty reported typeof and JSON of the incoming value. Trace removed before the final build.",
+    "read_direction": {
+      "symptom": "read_property object_path <component> RelativeLocation returned {}",
+      "root_cause": "The object_path branch walked the property in TypeScript and serialized it with toJsonValue, which enumerates Object.keys. A PuerTS struct wrapper exposes fields as prototype accessors and owns no enumerable keys.",
+      "trace_evidence": "ctor=/Script/CoreUObject.Vector, own_keys=[], proto_keys=[DiagnosticCheckNaN, op_Addition, ...], upper=0,0,112.00068664550781",
+      "why_actor_targets_worked": "The actor branch already called native ReadActorPropertyJson, which uses FJsonObjectConverter::UPropertyToJsonValue. That is also why Tags and object references had always read correctly."
+    },
+    "write_direction": {
+      "symptom": "set_property with {\"x\":10,\"y\":20,\"z\":112} failed with 'value must be an object'; an array write reached C++ as a non-array (LogJson: JsonValueToUProperty - Attempted to import TArray from non-array JSON key)",
+      "root_cause": "puerts_set_property published its value parameter with the empty JSON Schema {} (zod z.unknown()). With no type information the MCP client serialized structured input as JSON text, so the reflection lane received a string.",
+      "trace_evidence": "value must be an object | TRACE kind=string is_array=false json=\"{\\\"x\\\":10,\\\"y\\\":20,\\\"z\\\":112}\"",
+      "layers_cleared": "mcp-server forwards params verbatim; the C++ AcceptCommand round-trips the request through FJsonObject without flattening. Neither was at fault."
+    }
+  },
+  "changes": {
+    "Plugins/MCPBridge/Source/MCPBridgePuerTS/Public/MCPPuerTSBridgeService.h": "Declared ReadObjectPropertyJson and SetObjectPropertyJson, taking a UObject instead of an actor name",
+    "Plugins/MCPBridge/Source/MCPBridgePuerTS/Private/MCPPuerTSBridgeService.cpp": "Implemented both on FJsonObjectConverter; ReadActorPropertyJson and SetActorPropertyJson now resolve the actor and delegate, so there is one marshaling implementation. The write finalizes with FPropertyChangedEvent(Property, EPropertyChangeType::ValueSet) so USceneComponent refreshes its world transform, which a bare PostEditChange() does not. The undo snapshot is still recorded, for actor targets only.",
+    "puerts-runtime/src/registry.ts": "read_property and set_property collapsed from two branches each to one; both resolve the target with resolveObject and marshal through the native object-property calls. set_property answers with the value read back from reflection. Removed the three hand-coded RelativeLocation/RelativeRotation/RelativeScale3D cases.",
+    "puerts-runtime/src/runtime.ts": "Added decodeStructuredValue as the last gate before reflection, applied in set_property, call_function arguments, optionalObject, and stringArray. Removed toJsonValue, vectorFrom, rotatorFrom, numberField, and objectIdentity, which the native path makes dead.",
+    "puerts-runtime/types/puerts-bootstrap.d.ts": "Declared the two new native methods",
+    "mcp-server/src/tools/puerts.ts": "value now has a real union schema with a description instead of z.unknown(); added decodeStructuredValue and decodeStructuredParams, applied in executeNativeCommand so the compatibility aliases get the same treatment. structuredParameters lists the object and array parameters of every native tool, one line per tool.",
+    "mcp-server/tests/puerts-tools.test.ts": "New marshaling suite: 24 assertions covering the decode rules, the wire shape reaching the pipe for struct, array, string, and number values, rejection of a missing value, and a struct read arriving unflattened",
+    "docs/CAPABILITY_FINDINGS.md": "Defects 1 and 2 moved to Working with probe evidence, plus a Fixed section stating both root causes; remaining defects renumbered",
+    "docs/MASTERY_PLAN_2026-07-31.md": "Phase L serializer item ticked",
+    "docs/TOOL_INVENTORY.json": "Regenerated: puerts_set_property value contract unknown -> union"
+  },
+  "acceptance_live_editor": [
+    {
+      "case": "a. struct read through object_path",
+      "call": "read_property object_path /Temp/Untitled_1.Untitled_1:PersistentLevel.PlayerStart.CollisionCapsule property RelativeLocation",
+      "before": "{}",
+      "after": "{\"x\":0,\"y\":0,\"z\":112.00068664550781}"
+    },
+    {
+      "case": "b. struct write, read-back, undo, read-back",
+      "calls": [
+        "set_property same target RelativeLocation {\"x\":10,\"y\":20,\"z\":112} -> success, value {\"x\":10,\"y\":20,\"z\":112}, transaction A69BA237-435B-B9AC-C24E-F49DD95CF06D",
+        "read_property -> {\"x\":10,\"y\":20,\"z\":112}",
+        "undo A69BA237-435B-B9AC-C24E-F49DD95CF06D -> success, log 'Undo MCP PuerTS: set_property'",
+        "read_property -> {\"x\":0,\"y\":0,\"z\":112.00068664550781}"
+      ],
+      "before": "value must be an object"
+    },
+    {
+      "case": "c. array write, read-back, undo, read-back",
+      "calls": [
+        "set_property actor PlayerStart Tags [\"probe_a\",\"probe_b\"] -> success, transaction E85B2912-4016-5F07-5D2E-77BDE4653406",
+        "read_property actor PlayerStart Tags -> [\"probe_a\",\"probe_b\"]",
+        "undo E85B2912-4016-5F07-5D2E-77BDE4653406 -> success",
+        "read_property actor PlayerStart Tags -> []"
+      ],
+      "before": "LogJson: JsonValueToUProperty - Attempted to import TArray from non-array JSON key"
+    },
+    {
+      "case": "d. diagnostic still green",
+      "result": "success, is_game_thread true, 12 actors, transport named_pipe, execution_context puerts_node_v8_in_process"
+    },
+    {
+      "case": "extra. generality beyond the old hand-coded cases",
+      "calls": [
+        "set_property object_path .../LightSource.LightComponent0 LightColor {\"r\":20,\"g\":40,\"b\":60,\"a\":255} -> success, read-back {\"b\":60,\"g\":40,\"r\":20,\"a\":255}, undone",
+        "read_property object_path .../CollisionCapsule RelativeRotation -> {\"pitch\":0,\"yaw\":0,\"roll\":0}",
+        "read_property actor PlayerStart RootComponent -> object reference string, unchanged"
+      ]
+    }
+  ],
+  "build_and_verify": {
+    "cpp_build": "Build.bat UE427PuerTSMCPEditor Win64 Development: 8 actions, 30.09 seconds, zero errors",
+    "editor_restarts": 3,
+    "verify": "npm run verify green: build, 15 unit suites (all 0 failed), puerts pin OK (Unreal_v1.0.9 @ 838ab762d830, 1038 files), inventory check OK after regeneration, smoke 8 passed 0 failed 2 skipped (UE_ENGINE_ROOT and project token not set for the smoke process)"
+  },
+  "notes": [
+    "The decode guard exists in two places on purpose: the MCP server is where the client encoding is repaired, and the runtime guard keeps the native lane correct for any client or server build that still sends structured input as text. Both are commented as such.",
+    "Only JSON text that opens and closes as an object or an array is decoded, so a string property whose value happens to parse as a number or a quoted string stays a string. Six assertions pin that boundary.",
+    "The editor was left running and healthy with the level unchanged: every acceptance mutation was undone and read back."
+  ],
+  "recommended_next_goal": "Phase L item 3: re-front the MCPBridgeGraphBuilder builders through the PuerTS allowlist as a native blueprint_build tool"
+}

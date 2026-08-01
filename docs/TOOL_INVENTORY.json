@@ -4077,7 +4077,7 @@
           "actor": "string?",
           "object_path": "string?",
           "property": "string",
-          "value": "unknown"
+          "value": "union"
         }
       },
       "annotations": {

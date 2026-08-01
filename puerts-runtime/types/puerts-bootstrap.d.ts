@@ -82,6 +82,8 @@ declare module "ue" {
     FindAssetsJson(path: string, typeFilter: string, nameFilter: string, recursive: boolean, limit: number, outAssetsJson: $Ref<string>, outError: $Ref<string>): boolean;
     FindLevelActor(nameOrPath: string): Actor;
     FindObjectByPath(objectPath: string): Object;
+    ReadObjectPropertyJson(object: Object, propertyName: string, outValueJson: $Ref<string>, outObjectPath: $Ref<string>, outError: $Ref<string>): boolean;
+    SetObjectPropertyJson(object: Object, propertyName: string, valueJson: string, outObjectPath: $Ref<string>, outError: $Ref<string>): boolean;
     ReadActorPropertyJson(nameOrPath: string, propertyName: string, outValueJson: $Ref<string>, outActorPath: $Ref<string>, outError: $Ref<string>): boolean;
     SetActorPropertyJson(nameOrPath: string, propertyName: string, valueJson: string, outActorPath: $Ref<string>, outError: $Ref<string>): boolean;
     CallActorFunctionJson(nameOrPath: string, qualifiedFunctionName: string, argumentsJson: string, outResultJson: $Ref<string>, outActorPath: $Ref<string>, outError: $Ref<string>): boolean;
