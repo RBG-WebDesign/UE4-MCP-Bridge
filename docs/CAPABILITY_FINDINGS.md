@@ -57,6 +57,13 @@ maintains this file; Phase L consumes it.
 | CustomEvents called from the same graph, by a two-pass build | A `CallFunction` whose class is the Blueprint's own generated class cannot resolve on the build that creates it, because the class does not exist yet. Pass 1 declares the CustomEvents and compiles; pass 2 wires `CallFunction {class: "/Game/MCPGenerated/BP_StaminaCharacter.BP_StaminaCharacter_C", function: "MCP_ANIM_SPRINT_START"}` against the class pass 1 generated. Both passes converge on rerun. In PIE the placeholders fire on every sprint edge with their own timestamps (2026-08-02, Phase F4) |
 | A HUD widget driven every tick | `UWidget::SetRenderOpacity` and `SetRenderScale` are BlueprintCallable on `UUserWidget` itself, and `GetRenderOpacity` is a pure read of the same value. The host sets opacity and X scale to `CurrentStamina / MaxStamina` each tick and reports the widget's own answer: `hudPercent=1.0`, `0.751908`, `0.256035`, `0.0`, `0.181571`, tracking `stamina=100.0`, `75.190781`, `25.603493`, `0.0`, `18.15708`. The reported number is read back off the widget, not the variable that was written (2026-08-02, Phase F4) |
 | The stamina feature end to end in PIE | One session, all from JSON: `MCP_STAM_POSSESS player_controlled=true`, `MCP_STAM_HUD created=1 in_viewport=true`, `MCP_STAM t=1.004709 stamina=100.0 sprinting=false canSprint=true maxWalkSpeed=420.0 speed=420.000305 hudPercent=1.0`, `MCP_ANIM_SPRINT_START placeholder fired t=2.004796`, `MCP_STAM t=3.005499 stamina=75.190781 sprinting=true canSprint=true maxWalkSpeed=900.0 speed=900.000122`, `MCP_STAM_EMPTY stamina hit zero, sprint force-stopped`, `MCP_STAM t=7.005782 stamina=0.0 sprinting=false canSprint=false maxWalkSpeed=420.0`, `MCP_STAM t=8.008076 stamina=7.126184` (regen after the 1.5 s delay), `MCP_STAM_READY sprint re-allowed at stamina=30.032526`, `MCP_STAM t=10.010129 stamina=18.15708 sprinting=true maxWalkSpeed=900.0`. No `Accessed None` and no Blueprint runtime error in the window. Three PIE sessions, same behaviour (2026-08-02, Phase F4) |
+| A non-Actor Blueprint from JSON | Limitation 23 closed. `blueprint_build` with `parent_class "/Script/Engine.SaveGame"` created `/Game/MCPGenerated/BP_StaminaSave` (one float variable `SavedStamina`, no components, no graph): `compile_status "UpToDate"`, saved, 17 assets afterwards. `/Script/CoreUObject.Object` with a variable and a CustomEvent -> PrintString graph built as `/Game/MCPGenerated/BP_ProbeDataOnly`; `/Script/Engine.ActorComponent` with a float variable built as `/Game/MCPGenerated/BP_ProbeStaminaComp`. All three were unreachable before (2026-08-02, Phase L) |
+| Actor-only capability is gated by parent, not by refusing the parent | Against the unused path `/Game/MCPGenerated/BP_ProbeNonActor` with a SaveGame parent: a `components` array is refused with `Components need an Actor parent: /Script/Engine.SaveGame does not derive from Actor, and only an Actor Blueprint has a SimpleConstructionScript to hold them.`, and a `BeginPlay` or `InputKey` node with `Graph node 'bp' is of type 'BeginPlay', which needs an Actor parent: ... BeginPlay, Tick, ActorBeginOverlap, ActorEndOverlap and InputKey bind actor entry points.` `find_assets` for that name returned `count 0` afterwards, so the rejection is still before the asset exists (2026-08-02) |
+| A Cast node that types itself | Limitation 26 closed. `UEdGraphPin::MakeLinkTo` moves pointers and stops; the graph editor's `TryCreateConnection` also calls `PinConnectionListChanged` on both ends, which is where `UK2Node_DynamicCast::NotifyPinConnectionListChanged` (`K2Node_DynamicCast.cpp:347`) types its `Object` pin from what it is wired to. The builder now sends both notifications. `Cast` to `/Game/MCPGenerated/BP_StaminaSave.BP_StaminaSave_C` with `Object` from `GameplayStatics.LoadGameFromSlot` compiles `UpToDate` where the same spec used to fail with `The type of Object is undetermined.` (2026-08-02, Phase L) |
+| DeterminesOutputType from a pin default | The same root cause, the other half. A pin default is now announced with `PinDefaultValueChanged`, which is where `UK2Node_CallFunction::PinDefaultValueChanged` -> `FDynamicOutputHelper::ConformOutputType` (`K2Node_CallFunction.cpp:1239`) retypes the output. `GameplayStatics.CreateSaveGameObject` carries `meta=(DeterminesOutputType="SaveGameClass")` (`GameplayStatics.h:976`) and now hands back the requested subclass instead of a bare `USaveGame*` (2026-08-02) |
+| The `AsResult` cast pin role | A dynamic cast names its result pin `"As"` plus the target type's **display** name (`K2Node_DynamicCast.cpp:63`), which for a Blueprint generated class is neither the asset name nor anything a caller can compute from its own spec. The connection resolver takes the role `AsResult` and asks the node through `GetCastResultPin()`. Three connections in the F4 graph use it (2026-08-02) |
+| Target-scoped variable access | `VariableGet` and `VariableSet` take `scope "target"` with `target_class`; the node's member reference becomes `SetExternalMember` and it grows a `self` input pin (`UK2Node_Variable::CreatePinForSelf`, `K2Node_Variable.cpp:112`) for the object to read or write. The F4 save path wires the cast result into `VariableSet SavedStamina` on `BP_StaminaSave_C`, and the load path reads it back with `VariableGet`. A `target_class` that names no such property is refused by the factory before the node exists (2026-08-02) |
+| Cross-session save and load through generated Blueprints | Limitation 24 closed, which was the last unmet part of Phase F4. Two PIE sessions, one slot, one value. Session one: `MCP_SAVE_PRECHECK slot_exists_at_boot=false`, `[LogStreaming] Failed to read file '.../Saved/SaveGames/MCPStamina.sav' error.`, `MCP_LOAD found=false restored=none`, then `MCP_SAVE object_valid=true wrote=true stamina_at_save=16.133768`. On disk afterwards: `Saved/SaveGames/MCPStamina.sav`, 1325 bytes. Session two, fresh state: `MCP_SAVE_PRECHECK slot_exists_at_boot=true`, `MCP_STAM t=1.009965 stamina=100.0` (the variable's own default), then `MCP_LOAD found=true restored=16.133768 stamina_now=16.133768` - the exact value the previous session wrote (2026-08-02, Phase F4) |
 | Property validate-before-mutate | Eight rejected specs against the unused path `/Game/MCPGenerated/BP_ProbeProps`, each naming component, property, and reason: unknown property name, unloadable asset path, asset of the wrong class, wrong class inside a material array (`element 0: ... is a StaticMesh, but the property holds a MaterialInterface`), a string where an array belongs, a string where a struct belongs, and an out-of-range or misspelled enumerator (`expects a EComponentMobility enumerator: Static=0, Stationary=1, Movable=2`). `find_assets` for that name returned `count 0` afterwards (2026-08-01) |
 
 ## Defects and limitations (Phase L queue)
@@ -238,18 +245,21 @@ maintains this file; Phase L consumes it.
     macro factories, and was not needed. **Input is no longer in that list**:
     `InputKey` is advertised as of 2026-08-02, because it is the one input
     factory that needs nothing from project settings.
-23. **`blueprint_build` refuses any parent class that is not an Actor.**
-    `MCPPuerTSBridgeBlueprint.cpp:375` answers
+23. **FIXED 2026-08-02, Phase L. Kept for the record.**
+    **`blueprint_build` refuses any parent class that is not an Actor.**
+    `MCPPuerTSBridgeBlueprint.cpp:375` answered
     `Parent class must derive from Actor: /Script/Engine.SaveGame does not.`
-    The engine does not require this: `FKismetEditorUtilities::CanCreateBlueprintOfClass`
-    is checked separately on the next line and allows `USaveGame`,
+    The engine did not require this: `FKismetEditorUtilities::CanCreateBlueprintOfClass`
+    was checked separately on the next line and allows `USaveGame`,
     `UActorComponent` and plain `UObject`. Three consequences met in one chunk:
     no SaveGame subclass (limitation 24); no ActorComponent subclass, so a
-    stamina **component** on a pawn is not an available design and the feature
-    has to be a Character subclass; and no data-only Blueprint of any kind.
-    Cheapest fix: allow a non-Actor parent and gate the actor-only parts of the
-    spec (components, the actor event node types) on the parent being an Actor.
-24. **A save/load round trip cannot carry a value.** Three doors, all shut.
+    stamina **component** on a pawn was not an available design and the feature
+    had to be a Character subclass; and no data-only Blueprint of any kind. The
+    fix is the one this entry proposed: the parent check is now the engine's
+    own, and the actor-only parts of the spec are gated instead. See the two
+    Working rows above and the Fixed section below.
+24. **FIXED 2026-08-02, Phase F4. Kept for the record.**
+    **A save/load round trip cannot carry a value.** Three doors, all shut.
     `UGameplayStatics::CreateSaveGameObject` refuses the base class by design:
     `if (*SaveGameClass && (*SaveGameClass != USaveGame::StaticClass()))`
     (`GameplayStatics.cpp:2075`), so `/Script/Engine.SaveGame` on the class pin
@@ -264,7 +274,10 @@ maintains this file; Phase L consumes it.
     after three PIE sessions. What *is* proven is the call surface and the
     negative: `SaveGameToSlot` answers false rather than throwing, and
     `MCP_SAVE_PRECHECK slot_exists_at_boot=false` reads the slot at BeginPlay.
-    Fixing 23 fixes this.
+    Fixing 23 fixes this. It did: with the SaveGame subclass authorable, none
+    of the three doors is on the path any more, and the round trip is proven
+    across two PIE sessions. See "Cross-session save and load through generated
+    Blueprints" above.
 25. **A named child widget of a created UUserWidget cannot be reached from
     another Blueprint.** `UUserWidget::GetWidgetFromName` (`UserWidget.h:1090`)
     and `GetRootWidget` (`:1084`) carry no `UFUNCTION`; `UWidgetTree::FindWidget`
@@ -281,7 +294,9 @@ maintains this file; Phase L consumes it.
     non-self `VariableGet` scope (`FMemberReference::SetExternalMember` already
     exists), give `widget_build` a graph, or add a narrow native
     `GetWidgetByName` helper.
-26. **The `Cast` node type cannot be typed by this builder.**
+26. **FIXED 2026-08-02, Phase L. Kept for the record, and the diagnosis was
+    exactly right.**
+    **The `Cast` node type cannot be typed by this builder.**
     `UK2Node_DynamicCast::AllocateDefaultPins` creates its `Object` pin as
     `PC_Wildcard` and resolves the type in `NotifyPinConnectionListChanged`,
     which `UEdGraphPin::MakeLinkTo` never calls. Repro: `Cast` to
@@ -294,7 +309,18 @@ maintains this file; Phase L consumes it.
     the identical error appears one node downstream. Anything the builder wires
     that depends on a pin-change notification is in this class. The fix is one
     `NotifyPinConnectionListChanged` after `MakeLinkTo`, plus
-    `PinDefaultValueChanged` after `ApplyPinDefault`.
+    `PinDefaultValueChanged` after `ApplyPinDefault`. That is what landed,
+    through the public entry points `UEdGraphNode::PinConnectionListChanged`
+    (which `UK2Node` overrides to clear a connected input pin's literal and then
+    call `NotifyPinConnectionListChanged`) and `PinDefaultValueChanged`, on both
+    ends of every connection and after every pin default. See the Fixed section
+    below.
+25b. **`VariableGet` and `VariableSet` are self-scope only.** Recorded inside
+    limitation 25 rather than on its own, and closed with it half-open:
+    `scope "target"` with `target_class` now exists and is what the save/load
+    round trip uses. It does **not** close 25 itself, because a named child
+    widget of a created `UUserWidget` is still not reachable: the widget's own
+    generated class has no member variable for it that a host graph could name.
 27. **There is no Self node, so "this actor" cannot be used as a value.**
     `UK2Node_Self` has no factory in `FBPNodeRegistry`. An unconnected `self`
     pin on a member function is the blueprint's self and covers the target case,
@@ -336,8 +362,115 @@ maintains this file; Phase L consumes it.
     and the save and load events fire from the same timeline rather than from
     their `K` and `L` keys. The input path is proven to *build and bind*; it is
     not proven to *fire*, and that is not claimed.
+32. **A graph spec is the whole graph, and a Blueprint's variables are
+    additive.** `clear_existing_graph` defaults true, so the only way to add a
+    node to an existing generated Blueprint is to resend every node it already
+    had; there is no node identity to merge against. Variables are the
+    opposite: a rerun adds and updates, and a variable the spec stopped
+    mentioning stays on the asset forever. Both bit this chunk. Extending the
+    F4 character with save and load meant regenerating its whole event graph
+    from a fresh generator, and `BP_StaminaCharacter` now carries the previous
+    session's 22 variables alongside the current spec's 23, with the overlap
+    shared. Neither is wrong, but together they mean a generated Blueprint
+    accumulates dead members while its graph cannot be patched. The next
+    primitive is node upsert plus a declared-set variable pass; both are
+    deliberately out of this chunk.
+33. **The 200-node cap in `blueprint_build`'s schema is a real ceiling for one
+    feature.** The F4 graph is 198 nodes at 252 connections, and roughly a
+    quarter of that is string composition: every logged value costs one
+    `Conv_*ToString` and about two `Concat_StrStr` nodes, because there is no
+    string-literal node and no proven `FormatText` route. A feature that wants
+    one more reported number has to give one up. Raising the cap is not the fix
+    on its own; a `FormatText` node with typed argument pins would cut the
+    logging cost by two thirds.
+34. **Moving a Character by writing its capsule's `RelativeLocation` leaves it
+    able to fall through the floor.** `set_property` on
+    `BP_StaminaCharacter_C_1.CollisionCylinder RelativeLocation` reported
+    success and read back the new value, and in the next PIE session the
+    character's own graph reported `z=29.4` and then `z=-801`, `z=-2626`,
+    `z=-5430`, falling at terminal velocity while its X drifted, i.e. it went
+    through the ground rather than standing on it. The same actor class spawned
+    fresh with `spawn_actor` at the same place reported `z=110.149994` on every
+    tick of a twelve-second run. Deleting and respawning is the reliable move;
+    the property write is not. Not diagnosed further.
+
+## Unknown (tracked, not explained)
+
+- **`puerts_diagnostic` reported `actor_count_total 0` once, in a level that
+  had 12 actors.** 2026-08-02, on the first call of a freshly spawned
+  `mcp-server/dist` child process, moments after the editor had finished
+  loading. The very next call in the same session, and every call after it,
+  reported 12; the session's own long-lived MCP server reported 12 throughout;
+  `find_actors` never returned an empty list. So the two candidate readings are
+  a real race between editor startup and the actor query, and a first-call path
+  that answers before the world is attached. Neither is confirmed and there is
+  no repro. It is recorded rather than shrugged off because a bridge that
+  answers "no actors" for a full level is indistinguishable, to a caller, from
+  an empty level - the same failure shape limitation 20 was closed for. Next
+  step when this is picked up: call `diagnostic` in a loop across an editor
+  start and record the first ten answers with timestamps.
 
 ## Fixed
+
+**A Blueprint no longer has to be an Actor** (was limitation 23; fixed
+2026-08-02, Phase L). `BuildBlueprintJson` dropped its own
+`IsChildOf(AActor::StaticClass())` check and kept the engine's,
+`FKismetEditorUtilities::CanCreateBlueprintOfClass`, which was already on the
+next line and allows `USaveGame`, `UActorComponent` and plain `UObject`. What
+is genuinely Actor-only is gated per capability instead: a `components` array
+needs a SimpleConstructionScript, and `BeginPlay`, `Tick`, `ActorBeginOverlap`,
+`ActorEndOverlap` and `InputKey` bind AActor entry points. Both rejections name
+the node or the array and the parent class, and both fire before the asset
+exists.
+
+Two decisions:
+
+- **Gate the capability, not the parent.** The alternative, an allowlist of
+  permitted parent classes, would have needed updating for every base class
+  anyone ever wants and would still have said nothing useful about *why*. Five
+  node types and one array is the whole actual dependency, and it is written
+  down in one predicate, `IsActorOnlyNodeType`.
+- **A non-Actor Blueprint still gets a graph.** `FKismetEditorUtilities::CreateBlueprint`
+  makes an ubergraph for any `BPTYPE_Normal` Blueprint, so a UObject parent
+  takes CustomEvents, CallFunction, Cast, variables and flow. Only the actor
+  entry points are missing, which is the truth rather than a restriction.
+
+**Pin-change notifications, so a wildcard pin types itself** (was limitation 26;
+fixed 2026-08-02, Phase L). `UEdGraphPin::MakeLinkTo` moves two pointers and
+stops. `UEdGraphSchema_K2::TryCreateConnection`, which is what the graph editor
+runs, also calls `PinConnectionListChanged` on both ends, and that is where a
+node that types a pin from what it is wired to does the work:
+`UK2Node_DynamicCast::NotifyPinConnectionListChanged` (`K2Node_DynamicCast.cpp:347`)
+promotes its `Object` pin out of `PC_Wildcard`, and
+`UK2Node_CallFunction::NotifyPinConnectionListChanged` conforms a
+`DeterminesOutputType` output. The same gap existed for pin defaults:
+`UK2Node_CallFunction::PinDefaultValueChanged` (`K2Node_CallFunction.cpp:1239`)
+is what retypes an output from a class picker. The builder now sends both.
+
+Three decisions:
+
+- **Use the public entry points, not the K2 ones.** `PinConnectionListChanged`
+  on `UEdGraphNode` is what the schema calls; `UK2Node`'s override resets a
+  connected input pin's autogenerated default before forwarding to
+  `NotifyPinConnectionListChanged`. Calling the inner one directly would have
+  skipped the literal clearing the editor does.
+- **Notify both ends, guarded.** A notification can destroy a pin
+  (`bIsBeadFunction` suicide, orphan-pin removal), so each call is behind
+  `!Pin->IsPendingKill()`, and connections re-resolve their pins by name each
+  iteration rather than caching pointers.
+- **`AsResult` rather than a computed pin name.** A cast names its result pin
+  `"As"` plus the target type's *display* name, which for
+  `BP_StaminaSave_C` is not derivable from the spec. The connection resolver
+  takes the role `AsResult` and asks `GetCastResultPin()`.
+
+**Target-scoped variable access** (fixed 2026-08-02, Phase L).
+`FBPNodeFactory::CreateVariableGet` / `CreateVariableSet` took `scope` and
+refused anything but `self`. They now take `scope "target"` with `targetClass`,
+call `FMemberReference::SetExternalMember`, and the node grows a `self` input
+pin for the object to act on. The class is loaded and the property is looked up
+before the node is created, so a misspelled variable name is refused by the
+factory rather than surfacing later as a connection to a pin that does not
+exist.
 
 **Unresolved graph connections fail the build** (was limitation 20; fixed
 2026-08-02, Phase F4). `UBlueprintGraphBuilderLibrary::BuildBlueprintFromJSONWithReport`

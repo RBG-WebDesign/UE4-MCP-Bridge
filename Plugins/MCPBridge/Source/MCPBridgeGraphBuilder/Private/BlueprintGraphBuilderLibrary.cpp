@@ -11,6 +11,7 @@
 #include "K2Node_CallFunction.h"
 #include "K2Node_IfThenElse.h"
 #include "K2Node_ExecutionSequence.h"
+#include "K2Node_DynamicCast.h"
 #include "EdGraphNode_Comment.h"
 #include "Kismet/KismetSystemLibrary.h"
 #include "GameFramework/Actor.h"
@@ -457,6 +458,34 @@ namespace
         return true;
     }
 
+    /** Write a pin default and then tell the node its default moved.
+
+        Writing Pin->DefaultObject is not what the editor's details panel does.
+        A UFUNCTION carrying meta=(DeterminesOutputType="SomeClassPin") types
+        its output from that pin inside PinDefaultValueChanged
+        (UK2Node_CallFunction::PinDefaultValueChanged ->
+        FDynamicOutputHelper::ConformOutputType, K2Node_CallFunction.cpp:1239),
+        and nothing in UEdGraphPin calls it. Without this notification
+        UGameplayStatics::CreateSaveGameObject hands back a bare USaveGame*
+        and the node one step downstream fails to compile with "The type of
+        Object is undetermined". Limitation 26, one half. */
+    bool ApplyPinDefaultAndNotify(
+        UEdGraphNode* Node,
+        UEdGraphPin* Pin,
+        const TSharedPtr<FJsonValue>& Value,
+        FString& OutError)
+    {
+        if (!ApplyPinDefault(Pin, Value, OutError))
+        {
+            return false;
+        }
+        if (Node != nullptr && Pin != nullptr && !Pin->IsPendingKill())
+        {
+            Node->PinDefaultValueChanged(Pin);
+        }
+        return true;
+    }
+
     /** Apply every param that is not a routing key as a pin default. A param
         naming no pin, or a value the pin cannot take, is logged with the node
         id: a silently dropped pin default is the failure mode this replaces. */
@@ -478,7 +507,7 @@ namespace
             }
             UEdGraphPin* Pin = Node->FindPin(FName(*Pair.Key));
             FString Error;
-            if (!ApplyPinDefault(Pin, Pair.Value, Error))
+            if (!ApplyPinDefaultAndNotify(Node, Pin, Pair.Value, Error))
             {
                 UE_LOG(LogTemp, Warning,
                     TEXT("BuildBlueprintFromJSON: node '%s' param '%s' %s"),
@@ -1371,7 +1400,7 @@ void UBlueprintGraphBuilderLibrary::BuildBlueprintFromJSONWithReport(
                 FString VarName;
                 Params->TryGetStringField(TEXT("var_name"), VarName);
                 FString Error;
-                if (!ApplyPinDefault(SpawnedNode->FindPin(FName(*VarName)),
+                if (!ApplyPinDefaultAndNotify(SpawnedNode, SpawnedNode->FindPin(FName(*VarName)),
                         Params->TryGetField(TEXT("value")), Error))
                 {
                     UE_LOG(LogTemp, Warning,
@@ -1448,6 +1477,7 @@ void UBlueprintGraphBuilderLibrary::BuildBlueprintFromJSONWithReport(
             // Resolve a pin by role:
             //   "exec" — direction-aware: output-side maps to PN_Then, input-side to PN_Execute
             //   "then" — always PN_Then
+            //   "AsResult" — a dynamic cast's result pin, asked for by the node
             //   anything else — treated as a literal pin name via FindPin
             auto ResolvePin = [](UEdGraphNode* N, const FString& Role, EEdGraphPinDirection Dir) -> UEdGraphPin*
             {
@@ -1458,6 +1488,17 @@ void UBlueprintGraphBuilderLibrary::BuildBlueprintFromJSONWithReport(
                 if (Role == TEXT("then"))
                 {
                     return N->FindPin(UEdGraphSchema_K2::PN_Then);
+                }
+                // A cast names its result pin "As" plus the target type's
+                // DISPLAY name (K2Node_DynamicCast.cpp:63), which for a
+                // Blueprint generated class is neither the asset name nor
+                // anything a caller can compute from the spec. Ask the node.
+                if (Role == TEXT("AsResult"))
+                {
+                    if (UK2Node_DynamicCast* CastNode = Cast<UK2Node_DynamicCast>(N))
+                    {
+                        return CastNode->GetCastResultPin();
+                    }
                 }
                 return N->FindPin(FName(*Role));
             };
@@ -1479,6 +1520,24 @@ void UBlueprintGraphBuilderLibrary::BuildBlueprintFromJSONWithReport(
 
             SourcePin->MakeLinkTo(TargetPin);
             OutConnectionsMade++;
+
+            // MakeLinkTo moves the pointers and stops. The graph editor does
+            // more: UEdGraphSchema_K2::TryCreateConnection notifies both ends,
+            // and a node that types a wildcard pin from what it is wired to
+            // does that work there. UK2Node_DynamicCast::NotifyPinConnectionListChanged
+            // (K2Node_DynamicCast.cpp:347) is the case that matters: without
+            // this its Object pin stays PC_Wildcard and the compile fails with
+            // "The type of Object is undetermined". The base override also
+            // clears a connected input pin's literal, which is what the editor
+            // does and what an unread default deserves. Limitation 26.
+            if (!SourcePin->IsPendingKill())
+            {
+                (*FromNodePtr)->PinConnectionListChanged(SourcePin);
+            }
+            if (!TargetPin->IsPendingKill())
+            {
+                (*ToNodePtr)->PinConnectionListChanged(TargetPin);
+            }
         }
     }
 

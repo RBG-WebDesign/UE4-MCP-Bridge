@@ -136,7 +136,10 @@ const blueprintGraphNode = z.object({
     "Routing keys the node type needs, plus pin defaults by pin name. Routing: "
     + "CallFunction {class, function}; Operator {op} from "
     + blueprintOperators.join(", ")
-    + "; VariableGet and VariableSet {var_name}, and VariableSet also takes "
+    + "; VariableGet and VariableSet {var_name}, plus {scope} which is \"self\" "
+    + "(default, the Blueprint's own member) or \"target\" with {target_class}, "
+    + "which reads or writes the variable on another object through a self input "
+    + "pin; VariableSet also takes "
     + "{value} as an alias for the pin named after the variable; Delay takes "
     + "the Duration pin; Event {parent_class, event_name}; CustomEvent "
     + "{event_name, parameters}; Cast {target_class, purity}; MakeStruct and "
@@ -169,8 +172,11 @@ const blueprintGraph = z.object({
   + "target, ReturnValue for its result and the UFUNCTION parameter name for "
   + "everything else; an Operator has A and B (or X/Y/Z, Value/Min/Max) and "
   + "ReturnValue; a VariableGet and a VariableSet both name their data pin after "
-  + "the variable; Delay has Duration; Cast has Object, then, CastFailed and "
-  + "\"As<ClassName>\"; Knot has InputPin and OutputPin; MakeStruct and "
+  + "the variable, and with scope \"target\" both also take self, the object the "
+  + "variable lives on; Delay has Duration; Cast has Object, then, CastFailed and "
+  + "\"AsResult\" for the cast result (the node's own pin name is \"As\" plus the "
+  + "target type's display name, which a caller cannot compute for a Blueprint "
+  + "class, so AsResult asks the node); Knot has InputPin and OutputPin; MakeStruct and "
   + "BreakStruct name their struct pin after the struct; MultiGate has \"Out 0\", "
   + "\"Out 1\"; SwitchInt has Default plus one pin per case; InputKey has Pressed, "
   + "Released and Key; ActorEndOverlap and "
@@ -262,7 +268,7 @@ const specs = [
   ["puerts_delete_actor", "delete_actor", "Delete an actor in a transaction. Requires confirm=true.", z.object({ actor: z.string(), confirm: z.literal(true) }).strict()],
   ["puerts_sky_shader_create", "sky_shader_create", "Create an animated native HLSL aurora sky material and apply it to a sky sphere in one transaction.", z.object({ asset_path: z.string().optional(), sky_actor: z.string().optional() }).strict()],
   ["puerts_blueprint_build", "blueprint_build",
-    "Create or update a compiled Blueprint actor asset from one JSON spec: parent class, "
+    "Create or update a compiled Blueprint asset from one JSON spec: parent class, "
     + "components with their template properties, and an event graph. A component property "
     + "takes the value in its own reflected shape, and an asset reference as an object path "
     + "string, so a StaticMeshComponent can be given a mesh and materials. Member variables "
@@ -278,6 +284,15 @@ const specs = [
     + "or variable of the same name and type is left alone, and the event graph is rebuilt "
     + "from the spec. A component or variable that exists under a different type is an error, "
     + "never a silent retype. "
+    + "The parent class is any class Unreal allows a Blueprint of, including UObject, "
+    + "SaveGame and ActorComponent, so a data-only Blueprint is authorable here. "
+    + "Actor-only capability is gated rather than the parent being refused: with a "
+    + "non-Actor parent the components array and the BeginPlay, Tick, ActorBeginOverlap, "
+    + "ActorEndOverlap and InputKey node types are rejected by name before the asset "
+    + "exists, and variables plus the parent-neutral node types build normally. "
+    + "A VariableGet or VariableSet takes scope \"target\" with target_class to read or write "
+    + "the variable on another object through its self pin, and a Cast's result is addressed "
+    + "by the pin role AsResult. Those two are what a save/load round trip needs. "
     + "Every graph connection must resolve to real pins: the response's graph.connection_count "
     + "is the number of links actually made, and any shortfall against the number requested "
     + "fails the build with the dropped pairs named in errors and in "
@@ -290,7 +305,12 @@ const specs = [
         "Package path under /Game/MCPGenerated/, no asset-name suffix. The native "
         + "command enforces the same limit; this rejects earlier, at the client.",
       ),
-      parent_class: z.string().optional().describe("Actor subclass, short name or path. Defaults to Actor."),
+      parent_class: z.string().optional().describe(
+        "Parent class as a reflected short name (\"Character\") or a full path "
+        + "(\"/Script/Engine.SaveGame\"). Any class Unreal allows a Blueprint of, "
+        + "which includes non-Actor classes; components and the actor event node "
+        + "types then need an Actor parent. Defaults to Actor.",
+      ),
       components: z.array(blueprintComponent).max(64).optional(),
       variables: z.array(blueprintVariable).max(64).optional().describe(
         "Blueprint member variables, converged the same way components are.",

@@ -27,6 +27,7 @@
 #include "Engine/Blueprint.h"
 #include "../BlueprintInspector/BPTypeDescriptor.h"
 #include "Serialization/JsonWriter.h"
+#include "UObject/UnrealType.h"
 
 namespace
 {
@@ -170,24 +171,69 @@ namespace
         TSharedPtr<FJsonObject> Cfg;
         if (!ParseJsonConfig(ConfigJson, Cfg)) return nullptr;
 
-        FString VarName, Scope;
+        FString VarName, Scope, TargetClassPath;
         Cfg->TryGetStringField(TEXT("varName"), VarName);
         Cfg->TryGetStringField(TEXT("scope"), Scope);
+        Cfg->TryGetStringField(TEXT("targetClass"), TargetClassPath);
         if (VarName.IsEmpty())
         {
             UE_LOG(LogBlueprintMutator, Warning, TEXT("%s: missing varName"), DebugLabel);
             return nullptr;
         }
-        if (!Scope.IsEmpty() && Scope != TEXT("self"))
+
+        // scope "target" reads or writes the variable on ANOTHER object: the
+        // node grows a "self" input pin (UK2Node_Variable::CreatePinForSelf,
+        // K2Node_Variable.cpp:112, unhidden because the reference is not a
+        // self context) that the caller wires the object into. Without it the
+        // only reachable variables are the Blueprint's own, which is what put
+        // a SaveGame subclass's field out of reach.
+        UClass* TargetClass = nullptr;
+        const bool bTargetScope = (Scope == TEXT("target"));
+        if (!Scope.IsEmpty() && Scope != TEXT("self") && !bTargetScope)
         {
             UE_LOG(LogBlueprintMutator, Warning,
-                TEXT("%s: scope '%s' not supported in v1 (only 'self')"), DebugLabel, *Scope);
+                TEXT("%s: scope '%s' is not one of 'self', 'target'"), DebugLabel, *Scope);
             return nullptr;
+        }
+        if (bTargetScope)
+        {
+            if (TargetClassPath.IsEmpty())
+            {
+                UE_LOG(LogBlueprintMutator, Warning,
+                    TEXT("%s: scope 'target' needs targetClass, the class that owns '%s'"),
+                    DebugLabel, *VarName);
+                return nullptr;
+            }
+            TargetClass = LoadObject<UClass>(nullptr, *TargetClassPath);
+            if (TargetClass == nullptr)
+            {
+                UE_LOG(LogBlueprintMutator, Warning,
+                    TEXT("%s: targetClass '%s' was not found"), DebugLabel, *TargetClassPath);
+                return nullptr;
+            }
+            // Checked here rather than left to the compiler: a member
+            // reference naming no property allocates no data pin, so the
+            // connection that wanted it is reported as a missing pin instead
+            // of as the misspelling it is.
+            if (FindFProperty<FProperty>(TargetClass, *VarName) == nullptr)
+            {
+                UE_LOG(LogBlueprintMutator, Warning,
+                    TEXT("%s: '%s' has no property named '%s'"),
+                    DebugLabel, *TargetClass->GetPathName(), *VarName);
+                return nullptr;
+            }
         }
 
         FGraphNodeCreator<TNode> Creator(*Graph);
         TNode* Node = Creator.CreateNode();
-        Node->VariableReference.SetSelfMember(FName(*VarName));
+        if (bTargetScope)
+        {
+            Node->VariableReference.SetExternalMember(FName(*VarName), TargetClass);
+        }
+        else
+        {
+            Node->VariableReference.SetSelfMember(FName(*VarName));
+        }
         Node->NodePosX = FMath::RoundToInt(Pos.X);
         Node->NodePosY = FMath::RoundToInt(Pos.Y);
         Creator.Finalize();

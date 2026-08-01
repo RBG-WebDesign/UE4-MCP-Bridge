@@ -179,49 +179,77 @@ project until something breaks; every break loops back to Phase L:
       in `mcp-server/tests/puerts-tools.test.ts`; live proof on
       `/Game/MCPGenerated/BP_ProbeConn`. It caught a real bug in the F4 graph on
       its first run. `InputKey` was advertised in the same build cycle.
-- [~] Phase F4 stamina feature - **built and PIE-proven, with two parts blocked
-      by limitations found in the doing.** `/Game/MCPGenerated/BP_StaminaCharacter`
-      (parent Character, 22 variables, one component, a 198-node / 246-connection
-      graph) plus `/Game/MCPGenerated/WBP_StaminaHUD`, authored from JSON in two
-      passes and converging with zero duplicates on a second full run (16 assets
-      before and after, 1 actor before and after, `created false` everywhere).
+- [x] Phase L: a Blueprint no longer has to be an Actor (limitation 23 closed),
+      and a wildcard pin types itself (limitation 26 closed). `blueprint_build`
+      keeps only the engine's own parent rule,
+      `FKismetEditorUtilities::CanCreateBlueprintOfClass`, and gates the
+      actor-only capabilities instead: the `components` array and the
+      BeginPlay / Tick / ActorBeginOverlap / ActorEndOverlap / InputKey node
+      types are rejected by name, before the asset exists, when the parent is
+      not an Actor. Proven live in both directions on
+      `/Game/MCPGenerated/BP_ProbeNonActor` (three rejections, `find_assets`
+      `count 0` afterwards) and by three assets that were unreachable before:
+      `BP_StaminaSave` (SaveGame), `BP_ProbeDataOnly` (UObject, with a graph),
+      `BP_ProbeStaminaComp` (ActorComponent). In the same cycle the builder
+      started announcing pin changes the way the graph editor does -
+      `PinConnectionListChanged` on both ends of every connection,
+      `PinDefaultValueChanged` after every pin default - so `Cast` and
+      `meta=(DeterminesOutputType)` resolve instead of staying wildcards, plus
+      the `AsResult` cast pin role and `scope "target"` on VariableGet and
+      VariableSet. Unit test `nonActorParentSuite` in
+      `mcp-server/tests/puerts-tools.test.ts`.
+- [x] Phase F4 stamina feature - **complete, including the cross-session save
+      and load round trip.** `/Game/MCPGenerated/BP_StaminaCharacter`
+      (parent Character, one component, a 198-node / 252-connection graph) plus
+      `/Game/MCPGenerated/WBP_StaminaHUD` and `/Game/MCPGenerated/BP_StaminaSave`,
+      authored from JSON in two passes and converging with zero duplicates on a
+      second full run (19 assets before and after, `created false` everywhere).
       Met, with the log line that proves it:
       - sprint raises speed: `maxWalkSpeed=420.0` walking,
         `maxWalkSpeed=900.0` sprinting, read back through
         `MovementComponent.GetMaxSpeed`, and the pawn's own velocity agrees
-        (`speed=420.000305` / `speed=900.000122`)
-      - stamina drains to zero: `stamina=100.0` -> `75.190781` -> `25.603493`
-        -> `MCP_STAM_EMPTY stamina hit zero, sprint force-stopped`
-      - regen after the delay: `t=7 stamina=0.0`, `t=8 stamina=7.126184`
-      - sprint re-allowed: `MCP_STAM_READY sprint re-allowed at stamina=30.032526`,
+        (`speed=419.999878` / `speed=900.000061`)
+      - stamina drains to zero: `stamina=100.0` -> `91.582626` -> `66.510498`
+        -> `41.335423` -> `16.133768` ->
+        `MCP_STAM_EMPTY stamina hit zero, sprint force-stopped`
+      - regen after the delay: `t=7 stamina=0.0`, `t=8 stamina=15.068813`
+      - sprint re-allowed: `MCP_STAM_READY sprint re-allowed at stamina=30.192904`,
         then `t=10 sprinting=true maxWalkSpeed=900.0`
-      - HUD tracked the value: `hudPercent` 1.0 / 0.751908 / 0.256035 / 0.0 /
-        0.181571 against the same stamina figures, read back off the widget with
-        `GetRenderOpacity` rather than echoed from the variable
-      - HUD on screen: `MCP_STAM_HUD created=1 in_viewport=true`
+      - HUD tracked the value: `hudPercent` 1.0 / 0.915826 / 0.665105 /
+        0.413354 / 0.161338 against the same stamina figures, read back off the
+        widget with `GetRenderOpacity` rather than echoed from the variable
+      - HUD on screen: `MCP_STAM_HUD created=true in_viewport=true`
       - possession: `MCP_STAM_POSSESS player_controlled=true`
-      - animation surface: `MCP_ANIM_SPRINT_START placeholder fired t=2.004796`
-        and `MCP_ANIM_SPRINT_STOP placeholder fired t=6.047369` on every state
+      - animation surface: `MCP_ANIM_SPRINT_START placeholder fired t=2.007949`
+        and `MCP_ANIM_SPRINT_STOP placeholder fired t=6.033392` on every state
         edge, from CustomEvents called by the graph itself
-      Not met, and why:
-      - **save/load of a value.** `blueprint_build` refuses a non-Actor parent
-        (limitation 23), `CreateSaveGameObject` refuses `USaveGame` itself
-        (`GameplayStatics.cpp:2075`), and `SaveDataToSlot` is not a `UFUNCTION`.
-        The call surface is exercised and answers honestly
-        (`MCP_SAVE object_valid=false wrote=false`); the value cannot ride.
-        Limitation 24, and fixing 23 fixes it.
+      - **save and load of a value, across two PIE sessions.** Session one:
+        `MCP_SAVE_PRECHECK slot_exists_at_boot=false`, the engine's own
+        `[LogStreaming] Failed to read file '.../Saved/SaveGames/MCPStamina.sav' error.`,
+        `MCP_LOAD found=false restored=none`, then
+        `MCP_SAVE object_valid=true wrote=true stamina_at_save=16.133768`, and
+        `Saved/SaveGames/MCPStamina.sav` (1325 bytes) on disk afterwards.
+        Session two, fresh state: `MCP_SAVE_PRECHECK slot_exists_at_boot=true`,
+        `MCP_STAM t=1.009965 stamina=100.0` (the variable's own default), then
+        `MCP_LOAD found=true restored=16.133768 stamina_now=16.133768`. The
+        value crossed a session boundary through a generated SaveGame subclass,
+        a typed Cast, and a target-scoped VariableSet and VariableGet.
+      Still open, and honestly so:
       - **ProgressBar.SetPercent / TextBlock.SetText.** No Blueprint-reachable
         way to get a named child widget out of a created UUserWidget
-        (limitation 25). The HUD is driven through `SetRenderOpacity` and
-        `SetRenderScale` on the user widget instead, which is a real per-tick
-        drive with a real read-back, but it is not the requested call.
-      - **the input path firing.** `InputKey LeftShift` builds and binds, but
-        nothing in the catalog can press a key (limitation 31), so the PIE proof
-        drives the same variable from a Tick timer.
-      Also found: the `Cast` node type cannot be typed by this builder
-      (limitation 26), there is no `Self` node (27), pin defaults are still
-      log-only (28), a post-creation failure leaves an unsaved package (29), and
-      one unreproduced editor crash (30). Evidence in
-      `reports/session-2026-08-02-f4-stamina.json`; screenshot
-      `Saved/Screenshots/MCPBridge/phase-f4-stamina-character.png`; level back to
-      12 actors.
+        (limitation 25). Target-scoped variable access, added this chunk, is
+        one of the three fixes that entry listed, but it does not close 25: the
+        generated widget class has no member for its own children to name. The
+        HUD is driven through `SetRenderOpacity` on the user widget instead,
+        which is a real per-tick drive with a real read-back.
+      - **the input path firing.** `InputKey LeftShift`, `K` and `L` build and
+        bind, but nothing in the catalog can press a key (limitation 31), so
+        the PIE proof drives the same variables from the Tick timeline.
+      Also found this chunk: a graph spec is the whole graph and variables are
+      additive, so a generated Blueprint cannot be patched and accumulates dead
+      members (32); 200 nodes is a real ceiling once a quarter of the graph is
+      string composition (33); and moving a Character by writing its capsule's
+      RelativeLocation lets it fall through the floor (34). One tracked Unknown:
+      `diagnostic` answered `actor_count_total 0` once for a 12-actor level.
+      Evidence in `reports/session-2026-08-02-stamina-save.json` and
+      `reports/session-2026-08-02-f4-stamina.json`; level back to 12 actors.

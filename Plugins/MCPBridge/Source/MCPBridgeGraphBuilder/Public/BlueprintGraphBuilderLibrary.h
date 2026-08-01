@@ -37,10 +37,17 @@ public:
      *   CallFunction    self for the target, ReturnValue for the result,
      *                   otherwise the UFUNCTION parameter name
      *   Operator        A, B (or X/Y/Z, Value/Min/Max), ReturnValue
-     *   VariableGet     the variable's own name
-     *   VariableSet     the variable's own name for the value pin
+     *   VariableGet     the variable's own name; with params.scope "target",
+     *                   also self, the object the variable is read off
+     *   VariableSet     the variable's own name for the value pin; with
+     *                   params.scope "target", also self
      *   Delay           Duration
-     *   Cast            Object, then, CastFailed, "As<ClassName>"
+     *   Cast            Object, then, CastFailed, and "AsResult" for the cast
+     *                   result. The node's real pin name is "As" plus the
+     *                   target type's DISPLAY name
+     *                   (K2Node_DynamicCast.cpp:63), which a caller cannot
+     *                   compute for a Blueprint generated class, so the role
+     *                   "AsResult" asks the node through GetCastResultPin.
      *   Knot            InputPin, OutputPin
      *   MakeStruct      the struct's name; BreakStruct takes the same name in
      *   BreakStruct     and gives one pin per field
@@ -60,7 +67,18 @@ public:
      * Node params are pin defaults by pin name, plus the routing keys each
      * type needs (CallFunction: class/function; Operator: op; VariableGet and
      * VariableSet: var_name, and VariableSet also takes value as an alias for
-     * the value pin).
+     * the value pin). VariableGet and VariableSet also take scope: "self"
+     * (the default, the Blueprint's own member) or "target" with target_class,
+     * which reads or writes the variable on another object and grows a self
+     * input pin for it.
+     *
+     * A pin default is written and then announced with PinDefaultValueChanged,
+     * and a made connection is announced to both nodes with
+     * PinConnectionListChanged, which is what the graph editor's
+     * TryCreateConnection does. Nodes that type a pin from what it is wired to
+     * or from a class picker (UK2Node_DynamicCast, anything carrying
+     * meta=(DeterminesOutputType)) do that work in those callbacks and stay
+     * wildcards without them.
      *
      * This is the low-level executor. It returns nothing and reports problems
      * only to the log; callers that need a structured result should go through

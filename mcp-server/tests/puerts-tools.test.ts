@@ -644,11 +644,139 @@ async function connectionContractSuite(): Promise<void> {
   }
 }
 
+/** A Blueprint no longer has to be an Actor.
+
+    blueprint_build used to refuse any parent that did not derive from AActor,
+    which removed the SaveGame subclass, the ActorComponent subclass and every
+    data-only Blueprint at once for a reason the engine does not share. The
+    client is not the place that gate lives, so what is pinned here is the
+    surface a caller reads and the shapes that have to survive the trip: a
+    non-Actor parent_class, a target-scoped variable node with its owning
+    class, and the AsResult cast pin role, none of which the schema may
+    flatten or reject on its own. */
+async function nonActorParentSuite(): Promise<void> {
+  const directory = await mkdtemp(join(tmpdir(), "ue4-puerts-parent-"));
+  const tokenPath = join(directory, "token.txt");
+  const pipeName = `\\\\.\\pipe\\ue4-puerts-parent-${process.pid}-${Date.now()}`;
+  await writeFile(tokenPath, "test-token", "utf8");
+  process.env.MCP_PUERTS_TOKEN_PATH = tokenPath;
+  process.env.MCP_PUERTS_PIPE = pipeName;
+
+  const received: Record<string, unknown>[] = [];
+  const server = createServer((socket) => socket.once("data", (data: Buffer) => {
+    const request = JSON.parse(data.toString("utf8")) as { params?: Record<string, unknown> };
+    received.push(request.params ?? {});
+    socket.end(JSON.stringify({
+      success: true,
+      message: "Blueprint created.",
+      data: {
+        asset_path: "/Game/MCPGenerated/BP_StaminaSave",
+        parent_class: "/Script/Engine.SaveGame",
+        created: true,
+        compile_status: "UpToDate",
+        saved: true,
+      },
+      changed_assets: [],
+      changed_actors: [],
+      warnings: [],
+      errors: [],
+      log_output: [],
+      transaction_id: "T5",
+    }) + "\n");
+  }));
+
+  try {
+    await new Promise<void>((resolve, reject) => {
+      server.once("error", reject);
+      server.listen(pipeName, resolve);
+    });
+    const tool = createPuertsTools(new PuerTSClient())
+      .find((entry) => entry.name === "puerts_blueprint_build");
+    assert(tool !== undefined, "puerts_blueprint_build is missing");
+
+    const saveGame = await tool.handler({
+      asset_path: "/Game/MCPGenerated/BP_StaminaSave",
+      parent_class: "/Script/Engine.SaveGame",
+      variables: [{ name: "SavedStamina", type: "float", default: 0 }],
+    });
+    assert(
+      JSON.parse(saveGame.content[0]?.text ?? "null").success === true,
+      "a SaveGame parent was rejected by the client",
+    );
+    assert(
+      received[0]?.parent_class === "/Script/Engine.SaveGame",
+      "a non-Actor parent_class did not reach the pipe",
+    );
+    assert(
+      (received[0]?.variables as { name?: string }[] | undefined)?.[0]?.name === "SavedStamina",
+      "the variable of a data-only Blueprint did not reach the pipe",
+    );
+
+    // The two graph shapes a save/load round trip needs: a variable node
+    // scoped to another object, and a cast result addressed by role rather
+    // than by the display-name-derived pin name a caller cannot compute.
+    await tool.handler({
+      asset_path: "/Game/MCPGenerated/BP_StaminaCharacter",
+      parent_class: "Character",
+      graph: {
+        nodes: [
+          { id: "load", type: "CallFunction", params: { class: "GameplayStatics", function: "LoadGameFromSlot" } },
+          { id: "cast", type: "Cast", params: { target_class: "/Game/MCPGenerated/BP_StaminaSave.BP_StaminaSave_C" } },
+          {
+            id: "read",
+            type: "VariableGet",
+            params: {
+              var_name: "SavedStamina",
+              scope: "target",
+              target_class: "/Game/MCPGenerated/BP_StaminaSave.BP_StaminaSave_C",
+            },
+          },
+        ],
+        connections: [
+          { from: "load.ReturnValue", to: "cast.Object" },
+          { from: "cast.AsResult", to: "read.self" },
+        ],
+      },
+    });
+    const graph = received[1]?.graph as {
+      nodes?: { params?: Record<string, unknown> }[];
+      connections?: { from?: string; to?: string }[];
+    } | undefined;
+    assert(
+      graph?.nodes?.[2]?.params?.scope === "target",
+      "a target-scoped variable node lost its scope before the pipe",
+    );
+    assert(
+      graph?.nodes?.[2]?.params?.target_class === "/Game/MCPGenerated/BP_StaminaSave.BP_StaminaSave_C",
+      "a target-scoped variable node lost its owning class before the pipe",
+    );
+    assert(
+      graph?.connections?.[1]?.from === "cast.AsResult",
+      "the AsResult cast pin role did not reach the pipe",
+    );
+
+    assert(
+      tool.description.includes("SaveGame")
+        && tool.description.includes("non-Actor parent")
+        && tool.description.includes("AsResult")
+        && tool.description.includes("\"target\""),
+      "the tool no longer advertises non-Actor parents, AsResult, or target-scoped variables",
+    );
+    console.log("  PASS  a non-Actor parent, target-scoped variables and the AsResult pin role");
+  } finally {
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+    await rm(directory, { recursive: true, force: true });
+    delete process.env.MCP_PUERTS_TOKEN_PATH;
+    delete process.env.MCP_PUERTS_PIPE;
+  }
+}
+
 main()
   .then(marshalingSuite)
   .then(blueprintBuildSuite)
   .then(widgetBuildSuite)
   .then(connectionContractSuite)
+  .then(nonActorParentSuite)
   .catch((error: unknown) => {
     console.error(`  FAIL  ${error instanceof Error ? error.message : String(error)}`);
     process.exit(1);

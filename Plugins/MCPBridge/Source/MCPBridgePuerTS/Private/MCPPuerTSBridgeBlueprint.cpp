@@ -297,6 +297,24 @@ namespace
         return FString::Join(Values, TEXT(", "));
     }
 
+    /** Graph node types that only mean anything on an Actor.
+
+        The four event types are spawned as AActor override events
+        (SpawnOverrideEvent binds ReceiveBeginPlay and friends against
+        AActor::StaticClass()), and UK2Node_InputKey binds a key on an actor
+        that can receive input. On a UObject or SaveGame parent each of them
+        would build a node that can never fire, which is worse than a
+        rejection because it compiles. Everything else in the vocabulary
+        (CallFunction, variables, flow, Cast, CustomEvent) is parent-neutral. */
+    bool IsActorOnlyNodeType(const FString& NodeType)
+    {
+        return NodeType == TEXT("BeginPlay")
+            || NodeType == TEXT("Tick")
+            || NodeType == TEXT("ActorBeginOverlap")
+            || NodeType == TEXT("ActorEndOverlap")
+            || NodeType == TEXT("InputKey");
+    }
+
     /** Run the builder's variable pass and unpack its JSON report.
         Returns false with the first error when the pass rejected the spec, so
         the caller can fail the whole request with a reason the caller can find
@@ -372,23 +390,34 @@ bool UMCPPuerTSBridgeService::BuildBlueprintJson(
         OutError = FString::Printf(TEXT("Parent class was not found: %s"), *ParentClassName);
         return false;
     }
-    if (!ParentClass->IsChildOf(AActor::StaticClass()))
-    {
-        OutError = FString::Printf(
-            TEXT("Parent class must derive from Actor: %s does not."), *ParentClass->GetPathName());
-        return false;
-    }
+    // The only parent rule is the engine's own. An Actor-only check used to
+    // sit here and it removed the SaveGame subclass, the ActorComponent
+    // subclass and every data-only Blueprint at once, none of which Unreal
+    // objects to. What is genuinely Actor-only is a capability, not a parent,
+    // so it is gated per feature below: components need a
+    // SimpleConstructionScript, and the actor event node types bind AActor
+    // override functions.
     if (!FKismetEditorUtilities::CanCreateBlueprintOfClass(ParentClass))
     {
         OutError = FString::Printf(
             TEXT("Unreal refuses Blueprints of class %s."), *ParentClass->GetPathName());
         return false;
     }
+    const bool bActorParent = ParentClass->IsChildOf(AActor::StaticClass());
 
     TArray<FValidatedComponent> Components;
     const TArray<TSharedPtr<FJsonValue>>* ComponentSpecs = nullptr;
     if (Spec->TryGetArrayField(TEXT("components"), ComponentSpecs))
     {
+        if (ComponentSpecs->Num() > 0 && !bActorParent)
+        {
+            OutError = FString::Printf(
+                TEXT("Components need an Actor parent: %s does not derive from Actor, and only "
+                     "an Actor Blueprint has a SimpleConstructionScript to hold them. Drop the "
+                     "components array, or change parent_class."),
+                *ParentClass->GetPathName());
+            return false;
+        }
         TSet<FString> ComponentNames;
         for (const TSharedPtr<FJsonValue>& Value : *ComponentSpecs)
         {
@@ -519,6 +548,17 @@ bool UMCPPuerTSBridgeService::BuildBlueprintJson(
             if (!Supported.Contains(NodeType))
             {
                 Unsupported.AddUnique(NodeType);
+            }
+            if (!bActorParent && IsActorOnlyNodeType(NodeType))
+            {
+                OutError = FString::Printf(
+                    TEXT("Graph node '%s' is of type '%s', which needs an Actor parent: %s does "
+                         "not derive from Actor. BeginPlay, Tick, ActorBeginOverlap, "
+                         "ActorEndOverlap and InputKey bind actor entry points. A non-Actor "
+                         "Blueprint takes variables and the parent-neutral node types "
+                         "(CallFunction, CustomEvent, Cast, variables, flow)."),
+                    *NodeId, *NodeType, *ParentClass->GetPathName());
+                return false;
             }
             // An operator name is routing, not a pin default: a misspelled one
             // builds no node at all, so it is checked here rather than left to

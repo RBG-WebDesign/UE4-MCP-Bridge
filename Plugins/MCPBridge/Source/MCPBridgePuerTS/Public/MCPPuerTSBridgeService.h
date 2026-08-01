@@ -152,7 +152,15 @@ public:
         the links it actually made, and a shortfall against the number
         requested is an error with the dropped pairs named, so a graph with a
         hole in it fails the build instead of compiling clean and saving.
-        graph.connection_count in the response is the number made. */
+        graph.connection_count in the response is the number made.
+
+        The parent class is whatever FKismetEditorUtilities::CanCreateBlueprintOfClass
+        allows, which includes USaveGame, UActorComponent and plain UObject.
+        Actor-only features are gated by capability rather than by refusing the
+        parent: components need an Actor's SimpleConstructionScript, and the
+        BeginPlay, Tick, ActorBeginOverlap, ActorEndOverlap and InputKey node
+        types bind actor entry points. Both are rejected by name, before the
+        asset exists, when the parent does not derive from AActor. */
     UFUNCTION(BlueprintCallable, Category="MCP PuerTS Bridge")
     bool BuildBlueprintJson(
         const FString& SpecJson,
