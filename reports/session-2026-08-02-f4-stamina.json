@@ -1,0 +1,144 @@
+{
+  "session_date": "2026-08-02",
+  "status": "partial_success",
+  "goal": "Phase F4: close limitation 20 so an unresolved graph connection fails the build, then author a stamina/sprint reference feature end to end through the bridge and prove it in PIE",
+  "context": "docs/MASTERY_PLAN_2026-07-31.md Phase F4. Branch bridge/native-consolidation-2026-07-31. Live editor UE427PuerTSMCP, pipe UE427PuerTSMCP_UE427PuerTSMCP_81d778e7_skyshader5, level /Temp/Untitled_1. Every live call went through a freshly built mcp-server/dist over stdio with MCP_UNREAL_PROJECT_ROOT / MCP_PUERTS_TOKEN_PATH / MCP_PUERTS_PIPE, because the session's own MCP server process predates puerts_blueprint_build and puerts_widget_build.",
+
+  "step_0_connection_contract": {
+    "problem": "BuildBlueprintFromJSON dropped an unresolvable connection with a UE_LOG line and carried on. blueprint_build still answered compile_status UpToDate, errors [], saved true, and graph.connection_count reported the number of connections REQUESTED. A graph with a hole in it was indistinguishable from a working one.",
+    "change": {
+      "Plugins/MCPBridge/Source/MCPBridgeGraphBuilder/Public/BlueprintGraphBuilderLibrary.h": "Declared BuildBlueprintFromJSONWithReport(Blueprint, Json, bClear, OutUnresolvedConnections, OutConnectionsMade) as plain C++ beside the unchanged UFUNCTION; documented the three drop reasons and named limitation 21 as the usual cause of the third. Added the InputKey pin-name row.",
+      "Plugins/MCPBridge/Source/MCPBridgeGraphBuilder/Private/BlueprintGraphBuilderLibrary.cpp": "Body moved to the reporting overload; the UFUNCTION forwards and discards. The connection loop counts MakeLinkTo calls and records one entry per drop with its reason. Advertised InputKey in RegistryNodeTypes() and added fkey_name / consume_input / execute_when_paused / override_parent to the registry routing keys. The Done log line now reports made and unresolved.",
+      "Plugins/MCPBridge/Source/MCPBridgePuerTS/Private/MCPPuerTSBridgeBlueprint.cpp": "BuildBlueprintJson calls the reporting overload, adds an errors[] entry on any shortfall naming every dropped pair, and reports connection_count as the number MADE plus connections_requested and unresolved_connections.",
+      "Plugins/MCPBridge/Source/MCPBridgePuerTS/Public/MCPPuerTSBridgeService.h": "BuildBlueprintJson doc comment states the connection contract.",
+      "mcp-server/src/tools/puerts.ts": "puerts_blueprint_build description states the contract; InputKey added to the node-type enum with its routing keys and its Pressed/Released/Key pin names.",
+      "mcp-server/tests/puerts-tools.test.ts": "connectionContractSuite: a mock shortfall envelope must reach the caller as success false with saved false, every dropped pair named in errors[], connection_count as the made count, connections_requested and unresolved_connections present and self-consistent, and the tool description still advertising it.",
+      "docs/TOOL_INVENTORY.json": "regenerated; 203 tools, native_pipe 19, contract drift on puerts_blueprint_build only"
+    },
+    "live_proof": {
+      "rejected": "blueprint_build /Game/MCPGenerated/BP_ProbeConn with start.exec -> isv.exec and isv.exec -> say.exec against the pure KismetSystemLibrary.IsValid: success false, compile_status UpToDate, saved false, connection_count 1, connections_requested 3, unresolved_connections [\"start.exec -> isv.exec (no input pin 'exec' on isv)\", \"isv.exec -> say.exec (no output pin 'exec' on isv)\"], one errors[] entry naming both.",
+      "accepted": "the same spec with the exec chain corrected: success true, connection_count 2 of 2, compile UpToDate, saved true.",
+      "node_spawn_failure_is_covered_too": "an InputKey with fkey_name NotAKeyAtAll is refused by its factory, so the node is missing and the connection that referenced it reports key.Pressed -> down.exec (node 'key' spawned no node).",
+      "value_inside_the_hour": "the F4 graph's first build wired bpSeq.then_0 -> ownSelf.exec against UActorComponent::GetOwner, which is const and therefore pure. Before this change that build would have saved with the possession chain unwired."
+    }
+  },
+
+  "architecture": {
+    "chosen": "A Character subclass, /Game/MCPGenerated/BP_StaminaCharacter, not a component on a pawn.",
+    "why": "puerts_blueprint_build refuses any parent class that does not derive from AActor (MCPPuerTSBridgeBlueprint.cpp:375), so a UActorComponent subclass cannot be authored through the bridge at all. The component-on-pawn design was not a judgement call; it was unavailable. Recorded as limitation 23.",
+    "assets": [
+      "/Game/MCPGenerated/BP_StaminaCharacter - parent Character, 22 variables, StaticMeshComponent BodyMesh (cube, NoCollision, so the capsule is visible without fighting the floor), 198-node / 246-connection event graph",
+      "/Game/MCPGenerated/WBP_StaminaHUD - CanvasPanel root, TextBlock Title, ProgressBar StaminaBar, TextBlock Readout, widget_count 4"
+    ],
+    "two_pass_build": "A CallFunction whose class is the Blueprint's own generated class cannot resolve on the build that creates the class. Pass 1 declares the four CustomEvents (MCP_ANIM_SPRINT_START, MCP_ANIM_SPRINT_STOP, MCP_DO_SAVE, MCP_DO_LOAD) and compiles; pass 2 wires the whole feature, including the calls to them. Both passes converge on rerun, so the recipe is pass 1 then pass 2, every time.",
+    "movement_speed_route": "Pawn.GetMovementComponent (pure, implicit self) -> KismetSystemLibrary.SetFloatPropertyByName(Object, PropertyName \"MaxWalkSpeed\", Value). Read back with MovementComponent.GetMaxSpeed (pure). VariableSet was not an option: the registry's variable factory is self-scope only, so an inherited component's property cannot be set that way. BlueprintInternalUseOnly on the setter does not block a spawned node (limitation 22).",
+    "possession_route": "The character possesses itself on BeginPlay: GameplayStatics.GetPlayerController(0) into the self pin of Controller.Possess, with InPawn from Pawn.GetMovementComponent -> PawnMovementComponent.GetPawnOwner. Two dead ends came first: there is no Self node (limitation 27), and GameplayStatics.GetActorOfClass plus a Cast to Pawn does not compile because both DeterminesOutputType and UK2Node_DynamicCast need a pin-change notification the builder never sends (limitation 26). A GameMode with DefaultPawnClass was not available either: blueprint_build cannot write an inherited CDO property and set_property's writable allowlist is eight entries.",
+    "input_route": "(a) landed. UK2Node_InputKey binds a literal FKey and needs no project input mapping, which is why it is the one input factory now advertised. LeftShift Pressed/Released set bSprintHeld, K and L call the save and load events. Route (b), PlayerController.IsInputKeyDown polled on Tick, was not needed and was not built.",
+    "hud_route": "The host cannot reach a named child widget of the created UUserWidget (limitation 25), so ProgressBar.SetPercent and TextBlock.SetText are unreachable. The graph drives UWidget.SetRenderOpacity and UWidget.SetRenderScale on the user widget itself every tick with CurrentStamina / MaxStamina, and reports the widget's own GetRenderOpacity, so the HUD number in the log is read back off the widget rather than echoed from the variable that was written."
+  },
+
+  "pie_evidence": {
+    "sessions": 3,
+    "session_reported": "the third, after the editor restart and with the BodyMesh component in place; the first two are behaviourally identical",
+    "log_lines_in_order": [
+      "[LogBlueprintUserMessages] [BP_StaminaCharacter_C_0] MCP_STAM_POSSESS player_controlled=true",
+      "[LogBlueprintUserMessages] [BP_StaminaCharacter_C_0] MCP_STAM_HUD created=1 in_viewport=true",
+      "[LogBlueprintUserMessages] [BP_StaminaCharacter_C_0] MCP_SAVE_PRECHECK slot_exists_at_boot=false",
+      "[PIE] Play in editor total start time 0.137 seconds.",
+      "[LogBlueprintUserMessages] [BP_StaminaCharacter_C_0] MCP_STAM t=1.004709 stamina=100.0 sprinting=false canSprint=true maxWalkSpeed=420.0 speed=420.000305 hudPercent=1.0",
+      "[LogBlueprintUserMessages] [BP_StaminaCharacter_C_0] MCP_ANIM_SPRINT_START placeholder fired t=2.004796",
+      "[LogBlueprintUserMessages] [BP_StaminaCharacter_C_0] MCP_STAM t=3.005499 stamina=75.190781 sprinting=true canSprint=true maxWalkSpeed=900.0 speed=900.000122 hudPercent=0.751908",
+      "[LogBlueprintUserMessages] [BP_StaminaCharacter_C_0] MCP_STAM t=5.005644 stamina=25.603493 sprinting=true canSprint=true maxWalkSpeed=900.0 speed=900.000122 hudPercent=0.256035",
+      "[LogBlueprintUserMessages] [BP_StaminaCharacter_C_0] MCP_STAM_EMPTY stamina hit zero, sprint force-stopped",
+      "[LogBlueprintUserMessages] [BP_StaminaCharacter_C_0] MCP_ANIM_SPRINT_STOP placeholder fired t=6.047369",
+      "[LogBlueprintUserMessages] [BP_StaminaCharacter_C_0] MCP_STAM t=7.005782 stamina=0.0 sprinting=false canSprint=false maxWalkSpeed=420.0 speed=419.999939 hudPercent=0.0",
+      "[LogBlueprintUserMessages] [BP_StaminaCharacter_C_0] MCP_STAM t=8.008076 stamina=7.126184 sprinting=false canSprint=false maxWalkSpeed=420.0 speed=420.0 hudPercent=0.071262",
+      "[LogBlueprintUserMessages] [BP_StaminaCharacter_C_0] MCP_STAM_READY sprint re-allowed at stamina=30.032526",
+      "[LogBlueprintUserMessages] [BP_StaminaCharacter_C_0] MCP_ANIM_SPRINT_START placeholder fired t=9.543458",
+      "[LogBlueprintUserMessages] [BP_StaminaCharacter_C_0] MCP_STAM t=10.010129 stamina=18.15708 sprinting=true canSprint=true maxWalkSpeed=900.0 speed=900.000122 hudPercent=0.181571",
+      "[LogBlueprintUserMessages] [BP_StaminaCharacter_C_0] MCP_SAVE object_valid=false wrote=false stamina_at_save=0.0",
+      "[LogBlueprintUserMessages] [BP_StaminaCharacter_C_0] MCP_LOAD object_valid=false stamina_now=0.007025 restored_value=unavailable_no_savegame_subclass"
+    ],
+    "requirement_to_evidence": {
+      "sprint raises speed": "maxWalkSpeed 420.0 -> 900.0 read back from the movement component's own GetMaxSpeed, corroborated by the pawn's velocity length 420.000305 -> 900.000122",
+      "stamina drains to zero": "100.0 -> 75.190781 -> 50.39764 -> 25.603493 -> 0.809985 -> MCP_STAM_EMPTY",
+      "sprint force-stops": "MCP_STAM_EMPTY stamina hit zero, sprint force-stopped, then t=7 sprinting=false canSprint=false maxWalkSpeed=420.0",
+      "regen after delay": "t=7 stamina=0.0 (inside the 1.5 s RegenDelaySeconds), t=8 stamina=7.126184",
+      "sprint re-allowed": "MCP_STAM_READY sprint re-allowed at stamina=30.032526, then t=10 sprinting=true maxWalkSpeed=900.0",
+      "HUD percent tracked values": "hudPercent 1.0 / 0.751908 / 0.256035 / 0.0 / 0.181571 against stamina 100.0 / 75.190781 / 25.603493 / 0.0 / 18.15708, each read back from the widget with GetRenderOpacity",
+      "HUD in viewport": "MCP_STAM_HUD created=1 in_viewport=true",
+      "save then load restores": "NOT MET. See limitation 24. object_valid=false is CreateSaveGameObject refusing USaveGame::StaticClass()."
+    },
+    "clean": "no 'Accessed None' and no Blueprint runtime error in any of the three windows",
+    "known_cosmetic": "MCP_ANIM_SPRINT_STOP and START fire a few milliseconds apart at each patrol turnaround (for example t=2.422157 then t=2.438824). That is the state machine telling the truth: the drain condition is sprinting AND moving, and the character's speed dips below the 10 uu/s movement threshold for one tick as it reverses. Widening the patrol would hide it rather than fix it."
+  },
+
+  "convergence": {
+    "recipe": "widget_build WBP_StaminaHUD, then blueprint_build pass 1, then blueprint_build pass 2",
+    "second_full_run": {
+      "assets_before": 16,
+      "assets_after": 16,
+      "actors_before": "1 (BP_StaminaCharacter_C_0)",
+      "actors_after": "1 (BP_StaminaCharacter_C_0)",
+      "widget": "created false, Widget Blueprint updated., widget_count 4, UpToDate, saved",
+      "pass1": "created false, components created 0 of 1, variables created 0 of 22, graph 10 nodes 5 of 5 connections, UpToDate, saved",
+      "pass2": "created false, components created 0 of 1, variables created 0 of 22, graph 198 nodes 246 of 246 connections, UpToDate, saved"
+    }
+  },
+
+  "walls": [
+    "blueprint_build refuses a non-Actor parent (MCPPuerTSBridgeBlueprint.cpp:375). That single line removes the SaveGame subclass, the ActorComponent subclass and every data-only Blueprint at once. The engine's own CanCreateBlueprintOfClass, checked on the next line, allows all three. Limitation 23, and the highest-value Phase L item this chunk found.",
+    "CreateSaveGameObject returns nullptr for USaveGame::StaticClass() by design (GameplayStatics.cpp:2075), USaveGame declares no property, and SaveDataToSlot / LoadDataFromSlot are not UFUNCTIONs. With 23 in place the save value half is unreachable. Limitation 24.",
+    "There is no Blueprint-reachable way to get a named child widget out of a created UUserWidget in 4.27: GetWidgetFromName and GetRootWidget carry no UFUNCTION, UWidgetTree::FindWidget carries none, and the builder's VariableGet is self-scope only. Limitation 25.",
+    "The Cast node type cannot be typed: UK2Node_DynamicCast allocates its Object pin as a wildcard and types it in NotifyPinConnectionListChanged, which MakeLinkTo never calls. Same root cause defeats meta=(DeterminesOutputType). Limitation 26. Two build attempts lost to it.",
+    "No Self node, so this actor cannot be used as a parameter value. Limitation 27.",
+    "A pin default naming no pin is still only a log warning. Limitation 28: the last silent-failure class left in blueprint_build after this chunk.",
+    "A build that fails after the asset is created leaves an unsaved in-memory package that find_assets reports. Limitation 29.",
+    "One EXCEPTION_ACCESS_VIOLATION, not reproduced: a 198-node graph rebuild in the same editor session as the command that first created a component on the same Character Blueprint. Limitation 30.",
+    "Nothing in the catalog can press a key, so the InputKey path is proven to build and bind but not to fire; the PIE proof drives the same variable from a Tick timer. Limitation 31.",
+    "viewport_screenshot framed a single requested actor from the far corner on one call and usefully on the next, with no change in the request. Limitation 18 again, with a new shape."
+  ],
+
+  "build_and_verify": {
+    "cpp_builds": 1,
+    "cpp_build_detail": "Build.bat UE427PuerTSMCPEditor Win64 Development after syncing the four changed files into the test project. 12 actions, 20.34 s parallel / 25.43 s total, zero errors on the first attempt; the only warnings are the pre-existing C4996 deprecations in AutoPIEHelper and GarmentMeshLibrary.",
+    "why_one": "The mandate was one C++ cycle, for step 0. The InputKey advertisement was folded into the same cycle because it is four lines against code that was already compiled, and it turned out to be the input route the feature needed.",
+    "editor_restarts": 2,
+    "why_two": "one for the build, one to recover from the crash in limitation 30",
+    "final_state": "editor running, PIE stopped, puerts_diagnostic actor_count_total 12, is_game_thread true, transport named_pipe, no probe actors in the level, 16 assets in /Game/MCPGenerated"
+  },
+
+  "changes": {
+    "Plugins/MCPBridge/Source/MCPBridgeGraphBuilder/Public/BlueprintGraphBuilderLibrary.h": "BuildBlueprintFromJSONWithReport declared with the connection contract and the three drop reasons written down; InputKey pin names documented",
+    "Plugins/MCPBridge/Source/MCPBridgeGraphBuilder/Private/BlueprintGraphBuilderLibrary.cpp": "connection counting and per-drop reasons; InputKey advertised with its four routing keys",
+    "Plugins/MCPBridge/Source/MCPBridgePuerTS/Private/MCPPuerTSBridgeBlueprint.cpp": "shortfall is an error naming every dropped pair; connection_count is the made count, with connections_requested and unresolved_connections",
+    "Plugins/MCPBridge/Source/MCPBridgePuerTS/Public/MCPPuerTSBridgeService.h": "BuildBlueprintJson doc comment states the contract",
+    "mcp-server/src/tools/puerts.ts": "description states the contract; InputKey in the node-type enum with routing keys and pin names",
+    "mcp-server/tests/puerts-tools.test.ts": "connectionContractSuite",
+    "docs/CAPABILITY_FINDINGS.md": "seven new Working rows, limitation 20 marked fixed and kept, new limitations 23-31, two new Fixed sections",
+    "docs/MASTERY_PLAN_2026-07-31.md": "Phase L connection contract ticked; Phase F4 ticked per part, with what was not met and why",
+    "docs/TOOL_INVENTORY.json": "regenerated: 203 tools, native_pipe 19",
+    "reports/session-2026-08-02-f4-stamina.json": "this file"
+  },
+
+  "screenshots": [
+    {
+      "path": "D:/Unreal Projects/MASTER_PROJECT/SF_Repository/Sinfeld_240301/Tests/UE427PuerTSMCP/Saved/Screenshots/MCPBridge/phase-f4-stamina-character.png",
+      "description": "2085x1138, read by the agent. BP_StaminaCharacter standing on the dark checkered template floor beside the PlayerStart flag: the pale BodyMesh block inside the orange selection outline, casting its own shadow, with the sky sphere, directional light and reflection capture icons above. Taken before PIE."
+    },
+    {
+      "path": "D:/Unreal Projects/MASTER_PROJECT/SF_Repository/Sinfeld_240301/Tests/UE427PuerTSMCP/Saved/Screenshots/MCPBridge/phase-f4-stamina-before-pie.png",
+      "description": "2085x1138, read by the agent. The same level before the BodyMesh component existed: the character renders as a bare capsule wireframe at the floor's edge. Kept because it is what a generated Character looks like with nothing to draw."
+    }
+  ],
+
+  "notes": [
+    "The step 0 fix caught a real bug in the first feature build, in the same hour it shipped. That is the whole argument for it: the failure it prevents does not look like a failure.",
+    "Two of the three things F4 could not do trace back to one line of our own code, not to the engine. blueprint_build's Actor-only parent check removes SaveGame and ActorComponent Blueprints; the engine allows both. That is the next Phase L item and it is small.",
+    "The pattern from F2 and F3 held again and is now the house style: no runtime property read and no screenshot during PIE, so every claim is a number the graph printed about itself, and every number is read back from the thing that owns it rather than from the variable that was written. maxWalkSpeed comes from GetMaxSpeed, the HUD percent comes from GetRenderOpacity, the speed comes from GetVelocity.",
+    "A 198-node graph is not hand-writable JSON. It was composed by a small generator with one VariableGet per variable reused across every reader, which is also what kept it under the 200-node schema cap.",
+    "Every blueprint_build and widget_build save still logs 'Unable to Check Out From Source Control' as an auto-dismissed modal; the save succeeds."
+  ],
+
+  "recommended_next_goal": "Limitation 23: let blueprint_build author a non-Actor Blueprint, gating the components array and the actor event node types on an Actor parent. That unlocks the SaveGame subclass F4 needed and the ActorComponent subclass a component-on-pawn design needs. Then limitation 28, which is the same fix step 0 just made, applied to pin defaults."
+}

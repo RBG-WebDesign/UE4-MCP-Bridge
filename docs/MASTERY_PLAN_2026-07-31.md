@@ -170,4 +170,58 @@ project until something breaks; every break loops back to Phase L:
       sound and the HUD unreachable "because there is no tool". Half of that was
       a wrong reading: the audio half needed no tool. Still true: there is no
       Timeline node of any kind.
-- [ ] Phase F4 stamina feature
+- [x] Phase L: unresolved graph connections fail the build (limitation 20
+      closed). `blueprint_build` counts the links `MakeLinkTo` actually made
+      against the number the spec asked for; any shortfall is an error naming
+      every dropped pair, and an error means the asset is not saved.
+      `graph.connection_count` is now the number made, with
+      `connections_requested` and `unresolved_connections` beside it. Unit test
+      in `mcp-server/tests/puerts-tools.test.ts`; live proof on
+      `/Game/MCPGenerated/BP_ProbeConn`. It caught a real bug in the F4 graph on
+      its first run. `InputKey` was advertised in the same build cycle.
+- [~] Phase F4 stamina feature - **built and PIE-proven, with two parts blocked
+      by limitations found in the doing.** `/Game/MCPGenerated/BP_StaminaCharacter`
+      (parent Character, 22 variables, one component, a 198-node / 246-connection
+      graph) plus `/Game/MCPGenerated/WBP_StaminaHUD`, authored from JSON in two
+      passes and converging with zero duplicates on a second full run (16 assets
+      before and after, 1 actor before and after, `created false` everywhere).
+      Met, with the log line that proves it:
+      - sprint raises speed: `maxWalkSpeed=420.0` walking,
+        `maxWalkSpeed=900.0` sprinting, read back through
+        `MovementComponent.GetMaxSpeed`, and the pawn's own velocity agrees
+        (`speed=420.000305` / `speed=900.000122`)
+      - stamina drains to zero: `stamina=100.0` -> `75.190781` -> `25.603493`
+        -> `MCP_STAM_EMPTY stamina hit zero, sprint force-stopped`
+      - regen after the delay: `t=7 stamina=0.0`, `t=8 stamina=7.126184`
+      - sprint re-allowed: `MCP_STAM_READY sprint re-allowed at stamina=30.032526`,
+        then `t=10 sprinting=true maxWalkSpeed=900.0`
+      - HUD tracked the value: `hudPercent` 1.0 / 0.751908 / 0.256035 / 0.0 /
+        0.181571 against the same stamina figures, read back off the widget with
+        `GetRenderOpacity` rather than echoed from the variable
+      - HUD on screen: `MCP_STAM_HUD created=1 in_viewport=true`
+      - possession: `MCP_STAM_POSSESS player_controlled=true`
+      - animation surface: `MCP_ANIM_SPRINT_START placeholder fired t=2.004796`
+        and `MCP_ANIM_SPRINT_STOP placeholder fired t=6.047369` on every state
+        edge, from CustomEvents called by the graph itself
+      Not met, and why:
+      - **save/load of a value.** `blueprint_build` refuses a non-Actor parent
+        (limitation 23), `CreateSaveGameObject` refuses `USaveGame` itself
+        (`GameplayStatics.cpp:2075`), and `SaveDataToSlot` is not a `UFUNCTION`.
+        The call surface is exercised and answers honestly
+        (`MCP_SAVE object_valid=false wrote=false`); the value cannot ride.
+        Limitation 24, and fixing 23 fixes it.
+      - **ProgressBar.SetPercent / TextBlock.SetText.** No Blueprint-reachable
+        way to get a named child widget out of a created UUserWidget
+        (limitation 25). The HUD is driven through `SetRenderOpacity` and
+        `SetRenderScale` on the user widget instead, which is a real per-tick
+        drive with a real read-back, but it is not the requested call.
+      - **the input path firing.** `InputKey LeftShift` builds and binds, but
+        nothing in the catalog can press a key (limitation 31), so the PIE proof
+        drives the same variable from a Tick timer.
+      Also found: the `Cast` node type cannot be typed by this builder
+      (limitation 26), there is no `Self` node (27), pin defaults are still
+      log-only (28), a post-creation failure leaves an unsaved package (29), and
+      one unreproduced editor crash (30). Evidence in
+      `reports/session-2026-08-02-f4-stamina.json`; screenshot
+      `Saved/Screenshots/MCPBridge/phase-f4-stamina-character.png`; level back to
+      12 actors.

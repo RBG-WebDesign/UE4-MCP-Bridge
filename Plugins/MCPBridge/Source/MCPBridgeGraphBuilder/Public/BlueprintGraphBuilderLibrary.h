@@ -47,6 +47,9 @@ public:
      *   MultiGate       Out 0, Out 1, ...
      *   SwitchInt       Default plus one pin per case
      *   ActorEndOverlap OtherActor
+     *   InputKey        Pressed, Released, Key; params.fkey_name is the FKey,
+     *                   which is a literal key rather than a project input
+     *                   mapping, so the node needs nothing in DefaultInput.ini
      *
      * Two node types have pin names built from localized text rather than from
      * a stable FName, so they are spawnable but were not wired by name in the
@@ -69,6 +72,37 @@ public:
         UBlueprint* Blueprint,
         const FString& JsonString,
         bool bClearExistingGraph = true
+    );
+
+    /**
+     * The same builder, with the connection outcome reported to the caller.
+     *
+     * A connection whose endpoints cannot be resolved to real pins is dropped.
+     * That used to be a log line and nothing else, so a graph with a hole in it
+     * compiled clean and reported complete success: the worst failure shape
+     * there is, because the caller cannot tell it from a working graph. This
+     * overload counts the links actually made and hands back one entry per
+     * dropped connection, so the native command can fail the build instead of
+     * saving it.
+     *
+     * @param OutUnresolvedConnections  One "from -> to (reason)" per dropped
+     *                                  connection. Empty means the graph is
+     *                                  whole.
+     * @param OutConnectionsMade        Links actually created by MakeLinkTo.
+     *
+     * A connection is dropped for one of three reasons, each named in the
+     * entry: an endpoint that does not read nodeId.pinRole, a node id that
+     * spawned no node (a factory refusal earlier in the build), or a pin role
+     * that names no pin of that direction on the node. The third is the common
+     * one, and limitation 21 is its usual cause: a const BlueprintCallable
+     * UFUNCTION is a pure node with no exec pins.
+     */
+    static void BuildBlueprintFromJSONWithReport(
+        UBlueprint* Blueprint,
+        const FString& JsonString,
+        bool bClearExistingGraph,
+        TArray<FString>& OutUnresolvedConnections,
+        int32& OutConnectionsMade
     );
 
     /** The node types BuildBlueprintFromJSON can spawn today, in dispatch

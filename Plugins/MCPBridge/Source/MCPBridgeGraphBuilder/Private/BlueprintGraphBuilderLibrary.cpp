@@ -112,6 +112,14 @@ namespace
             TEXT("SwitchString"),
             TEXT("MultiGate"),
             TEXT("DoOnceMultiInput"),
+            // The one input factory that needs nothing from the project.
+            // UK2Node_InputKey binds a literal FKey (K2Node_InputKey.h:28), so
+            // it needs no axis or action mapping in DefaultInput.ini, which is
+            // what kept the rest of the input family unadvertised: an
+            // InputAction node naming a mapping the project does not have
+            // compiles and never fires. Pins are Pressed, Released and Key
+            // (K2Node_InputKey.cpp:56-59).
+            TEXT("InputKey"),
         };
         return Types;
     }
@@ -1085,6 +1093,25 @@ void UBlueprintGraphBuilderLibrary::BuildBlueprintFromJSON(
     const FString& JsonString,
     bool bClearExistingGraph)
 {
+    // The Blueprint-callable entry point keeps its old shape. Everything that
+    // needs to know whether the graph came out whole goes through the
+    // reporting overload; this one throws the report away, as it always did.
+    TArray<FString> UnresolvedConnections;
+    int32 ConnectionsMade = 0;
+    BuildBlueprintFromJSONWithReport(
+        Blueprint, JsonString, bClearExistingGraph, UnresolvedConnections, ConnectionsMade);
+}
+
+void UBlueprintGraphBuilderLibrary::BuildBlueprintFromJSONWithReport(
+    UBlueprint* Blueprint,
+    const FString& JsonString,
+    bool bClearExistingGraph,
+    TArray<FString>& OutUnresolvedConnections,
+    int32& OutConnectionsMade)
+{
+    OutUnresolvedConnections.Reset();
+    OutConnectionsMade = 0;
+
     if (!Blueprint)
     {
         UE_LOG(LogTemp, Error, TEXT("BuildBlueprintFromJSON: Blueprint is null"));
@@ -1334,6 +1361,8 @@ void UBlueprintGraphBuilderLibrary::BuildBlueprintFromJSON(
                 TEXT("has_default"), TEXT("case_values"), TEXT("is_case_sensitive"),
                 TEXT("is_random"), TEXT("loop"), TEXT("start_index_from_zero"),
                 TEXT("text"), TEXT("width"), TEXT("height"), TEXT("color"),
+                TEXT("fkey_name"), TEXT("consume_input"), TEXT("execute_when_paused"),
+                TEXT("override_parent"),
             });
             // A variable set node names its value pin after the variable, which
             // a caller writing a spec should not have to repeat.
@@ -1385,6 +1414,8 @@ void UBlueprintGraphBuilderLibrary::BuildBlueprintFromJSON(
             const TSharedPtr<FJsonObject>* ConnObj = nullptr;
             if (!ConnValue->TryGetObject(ConnObj))
             {
+                OutUnresolvedConnections.Add(
+                    TEXT("a connections entry that is not an object"));
                 continue;
             }
 
@@ -1394,14 +1425,23 @@ void UBlueprintGraphBuilderLibrary::BuildBlueprintFromJSON(
 
             // Parse "nodeId.pinRole"
             FString FromNodeId, FromPinRole, ToNodeId, ToPinRole;
-            FromStr.Split(TEXT("."), &FromNodeId, &FromPinRole);
-            ToStr.Split(TEXT("."), &ToNodeId, &ToPinRole);
+            if (!FromStr.Split(TEXT("."), &FromNodeId, &FromPinRole)
+                || !ToStr.Split(TEXT("."), &ToNodeId, &ToPinRole))
+            {
+                UE_LOG(LogTemp, Warning, TEXT("BuildBlueprintFromJSON: Connection endpoints must read nodeId.pinRole: %s -> %s"), *FromStr, *ToStr);
+                OutUnresolvedConnections.Add(FString::Printf(
+                    TEXT("%s -> %s (an endpoint does not read nodeId.pinRole)"), *FromStr, *ToStr));
+                continue;
+            }
 
             UEdGraphNode** FromNodePtr = NodeMap.Find(FromNodeId);
             UEdGraphNode** ToNodePtr = NodeMap.Find(ToNodeId);
             if (!FromNodePtr || !ToNodePtr)
             {
                 UE_LOG(LogTemp, Warning, TEXT("BuildBlueprintFromJSON: Connection references unknown node(s): %s -> %s"), *FromStr, *ToStr);
+                OutUnresolvedConnections.Add(FString::Printf(
+                    TEXT("%s -> %s (node '%s' spawned no node)"),
+                    *FromStr, *ToStr, !FromNodePtr ? *FromNodeId : *ToNodeId));
                 continue;
             }
 
@@ -1428,10 +1468,17 @@ void UBlueprintGraphBuilderLibrary::BuildBlueprintFromJSON(
             if (!SourcePin || !TargetPin)
             {
                 UE_LOG(LogTemp, Warning, TEXT("BuildBlueprintFromJSON: Could not resolve pins for connection %s -> %s"), *FromStr, *ToStr);
+                OutUnresolvedConnections.Add(FString::Printf(
+                    TEXT("%s -> %s (no %s pin '%s' on %s)"),
+                    *FromStr, *ToStr,
+                    !SourcePin ? TEXT("output") : TEXT("input"),
+                    !SourcePin ? *FromPinRole : *ToPinRole,
+                    !SourcePin ? *FromNodeId : *ToNodeId));
                 continue;
             }
 
             SourcePin->MakeLinkTo(TargetPin);
+            OutConnectionsMade++;
         }
     }
 
@@ -1440,7 +1487,8 @@ void UBlueprintGraphBuilderLibrary::BuildBlueprintFromJSON(
     FKismetEditorUtilities::CompileBlueprint(Blueprint);
     Blueprint->MarkPackageDirty();
 
-    UE_LOG(LogTemp, Log, TEXT("BuildBlueprintFromJSON: Done. %d nodes spawned."), NodeMap.Num());
+    UE_LOG(LogTemp, Log, TEXT("BuildBlueprintFromJSON: Done. %d nodes spawned, %d connections made, %d unresolved."),
+        NodeMap.Num(), OutConnectionsMade, OutUnresolvedConnections.Num());
 }
 
 bool UBlueprintGraphBuilderLibrary::AddComponentToBlueprint(

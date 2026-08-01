@@ -113,6 +113,7 @@ const blueprintNodeType = z.enum([
   "SwitchString",
   "MultiGate",
   "DoOnceMultiInput",
+  "InputKey",
 ]);
 
 /** The symbolic operators the Operator node type accepts. Authority is
@@ -143,7 +144,8 @@ const blueprintGraphNode = z.object({
     + "{num_outputs}; SwitchInt {start_index, num_cases, has_default}; "
     + "SwitchString {case_values, has_default, is_case_sensitive}; MultiGate "
     + "{num_outputs, is_random, loop, start_index_from_zero}; DoOnceMultiInput "
-    + "{num_inputs}; Comment {text, width, height}. Everything else is a pin "
+    + "{num_inputs}; InputKey {fkey_name, consume_input, execute_when_paused, "
+    + "override_parent}; Comment {text, width, height}. Everything else is a pin "
     + "default: a number for a float pin, true/false for a bool pin, "
     + "{\"x\":0,\"y\":0,\"z\":0} for a vector pin, an object path string for an "
     + "object pin.",
@@ -170,7 +172,8 @@ const blueprintGraph = z.object({
   + "the variable; Delay has Duration; Cast has Object, then, CastFailed and "
   + "\"As<ClassName>\"; Knot has InputPin and OutputPin; MakeStruct and "
   + "BreakStruct name their struct pin after the struct; MultiGate has \"Out 0\", "
-  + "\"Out 1\"; SwitchInt has Default plus one pin per case; ActorEndOverlap and "
+  + "\"Out 1\"; SwitchInt has Default plus one pin per case; InputKey has Pressed, "
+  + "Released and Key; ActorEndOverlap and "
   + "ActorBeginOverlap have OtherActor. DoOnceMultiInput builds its pin names "
   + "from localized text, so it spawns but cannot be wired by name here, and "
   + "SpawnActor's Spawn Transform is a by-ref pin that needs a wired input.",
@@ -267,12 +270,19 @@ const specs = [
     + "VariableSet nodes. Supported graph node types are BeginPlay, Tick, ActorBeginOverlap, "
     + "ActorEndOverlap, PrintString, CallFunction, Operator, Delay, Branch, Sequence, "
     + "Comment, Event, CustomEvent, VariableGet, VariableSet, Cast, Select, Knot, MakeStruct, "
-    + "BreakStruct, FormatText, SpawnActor, SwitchInt, SwitchString, MultiGate and "
-    + "DoOnceMultiInput; anything else is rejected before the asset is touched. Rerunning the "
+    + "BreakStruct, FormatText, SpawnActor, SwitchInt, SwitchString, MultiGate, "
+    + "DoOnceMultiInput and InputKey; anything else is rejected before the asset is touched. "
+    + "InputKey binds a literal FKey (params.fkey_name, for example \"LeftShift\") and needs no "
+    + "project input mapping, which is why it is the one input node type advertised. Rerunning the "
     + "same spec converges: the asset is loaded rather than duplicated, an existing component "
     + "or variable of the same name and type is left alone, and the event graph is rebuilt "
     + "from the spec. A component or variable that exists under a different type is an error, "
     + "never a silent retype. "
+    + "Every graph connection must resolve to real pins: the response's graph.connection_count "
+    + "is the number of links actually made, and any shortfall against the number requested "
+    + "fails the build with the dropped pairs named in errors and in "
+    + "graph.unresolved_connections, so a graph with a hole in it is never saved. A pure node "
+    + "has no exec pins, and a const BlueprintCallable UFUNCTION that returns a value is pure. "
     + "Assets are limited to /Game/MCPGenerated/. Response reports compile status with "
     + "compiler errors and warnings; the asset is only saved when it built clean.",
     z.object({

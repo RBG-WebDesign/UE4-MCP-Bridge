@@ -788,12 +788,31 @@ bool UMCPPuerTSBridgeService::BuildBlueprintJson(
         }
     }
 
+    // A dropped connection used to be a log line: the graph came out with a
+    // hole in it, compiled clean, and reported complete success. The builder
+    // now hands back what it could not wire, and a shortfall fails the build,
+    // which also means the asset is not saved.
+    TArray<FString> UnresolvedConnections;
+    int32 ConnectionsMade = 0;
     if (bHasGraph)
     {
         FString GraphJson;
         TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&GraphJson);
         FJsonSerializer::Serialize(GraphObject->ToSharedRef(), Writer);
-        UBlueprintGraphBuilderLibrary::BuildBlueprintFromJSON(Blueprint, GraphJson, bClearExistingGraph);
+        UBlueprintGraphBuilderLibrary::BuildBlueprintFromJSONWithReport(
+            Blueprint, GraphJson, bClearExistingGraph, UnresolvedConnections, ConnectionsMade);
+        if (ConnectionsMade != ConnectionCount)
+        {
+            Errors.Add(MakeShared<FJsonValueString>(FString::Printf(
+                TEXT("%d of %d graph connection(s) could not be wired and were dropped: %s. ")
+                TEXT("A connection endpoint is nodeId.pinRole, and a role that names no pin of ")
+                TEXT("that direction is silently discarded by the graph editor, so the build is ")
+                TEXT("failed rather than saved. A pure node has no exec pins: a const ")
+                TEXT("BlueprintCallable UFUNCTION with a return value is promoted to ")
+                TEXT("BlueprintPure by UHT."),
+                ConnectionCount - ConnectionsMade, ConnectionCount,
+                *JoinStrings(UnresolvedConnections))));
+        }
     }
 
     FString CompileStatus = TEXT("Skipped");
@@ -860,11 +879,22 @@ bool UMCPPuerTSBridgeService::BuildBlueprintJson(
         NodeTypeValues.Add(MakeShared<FJsonValueString>(NodeType));
     }
 
+    TArray<TSharedPtr<FJsonValue>> UnresolvedValues;
+    for (const FString& Unresolved : UnresolvedConnections)
+    {
+        UnresolvedValues.Add(MakeShared<FJsonValueString>(Unresolved));
+    }
+
     TSharedPtr<FJsonObject> Graph = MakeShared<FJsonObject>();
     Graph->SetBoolField(TEXT("requested"), bHasGraph);
     Graph->SetBoolField(TEXT("cleared_existing"), bHasGraph && bClearExistingGraph);
     Graph->SetNumberField(TEXT("node_count"), RequestedNodeTypes.Num());
-    Graph->SetNumberField(TEXT("connection_count"), ConnectionCount);
+    // connection_count is the number of links actually made. The number asked
+    // for is reported separately; when they differ the build has already
+    // failed, and unresolved_connections says which pairs were dropped.
+    Graph->SetNumberField(TEXT("connection_count"), ConnectionsMade);
+    Graph->SetNumberField(TEXT("connections_requested"), ConnectionCount);
+    Graph->SetArrayField(TEXT("unresolved_connections"), UnresolvedValues);
     Graph->SetArrayField(TEXT("node_types"), NodeTypeValues);
 
     TSharedPtr<FJsonObject> Result = MakeShared<FJsonObject>();

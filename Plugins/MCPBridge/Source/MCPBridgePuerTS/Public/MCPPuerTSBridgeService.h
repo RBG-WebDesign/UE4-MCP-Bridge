@@ -146,7 +146,13 @@ public:
         FJsonObjectConverter, with UObject references resolved by an explicit
         load rather than by ImportText. The whole spec is validated before any
         asset is created or mutated, so a rejected request never leaves a
-        half-built Blueprint behind. */
+        half-built Blueprint behind.
+
+        Graph connections are counted rather than trusted: the builder reports
+        the links it actually made, and a shortfall against the number
+        requested is an error with the dropped pairs named, so a graph with a
+        hole in it fails the build instead of compiling clean and saving.
+        graph.connection_count in the response is the number made. */
     UFUNCTION(BlueprintCallable, Category="MCP PuerTS Bridge")
     bool BuildBlueprintJson(
         const FString& SpecJson,

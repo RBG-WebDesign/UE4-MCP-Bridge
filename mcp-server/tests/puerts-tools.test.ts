@@ -524,10 +524,131 @@ async function widgetBuildSuite(): Promise<void> {
   }
 }
 
+/** Limitation 20 of docs/CAPABILITY_FINDINGS.md, closed: an unresolvable
+    graph connection used to be a log line, and the build still answered
+    compile_status UpToDate, errors [], saved true, with connection_count
+    reporting the number of connections *requested*. That is the worst failure
+    shape available - a caller cannot tell a graph with a hole in it from a
+    working one. The native command now counts the links actually made and
+    fails the build on a shortfall. These assertions pin the response contract
+    that failure arrives in, and the description that advertises it: an MCP
+    client only ever sees the envelope, so if the envelope stops carrying the
+    shortfall the fix is invisible again. */
+async function connectionContractSuite(): Promise<void> {
+  const directory = await mkdtemp(join(tmpdir(), "ue4-puerts-conn-"));
+  const tokenPath = join(directory, "token.txt");
+  const pipeName = `\\\\.\\pipe\\ue4-puerts-conn-${process.pid}-${Date.now()}`;
+  await writeFile(tokenPath, "test-token", "utf8");
+  process.env.MCP_PUERTS_TOKEN_PATH = tokenPath;
+  process.env.MCP_PUERTS_PIPE = pipeName;
+
+  // The shortfall envelope the native command produces: two of the four
+  // requested connections were dropped against a pure node, so the build
+  // failed and nothing was saved.
+  const unresolved = [
+    "brSnd.then -> playing.exec (no input pin 'exec' on playing)",
+    "playing.then -> printS.exec (no output pin 'then' on playing)",
+  ];
+  const server = createServer((socket) => socket.once("data", () => {
+    socket.end(JSON.stringify({
+      success: false,
+      message: "Blueprint build reported errors.",
+      data: {
+        asset_path: "/Game/MCPGenerated/BP_ProbeDoorV3",
+        created: false,
+        compile_status: "UpToDate",
+        saved: false,
+        graph: {
+          requested: true,
+          cleared_existing: true,
+          node_count: 31,
+          connection_count: 2,
+          connections_requested: 4,
+          unresolved_connections: unresolved,
+          node_types: [],
+        },
+      },
+      changed_assets: [],
+      changed_actors: [],
+      warnings: ["Save was skipped: the Blueprint did not build cleanly."],
+      errors: [`2 of 4 graph connection(s) could not be wired and were dropped: ${unresolved.join(", ")}.`],
+      log_output: [],
+      transaction_id: "T4",
+    }) + "\n");
+  }));
+
+  try {
+    await new Promise<void>((resolve, reject) => {
+      server.once("error", reject);
+      server.listen(pipeName, resolve);
+    });
+    const tool = createPuertsTools(new PuerTSClient())
+      .find((entry) => entry.name === "puerts_blueprint_build");
+    assert(tool !== undefined, "puerts_blueprint_build is missing");
+
+    const built = await tool.handler({
+      asset_path: "/Game/MCPGenerated/BP_ProbeDoorV3",
+      graph: {
+        nodes: [
+          { id: "brSnd", type: "Branch" },
+          { id: "playing", type: "CallFunction", params: { class: "AudioComponent", function: "IsPlaying" } },
+          { id: "printS", type: "PrintString" },
+        ],
+        connections: [{ from: "brSnd.then", to: "playing.exec" }],
+      },
+    });
+    const payload = JSON.parse(built.content[0]?.text ?? "null") as {
+      success?: boolean;
+      errors?: string[];
+      warnings?: string[];
+      data?: { saved?: boolean; compile_status?: string; graph?: Record<string, unknown> };
+    };
+
+    assert(payload.success === false, "a dropped connection did not fail the build");
+    assert(
+      payload.data?.compile_status === "UpToDate",
+      "the fixture no longer models the failure that matters: a clean compile with a broken graph",
+    );
+    assert(payload.data?.saved === false, "a build with dropped connections was still saved");
+
+    const errorText = (payload.errors ?? []).join(" ");
+    for (const pair of unresolved) {
+      assert(errorText.includes(pair), `errors[] does not name the dropped connection: ${pair}`);
+    }
+
+    const graph = payload.data?.graph ?? {};
+    assert(graph.connection_count === 2, "connection_count is not the number of links actually made");
+    assert(graph.connections_requested === 4, "the requested connection count is not reported");
+    assert(
+      Array.isArray(graph.unresolved_connections) && graph.unresolved_connections.length === 2,
+      "the dropped pairs are not reported in the graph result",
+    );
+    assert(
+      (graph.connections_requested as number) - (graph.connection_count as number)
+        === (graph.unresolved_connections as string[]).length,
+      "the shortfall and the dropped-pair list disagree",
+    );
+
+    assert(
+      tool.description.includes("connection_count")
+        && tool.description.includes("actually made")
+        && tool.description.includes("fails the build"),
+      "the tool no longer advertises that an unresolved connection fails the build",
+    );
+    console.log("  PASS  an unresolved graph connection fails the build and names the dropped pairs");
+  } finally {
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+    await rm(directory, { recursive: true, force: true });
+    delete process.env.MCP_PUERTS_TOKEN_PATH;
+    delete process.env.MCP_PUERTS_PIPE;
+  }
+}
+
 main()
   .then(marshalingSuite)
   .then(blueprintBuildSuite)
   .then(widgetBuildSuite)
+  .then(connectionContractSuite)
   .catch((error: unknown) => {
     console.error(`  FAIL  ${error instanceof Error ? error.message : String(error)}`);
     process.exit(1);

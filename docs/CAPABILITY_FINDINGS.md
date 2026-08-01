@@ -50,6 +50,13 @@ maintains this file; Phase L consumes it.
 | Widget build validate-before-mutate | Eight rejected specs against the unused path `/Game/MCPGenerated/WBP_ProbeReject2`, each naming the node path: `R.T: Unsupported property 'percent' on TextBlock`, `R.P: Property 'percent' has wrong type`, `R.Same: Duplicate widget name 'Same'`, `R.T: Leaf widget 'TextBlock' cannot have children`, `R.B: Content widget 'Button' can have at most 1 child, got 2`, `Root widget must be a Panel type, got 'TextBlock'`, `Unknown top-level key 'theme'`, plus an unknown slot key and a missing `tree` refused by the client schema. `find_assets` for that name returned `count 0` afterwards (2026-08-02) |
 | A JSON-authored HUD on screen in PIE | `/Game/MCPGenerated/BP_ProbeHUDHost` carries a `class:UserWidget` variable defaulted to `WBP_ProbeHUD_C` and a 22-node BeginPlay graph: `WidgetBlueprintLibrary.Create` -> `IsValid` -> Branch -> `UserWidget.AddToViewport` -> `IsInViewport` printed, then Delay 1 s and `IsInViewport` again, then `UserWidget.GetCachedGeometry` -> `SlateBlueprintLibrary.GetLocalSize` -> `Conv_Vector2dToString` printed. In PIE: `MCP_HUD created=1 in_viewport=true`, `MCP_HUD after_1s in_viewport=true`, `MCP_HUD painted_size=X=1480.908 Y=1080.192`. The cached geometry is Slate's own arranged size for the root canvas, so the widget was laid out and painted at PIE viewport size rather than merely registered (2026-08-02, Phase F3) |
 | Phase F3 complete in one PIE session | One `pie_start` produced, in order: `[BP_ProbeDropper_C_1] MCP_DROPPER_ALIVE`, `[BP_ProbeHUDHost_C_1] MCP_HUD created=1 in_viewport=true`, `[PIE] Play in editor total start time 0.15 seconds.`, `MCP_HUD after_1s in_viewport=true`, `MCP_HUD painted_size=X=1480.908 Y=1080.192`, `[BP_ProbeDoorV3_C_1] MCP_DOOR_OPENING panel=X=950.000 Y=0.000 Z=220.000`, `MCP_DOOR_SOUND spawned=1 playing=true`, `MCP_DOOR_OPENED panel=X=950.000 Y=0.000 Z=620.000`, `MCP_DOOR_SOUND after_1s component_valid=false`. Trigger volume, moving door, sound and HUD, all from JSON specs and three spawns, with no `Accessed None` and no Blueprint runtime error in the window. Screenshot `Saved/Screenshots/MCPBridge/phase-f3-door-sound-hud.png` (2026-08-02) |
+| Unresolved graph connections fail the build | Limitation 20 closed. `blueprint_build` against the unused path `/Game/MCPGenerated/BP_ProbeConn` with `start.exec -> isv.exec` and `isv.exec -> say.exec` wired against the pure `KismetSystemLibrary.IsValid` answered `success false`, `saved false`, `graph.connection_count 1`, `connections_requested 3`, `unresolved_connections ["start.exec -> isv.exec (no input pin 'exec' on isv)", "isv.exec -> say.exec (no output pin 'exec' on isv)"]`, and one `errors[]` entry naming both pairs. The same spec with the exec chain corrected answered `success true`, `connection_count 2 of 2`, saved. The old behaviour was `compile_status "UpToDate"`, `errors []`, `saved true` (2026-08-02, Phase F4) |
+| The `InputKey` node type | `UK2Node_InputKey` binds a literal `FKey` (`K2Node_InputKey.h:28`) and needs no axis or action mapping in `DefaultInput.ini`, which is why it is the one input factory now advertised. `{"type":"InputKey","params":{"fkey_name":"LeftShift"}}` builds with pins `Pressed`, `Released`, `Key` (`K2Node_InputKey.cpp:56-59`), both exec outputs wired to PrintStrings, `compile_status "UpToDate"`. An unknown key name is refused by the factory, and because the node then spawns nothing the connection that referenced it is reported: `key.Pressed -> down.exec (node 'key' spawned no node)` (2026-08-02, Phase F4) |
+| A Character subclass from JSON, possessing itself | `puerts_blueprint_build` with `parent_class "Character"` builds `/Game/MCPGenerated/BP_StaminaCharacter`: 22 variables, one StaticMeshComponent, a 198-node / 246-connection graph, `compile_status "UpToDate"`, saved, 16 assets before and after a rerun. In PIE it takes control of itself with `GameplayStatics.GetPlayerController(0)` -> `Controller.Possess`, and reports `MCP_STAM_POSSESS player_controlled=true` (2026-08-02, Phase F4) |
+| CharacterMovement speed at runtime | `Pawn.GetMovementComponent` (pure) into `KismetSystemLibrary.SetFloatPropertyByName(Object, PropertyName "MaxWalkSpeed", Value)`, read back through `MovementComponent.GetMaxSpeed` (pure). In PIE the log carries `maxWalkSpeed=420.0` while walking and `maxWalkSpeed=900.0` while sprinting, and the pawn's own `GetVelocity` length agrees: `speed=420.000305` and `speed=900.000122`. `BlueprintInternalUseOnly` on the setter does not block it (limitation 22) (2026-08-02, Phase F4) |
+| CustomEvents called from the same graph, by a two-pass build | A `CallFunction` whose class is the Blueprint's own generated class cannot resolve on the build that creates it, because the class does not exist yet. Pass 1 declares the CustomEvents and compiles; pass 2 wires `CallFunction {class: "/Game/MCPGenerated/BP_StaminaCharacter.BP_StaminaCharacter_C", function: "MCP_ANIM_SPRINT_START"}` against the class pass 1 generated. Both passes converge on rerun. In PIE the placeholders fire on every sprint edge with their own timestamps (2026-08-02, Phase F4) |
+| A HUD widget driven every tick | `UWidget::SetRenderOpacity` and `SetRenderScale` are BlueprintCallable on `UUserWidget` itself, and `GetRenderOpacity` is a pure read of the same value. The host sets opacity and X scale to `CurrentStamina / MaxStamina` each tick and reports the widget's own answer: `hudPercent=1.0`, `0.751908`, `0.256035`, `0.0`, `0.181571`, tracking `stamina=100.0`, `75.190781`, `25.603493`, `0.0`, `18.15708`. The reported number is read back off the widget, not the variable that was written (2026-08-02, Phase F4) |
+| The stamina feature end to end in PIE | One session, all from JSON: `MCP_STAM_POSSESS player_controlled=true`, `MCP_STAM_HUD created=1 in_viewport=true`, `MCP_STAM t=1.004709 stamina=100.0 sprinting=false canSprint=true maxWalkSpeed=420.0 speed=420.000305 hudPercent=1.0`, `MCP_ANIM_SPRINT_START placeholder fired t=2.004796`, `MCP_STAM t=3.005499 stamina=75.190781 sprinting=true canSprint=true maxWalkSpeed=900.0 speed=900.000122`, `MCP_STAM_EMPTY stamina hit zero, sprint force-stopped`, `MCP_STAM t=7.005782 stamina=0.0 sprinting=false canSprint=false maxWalkSpeed=420.0`, `MCP_STAM t=8.008076 stamina=7.126184` (regen after the 1.5 s delay), `MCP_STAM_READY sprint re-allowed at stamina=30.032526`, `MCP_STAM t=10.010129 stamina=18.15708 sprinting=true maxWalkSpeed=900.0`. No `Accessed None` and no Blueprint runtime error in the window. Three PIE sessions, same behaviour (2026-08-02, Phase F4) |
 | Property validate-before-mutate | Eight rejected specs against the unused path `/Game/MCPGenerated/BP_ProbeProps`, each naming component, property, and reason: unknown property name, unloadable asset path, asset of the wrong class, wrong class inside a material array (`element 0: ... is a StaticMesh, but the property holds a MaterialInterface`), a string where an array belongs, a string where a struct belongs, and an out-of-range or misspelled enumerator (`expects a EComponentMobility enumerator: Static=0, Stationary=1, Movable=2`). `find_assets` for that name returned `count 0` afterwards (2026-08-01) |
 
 ## Defects and limitations (Phase L queue)
@@ -196,7 +203,8 @@ maintains this file; Phase L consumes it.
     would have to be Unreal's array import text, which is a second grammar for
     a caller to get right for no gain; entries are set from the graph instead.
     Rejected by name with that reason.
-20. **A graph connection that cannot be resolved is a log line, not an error.**
+20. **FIXED 2026-08-02, Phase F4. Kept for the record.**
+    **A graph connection that cannot be resolved is a log line, not an error.**
     `BuildBlueprintFromJSON` writes
     `BuildBlueprintFromJSON: Could not resolve pins for connection A -> B` to
     the editor log and carries on, and `blueprint_build` still answers
@@ -227,9 +235,154 @@ maintains this file; Phase L consumes it.
     its widget that way. `FBPNodeRegistry` does register a `CreateWidget`
     factory for `UK2Node_CreateWidget` (`BPNodeFactory.cpp:325`, config key
     `widgetClass`), but it stays unadvertised alongside the delegate, input and
-    macro factories, and was not needed.
+    macro factories, and was not needed. **Input is no longer in that list**:
+    `InputKey` is advertised as of 2026-08-02, because it is the one input
+    factory that needs nothing from project settings.
+23. **`blueprint_build` refuses any parent class that is not an Actor.**
+    `MCPPuerTSBridgeBlueprint.cpp:375` answers
+    `Parent class must derive from Actor: /Script/Engine.SaveGame does not.`
+    The engine does not require this: `FKismetEditorUtilities::CanCreateBlueprintOfClass`
+    is checked separately on the next line and allows `USaveGame`,
+    `UActorComponent` and plain `UObject`. Three consequences met in one chunk:
+    no SaveGame subclass (limitation 24); no ActorComponent subclass, so a
+    stamina **component** on a pawn is not an available design and the feature
+    has to be a Character subclass; and no data-only Blueprint of any kind.
+    Cheapest fix: allow a non-Actor parent and gate the actor-only parts of the
+    spec (components, the actor event node types) on the parent being an Actor.
+24. **A save/load round trip cannot carry a value.** Three doors, all shut.
+    `UGameplayStatics::CreateSaveGameObject` refuses the base class by design:
+    `if (*SaveGameClass && (*SaveGameClass != USaveGame::StaticClass()))`
+    (`GameplayStatics.cpp:2075`), so `/Script/Engine.SaveGame` on the class pin
+    yields nothing to save. `USaveGame` itself declares no property, so even a
+    live instance would have nowhere to put a float. `SaveDataToSlot` and
+    `LoadDataFromSlot` (`GameplayStatics.h:996`, `:1044`), which take a raw byte
+    array and would sidestep the class entirely, are **not** `UFUNCTION`s and so
+    are unreachable from a graph. With limitation 23 blocking the subclass, the
+    value half of the requirement is unreachable today. Observed:
+    `MCP_SAVE object_valid=false wrote=false stamina_at_save=0.0`,
+    `MCP_LOAD object_valid=false`, and no `Saved/SaveGames` directory on disk
+    after three PIE sessions. What *is* proven is the call surface and the
+    negative: `SaveGameToSlot` answers false rather than throwing, and
+    `MCP_SAVE_PRECHECK slot_exists_at_boot=false` reads the slot at BeginPlay.
+    Fixing 23 fixes this.
+25. **A named child widget of a created UUserWidget cannot be reached from
+    another Blueprint.** `UUserWidget::GetWidgetFromName` (`UserWidget.h:1090`)
+    and `GetRootWidget` (`:1084`) carry no `UFUNCTION`; `UWidgetTree::FindWidget`
+    (`WidgetTree.h:30`) carries none either, and `WidgetTree` is a plain
+    `UPROPERTY(Transient)` with no Blueprint access. `UPanelWidget::GetChildAt`
+    **is** BlueprintCallable (`PanelWidget.h:36`) but needs a `UPanelWidget` you
+    have no way to obtain. The normal UMG answer, a variable on the generated
+    widget class, is out because the builder's `VariableGet` is self-scope only
+    (`BPNodeFactory.cpp:181`, `scope '%s' not supported in v1 (only 'self')`).
+    So `ProgressBar.SetPercent` and `TextBlock.SetText` are not reachable from a
+    host graph, and the F4 HUD drives `UWidget::SetRenderOpacity` /
+    `SetRenderScale` on the user widget itself instead, reading the value back
+    with `GetRenderOpacity`. Three possible fixes, cheapest first: advertise a
+    non-self `VariableGet` scope (`FMemberReference::SetExternalMember` already
+    exists), give `widget_build` a graph, or add a narrow native
+    `GetWidgetByName` helper.
+26. **The `Cast` node type cannot be typed by this builder.**
+    `UK2Node_DynamicCast::AllocateDefaultPins` creates its `Object` pin as
+    `PC_Wildcard` and resolves the type in `NotifyPinConnectionListChanged`,
+    which `UEdGraphPin::MakeLinkTo` never calls. Repro: `Cast` to
+    `/Script/Engine.Pawn` with `Object` wired from a `CallFunction`, the
+    connection is made and counted, and the compile fails with
+    `The type of  Object  is undetermined.  Connect something to  Cast To Pawn  to imply a specific type.`
+    The same root cause hits `meta=(DeterminesOutputType=...)`: writing
+    `Pin->DefaultObject` on `GameplayStatics.GetActorOfClass`'s `ActorClass`
+    fires no `PinDefaultValueChanged`, so its `ReturnValue` stays a wildcard and
+    the identical error appears one node downstream. Anything the builder wires
+    that depends on a pin-change notification is in this class. The fix is one
+    `NotifyPinConnectionListChanged` after `MakeLinkTo`, plus
+    `PinDefaultValueChanged` after `ApplyPinDefault`.
+27. **There is no Self node, so "this actor" cannot be used as a value.**
+    `UK2Node_Self` has no factory in `FBPNodeRegistry`. An unconnected `self`
+    pin on a member function is the blueprint's self and covers the target case,
+    but a *parameter* that wants this actor has nothing to wire. The F4 graph
+    reaches it the long way round: `Pawn.GetMovementComponent` off the implicit
+    self pin, then `PawnMovementComponent.GetPawnOwner`, which hands the pawn
+    back already typed and so also dodges limitation 26. Worth a `Self` factory.
+28. **A pin default that names no pin is still only a log warning.**
+    `ApplyParamsAsPinDefaults` (`BlueprintGraphBuilderLibrary.cpp:483`) logs
+    `node '%s' param '%s' %s` and carries on, so a misspelled pin name or a
+    value of the wrong shape leaves the pin at its own default and the build
+    reports success. This is the same silent-failure class limitation 20 was,
+    and after F4 it is the last one left in `blueprint_build`. The fix has the
+    same shape: collect the failures and fail the build with them named.
+29. **A build that fails after the asset is created leaves an unsaved package
+    behind.** Validate-before-mutate covers everything checkable before
+    creation; a connection shortfall and a compile error are found afterwards,
+    so the package exists in memory, `find_assets` reports it, and the disk does
+    not have it. Repro: a rejected `InputKey` spec against
+    `/Game/MCPGenerated/BP_ProbeInputBad` left `find_assets` `count 1` with no
+    `BP_ProbeInputBad.uasset` in `Content/MCPGenerated`, and the entry was gone
+    after the next editor restart. Harmless but confusing: unlike the
+    pre-validation rejections, `count 0` is not the signal that a build failed.
+30. **One editor crash, not reproduced.** `EXCEPTION_ACCESS_VIOLATION reading
+    address 0xffffffffffffffff` during a `blueprint_build` that rebuilt the
+    198-node F4 graph immediately after the previous command had **created** a
+    new `StaticMeshComponent` on the same generated Character Blueprint and
+    recompiled it. The editor log ends after the previous command's save; dump
+    in `Saved/Crashes/UE4CC-Windows-971305C54CF3274B001FF4AA7117327B_0000`. The
+    same command with the same spec, after an editor restart with the component
+    already on disk, succeeded and has since run four more times. So the suspect
+    is add-component-then-rebuild-large-graph inside one editor session, and it
+    is one sighting, not a reproduction.
+31. **Nothing in the catalog can press a key.** `InputKey` nodes compile and
+    bind, and possession is proven, but there is no input-simulation tool, so an
+    input-driven feature cannot be exercised through its input during an
+    automated PIE run. The F4 character therefore carries an auto-drive branch
+    on Tick that sets the same `bSprintHeld` variable the `LeftShift` node sets,
+    and the save and load events fire from the same timeline rather than from
+    their `K` and `L` keys. The input path is proven to *build and bind*; it is
+    not proven to *fire*, and that is not claimed.
 
 ## Fixed
+
+**Unresolved graph connections fail the build** (was limitation 20; fixed
+2026-08-02, Phase F4). `UBlueprintGraphBuilderLibrary::BuildBlueprintFromJSONWithReport`
+counts the links `MakeLinkTo` actually created and returns one entry per dropped
+connection; `BuildBlueprintJson` compares that count against the number the spec
+asked for and, on any shortfall, adds an error naming every dropped pair. An
+error means the asset is not saved, which the command already enforced.
+`graph.connection_count` is now the number **made**, with `connections_requested`
+and `unresolved_connections` beside it.
+
+Three decisions:
+
+- **The count is the contract, not the log.** The builder already wrote
+  `Could not resolve pins for connection A -> B` to the editor log, and had done
+  since it was written. Nothing consumed it. Counting made against requested is
+  what turns a log line into a failure, and it is one integer.
+- **Each drop says why.** An endpoint that does not read `nodeId.pinRole`, a node
+  id that spawned nothing, and a pin role that names no pin of that direction are
+  three different mistakes with three different fixes, so the entry names which.
+  The third is the common one and its usual cause is limitation 21, so the error
+  text says that too.
+- **The Blueprint-callable entry point keeps its old signature.** The reporting
+  overload is plain C++; `BuildBlueprintFromJSON` forwards to it and discards the
+  report, exactly as it behaved before.
+
+It paid for itself inside the same session. The F4 graph's first build wired
+`bpSeq.then_0 -> ownSelf.exec` against `UActorComponent::GetOwner`, which is
+`const` and therefore pure (limitation 21). Before this change that build would
+have answered `compile_status "UpToDate"`, `errors []`, `saved true` with the
+character's possession chain quietly unwired, and the failure would have
+surfaced later as "the pawn is never possessed", with nothing pointing at the
+cause.
+
+**The `InputKey` node type** (part of limitation 8's unadvertised input family;
+advertised 2026-08-02). Eleven of the twelve input factories in
+`BPNodeFactory_Input.cpp` need a project input mapping to point at: an
+`InputAction` node naming an action `DefaultInput.ini` does not declare compiles
+clean and never fires, which is why the whole family stayed unadvertised.
+`UK2Node_InputKey` is the exception. It binds a literal `FKey` and the factory
+rejects a name `EKeys` does not know, so the failure is at build time rather
+than at play time. Advertising it cost four lines: the type in
+`RegistryNodeTypes()`, its four config keys in the routing-key set so they are
+not misread as pin defaults, and the enum entry in `mcp-server/src/tools/puerts.ts`.
+
+## Fixed (earlier)
 
 **Widget authoring** (was the second half of limitation 8's "no widget and no
 audio authoring surface at all"; fixed 2026-08-02). `puerts_widget_build` takes
