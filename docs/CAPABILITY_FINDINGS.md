@@ -35,6 +35,13 @@ maintains this file; Phase L consumes it.
 | Physics from JSON | `"BodyInstance": {"bSimulatePhysics": true}` plus `"Mobility": "Movable"` on a generated component gives a simulating rigid body: read back `bSimulatePhysics true`, `bEnableGravity true`, `Mobility "Movable"`, and in PIE the actor fell and came to rest (2026-08-01) |
 | Private UPROPERTY reads and writes | `bGenerateOverlapEvents` is private on `UPrimitiveComponent` with Blueprint getter/setter. Both `read_property` and a `blueprint_build` component property reach it by name; the level's `Floor` read back `false`, a generated component read back `true` (2026-08-01) |
 | PIE round trip | `pie_start` -> `get_logs` -> `pie_stop`, four times in one session, no editor restart. Editor-side calls after each stop behaved normally; `puerts_diagnostic` reported 12 actors and `is_game_thread true` afterwards (2026-08-01) |
+| Blueprint member variables from JSON | `puerts_blueprint_build` takes `variables: [{name, type, default?, container?, category?}]`. `BP_ProbeDoorV2` carries `bIsOpen:bool = false`; `BP_ProbeNative` carries a nine-variable type sweep. Read back off a freshly spawned instance: `StaminaMax` 100, `OpenCount` 3, `DoorName` `"MCP door"`, `OpenOffset` `{0,0,400}`, `OpenRotation` `{pitch 0, yaw 90, roll 0}`, `PanelMesh` `StaticMesh'/Engine/BasicShapes/Cube.Cube'`, `SpawnClass` `BlueprintGeneratedClass'/Game/MCPGenerated/BP_ProbeDropper.BP_ProbeDropper_C'`, `Waypoints` `[]`, `PanelMobility` `"Movable"`. Types: bool, byte, int, int64, float, string, name, text, vector, vector2d, rotator, transform, linearcolor, `object:<class>`, `class:<class>`, `struct:<path>`, `enum:<path>`, each with `container` none/array/set (2026-08-02, mutator re-front) |
+| Variable convergence and conflict rejection | An identical rerun answers `created false` per variable with the default reapplied, `compile_status "UpToDate"`. A rerun asking for `bIsOpen` as `float` is refused: `Variable 'bIsOpen' already exists as bool; the spec asks for float. Retyping is not done implicitly: it would drop every graph node that reads it.` (2026-08-02) |
+| Variable validate-before-mutate | Six rejected specs against the unused path `/Game/MCPGenerated/BP_ProbeRejectV2` (unknown type `boolean`, bool default given as the string `"yes"`, vector default with the misspelled field `zz`, a default on an array variable, an object default whose asset does not load, plus an unknown `Operator` op): each named the variable and the reason, and `find_assets` for that name returned `count 0` afterwards (2026-08-02) |
+| Graph node vocabulary, 26 types | `GetSupportedNodeTypes` returns BeginPlay, Tick, ActorBeginOverlap, ActorEndOverlap, PrintString, CallFunction, Operator, Delay, Branch, Sequence, Comment, Event, CustomEvent, VariableGet, VariableSet, Cast, Select, Knot, MakeStruct, BreakStruct, FormatText, SpawnActor, SwitchInt, SwitchString, MultiGate, DoOnceMultiInput. All 26 built live: 25 in one graph on `/Game/MCPGenerated/BP_ProbeNative` (25 nodes, 14 connections, zero unresolved pins, `compile_status "UpToDate"`, saved) and ActorBeginOverlap in the door graph (2026-08-02) |
+| Named operators | The `Operator` node type takes `params.op` from a gated table of 25 verified UKismetMathLibrary and UKismetStringLibrary calls: not_bool, and_bool, or_bool, add/subtract/multiply/divide_float, greater/less/greater_equal/less_equal/equal_float, clamp_float, lerp_float, add/subtract/greater/less/equal_int, make_vector, add_vector, multiply_vector_float, append_string, vector_to_string, bool_to_string. An unknown name is rejected with the full list before the asset is touched (2026-08-02) |
+| Latent Delay in a generated event graph | `{"type":"Delay","params":{"Duration":1.0}}` builds as a `UK2Node_CallFunction` on `UKismetSystemLibrary::Delay` and runs: in PIE the door's before and after markers are separated by the delay and both fire (2026-08-02) |
+| A door that physically moves, from JSON alone | `/Game/MCPGenerated/BP_ProbeDoorV2`: SceneComponent root, Pedestal and DoorPanel StaticMeshComponents, a BoxComponent trigger with `BodyInstance.CollisionProfileName "OverlapAllDynamic"`, the variable `bIsOpen`, and a 19-node graph (ActorBeginOverlap -> VariableGet -> Operator not_bool -> Branch -> VariableSet true -> PrintString -> SceneComponent.K2_SetRelativeLocation -> Delay 1.0 s -> PrintString). PIE, with the F2 physics dropper as the triggering body: `[BP_ProbeDoorV2_C_0] MCP_DOOR_OPENING panel=X=950.000 Y=0.000 Z=220.000` then `[BP_ProbeDoorV2_C_0] MCP_DOOR_OPENED panel=X=950.000 Y=0.000 Z=620.000`. The panel's own `K2_GetComponentLocation` reports it 400 uu higher after the move, so the motion is measured by the graph rather than asserted. Exactly one opening per run: the second overlap pass that F2 recorded is swallowed by the `bIsOpen` guard, which is the variable doing its job (2026-08-02, Phase F3) |
 | Property validate-before-mutate | Eight rejected specs against the unused path `/Game/MCPGenerated/BP_ProbeProps`, each naming component, property, and reason: unknown property name, unloadable asset path, asset of the wrong class, wrong class inside a material array (`element 0: ... is a StaticMesh, but the property holds a MaterialInterface`), a string where an array belongs, a string where a struct belongs, and an out-of-range or misspelled enumerator (`expects a EComponentMobility enumerator: Static=0, Stationary=1, Movable=2`). `find_assets` for that name returned `count 0` afterwards (2026-08-01) |
 
 ## Defects and limitations (Phase L queue)
@@ -66,14 +73,17 @@ maintains this file; Phase L consumes it.
    (`{"xx": 2}` for a vector) is accepted and silently leaves the field at its
    previous value. `FJsonObjectConverter` ignores JSON keys that match no
    property. The value shape is checked; individual struct field names are not.
-8. The Blueprint builder's own node vocabulary is eight types (BeginPlay,
-   ActorBeginOverlap, ActorEndOverlap, PrintString, CallFunction, Branch,
-   Sequence, Comment). `docs/superpowers/specs/` documents eleven passes
-   including Delay, VariableGet/Set, ForLoop and ForEachLoop, and the separate
-   `BlueprintMutator` subsystem registers roughly forty node factories, but
-   none of that reached `BuildBlueprintFromJSON` in this repository. Variables,
-   loops, and timers are therefore not reachable from `puerts_blueprint_build`
-   yet. `UBlueprintMutatorLibrary` is the richer surface to re-front next.
+8. **Mostly fixed 2026-08-02** (see "Graph node vocabulary" above). The
+   vocabulary was eight types; it is now 26, and Blueprint member variables
+   are reachable. What is still missing from the mutator's forty-odd factories
+   and from the specs: no Timeline node of any kind, no ForLoop or
+   ForEachLoop (they are macro instances, and `MacroInstance` is registered in
+   `FBPNodeRegistry` but not advertised here because its `macro_bp`/`macro_name`
+   pair is not documented and the engine macro library path was not verified),
+   no delegate or input node types (registered, not advertised, because they
+   need project input settings or a delegate property to point at), and no
+   widget or audio authoring surface at all. A loop today has to be written as
+   a Delay chain or a Tick with a counter variable.
 9. `physics_build` bodies cannot fire overlap events, so they are not a usable
    mover for a trigger probe. `AStaticMeshActor`'s constructor calls
    `StaticMeshComponent->SetGenerateOverlapEvents(false)`
@@ -138,8 +148,81 @@ maintains this file; Phase L consumes it.
     next server session listed both. Targeted repros of each (spawn then find;
     recompile then delete) both passed, so the trigger is not identified. Treat
     a single miss as worth one retry, not as proof the actor is gone.
+    Three more sightings on 2026-08-02, all `read_property` returning
+    `Actor not found: BP_ProbeNative_C_0` for one read out of nine against the
+    same actor in the same batch, at a different position each run, while the
+    other eight succeeded. Still not reproduced on demand. A separate lesson
+    from chasing it: `spawn_actor` returns the assigned name, and after a
+    delete the next spawn of the same class is `_C_1`, not `_C_0`. Use the
+    returned name; do not compute it.
+16. A Blueprint variable's default is a string, and it is NOT read back by
+    `FProperty::ImportText`. `FBlueprintEditorUtils::PropertyValueFromString_Direct`
+    special-cases four structs (`BlueprintEditorUtils.cpp:8983-9015`):
+    `FVector` and `FRotator` go through `FDefaultValueHelper::ParseVector` /
+    `ParseRotator`, `FTransform` and `FLinearColor` through their own
+    `InitFromString`. The two halves disagree, and the asymmetry is not
+    symmetric between them either: `ParseRotator` falls back to
+    `FRotator::InitFromString` and so accepts `P= Y= R=`, while `ParseVector`
+    has no such fallback and rejects `X=0.000 Y=0.000 Z=400.000` with
+    `Can't parse default value` at compile time. The builder writes the comma
+    triple for vector and rotator and the type's own `ToString` for transform
+    and linear color, and writes the CDO through `PropertyValueFromString` so
+    only one parser is ever involved. Anything reaching for `ImportText` on a
+    Blueprint variable default will hit this.
+17. `UScriptStruct::ExportText` is a delta export (`Class.cpp:2916`). Called
+    with `Defaults == Value` it emits `()` for any struct that has no native
+    `ExportTextItem`, so the value silently vanishes. `FVector` has one and
+    looked correct; `FRotator` has none and read back as all zeroes. Pass a
+    null `Defaults`.
+18. `viewport_screenshot` fits the requested actors but from a fixed distance
+    that depends on how many were requested: the door and the dropper together
+    (1080 uu apart vertically) framed the whole level and left the door a few
+    dozen pixels tall, while the door alone framed usefully. For readable
+    evidence, request the one actor that matters. Filed alongside limitation 3.
+19. An array or set variable takes no `default` in the build spec. The value
+    would have to be Unreal's array import text, which is a second grammar for
+    a caller to get right for no gain; entries are set from the graph instead.
+    Rejected by name with that reason.
 
 ## Fixed
+
+**Blueprint variables and the mutator node registry** (was limitation 8; fixed
+2026-08-02). `puerts_blueprint_build` now takes `variables` and its graph
+vocabulary is 26 node types instead of eight.
+
+Two decisions shaped this:
+
+- **The registry is consulted, not copied.** `BuildBlueprintFromJSON` keeps a
+  local dispatch case for the eleven types where the builder wants control of
+  the shape (the three actor events, Tick, PrintString, CallFunction, Operator,
+  Delay, Branch, Sequence, Comment) and asks `FBPNodeRegistry::Find` for
+  everything else, passing the node's `params` as the factory's ConfigJson with
+  snake_case keys translated in one table. `GetSupportedNodeTypes` builds its
+  second half by asking the registry whether a factory is actually registered,
+  so a factory that is renamed or removed takes its node type out of the MCP
+  schema instead of leaving a type that builds nothing. The enum in
+  `mcp-server/src/tools/puerts.ts` and the dispatch cannot diverge without the
+  native side rejecting first.
+- **Math is a gated table, not a free function call.** Every operator name maps
+  to a `UKismetMathLibrary` or `UKismetStringLibrary` function that was checked
+  against the 4.27 headers, and an unknown name is refused with the whole list.
+  The same functions stay reachable through a raw `CallFunction` node for
+  anything the table does not cover; the named form exists so the vocabulary is
+  documented and reviewable in one place.
+
+Variables converge like components: same name and same pin type is a no-op with
+the default reapplied, a different type is refused rather than retyped, because
+retyping drops every graph node that reads the variable. Defaults are checked
+against the JSON type rather than coerced from it, which is what caught
+`{"type": "bool", "default": "yes"}` being accepted as `true`
+(`FJsonValue::TryGetBool` answers yes to `"yes"`), and struct defaults now
+reject a key that names no field of the struct, which is limitation 7 closed for
+this path.
+
+Two engine gotchas cost a build cycle each and are written up as limitations 16
+and 17: the variable-default parser is not `ImportText`, and
+`UScriptStruct::ExportText` elides everything when its Defaults pointer equals
+its Value pointer.
 
 **Component properties on generated Blueprints** (was limitation 6; fixed
 2026-08-01). `puerts_blueprint_build` components now take a `properties` object

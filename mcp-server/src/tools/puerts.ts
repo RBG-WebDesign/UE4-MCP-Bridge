@@ -55,31 +55,98 @@ const blueprintComponent = z.object({
   ),
 }).strict();
 
+/** One Blueprint member variable. */
+const blueprintVariable = z.object({
+  name: z.string().min(1).max(64).regex(/^[A-Za-z0-9_]+$/),
+  type: z.string().describe(
+    "One of bool, byte, int, int64, float, string, name, text, vector, "
+    + "vector2d, rotator, transform, linearcolor; or a prefixed form: "
+    + "\"object:StaticMeshComponent\", \"class:/Script/Engine.Actor\", "
+    + "\"struct:/Script/Engine.HitResult\", \"enum:/Script/Engine.EComponentMobility\". "
+    + "A prefixed class takes a reflected short name or a full path.",
+  ),
+  // An array is in the union only so the native side answers with the reason
+  // an array default is refused, instead of the client rejecting it with a
+  // union-mismatch dump that never names the rule.
+  default: z.union([
+    z.string(), z.number(), z.boolean(), z.null(), z.record(z.unknown()), z.array(z.unknown()),
+  ]).optional().describe(
+    "Value in the variable's own shape: true for a bool, a number for a float, "
+    + "{\"x\":0,\"y\":0,\"z\":0} for a vector, an object path string for an object "
+    + "reference. Not accepted on an array or set variable.",
+  ),
+  container: z.enum(["none", "array", "set"]).optional().describe("Default none."),
+  category: z.string().optional().describe("Details-panel category for the variable."),
+}).strict();
+
 /** The node types UBlueprintGraphBuilderLibrary::BuildBlueprintFromJSON can
     spawn today. The authority is GetSupportedNodeTypes() in
     Plugins/MCPBridge/Source/MCPBridgeGraphBuilder; the native command
     re-validates against it, so this enum can only reject earlier, never let a
-    node type through that the builder cannot build. The 11 builder passes are
-    written up in docs/superpowers/specs/, but only these eight reached this
-    repository's implementation. */
+    node type through that the builder cannot build. The first eleven have a
+    dispatch case in the builder; the rest are served by the mutator's
+    FBPNodeRegistry factory table, which the builder now calls. */
 const blueprintNodeType = z.enum([
   "BeginPlay",
+  "Tick",
   "ActorBeginOverlap",
   "ActorEndOverlap",
   "PrintString",
   "CallFunction",
+  "Operator",
+  "Delay",
   "Branch",
   "Sequence",
   "Comment",
+  "Event",
+  "CustomEvent",
+  "VariableGet",
+  "VariableSet",
+  "Cast",
+  "Select",
+  "Knot",
+  "MakeStruct",
+  "BreakStruct",
+  "FormatText",
+  "SpawnActor",
+  "SwitchInt",
+  "SwitchString",
+  "MultiGate",
+  "DoOnceMultiInput",
 ]);
+
+/** The symbolic operators the Operator node type accepts. Authority is
+    GetSupportedOperators() in the builder; each is a verified
+    UKismetMathLibrary or UKismetStringLibrary call. */
+const blueprintOperators = [
+  "not_bool", "and_bool", "or_bool",
+  "add_float", "subtract_float", "multiply_float", "divide_float",
+  "greater_float", "less_float", "greater_equal_float", "less_equal_float", "equal_float",
+  "clamp_float", "lerp_float",
+  "add_int", "subtract_int", "greater_int", "less_int", "equal_int",
+  "make_vector", "add_vector", "multiply_vector_float",
+  "append_string", "vector_to_string", "bool_to_string",
+] as const;
 
 const blueprintGraphNode = z.object({
   id: z.string().min(1).describe("Unique within this graph; connections address nodes by it."),
   type: blueprintNodeType,
   params: z.record(z.unknown()).optional().describe(
-    "Pin defaults by pin name. PrintString takes InString; CallFunction takes "
-    + "class and function plus any pin defaults; Sequence takes num_outputs; "
-    + "Comment takes text, width, height.",
+    "Routing keys the node type needs, plus pin defaults by pin name. Routing: "
+    + "CallFunction {class, function}; Operator {op} from "
+    + blueprintOperators.join(", ")
+    + "; VariableGet and VariableSet {var_name}, and VariableSet also takes "
+    + "{value} as an alias for the pin named after the variable; Delay takes "
+    + "the Duration pin; Event {parent_class, event_name}; CustomEvent "
+    + "{event_name, parameters}; Cast {target_class, purity}; MakeStruct and "
+    + "BreakStruct {struct_type}; SpawnActor {actor_class}; Sequence "
+    + "{num_outputs}; SwitchInt {start_index, num_cases, has_default}; "
+    + "SwitchString {case_values, has_default, is_case_sensitive}; MultiGate "
+    + "{num_outputs, is_random, loop, start_index_from_zero}; DoOnceMultiInput "
+    + "{num_inputs}; Comment {text, width, height}. Everything else is a pin "
+    + "default: a number for a float pin, true/false for a bool pin, "
+    + "{\"x\":0,\"y\":0,\"z\":0} for a vector pin, an object path string for an "
+    + "object pin.",
   ),
   x: z.number().optional(),
   y: z.number().optional(),
@@ -94,7 +161,19 @@ const blueprintGraph = z.object({
 }).strict().describe(
   "Event graph description. Pin roles: \"exec\" is direction-aware (Then on "
   + "the source, Execute on the target), \"then\" is always Then, and any "
-  + "other role is a literal pin name, so data pins wire through the same array.",
+  + "other role is a literal pin name, so data pins wire through the same array. "
+  + "Literal names worth knowing: Branch has Condition, then, else; Sequence has "
+  + "then_0, then_1 (lower case, underscore); a CallFunction has self for its "
+  + "target, ReturnValue for its result and the UFUNCTION parameter name for "
+  + "everything else; an Operator has A and B (or X/Y/Z, Value/Min/Max) and "
+  + "ReturnValue; a VariableGet and a VariableSet both name their data pin after "
+  + "the variable; Delay has Duration; Cast has Object, then, CastFailed and "
+  + "\"As<ClassName>\"; Knot has InputPin and OutputPin; MakeStruct and "
+  + "BreakStruct name their struct pin after the struct; MultiGate has \"Out 0\", "
+  + "\"Out 1\"; SwitchInt has Default plus one pin per case; ActorEndOverlap and "
+  + "ActorBeginOverlap have OtherActor. DoOnceMultiInput builds its pin names "
+  + "from localized text, so it spawns but cannot be wired by name here, and "
+  + "SpawnActor's Spawn Transform is a by-ref pin that needs a wired input.",
 );
 
 const specs = [
@@ -111,12 +190,17 @@ const specs = [
     "Create or update a compiled Blueprint actor asset from one JSON spec: parent class, "
     + "components with their template properties, and an event graph. A component property "
     + "takes the value in its own reflected shape, and an asset reference as an object path "
-    + "string, so a StaticMeshComponent can be given a mesh and materials. Supported graph "
-    + "node types are BeginPlay, "
-    + "ActorBeginOverlap, ActorEndOverlap, PrintString, CallFunction, Branch, Sequence, and "
-    + "Comment; anything else is rejected before the asset is touched. Rerunning the same "
-    + "spec converges: the asset is loaded rather than duplicated, an existing component of "
-    + "the same name and class is left alone, and the event graph is rebuilt from the spec. "
+    + "string, so a StaticMeshComponent can be given a mesh and materials. Member variables "
+    + "are declared the same way and are reachable from the graph through VariableGet and "
+    + "VariableSet nodes. Supported graph node types are BeginPlay, Tick, ActorBeginOverlap, "
+    + "ActorEndOverlap, PrintString, CallFunction, Operator, Delay, Branch, Sequence, "
+    + "Comment, Event, CustomEvent, VariableGet, VariableSet, Cast, Select, Knot, MakeStruct, "
+    + "BreakStruct, FormatText, SpawnActor, SwitchInt, SwitchString, MultiGate and "
+    + "DoOnceMultiInput; anything else is rejected before the asset is touched. Rerunning the "
+    + "same spec converges: the asset is loaded rather than duplicated, an existing component "
+    + "or variable of the same name and type is left alone, and the event graph is rebuilt "
+    + "from the spec. A component or variable that exists under a different type is an error, "
+    + "never a silent retype. "
     + "Assets are limited to /Game/MCPGenerated/. Response reports compile status with "
     + "compiler errors and warnings; the asset is only saved when it built clean.",
     z.object({
@@ -126,6 +210,9 @@ const specs = [
       ),
       parent_class: z.string().optional().describe("Actor subclass, short name or path. Defaults to Actor."),
       components: z.array(blueprintComponent).max(64).optional(),
+      variables: z.array(blueprintVariable).max(64).optional().describe(
+        "Blueprint member variables, converged the same way components are.",
+      ),
       graph: blueprintGraph.optional(),
       compile: z.boolean().optional().describe("Default true."),
       save: z.boolean().optional().describe("Default true. A build with errors is never saved."),
@@ -199,7 +286,7 @@ const structuredParameters: Readonly<Record<string, readonly string[]>> = {
   puerts_physics_observe: ["actors"],
   puerts_viewport_screenshot: ["actors"],
   puerts_save: ["assets"],
-  puerts_blueprint_build: ["components", "graph"],
+  puerts_blueprint_build: ["components", "variables", "graph"],
 };
 
 /** Round-trip budget per tool, in milliseconds. Absent means the 7 second

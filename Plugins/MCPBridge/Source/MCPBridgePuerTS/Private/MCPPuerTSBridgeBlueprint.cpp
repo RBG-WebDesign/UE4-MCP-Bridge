@@ -296,6 +296,40 @@ namespace
     {
         return FString::Join(Values, TEXT(", "));
     }
+
+    /** Run the builder's variable pass and unpack its JSON report.
+        Returns false with the first error when the pass rejected the spec, so
+        the caller can fail the whole request with a reason the caller can find
+        in its own spec. OutApplied collects the per-variable results. */
+    bool RunVariablePass(
+        UBlueprint* Blueprint,
+        const FString& VariablesJson,
+        bool bValidateOnly,
+        TArray<TSharedPtr<FJsonValue>>& OutApplied,
+        FString& OutError)
+    {
+        const FString ReportJson = UBlueprintGraphBuilderLibrary::ConfigureVariablesFromJSON(
+            Blueprint, VariablesJson, bValidateOnly);
+        TSharedPtr<FJsonObject> Report;
+        TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(ReportJson);
+        if (!FJsonSerializer::Deserialize(Reader, Report) || !Report.IsValid())
+        {
+            OutError = TEXT("The variable pass returned a report that could not be parsed.");
+            return false;
+        }
+        const TArray<TSharedPtr<FJsonValue>>* Errors = nullptr;
+        if (Report->TryGetArrayField(TEXT("errors"), Errors) && Errors->Num() > 0)
+        {
+            OutError = (*Errors)[0]->AsString();
+            return false;
+        }
+        const TArray<TSharedPtr<FJsonValue>>* Variables = nullptr;
+        if (Report->TryGetArrayField(TEXT("variables"), Variables))
+        {
+            OutApplied = *Variables;
+        }
+        return true;
+    }
 }
 
 bool UMCPPuerTSBridgeService::BuildBlueprintJson(
@@ -426,6 +460,24 @@ bool UMCPPuerTSBridgeService::BuildBlueprintJson(
         }
     }
 
+    // Member variables. The builder library owns type resolution, default
+    // conversion and the conflict rules; this pass runs it in validate-only
+    // mode so a bad variable spec rejects the request before the asset exists,
+    // exactly like a bad component property.
+    FString VariablesJson;
+    const TArray<TSharedPtr<FJsonValue>>* VariableSpecs = nullptr;
+    const bool bHasVariables = Spec->TryGetArrayField(TEXT("variables"), VariableSpecs);
+    if (bHasVariables)
+    {
+        TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&VariablesJson);
+        FJsonSerializer::Serialize(*VariableSpecs, Writer);
+        TArray<TSharedPtr<FJsonValue>> Ignored;
+        if (!RunVariablePass(nullptr, VariablesJson, /*bValidateOnly=*/true, Ignored, OutError))
+        {
+            return false;
+        }
+    }
+
     const TSharedPtr<FJsonObject>* GraphObject = nullptr;
     const bool bHasGraph = Spec->TryGetObjectField(TEXT("graph"), GraphObject);
     TArray<FString> RequestedNodeTypes;
@@ -467,6 +519,26 @@ bool UMCPPuerTSBridgeService::BuildBlueprintJson(
             if (!Supported.Contains(NodeType))
             {
                 Unsupported.AddUnique(NodeType);
+            }
+            // An operator name is routing, not a pin default: a misspelled one
+            // builds no node at all, so it is checked here rather than left to
+            // produce a graph with a hole in it.
+            if (NodeType == TEXT("Operator"))
+            {
+                FString Op;
+                const TSharedPtr<FJsonObject>* Params = nullptr;
+                if ((*Entry)->TryGetObjectField(TEXT("params"), Params))
+                {
+                    (*Params)->TryGetStringField(TEXT("op"), Op);
+                }
+                const TArray<FString> Operators = UBlueprintGraphBuilderLibrary::GetSupportedOperators();
+                if (!Operators.Contains(Op))
+                {
+                    OutError = FString::Printf(
+                        TEXT("Graph node '%s' asks for operator '%s'. Supported operators: %s."),
+                        *NodeId, *Op, *JoinStrings(Operators));
+                    return false;
+                }
             }
             RequestedNodeTypes.Add(NodeType);
         }
@@ -561,6 +633,14 @@ bool UMCPPuerTSBridgeService::BuildBlueprintJson(
                     *Component.Name,
                     Node->ComponentClass != nullptr ? *Node->ComponentClass->GetPathName() : TEXT("none"),
                     *Component.Class->GetPathName());
+                return false;
+            }
+        }
+        if (bHasVariables)
+        {
+            TArray<TSharedPtr<FJsonValue>> Ignored;
+            if (!RunVariablePass(Blueprint, VariablesJson, /*bValidateOnly=*/true, Ignored, OutError))
+            {
                 return false;
             }
         }
@@ -694,6 +774,20 @@ bool UMCPPuerTSBridgeService::BuildBlueprintJson(
         FBlueprintEditorUtils::MarkBlueprintAsStructurallyModified(Blueprint);
     }
 
+    // Variables are applied before the graph, because a VariableGet or
+    // VariableSet node can only allocate its pins once the skeleton class
+    // carries the property. AddMemberVariable recompiles the skeleton, so by
+    // the time the graph pass runs the variables are resolvable.
+    TArray<TSharedPtr<FJsonValue>> VariableResults;
+    if (bHasVariables)
+    {
+        FString VariableError;
+        if (!RunVariablePass(Blueprint, VariablesJson, /*bValidateOnly=*/false, VariableResults, VariableError))
+        {
+            Errors.Add(MakeShared<FJsonValueString>(VariableError));
+        }
+    }
+
     if (bHasGraph)
     {
         FString GraphJson;
@@ -781,6 +875,7 @@ bool UMCPPuerTSBridgeService::BuildBlueprintJson(
     Result->SetStringField(TEXT("parent_class"), ParentClass->GetPathName());
     Result->SetBoolField(TEXT("created"), bCreated);
     Result->SetArrayField(TEXT("components"), ComponentResults);
+    Result->SetArrayField(TEXT("variables"), VariableResults);
     Result->SetObjectField(TEXT("graph"), Graph);
     Result->SetBoolField(TEXT("compiled"), bCompile && bCompileSucceeded);
     Result->SetStringField(TEXT("compile_status"), CompileStatus);

@@ -128,12 +128,23 @@ project until something breaks; every break loops back to Phase L:
       `reports/session-2026-08-01-f2-pie.json`; screenshot
       `Saved/Screenshots/MCPBridge/phase-f2-scene-before-pie.png`; level back to
       12 actors)
-- [ ] Phase F3 gameplay slice - NOT met by F2. F2 delivers the trigger volume
-      half and proves the runtime loop, but the slice also wants a door, a
-      sound and a HUD widget, and none of those are reachable: the node
-      vocabulary has no variables, no Timeline and no Delay (limitation 8), so
-      a door has no state and no motion, and there is no widget or audio
-      authoring surface at all. The next real step is CallFunction-driven state
-      (`Actor.K2_SetActorLocation` on self) plus re-fronting
-      `UBlueprintMutatorLibrary` for variables.
+- [x] Phase L: mutator re-front (`puerts_blueprint_build` takes `variables`, and
+      its graph vocabulary is 26 node types instead of eight: the builder keeps
+      eleven local dispatch cases and asks `FBPNodeRegistry` for the rest, gated
+      through `GetSupportedNodeTypes` so the MCP enum and the dispatch cannot
+      diverge. Named `Operator` nodes cover the comparison and math calls a door
+      and a stamina bar need. All 26 types built live and compiled clean;
+      details and two engine gotchas in docs/CAPABILITY_FINDINGS.md)
+- [ ] Phase F3 gameplay slice - PARTLY met. The **door is done**:
+      `/Game/MCPGenerated/BP_ProbeDoorV2` is authored from one JSON spec with a
+      `bIsOpen` variable, a BoxComponent trigger and a 19-node graph, and in PIE
+      it logs `MCP_DOOR_OPENING panel=X=950.000 Y=0.000 Z=220.000` then, after a
+      1 s Delay, `MCP_DOOR_OPENED panel=X=950.000 Y=0.000 Z=620.000` - the panel
+      reporting its own position 400 uu higher, so the motion is measured rather
+      than claimed, and the guard variable limits it to one opening per run.
+      Evidence in reports/session-2026-08-02-mutator-refront.json; screenshot
+      `Saved/Screenshots/MCPBridge/phase-f3-door-fit.png`. **Sound and the HUD
+      widget are still not reachable**: there is no audio and no widget
+      authoring surface in the native catalog, and no Timeline node. Those two
+      are what is left of this phase.
 - [ ] Phase F4 stamina feature

@@ -1,0 +1,150 @@
+{
+  "session_date": "2026-08-02",
+  "status": "success",
+  "goal": "Extend puerts_blueprint_build with Blueprint member variables and the BlueprintMutator node registry, and prove it with a door that physically opens in PIE",
+  "context": "docs/MASTERY_PLAN_2026-07-31.md, the gate to Phase F3/F4. Branch bridge/native-consolidation-2026-07-31. Live editor UE427PuerTSMCP, pipe UE427PuerTSMCP_UE427PuerTSMCP_81d778e7_skyshader5, level /Temp/Untitled_1. Every live call went through a freshly built mcp-server/dist over stdio with MCP_UNREAL_PROJECT_ROOT / MCP_PUERTS_TOKEN_PATH / MCP_PUERTS_PIPE, because the session's own MCP server process predates the new schema.",
+
+  "vocabulary_landed": {
+    "node_types": [
+      "BeginPlay", "Tick", "ActorBeginOverlap", "ActorEndOverlap", "PrintString",
+      "CallFunction", "Operator", "Delay", "Branch", "Sequence", "Comment",
+      "Event", "CustomEvent", "VariableGet", "VariableSet", "Cast", "Select",
+      "Knot", "MakeStruct", "BreakStruct", "FormatText", "SpawnActor",
+      "SwitchInt", "SwitchString", "MultiGate", "DoOnceMultiInput"
+    ],
+    "count": 26,
+    "was": 8,
+    "local_dispatch": [
+      "BeginPlay", "Tick", "ActorBeginOverlap", "ActorEndOverlap", "PrintString",
+      "CallFunction", "Operator", "Delay", "Branch", "Sequence", "Comment"
+    ],
+    "registry_backed": [
+      "Event", "CustomEvent", "VariableGet", "VariableSet", "Cast", "Select",
+      "Knot", "MakeStruct", "BreakStruct", "FormatText", "SpawnActor",
+      "SwitchInt", "SwitchString", "MultiGate", "DoOnceMultiInput"
+    ],
+    "operators": [
+      "not_bool", "and_bool", "or_bool",
+      "add_float", "subtract_float", "multiply_float", "divide_float",
+      "greater_float", "less_float", "greater_equal_float", "less_equal_float", "equal_float",
+      "clamp_float", "lerp_float",
+      "add_int", "subtract_int", "greater_int", "less_int", "equal_int",
+      "make_vector", "add_vector", "multiply_vector_float",
+      "append_string", "vector_to_string", "bool_to_string"
+    ],
+    "variable_types": [
+      "bool", "byte", "int", "int64", "float", "string", "name", "text",
+      "vector", "vector2d", "rotator", "transform", "linearcolor",
+      "object:<class>", "class:<class>", "struct:<path>", "enum:<path>"
+    ],
+    "variable_containers": ["none", "array", "set"]
+  },
+
+  "design_decisions": [
+    "The registry is consulted, not copied. BuildBlueprintFromJSON keeps a local dispatch case for the eleven types where the builder wants control of the node's shape and calls FBPNodeRegistry::Find for everything else, passing the node's params as the factory's ConfigJson with snake_case keys translated in one table. UBlueprintMutatorLibrary::AddNode is left alone; only its factory table is shared.",
+    "GetSupportedNodeTypes builds its registry half by asking the registry whether a factory is actually registered. A factory that is renamed or removed takes its node type out of the MCP schema rather than leaving a type that builds nothing, and a name listed with no factory logs a drift warning. The MCP enum, the native validation and the dispatch therefore cannot diverge in the direction that matters.",
+    "Only fifteen of the registry's forty-odd factories are advertised. A node type is advertised when its config keys are written down in the schema; publishing a type a caller cannot configure would be worse than not publishing it. The delegate and input factories need project input settings or a delegate property to point at, and MacroInstance needs a macro library path that was not verified, so they stay unadvertised.",
+    "Math is a gated table of named operators rather than a free function call. Each entry maps to a UKismetMathLibrary or UKismetStringLibrary function checked against the 4.27 headers, and an unknown op is refused with the full list before the asset is touched. The same functions stay reachable through a raw CallFunction node, so the table is documentation and a guard, not a ceiling.",
+    "Variables converge like components: same name and same pin type is a no-op with the default reapplied; a different type is refused rather than retyped, because retyping drops every graph node that reads the variable. The comparison is category, subcategory object and container.",
+    "Defaults are checked against the JSON type instead of coerced from it. FJsonValue converts freely - the string \"yes\" answers true to TryGetBool - and a default that quietly becomes something the caller did not write is the failure this path exists to prevent. Found by probing after the first build; the lax version had already been shipped into one live run.",
+    "Struct defaults reject a key that names no field of the struct. FJsonObjectConverter drops unrecognised keys silently, so {\"x\":0,\"y\":0,\"zz\":400} meant (0,0,0) and reported success. This is limitation 7 closed for this path.",
+    "Variable type resolution, default conversion and the conflict rules live in UBlueprintGraphBuilderLibrary, not in MCPPuerTSBridgeBlueprint.cpp, because that module already depends on BlueprintGraph for FEdGraphPinType and UEdGraphSchema_K2. The native command runs the same entry point twice in validate-only mode - once with no Blueprint for type and default checks, once with the resolved Blueprint for conflict checks - so a rejected spec never creates an asset.",
+    "The door proves motion through the graph rather than through a runtime read, because the native allowlist blocks read_property during PIE (limitation 14). The panel calls its own SceneComponent.K2_GetComponentLocation, converts it with vector_to_string, appends it to the marker with append_string, and prints. Before and after are the same code path, so the two numbers are comparable."
+  ],
+
+  "acceptance": {
+    "asset": "/Game/MCPGenerated/BP_ProbeDoorV2",
+    "spec": "parent Actor; SceneComponent Root; StaticMeshComponent Pedestal (Cube, BasicShapeMaterial, rel z 50, scale 3/3/1, Movable); StaticMeshComponent DoorPanel (Cube, BasicShapeMaterial, rel 250/0/200, scale 0.5/3/4, Movable); BoxComponent TriggerVolume (rel z 400, extent 150, Movable, bGenerateOverlapEvents true, BodyInstance.CollisionProfileName OverlapAllDynamic); variable bIsOpen:bool = false; 19-node graph, 17 connections",
+    "graph": "ActorBeginOverlap -> Branch(Condition = Operator not_bool of VariableGet bIsOpen) -> VariableSet bIsOpen true -> PrintString(append_string \"MCP_DOOR_OPENING panel=\" + vector_to_string(DoorPanel.K2_GetComponentLocation)) -> CallFunction SceneComponent.K2_SetRelativeLocation(self = VariableGet DoorPanel, NewLocation = 250,0,600) -> Delay 1.0 -> PrintString(append_string \"MCP_DOOR_OPENED panel=\" + vector_to_string(DoorPanel.K2_GetComponentLocation))",
+    "build": "compile_status \"UpToDate\", zero errors, saved, 162-247 ms",
+    "pie": {
+      "trigger_body": "/Game/MCPGenerated/BP_ProbeDropper spawned at (700,0,1100), the F2 physics-dropper pattern; door at (700,0,20)",
+      "log_lines_in_order": [
+        "[LogBlueprintUserMessages] [BP_ProbeDropper_C_0] MCP_DROPPER_ALIVE F2-2026-08-01",
+        "[PIE] Play in editor total start time 0.121 seconds.",
+        "[LogBlueprintUserMessages] [BP_ProbeDoorV2_C_0] MCP_DOOR_OPENING panel=X=950.000 Y=0.000 Z=220.000",
+        "[LogBlueprintUserMessages] [BP_ProbeDoorV2_C_0] MCP_DOOR_OPENED panel=X=950.000 Y=0.000 Z=620.000"
+      ],
+      "motion_proof": "The panel reports its own world location before the move and after the move plus a 1 s Delay: Z 220.000 -> 620.000, exactly the 400 uu the SetRelativeLocation asked for. Reproduced in four consecutive PIE sessions across three editor builds.",
+      "guard_proof": "Exactly one MCP_DOOR_OPENING per run. F2 recorded two overlap enter/exit pairs for the same drop (the body bounces back up through the volume); the bIsOpen guard swallows the second, which is the variable doing its job."
+    },
+    "idempotent_rerun": "The identical spec answered created false for the asset, all four components and the variable, compile_status \"UpToDate\", saved. Run twice.",
+    "conflict_rejections": [
+      "bIsOpen retyped to float -> \"Variable 'bIsOpen' already exists as bool; the spec asks for float. Retyping is not done implicitly: it would drop every graph node that reads it.\"",
+      "unknown operator -> \"Graph node 'notOpen' asks for operator 'not_a_real_op'. Supported operators: ...\" (full list)",
+      "unknown variable type -> \"Variable 'bIsOpen': type 'boolean' is not supported. Supported: ... plus object:<class>, class:<class>, struct:<path>, enum:<path>.\"",
+      "bool default as the string \"yes\" -> \"Variable 'bIsOpen' default: expects true or false.\"",
+      "vector default with a misspelled field -> \"Variable 'OpenOffset' default: has no field 'zz'. Vector takes: X, Y, Z.\"",
+      "default on an array variable -> \"Variable 'Names' default: an array or set variable takes no default in this spec; set its entries from the graph.\"",
+      "object default that does not load -> \"Variable 'PanelMesh' default: object '/Engine/BasicShapes/NotAMesh.NotAMesh' could not be loaded.\"",
+      "after all seven, find_assets for /Game/MCPGenerated/BP_ProbeRejectV2 returned count 0"
+    ],
+    "variable_type_sweep": {
+      "asset": "/Game/MCPGenerated/BP_ProbeNative",
+      "read_back_from_a_freshly_spawned_instance": {
+        "StaminaMax (float)": 100,
+        "OpenCount (int)": 3,
+        "DoorName (string)": "MCP door",
+        "OpenOffset (vector)": "{x:0,y:0,z:400}",
+        "OpenRotation (rotator)": "{pitch:0,yaw:90,roll:0}",
+        "PanelMesh (object:StaticMesh)": "StaticMesh'/Engine/BasicShapes/Cube.Cube'",
+        "SpawnClass (class:Actor)": "BlueprintGeneratedClass'/Game/MCPGenerated/BP_ProbeDropper.BP_ProbeDropper_C'",
+        "Waypoints (vector array)": "[]",
+        "PanelMobility (enum:EComponentMobility)": "Movable"
+      },
+      "compile_status": "UpToDate",
+      "saved": true
+    },
+    "vocabulary_graph": {
+      "asset": "/Game/MCPGenerated/BP_ProbeNative",
+      "result": "25 node types in one graph, 14 connections, zero 'Could not resolve pins' lines in the editor log, compile_status \"UpToDate\", saved. With ActorBeginOverlap from the door graph that is all 26 advertised types built live.",
+      "pin_names_discovered": "Sequence outputs are then_0, then_1 (K2Node_ExecutionSequence.cpp:263), not \"Then 0\"; MultiGate outputs are \"Out 0\"; Knot is InputPin/OutputPin; SwitchInt has Default. DoOnceMultiInput builds its pin names from localized text (K2Node_DoOnceMultiInput.cpp:185) so it spawns but cannot be wired by name, and SpawnActor's Spawn Transform is a by-ref pin that refuses a literal default. Both are documented as such."
+    },
+    "screenshots": [
+      {
+        "path": "D:/Unreal Projects/MASTER_PROJECT/SF_Repository/Sinfeld_240301/Tests/UE427PuerTSMCP/Saved/Screenshots/MCPBridge/phase-f3-door-fit.png",
+        "description": "2085x1138, read by the agent. The dark-red wireframe box of the BoxComponent trigger volume sits above the wide pale Pedestal block, with the tall thin DoorPanel slab standing through it; the dropper cube hangs at the top of the frame inside its orange selection outline. Both the panel and the trigger are legible."
+      },
+      {
+        "path": "D:/Unreal Projects/MASTER_PROJECT/SF_Repository/Sinfeld_240301/Tests/UE427PuerTSMCP/Saved/Screenshots/MCPBridge/phase-f3-door-before-pie.png",
+        "description": "Same scene fitted on the door and the dropper together. Read by the agent: correct but framed from far enough away that the assembly is small, which is limitation 18."
+      }
+    ]
+  },
+
+  "walls": [
+    "No Timeline node of any kind, in the registry or the builder. A smooth door has to be a Delay chain or a Tick with a counter variable. The door uses a single Delay because that is the honest minimum that proves motion; nothing here animates over time.",
+    "No widget and no audio authoring surface anywhere in the native catalog, so the Phase F3 sound and HUD halves stay out of reach. This is not a vocabulary problem; there is no tool.",
+    "ForLoop and ForEachLoop are macro instances. MacroInstance is registered in FBPNodeRegistry but is not advertised: its macro_bp/macro_name pair needs a verified engine macro library path, which was not established here.",
+    "A Blueprint variable's default is not parsed by FProperty::ImportText. Four structs go through FDefaultValueHelper or InitFromString instead, and the two halves disagree asymmetrically: ParseRotator falls back to FRotator::InitFromString so P= Y= R= works, while ParseVector has no fallback and rejects X=0.000 Y=0.000 Z=400.000 outright. Cost one build cycle. Limitation 16.",
+    "UScriptStruct::ExportText is a delta export. Called with Defaults == Value it emits () for any struct with no native ExportTextItem, so FVector looked fine and FRotator silently became all zeroes. Cost one build cycle. Limitation 17.",
+    "viewport_screenshot fits requested actors from a distance that grows with their spread; two actors 1080 uu apart framed the whole level. Limitation 18.",
+    "read_property returned 'Actor not found' for one read out of nine against the same actor in the same batch, three more times, at a different position each run. Still not reproduced on demand; limitation 15 stands."
+  ],
+
+  "changes": {
+    "Plugins/MCPBridge/Source/MCPBridgeGraphBuilder/Public/BlueprintGraphBuilderLibrary.h": "Declared GetSupportedOperators, GetSupportedVariableTypes and ConfigureVariablesFromJSON; documented the pin-name conventions per node type and the two types whose pins cannot be addressed by name",
+    "Plugins/MCPBridge/Source/MCPBridgeGraphBuilder/Private/BlueprintGraphBuilderLibrary.cpp": "Operator table, registry-backed dispatch with the snake_case key translation, a shape-checked pin-default applier, Tick and Delay cases, and the whole variable pass (pin type from a type keyword, default to import text, convergence and conflict rules)",
+    "Plugins/MCPBridge/Source/MCPBridgePuerTS/Private/MCPPuerTSBridgeBlueprint.cpp": "variables parsed and validated twice before mutation, applied before the graph so VariableGet and VariableSet can resolve, reported per variable in the response; Operator op validated against the gated table",
+    "puerts-runtime/src/registry.ts": "blueprint_build forwards variables and declares it in the tool input schema",
+    "mcp-server/src/tools/puerts.ts": "blueprintVariable schema, the 26-entry node-type enum, per-type routing keys and pin-name conventions in the descriptions, variables added to structuredParameters",
+    "docs/CAPABILITY_FINDINGS.md": "Six new Working rows; limitation 8 marked mostly fixed with what is still missing; new limitations 16-19; three more sightings on 15; a Fixed section for the re-front",
+    "docs/MASTERY_PLAN_2026-07-31.md": "Phase L mutator re-front ticked; Phase F3 marked partly met with the door done and sound and HUD named as what is left",
+    "docs/TOOL_INVENTORY.json": "Regenerated for the blueprint_build contract: the variables parameter and the new description",
+    "reports/session-2026-08-02-mutator-refront.json": "this file"
+  },
+
+  "build_and_verify": {
+    "cpp_builds": 4,
+    "cpp_build_detail": "Build.bat UE427PuerTSMCPEditor Win64 Development, editor closed each time, relaunched through Scripts/start-ue4-project.ps1. 8 actions 23.95 s for the first, 4 actions ~18 s for each of the three follow-ups. Zero errors on every attempt; the only warnings are the pre-existing C4996 deprecations in AutoPIEHelper and GarmentMeshLibrary.",
+    "why_four": "One for the feature, then one each for three defects the live probes found: the lax JSON type coercion, the ExportText delta bug, and the variable-default parser asymmetry. Each was found by a probe designed to fail, not by the door.",
+    "editor_restarts": 4,
+    "final_state": "editor running, PIE stopped, puerts_diagnostic actor_count_total 12, is_game_thread true, transport named_pipe, no probe actors in the level"
+  },
+
+  "notes": [
+    "The strongest evidence here is a negative one turned positive: the door logs its own coordinates, so 'the door opened' is a number in the log rather than a claim about a screenshot. Runtime property reads are blocked during PIE, and this is the pattern that works around that permanently.",
+    "Three of the four C++ cycles were spent on silent-success bugs in engine text marshaling, all found by probes written to be rejected. None of them would have shown up in the door, which worked on the first build.",
+    "Every blueprint_build save still logs 'Unable to Check Out From Source Control' as an auto-dismissed modal; the save succeeds."
+  ]
+}

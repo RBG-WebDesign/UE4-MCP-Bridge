@@ -31,7 +31,33 @@ public:
      * Connection endpoints are "nodeId.pinRole". The role "exec" is
      * direction-aware (Then on the source, Execute on the target), "then" is
      * always Then, and anything else is a literal pin name, so data pins wire
-     * through the same array.
+     * through the same array. Literal pin names worth knowing:
+     *   Branch          Condition, then, else
+     *   Sequence        then_0, then_1, ... (K2Node_ExecutionSequence.cpp:263)
+     *   CallFunction    self for the target, ReturnValue for the result,
+     *                   otherwise the UFUNCTION parameter name
+     *   Operator        A, B (or X/Y/Z, Value/Min/Max), ReturnValue
+     *   VariableGet     the variable's own name
+     *   VariableSet     the variable's own name for the value pin
+     *   Delay           Duration
+     *   Cast            Object, then, CastFailed, "As<ClassName>"
+     *   Knot            InputPin, OutputPin
+     *   MakeStruct      the struct's name; BreakStruct takes the same name in
+     *   BreakStruct     and gives one pin per field
+     *   MultiGate       Out 0, Out 1, ...
+     *   SwitchInt       Default plus one pin per case
+     *   ActorEndOverlap OtherActor
+     *
+     * Two node types have pin names built from localized text rather than from
+     * a stable FName, so they are spawnable but were not wired by name in the
+     * acceptance graph: DoOnceMultiInput (K2Node_DoOnceMultiInput.cpp:185 names
+     * its pins through GetNameForPin) and the Spawn Transform pin of
+     * SpawnActor, which is a by-ref parameter that refuses a literal default.
+     *
+     * Node params are pin defaults by pin name, plus the routing keys each
+     * type needs (CallFunction: class/function; Operator: op; VariableGet and
+     * VariableSet: var_name, and VariableSet also takes value as an alias for
+     * the value pin).
      *
      * This is the low-level executor. It returns nothing and reports problems
      * only to the log; callers that need a structured result should go through
@@ -48,9 +74,55 @@ public:
     /** The node types BuildBlueprintFromJSON can spawn today, in dispatch
      *  order. This is the gate the node loop checks, not a parallel list, so a
      *  dispatch case that is not named here stops working the moment it is
-     *  added: that failure is loud, and a silently stale list is not. */
+     *  added: that failure is loud, and a silently stale list is not.
+     *
+     *  The list is two groups. The first eleven have a dispatch case in this
+     *  file. The rest are served by FBPNodeRegistry, the mutator's factory
+     *  table, and a name is only listed once a factory for it is registered:
+     *  the loop asks the registry and reports a miss as drift, exactly as it
+     *  does for a missing local case. */
     UFUNCTION(BlueprintCallable, Category="BlueprintGraphBuilder")
     static TArray<FString> GetSupportedNodeTypes();
+
+    /** The symbolic operator names the "Operator" node type accepts, each one
+     *  a verified UKismetMathLibrary or UKismetStringLibrary function. Named
+     *  operators exist so the vocabulary is gated and documented; the same
+     *  functions stay reachable through a raw CallFunction node. */
+    UFUNCTION(BlueprintCallable, Category="BlueprintGraphBuilder")
+    static TArray<FString> GetSupportedOperators();
+
+    /** The variable type keywords ConfigureVariablesFromJSON accepts.
+     *  "object:<class>", "class:<class>", "struct:<path>" and "enum:<path>"
+     *  take a suffix and are listed with the colon. */
+    UFUNCTION(BlueprintCallable, Category="BlueprintGraphBuilder")
+    static TArray<FString> GetSupportedVariableTypes();
+
+    /**
+     * Create or converge Blueprint member variables from a JSON array.
+     *
+     * [{"name": "bIsOpen", "type": "bool", "default": false,
+     *   "category": "Door", "container": "none"}]
+     *
+     * Idempotent by convergence, like components: a variable that already
+     * exists with the same type is left in place and only its default is
+     * reapplied. A variable that exists with a DIFFERENT type is an error,
+     * never a silent retype, because retyping drops every graph node that
+     * reads it.
+     *
+     * With bValidateOnly the Blueprint is not touched and every check that can
+     * run without mutating runs, so the caller can reject a spec before an
+     * asset exists. Blueprint may be null in that mode; the checks that need
+     * it (name collision, type conflict) are then skipped.
+     *
+     * Returns {"success": bool, "errors": [..], "variables": [{"name",
+     * "type", "created", "default_applied"}]}.
+     */
+    UFUNCTION(BlueprintCallable, Category="BlueprintGraphBuilder")
+    static FString ConfigureVariablesFromJSON(
+        UBlueprint* Blueprint,
+        const FString& VariablesJson,
+        bool bValidateOnly = false
+    );
 
     /** Add a component to a Blueprint's SimpleConstructionScript.
      *  This is the missing piece that lets Python build proper Blueprint actors
