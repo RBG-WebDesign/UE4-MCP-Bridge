@@ -35,12 +35,38 @@ stays in the tree.
 ## Migration states
 
 `native`, `server_local`, `legacy_verified`, `legacy_untested`,
-`native_equivalent`, `puerts_equivalent`, `hybrid_candidate`, `needs_port`,
-`duplicate`, `blocked`, `deprecated`, `migrated_verified`.
+`native_equivalent`, `puerts_equivalent`, `hybrid_candidate`, `wrap`,
+`needs_port`, `duplicate`, `blocked`, `deprecated`, `migrated_verified`.
 
 Initial assignment is automatic: the 12 legacy tools whose capability already
 exists in the native 17 are `hybrid_candidate` with `target_replacement` set;
 the rest are `legacy_untested`. Reclassification is a reviewed inventory edit.
+
+A `wrap` entry is the alias itself, not the legacy tool. Alias and legacy tool
+share a public name, so an inventory entry is identified by (name, module),
+which is also what the drift check compares.
+
+## The compat alias router
+
+`mcp-server/src/tools/compat.ts` implements the Wrap action for those 12 names.
+An alias keeps the legacy name and a close copy of the legacy schema,
+translates the parameters, and executes through `executeNativeCommand` in
+`tools/puerts.ts`: the same function the `puerts_*` tool uses, so an alias
+cannot drift from the tool it fronts. Results carry `requested_tool`,
+`canonical_tool`, `backend`, and `compat`.
+
+A legacy parameter with no native equivalent is a structured failure naming
+the parameter and the canonical tool, with `unmapped_parameters` in the
+payload. Nothing is guessed and nothing is dropped: a screenshot that quietly
+ignores `resolution` is worse than one that refuses, because the caller cannot
+tell it from a correct result.
+
+Registration is off unless a human sets `MCP_COMPAT_ALIASES=1`. An alias whose
+name a registered tool already owns is skipped with a stderr warning, so
+enabling the legacy lane at the same time leaves the real tool in charge.
+`Scripts/generate-tool-inventory.mjs` derives its overlap table from
+`compatAliasTargets`, so the alias set and the `hybrid_candidate` set cannot
+disagree.
 
 ## Alias policy
 

@@ -37,31 +37,73 @@ const specs = [
   ["puerts_undo", "undo", "Undo the exact last PuerTS transaction.", z.object({ transaction_id: z.string() }).strict()],
 ] as const;
 
+/** One native pipe tool: its public MCP name, the runtime command it sends,
+    and the schema every caller (direct or aliased) must satisfy. */
+export interface NativeToolSpec {
+  readonly name: string;
+  readonly command: string;
+  readonly description: string;
+  readonly inputSchema: z.ZodType;
+}
+
+export const nativeToolSpecs: readonly NativeToolSpec[] = specs.map(
+  ([name, command, description, inputSchema]) => ({ name, command, description, inputSchema }),
+);
+
+const specsByName = new Map(nativeToolSpecs.map((spec) => [spec.name, spec]));
+
+/** Look up a native tool by its public puerts_* name. Throws on an unknown
+    name so a mistyped alias target fails at construction, not at call time. */
+export function nativeToolSpec(name: string): NativeToolSpec {
+  const spec = specsByName.get(name);
+  if (spec === undefined) throw new Error(`Unknown native tool: ${name}`);
+  return spec;
+}
+
+/** The failure envelope the native lane returns instead of throwing, so a
+    caller always sees the same response shape. */
+export function nativeFailureEnvelope(
+  errors: string[],
+  message = "Native PuerTS command failed.",
+): Record<string, unknown> {
+  return {
+    success: false,
+    message,
+    data: {},
+    changed_assets: [],
+    changed_actors: [],
+    warnings: [],
+    errors,
+    log_output: [],
+    transaction_id: "",
+    transport: "named_pipe",
+  };
+}
+
+/** The single execution path for every native command. Both the puerts_*
+    tools and the compatibility aliases go through this, so an alias cannot
+    drift from the tool it fronts. */
+export async function executeNativeCommand(
+  client: PuerTSClient,
+  spec: NativeToolSpec,
+  params: Record<string, unknown>,
+): Promise<Record<string, unknown>> {
+  try {
+    const parsed = spec.inputSchema.parse(params) as Record<string, unknown>;
+    return await client.call(spec.command, parsed) as unknown as Record<string, unknown>;
+  } catch (error: unknown) {
+    return nativeFailureEnvelope([error instanceof Error ? error.message : String(error)]);
+  }
+}
+
 export function createPuertsTools(client: PuerTSClient): ToolDefinition[] {
-  return specs.map(([name, command, description, inputSchema]) => ({
-    name,
-    description: `[PRIMARY NATIVE IPC] ${description}`,
-    inputSchema,
+  return nativeToolSpecs.map((spec) => ({
+    name: spec.name,
+    description: `[PRIMARY NATIVE IPC] ${spec.description}`,
+    inputSchema: spec.inputSchema,
     handler: async (params: Record<string, unknown>) => {
-      try {
-        const parsed = inputSchema.parse(params) as Record<string, unknown>;
-        const result = await client.call(command, parsed);
-        return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
-      } catch (error: unknown) {
-        const message = error instanceof Error ? error.message : String(error);
-        return { content: [{ type: "text" as const, text: JSON.stringify({
-          success: false,
-          message: "Native PuerTS command failed.",
-          data: {},
-          changed_assets: [],
-          changed_actors: [],
-          warnings: [],
-          errors: [message],
-          log_output: [],
-          transaction_id: "",
-          transport: "named_pipe",
-        }, null, 2) }] };
-      }
+      const result = await executeNativeCommand(client, spec, params);
+      return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
     },
   }));
 }

@@ -287,3 +287,33 @@ export const toolAnnotations: Record<string, ToolAnnotations> = {
   restart_listener: destructive, // drops in-flight bridge state
   undo: destructive, // discards current state by design
 };
+
+/**
+ * Compatibility aliases (src/tools/compat.ts, registered only under
+ * MCP_COMPAT_ALIASES=1).
+ *
+ * These reuse the legacy public names, so they cannot live in the map above:
+ * a name has exactly one entry there and it belongs to the legacy HTTP tool.
+ * An alias executes the native tool it fronts, so it must carry that tool's
+ * classification, not the legacy one. Three differ from their legacy twins:
+ * actor_modify (the native writer is convergent), and level_save /
+ * asset_save_many (a native save puts changes beyond a plain editor undo).
+ *
+ * compat.ts attaches these per-tool, and index.ts prefers a per-tool
+ * annotation over the central map, so the right hints reach the client
+ * whichever lane answers the name.
+ */
+export const compatAliasAnnotations: Record<string, ToolAnnotations> = {
+  actor_spawn: mutating,                  // -> puerts_spawn_actor
+  actor_delete: destructiveIdempotent,    // -> puerts_delete_actor
+  actor_modify: mutatingIdempotent,       // -> puerts_set_property
+  level_actors: readOnly,                 // -> puerts_find_actors
+  level_save: destructive,                // -> puerts_save
+  asset_save_many: destructive,           // -> puerts_save
+  asset_list: readOnly,                   // -> puerts_find_assets
+  viewport_screenshot: mutatingIdempotent, // -> puerts_viewport_screenshot
+  gameplay_pie_start: mutatingIdempotent, // -> puerts_pie_start
+  gameplay_pie_stop: mutatingIdempotent,  // -> puerts_pie_stop
+  ue_logs: readOnly,                      // -> puerts_get_logs
+  undo: destructive,                      // -> puerts_undo
+};

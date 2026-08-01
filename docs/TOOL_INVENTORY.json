@@ -8,15 +8,17 @@
     "native_equivalent",
     "puerts_equivalent",
     "hybrid_candidate",
+    "wrap",
     "needs_port",
     "duplicate",
     "blocked",
     "deprecated",
     "migrated_verified"
   ],
-  "tool_count": 189,
+  "tool_count": 201,
   "by_backend": {
     "legacy_http": 170,
+    "native_pipe_alias": 12,
     "server_local": 2,
     "native_pipe": 17
   },
@@ -42,6 +44,28 @@
       },
       "module_listener_commands": [],
       "test_file": null
+    },
+    {
+      "name": "actor_delete",
+      "module": "mcp-server/src/tools/compat.ts",
+      "backend": "native_pipe_alias",
+      "migration_state": "wrap",
+      "target_replacement": "puerts_delete_actor",
+      "description": "[COMPAT ALIAS -> puerts_delete_actor] Delete one actor by exact name. The legacy wildcard form has no native equivalent and is refused. Calling this tool is the confirmation the native tool requires.",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "actor_name": "string"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": "mcp-server/tests/compat-tools.test.ts"
     },
     {
       "name": "actor_duplicate",
@@ -95,6 +119,34 @@
       },
       "module_listener_commands": [],
       "test_file": null
+    },
+    {
+      "name": "actor_modify",
+      "module": "mcp-server/src/tools/compat.ts",
+      "backend": "native_pipe_alias",
+      "migration_state": "wrap",
+      "target_replacement": "puerts_set_property",
+      "description": "[COMPAT ALIAS -> puerts_set_property] Change an actor's visibility through the native reflection writer. location, rotation, scale and mesh are not reachable from an actor label alone and are refused with the native call that does work.",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "actor_name": "string",
+          "visible": "boolean?",
+          "location": "object?",
+          "rotation": "object?",
+          "scale": "object?",
+          "mesh": "string?",
+          "validate": "boolean?"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": "mcp-server/tests/compat-tools.test.ts"
     },
     {
       "name": "actor_organize",
@@ -190,6 +242,34 @@
       },
       "module_listener_commands": [],
       "test_file": null
+    },
+    {
+      "name": "actor_spawn",
+      "module": "mcp-server/src/tools/compat.ts",
+      "backend": "native_pipe_alias",
+      "migration_state": "wrap",
+      "target_replacement": "puerts_spawn_actor",
+      "description": "[COMPAT ALIAS -> puerts_spawn_actor] Spawn an actor from an asset path at a given location/rotation. asset_path becomes class_path. scale, name and folder have no native equivalent and are refused rather than dropped.",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "asset_path": "string",
+          "location": "object?",
+          "rotation": "object?",
+          "scale": "object?",
+          "name": "string?",
+          "folder": "string?",
+          "validate": "boolean?"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": "mcp-server/tests/compat-tools.test.ts"
     },
     {
       "name": "ai_nav_rebuild",
@@ -408,6 +488,32 @@
     },
     {
       "name": "asset_list",
+      "module": "mcp-server/src/tools/compat.ts",
+      "backend": "native_pipe_alias",
+      "migration_state": "wrap",
+      "target_replacement": "puerts_find_assets",
+      "description": "[COMPAT ALIAS -> puerts_find_assets] List assets with optional filters. asset_type becomes type and name_pattern becomes name; path and recursive pass through unchanged.",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "path": "string?",
+          "asset_type": "string?",
+          "name_pattern": "string?",
+          "recursive": "boolean?",
+          "limit": "number?"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": "mcp-server/tests/compat-tools.test.ts"
+    },
+    {
+      "name": "asset_list",
       "module": "mcp-server/src/tools/project.ts",
       "backend": "legacy_http",
       "migration_state": "hybrid_candidate",
@@ -458,10 +564,32 @@
     },
     {
       "name": "asset_save_many",
+      "module": "mcp-server/src/tools/compat.ts",
+      "backend": "native_pipe_alias",
+      "migration_state": "wrap",
+      "target_replacement": "puerts_save",
+      "description": "[COMPAT ALIAS -> puerts_save] Save the explicit asset paths passed in, through the native save command.",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "paths": "union"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "idempotentHint": false,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": "mcp-server/tests/compat-tools.test.ts"
+    },
+    {
+      "name": "asset_save_many",
       "module": "mcp-server/src/tools/project.ts",
       "backend": "legacy_http",
-      "migration_state": "legacy_untested",
-      "target_replacement": null,
+      "migration_state": "hybrid_candidate",
+      "target_replacement": "puerts_save",
       "description": "Save only the explicit asset paths passed in. Safer than project-wide save-all.",
       "schema": {
         "kind": "object",
@@ -1869,6 +1997,28 @@
     },
     {
       "name": "gameplay_pie_start",
+      "module": "mcp-server/src/tools/compat.ts",
+      "backend": "native_pipe_alias",
+      "migration_state": "wrap",
+      "target_replacement": "puerts_pie_start",
+      "description": "[COMPAT ALIAS -> puerts_pie_start] Request Play In Editor start. level_path is refused: the native command starts PIE in the current level and cannot load one first.",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "level_path": "string?"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": "mcp-server/tests/compat-tools.test.ts"
+    },
+    {
+      "name": "gameplay_pie_start",
       "module": "mcp-server/src/tools/gameplay.ts",
       "backend": "legacy_http",
       "migration_state": "hybrid_candidate",
@@ -1908,6 +2058,26 @@
       },
       "module_listener_commands": [],
       "test_file": "mcp-server/tests/gameplay-tools.test.ts"
+    },
+    {
+      "name": "gameplay_pie_stop",
+      "module": "mcp-server/src/tools/compat.ts",
+      "backend": "native_pipe_alias",
+      "migration_state": "wrap",
+      "target_replacement": "puerts_pie_stop",
+      "description": "[COMPAT ALIAS -> puerts_pie_stop] Request Play In Editor stop.",
+      "schema": {
+        "kind": "object",
+        "params": {}
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": "mcp-server/tests/compat-tools.test.ts"
     },
     {
       "name": "gameplay_pie_stop",
@@ -2182,6 +2352,33 @@
     },
     {
       "name": "level_actors",
+      "module": "mcp-server/src/tools/compat.ts",
+      "backend": "native_pipe_alias",
+      "migration_state": "wrap",
+      "target_replacement": "puerts_find_actors",
+      "description": "[COMPAT ALIAS -> puerts_find_actors] List actors in the current level. class_filter becomes type, name_filter becomes name, limit passes through. Native filters are substring matches, so wildcard patterns and folder filtering are refused.",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "class_filter": "string?",
+          "name_filter": "string?",
+          "folder_filter": "string?",
+          "include_transforms": "boolean?",
+          "include_components": "boolean?",
+          "limit": "number?"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": "mcp-server/tests/compat-tools.test.ts"
+    },
+    {
+      "name": "level_actors",
       "module": "mcp-server/src/tools/level.ts",
       "backend": "legacy_http",
       "migration_state": "hybrid_candidate",
@@ -2251,6 +2448,28 @@
       },
       "module_listener_commands": [],
       "test_file": null
+    },
+    {
+      "name": "level_save",
+      "module": "mcp-server/src/tools/compat.ts",
+      "backend": "native_pipe_alias",
+      "migration_state": "wrap",
+      "target_replacement": "puerts_save",
+      "description": "[COMPAT ALIAS -> puerts_save] Save the current level through the native save command. save_all has no native equivalent: puerts_save takes an explicit asset list instead.",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "save_all": "boolean?"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "idempotentHint": false,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": "mcp-server/tests/compat-tools.test.ts"
     },
     {
       "name": "level_save",
@@ -4283,10 +4502,34 @@
     },
     {
       "name": "ue_logs",
+      "module": "mcp-server/src/tools/compat.ts",
+      "backend": "native_pipe_alias",
+      "migration_state": "wrap",
+      "target_replacement": "puerts_get_logs",
+      "description": "[COMPAT ALIAS -> puerts_get_logs] Fetch recent UE4 log entries. The native reader returns the captured tail verbatim, so the legacy category and severity filters are refused rather than ignored.",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "category": "string?",
+          "severity": "string?",
+          "maximum_lines": "number?"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": "mcp-server/tests/compat-tools.test.ts"
+    },
+    {
+      "name": "ue_logs",
       "module": "mcp-server/src/tools/system.ts",
       "backend": "legacy_http",
-      "migration_state": "legacy_untested",
-      "target_replacement": null,
+      "migration_state": "hybrid_candidate",
+      "target_replacement": "puerts_get_logs",
       "description": "Fetch recent UE4 log entries.",
       "schema": {
         "kind": "object",
@@ -4303,6 +4546,29 @@
       },
       "module_listener_commands": [],
       "test_file": null
+    },
+    {
+      "name": "undo",
+      "module": "mcp-server/src/tools/compat.ts",
+      "backend": "native_pipe_alias",
+      "migration_state": "wrap",
+      "target_replacement": "puerts_undo",
+      "description": "[COMPAT ALIAS -> puerts_undo] Undo one MCP transaction. The native undo targets an exact transaction_id rather than a depth, so a legacy count-only call is refused instead of undoing something unrelated.",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "transaction_id": "string?",
+          "count": "number?"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "idempotentHint": false,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": "mcp-server/tests/compat-tools.test.ts"
     },
     {
       "name": "undo",
@@ -4473,6 +4739,31 @@
       },
       "module_listener_commands": [],
       "test_file": null
+    },
+    {
+      "name": "viewport_screenshot",
+      "module": "mcp-server/src/tools/compat.ts",
+      "backend": "native_pipe_alias",
+      "migration_state": "wrap",
+      "target_replacement": "puerts_viewport_screenshot",
+      "description": "[COMPAT ALIAS -> puerts_viewport_screenshot] Capture the active viewport to a PNG file. filename passes through; the native capture uses a fixed resolution and hides the editor UI, so resolution and show_ui are refused.",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "filename": "string?",
+          "actors": "array?",
+          "resolution": "object?",
+          "show_ui": "boolean?"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": "mcp-server/tests/compat-tools.test.ts"
     },
     {
       "name": "viewport_screenshot",

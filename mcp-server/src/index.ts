@@ -47,6 +47,7 @@ import { createClothTools } from "./tools/cloth.js";
 import { createOptimizationTools } from "./tools/optimization.js";
 import { createEngineSourceTools } from "./tools/engine-source.js";
 import { createPuertsTools } from "./tools/puerts.js";
+import { registerCompatAliases } from "./tools/compat.js";
 import { toolAnnotations } from "./annotations.js";
 import { loadExtensions } from "./extensions.js";
 import type { ToolDefinition } from "./types.js";
@@ -132,6 +133,13 @@ async function main(): Promise<void> {
       );
     }
   }
+
+  // Old public names as router aliases onto the native catalog. Off unless a
+  // human sets MCP_COMPAT_ALIASES=1, because advertising the legacy names by
+  // default would undo the point of a curated native catalog. Registered last
+  // so that with the legacy lane also enabled the real tool keeps its name and
+  // the alias steps aside with a warning.
+  allTools.push(...registerCompatAliases(allTools, puertsClient));
 
   // Build a lookup map
   const toolMap = new Map<string, ToolDefinition>();
