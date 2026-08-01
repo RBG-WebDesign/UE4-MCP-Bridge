@@ -1,0 +1,134 @@
+{
+  "session_date": "2026-08-01",
+  "status": "success",
+  "goal": "Phase F2 of docs/MASTERY_PLAN_2026-07-31.md: prove that a Blueprint authored purely from JSON reacts to gameplay in PIE",
+  "context": "Branch bridge/native-consolidation-2026-07-31. Live editor UE427PuerTSMCP, pipe UE427PuerTSMCP_UE427PuerTSMCP_81d778e7_skyshader5, level /Temp/Untitled_1 (12 actors). Every call driven through the freshly built mcp-server/dist over stdio with MCP_UNREAL_PROJECT_ROOT / MCP_PUERTS_TOKEN_PATH / MCP_PUERTS_PIPE, because the session's own MCP server process predates puerts_blueprint_build. No C++ change was needed.",
+  "design_decisions": [
+    "The overlapping body is a second JSON-authored Blueprint, not a physics_build actor. physics_build spawns AStaticMeshActor, whose constructor calls SetGenerateOverlapEvents(false) (StaticMeshActor.cpp:33), and UPrimitiveComponent::CanComponentsGenerateOverlap requires the flag on both sides. A generated Blueprint's StaticMeshComponent keeps the UPrimitiveComponent default of true, so BP_ProbeDropper carries BodyInstance.bSimulatePhysics and falls under its own gravity. This also keeps the whole demonstration inside one authoring tool.",
+    "The trigger volume is a BoxComponent because UShapeComponent's constructor already sets the OverlapAllDynamic profile, so the reliable path needed no collision configuration at all. The question the phase asked about StaticMeshComponent collision was then answered separately, by probe, rather than by making the deliverable depend on the answer.",
+    "Geometry was chosen so the body crosses the volume and leaves it: trigger actor at (700,0,20), pedestal mesh 300x300x100 at relative z 50, box extent 150 at relative z 400 (world 270..570), dropper released at z 1100. Predicted rest height 170; the physics_build control run measured 170.00003, which confirms the arithmetic.",
+    "Placement follows the AGENTS.md trigger rule: PlayerStart was read first at (0,0,112). The volume's full extent is 300, so the rule wants 450 uu of clearance; the volume centre sits 765 uu away and the pedestal 700 uu away. Nothing the player spawns inside.",
+    "Each template change was verified on a freshly spawned instance, never on one spawned earlier, because of the known instance-staleness limitation."
+  ],
+  "changes": {
+    "docs/CAPABILITY_FINDINGS.md": "Seven new Working rows (gameplay in PIE, overlap events from a generated Blueprint, BoxComponent trigger, collision profile from JSON, physics from JSON, private UPROPERTY access, PIE round trip); seven new limitations 9-15 (physics_build bodies cannot overlap, physics_observe sees only AStaticMeshActor, no collision function surface, get_logs has no cursor, pie_start has no options, the PIE allowlist, an intermittent actor-lookup miss); Untested section narrowed",
+    "docs/MASTERY_PLAN_2026-07-31.md": "Phase F2 ticked with evidence; Phase F3 left open with the reason it is not met",
+    "reports/session-2026-08-01-f2-pie.json": "this file"
+  },
+  "no_code_change": "No TypeScript, C++ or schema changed. The phase was an exercise of the existing surface, so docs/TOOL_INVENTORY.json needed no regeneration.",
+  "assets_authored": [
+    {
+      "path": "/Game/MCPGenerated/BP_ProbeTrigger",
+      "build_ms": 127,
+      "components": "SceneComponent Root; StaticMeshComponent TriggerMesh (Cube, BasicShapeMaterial, RelativeLocation z 50, RelativeScale3D 3/3/1, Movable, bGenerateOverlapEvents true); BoxComponent TriggerVolume (RelativeLocation z 400, BoxExtent 150/150/150, Movable, bGenerateOverlapEvents true)",
+      "graph": "7 nodes, 3 connections: BeginPlay -> PrintString \"MCP_TRIGGER_ALIVE F2-2026-08-01\"; ActorBeginOverlap -> PrintString \"MCP_OVERLAP_ENTER F2-2026-08-01\"; ActorEndOverlap -> PrintString \"MCP_OVERLAP_EXIT F2-2026-08-01\"; one Comment frame",
+      "compile_status": "UpToDate",
+      "saved": true
+    },
+    {
+      "path": "/Game/MCPGenerated/BP_ProbeDropper",
+      "build_ms": 114,
+      "components": "StaticMeshComponent DropMesh at the root (Cube, WorldGridMaterial, Movable, bGenerateOverlapEvents true, BodyInstance {bSimulatePhysics true})",
+      "graph": "2 nodes, 1 connection: BeginPlay -> PrintString \"MCP_DROPPER_ALIVE F2-2026-08-01\"",
+      "compile_status": "UpToDate",
+      "saved": true
+    }
+  ],
+  "pie_runs": [
+    {
+      "run": 1,
+      "purpose": "first proof, BoxComponent trigger plus JSON-authored physics body",
+      "pie_start_ms": 38,
+      "editor_reported_start": "[PIE] Play in editor total start time 0.12 seconds",
+      "world_up_at": "2026.07.31-22.59.36",
+      "log_lines_in_order": [
+        "[LogBlueprintUserMessages] [BP_ProbeTrigger_C_0] MCP_TRIGGER_ALIVE F2-2026-08-01",
+        "[LogBlueprintUserMessages] [BP_ProbeDropper_C_0] MCP_DROPPER_ALIVE F2-2026-08-01",
+        "[PIE] Play in editor total start time 0.12 seconds.",
+        "[LogBlueprintUserMessages] [BP_ProbeTrigger_C_0] MCP_OVERLAP_ENTER F2-2026-08-01",
+        "[LogBlueprintUserMessages] [BP_ProbeTrigger_C_0] MCP_OVERLAP_EXIT F2-2026-08-01",
+        "[LogBlueprintUserMessages] [BP_ProbeTrigger_C_0] MCP_OVERLAP_ENTER F2-2026-08-01",
+        "[LogBlueprintUserMessages] [BP_ProbeTrigger_C_0] MCP_OVERLAP_EXIT F2-2026-08-01"
+      ],
+      "timings": "pie_start 38 ms; all seven lines already present at the 3 s read (15 ms); identical at 6 s and 8 s; pie_stop 7 ms",
+      "note": "Two enter/exit pairs. The single pass through the volume accounts for the first; the second is consistent with the body bouncing off the pedestal back up into the volume. Not instrumented further."
+    },
+    {
+      "run": 2,
+      "purpose": "control: can a physics_build body fire the same overlap?",
+      "setup": "BP_ProbeDropper deleted; physics_build one simulating cube MCP_F2_PhysCube at (700,0,1100), mass 50 kg; read_property .../MCP_F2_PhysCube.StaticMeshComponent0 bGenerateOverlapEvents -> false",
+      "result": "No. After that run's MCP_TRIGGER_ALIVE the log holds only [PIE] Server logged in and [PIE] Play in editor total start time 0.117 seconds; zero MCP_OVERLAP lines. physics_observe in the PIE world put the cube at rest at (700.0001, 0.00005, 170.00003) with zero velocity, so it had fallen the full height through the volume. Cause: AStaticMeshActor disables overlap events on its mesh component.",
+      "timings": "pie_start 107 ms; 5 s wait; physics_observe 7 ms; get_logs 10 ms; pie_stop 14 ms"
+    },
+    {
+      "run": 3,
+      "purpose": "probe: can a StaticMeshComponent be the trigger, configured only from JSON?",
+      "setup": "TriggerMesh given BodyInstance {CollisionProfileName OverlapAllDynamic}; TriggerVolume moved to RelativeLocation x 3000 so the box could not be the source; fresh instances spawned",
+      "result": "Yes. [BP_ProbeTrigger_C_2] MCP_OVERLAP_ENTER and MCP_OVERLAP_EXIT after that run's MCP_TRIGGER_ALIVE, with the box 3000 uu away.",
+      "timings": "pie_start 33 ms; 5 s wait; get_logs 10 ms; pie_stop 7 ms"
+    },
+    {
+      "run": 4,
+      "purpose": "final state: the saved asset, restored to the blocking pedestal and the box at z 400",
+      "editor_reported_start": "[PIE] Play in editor total start time 0.145 seconds",
+      "log_lines_in_order": [
+        "[LogBlueprintUserMessages] [BP_ProbeDropper_C_2] MCP_DROPPER_ALIVE F2-2026-08-01",
+        "[LogBlueprintUserMessages] [BP_ProbeTrigger_C_4] MCP_TRIGGER_ALIVE F2-2026-08-01",
+        "[PIE] Play in editor total start time 0.145 seconds.",
+        "[LogBlueprintUserMessages] [BP_ProbeTrigger_C_4] MCP_OVERLAP_ENTER F2-2026-08-01",
+        "[LogBlueprintUserMessages] [BP_ProbeTrigger_C_4] MCP_OVERLAP_EXIT F2-2026-08-01",
+        "[LogBlueprintUserMessages] [BP_ProbeTrigger_C_4] MCP_OVERLAP_ENTER F2-2026-08-01",
+        "[LogBlueprintUserMessages] [BP_ProbeTrigger_C_4] MCP_OVERLAP_EXIT F2-2026-08-01"
+      ],
+      "timings": "pie_start 87 ms; at the 2 s read six of the seven lines were present, the seventh by the 5 s read; pie_stop 8 ms",
+      "pie_guard_probes": "During this session pie_start, spawn_actor and viewport_screenshot each returned 'Editor operations are blocked during Play In Editor. Stop PIE first.'; a second pie_stop returned 'No Play In Editor session is active or queued.'"
+    }
+  ],
+  "collision_property_probes": [
+    {
+      "spec": "TriggerMesh properties {\"CollisionProfileName\": \"OverlapAllDynamic\"}",
+      "result": "rejected: \"Component 'TriggerMesh' property 'CollisionProfileName': StaticMeshComponent has no reflected property by that name.\" The name lives on FBodyInstance, not on the component."
+    },
+    {
+      "spec": "TriggerMesh properties {\"SetCollisionProfileName\": \"OverlapAllDynamic\"}",
+      "result": "rejected with the same message. Component properties are reflected properties; a UFUNCTION is not reachable."
+    },
+    {
+      "spec": "TriggerMesh properties {\"BodyInstance\": {\"CollisionProfileName\": \"OverlapAllDynamic\"}}",
+      "result": "applied. A freshly spawned instance read back collisionProfileName OverlapAllDynamic, collisionEnabled QueryOnly, objectType ECC_WorldDynamic, ECR_Overlap on all eight channels, having been BlockAllDynamic / QueryAndPhysics before. FCollisionResponse::ResponseToChannels is UPROPERTY(transient) so the JSON does not write it; the recompile round-trips the template through an archive and UPrimitiveComponent::Serialize calls FBodyInstance::FixupData -> LoadProfileData, which reads the responses out of the profile."
+    },
+    {
+      "spec": "TriggerMesh properties {\"bGenerateOverlapEvents\": true}",
+      "result": "applied, and read back true. The property is private on UPrimitiveComponent with a Blueprint getter and setter; reflection by name reaches it either way."
+    },
+    {
+      "spec": "BoxComponent with no collision properties at all",
+      "result": "already a trigger: OverlapAllDynamic, QueryOnly, ECR_Overlap on all eight channels, bGenerateOverlapEvents true, from UShapeComponent's constructor."
+    }
+  ],
+  "screenshots": [
+    {
+      "path": "D:/Unreal Projects/MASTER_PROJECT/SF_Repository/Sinfeld_240301/Tests/UE427PuerTSMCP/Saved/Screenshots/MCPBridge/phase-f2-scene-before-pie.png",
+      "description": "2085x1138, the state played in run 4. The grey pedestal (TriggerMesh, cube with the engine basic-shape material, 300x300x100) stands on the dark checkered floor; the orange selection wireframe of the BoxComponent trigger volume sits directly above it; the dropper cube with the world-grid material hangs near the top of the frame at z 1100. Read by the agent."
+    },
+    {
+      "path": "D:/Unreal Projects/MASTER_PROJECT/SF_Repository/Sinfeld_240301/Tests/UE427PuerTSMCP/Saved/Screenshots/MCPBridge/phase-f2-trigger-fit.png",
+      "description": "Same geometry from the first build, framed on the trigger alone: pedestal, dark red wireframe box above it, dropper at the top edge."
+    },
+    {
+      "path": "D:/Unreal Projects/MASTER_PROJECT/SF_Repository/Sinfeld_240301/Tests/UE427PuerTSMCP/Saved/Screenshots/MCPBridge/phase-f2-trigger-before-pie.png",
+      "description": "Wide first framing including PlayerStart, for the placement-clearance record."
+    }
+  ],
+  "cleanup": {
+    "pie": "stopped; the next puerts_diagnostic answered normally",
+    "actors": "find_actors BP_Probe -> count 0, find_actors MCP_ -> count 0, puerts_diagnostic actor_count_total 12, is_game_thread true, transport named_pipe",
+    "assets": "/Game/MCPGenerated holds five: BP_ProbeDoor, BP_ProbeDropper, BP_ProbeNative, BP_ProbeTrigger, M_NativeAuroraSky"
+  },
+  "notes": [
+    "The most useful negative result is limitation 9. physics_build looks like the obvious mover for a trigger probe and cannot be one, and the reason is an engine constructor two levels down. It cost one PIE run to prove and would otherwise have looked like a broken overlap graph.",
+    "Every blueprint_build save still logs 'Unable to Check Out From Source Control' as an auto-dismissed modal; the save succeeds.",
+    "The trigger asset ends in the configuration run 4 proved: TriggerMesh BlockAllDynamic / QueryAndPhysics, TriggerVolume at RelativeLocation z 400. The run-3 probe values were reverted and the revert was verified by read-back on a fresh instance."
+  ],
+  "recommended_next_goal": "Phase F3 needs state and motion. The cheapest next probe is whether a CallFunction node can drive a door: class Actor, function K2_SetActorLocation, self target, from ActorBeginOverlap. If that works, a trigger-and-door slice is reachable inside today's eight node types, and only sound and HUD stay blocked. Otherwise re-fronting UBlueprintMutatorLibrary for variables and Timeline is the real unlock (limitation 8)."
+}

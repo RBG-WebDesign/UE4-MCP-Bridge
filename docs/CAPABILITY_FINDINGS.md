@@ -28,6 +28,13 @@ maintains this file; Phase L consumes it.
 | Game-asset references from a generated Blueprint | The `SkyPanel` material above is `/Game/MCPGenerated/M_NativeAuroraSky`, a Game asset an earlier native run authored, so the reference path is not limited to `/Engine` content: `read_property SkyPanel OverrideMaterials` returns `["Material'/Game/MCPGenerated/M_NativeAuroraSky.M_NativeAuroraSky'"]` (2026-08-01) |
 | Phase F1 visible content | Spawned `/Game/MCPGenerated/BP_ProbeDoor.BP_ProbeDoor_C` and captured `Saved/Screenshots/MCPBridge/phase-f1-component-properties.png` (2085x1138). The frame shows a large light-grey cube with the engine basic-shape material standing on the dark checkered floor with its own cast shadow, and a smaller cube beside it rendering the aurora material as magenta and cyan waves on dark violet, both inside the orange selection outline. Solid shaded geometry, not the bare gizmo of the Phase L run (2026-08-01) |
 | Property convergence on rerun | An identical rerun answered `created false` for the asset and both components with the same seven properties applied, `find_assets /Game/MCPGenerated` still `count 3`, `find_actors BP_ProbeDoor` still `count 1`. A rerun with changed values (mesh `Cylinder`, material `WorldGridMaterial`, scale z 3) applied them: a freshly spawned instance read back `StaticMesh'/Engine/BasicShapes/Cylinder.Cylinder'`, `WorldGridMaterial`, `z 3`, evidenced side by side in `Saved/Screenshots/MCPBridge/phase-f1-convergence.png` (2026-08-01) |
+| JSON-authored gameplay runs in PIE | `/Game/MCPGenerated/BP_ProbeTrigger` (SceneComponent root, StaticMeshComponent pedestal, BoxComponent trigger volume, graph BeginPlay/ActorBeginOverlap/ActorEndOverlap each to a PrintString) and `/Game/MCPGenerated/BP_ProbeDropper` (one physics-simulating StaticMeshComponent) were built from JSON in 127 ms and 114 ms, both `compile_status "UpToDate"`, zero errors, saved. Spawned, then `puerts_pie_start`: the captured log holds `[LogBlueprintUserMessages] [BP_ProbeTrigger_C_4] MCP_TRIGGER_ALIVE F2-2026-08-01`, `[BP_ProbeDropper_C_2] MCP_DROPPER_ALIVE`, `[PIE] Play in editor total start time 0.145 seconds`, then `MCP_OVERLAP_ENTER`, `MCP_OVERLAP_EXIT`, `MCP_OVERLAP_ENTER`, `MCP_OVERLAP_EXIT` as the dropped rigid body fell through the volume and bounced on the pedestal. Nothing but JSON specs and spawns produced any of it (2026-08-01, Phase F2) |
+| Overlap events from a generated Blueprint | `ActorBeginOverlap` and `ActorEndOverlap` build as `ReceiveActorBeginOverlap`/`ReceiveActorEndOverlap` override events and fire at runtime. Both directions observed in three separate PIE sessions (2026-08-01) |
+| BoxComponent trigger volume from JSON | `{"class":"BoxComponent","name":"TriggerVolume","properties":{"BoxExtent":{"x":150,"y":150,"z":150}}}` needs no collision configuration: `UShapeComponent`'s constructor sets `OverlapAllDynamic`, and a spawned instance reads back `collisionProfileName "OverlapAllDynamic"`, `collisionEnabled "QueryOnly"`, `objectType "ECC_WorldDynamic"`, `ECR_Overlap` on all eight channels, `bGenerateOverlapEvents true`, `BoxExtent {150,150,150}` (2026-08-01) |
+| Collision profile from JSON, on any primitive | `"BodyInstance": {"CollisionProfileName": "OverlapAllDynamic"}` on a `StaticMeshComponent` template applies the whole profile, not just the name: the same component read back `collisionEnabled "QueryOnly"` and `ECR_Overlap` on all eight channels, having been `BlockAllDynamic`/`QueryAndPhysics` before. `FCollisionResponse::ResponseToChannels` is `UPROPERTY(transient)`, so the responses are not written by the JSON; the Blueprint recompile round-trips the template through an archive and `UPrimitiveComponent::Serialize` calls `FBodyInstance::FixupData` -> `LoadProfileData`, which fills them in from the profile name. Proven live: with the BoxComponent moved out of the trajectory, the StaticMeshComponent alone produced `MCP_OVERLAP_ENTER` and `MCP_OVERLAP_EXIT` in PIE (2026-08-01) |
+| Physics from JSON | `"BodyInstance": {"bSimulatePhysics": true}` plus `"Mobility": "Movable"` on a generated component gives a simulating rigid body: read back `bSimulatePhysics true`, `bEnableGravity true`, `Mobility "Movable"`, and in PIE the actor fell and came to rest (2026-08-01) |
+| Private UPROPERTY reads and writes | `bGenerateOverlapEvents` is private on `UPrimitiveComponent` with Blueprint getter/setter. Both `read_property` and a `blueprint_build` component property reach it by name; the level's `Floor` read back `false`, a generated component read back `true` (2026-08-01) |
+| PIE round trip | `pie_start` -> `get_logs` -> `pie_stop`, four times in one session, no editor restart. Editor-side calls after each stop behaved normally; `puerts_diagnostic` reported 12 actors and `is_game_thread true` afterwards (2026-08-01) |
 | Property validate-before-mutate | Eight rejected specs against the unused path `/Game/MCPGenerated/BP_ProbeProps`, each naming component, property, and reason: unknown property name, unloadable asset path, asset of the wrong class, wrong class inside a material array (`element 0: ... is a StaticMesh, but the property holds a MaterialInterface`), a string where an array belongs, a string where a struct belongs, and an out-of-range or misspelled enumerator (`expects a EComponentMobility enumerator: Static=0, Stationary=1, Movable=2`). `find_assets` for that name returned `count 0` afterwards (2026-08-01) |
 
 ## Defects and limitations (Phase L queue)
@@ -67,6 +74,70 @@ maintains this file; Phase L consumes it.
    none of that reached `BuildBlueprintFromJSON` in this repository. Variables,
    loops, and timers are therefore not reachable from `puerts_blueprint_build`
    yet. `UBlueprintMutatorLibrary` is the richer surface to re-front next.
+9. `physics_build` bodies cannot fire overlap events, so they are not a usable
+   mover for a trigger probe. `AStaticMeshActor`'s constructor calls
+   `StaticMeshComponent->SetGenerateOverlapEvents(false)`
+   (`StaticMeshActor.cpp:33`), and `physics_build` spawns `AStaticMeshActor`,
+   so its bodies fail the both-sides test in
+   `UPrimitiveComponent::CanComponentsGenerateOverlap`. Repro: `physics_build`
+   one simulating cube at `{700,0,1100}` above the same trigger,
+   `read_property .../MCP_F2_PhysCube.StaticMeshComponent0
+   bGenerateOverlapEvents` -> `false`; PIE, and `physics_observe` shows it at
+   rest on the trigger's pedestal at `z 170.00003`, so it passed straight
+   through the volume, while the log after that run's `MCP_TRIGGER_ALIVE`
+   contains no `MCP_OVERLAP_*` line at all. The same read on the level's own
+   `Floor` returns `false` too: every `AStaticMeshActor` is like this. The
+   overlapping body has to be a generated Blueprint, whose
+   `StaticMeshComponent` keeps the `UPrimitiveComponent` default of `true`.
+10. `physics_observe` only iterates `AStaticMeshActor`
+    (`MCPPuerTSBridgePhysics.cpp:279`). A JSON-authored Blueprint actor with a
+    simulating `StaticMeshComponent` is invisible to it: with only
+    `BP_ProbeDropper_C_0` simulating in the PIE world, `physics_observe` with
+    no filter returned `{"world":"pie","count":0,"actors":[]}`. So the tool
+    that reads runtime transforms cannot see the bodies the authoring tool
+    creates, and PIE-time position evidence for a generated actor has to come
+    from log output instead.
+11. No component-level collision function surface. `SetCollisionProfileName`
+    is a `UFUNCTION`, and `blueprint_build` component properties are reflected
+    properties only: `{"SetCollisionProfileName": "OverlapAllDynamic"}` and the
+    top-level `{"CollisionProfileName": "OverlapAllDynamic"}` are both rejected
+    with `StaticMeshComponent has no reflected property by that name.` The
+    working spelling is the nested struct, `{"BodyInstance":
+    {"CollisionProfileName": "OverlapAllDynamic"}}`, which is not discoverable
+    from the schema and is worth a description example.
+12. `get_logs` has no cursor. `GetRecentLogs` calls `Since(0, N)`: the ring
+    holds 2000 lines, a read returns at most the last 500, and there is no
+    `since`/marker parameter, so consecutive reads return overlapping windows
+    that a caller has to de-duplicate itself. A PIE start/stop cycle costs
+    roughly 70 lines (290 -> 346 -> 416 -> 489 across four cycles in one
+    session), so about seven more cycles push a given run's lines out of a
+    500-line read. Anchor on content (the last `MCP_TRIGGER_ALIVE`) rather than
+    on line counts.
+13. `pie_start` takes no options: its schema is `{}`. No map override, no
+    player count, no simulate-versus-play, no dedicated server, no run-for-N-
+    seconds. It also returns before the session exists ("Play In Editor start
+    requested." at 33-107 ms, while `[PIE] Play in editor total start time
+    0.145 seconds` appears later), so the caller has to sleep and then poll
+    `get_logs`. `pie_stop` is deferred the same way: two `pie_stop` calls in
+    one batch gave `success` then `No Play In Editor session is active or
+    queued.`
+14. During PIE the native allowlist admits only `pie_stop`, `get_logs` and
+    `physics_observe` (`MCPPuerTSBridgeService.cpp:257`). Everything else,
+    including `viewport_screenshot`, `spawn_actor` and `read_property`, returns
+    `Editor operations are blocked during Play In Editor. Stop PIE first.` So
+    there is no screenshot of the running game and no runtime property read;
+    a generated Blueprint has to report its own state through `PrintString`.
+15. Intermittent, twice observed, not reproduced. (a) `delete_actor
+    BP_ProbeTrigger_C_0` answered `Actor not found.` in the request right after
+    a `blueprint_build` that recompiled the actor's class, while
+    `find_actors` in the next request of the same batch still listed
+    `BP_ProbeTrigger_C_0`; a retry deleted it. (b) `find_actors {"name":
+    "BP_Probe"}` returned `count 0` in the request right after two deletes and
+    two spawns in the same batch, while the spawns had returned
+    `BP_ProbeTrigger_C_3` and `BP_ProbeDropper_C_2` and the same query in the
+    next server session listed both. Targeted repros of each (spawn then find;
+    recompile then delete) both passed, so the trigger is not identified. Treat
+    a single miss as worth one retry, not as proof the actor is gone.
 
 ## Fixed
 
@@ -135,6 +206,8 @@ causes, one per direction:
 
 ## Untested
 
-Map/set/FText/FName reads; sky_shader_create rerun behavior;
-physics_build/observe; pie_start/stop round trip; get_logs bounds; find_assets
-path/name filters; undo stack depth; two-editor pipe isolation.
+Map/set/FText/FName reads; sky_shader_create rerun behavior; find_assets
+path/name filters; undo stack depth; two-editor pipe isolation. Overlap against
+a player pawn (nothing in the default game mode moves on its own, and there is
+no input-simulation tool in the native catalog, so the only self-propelled
+overlap source proven so far is a JSON-authored physics body).

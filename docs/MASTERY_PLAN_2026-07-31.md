@@ -120,6 +120,20 @@ project until something breaks; every break loops back to Phase L:
       spawned and visually confirmed in
       `Saved/Screenshots/MCPBridge/phase-f1-component-properties.png`; idempotent
       rerun and changed-value rerun both proven, level returned to 12 actors)
-- [ ] Phase F2 blueprint actor
-- [ ] Phase F3 gameplay slice
+- [x] Phase F2 blueprint actor (BP_ProbeTrigger and BP_ProbeDropper authored
+      from JSON alone, spawned, and proven in PIE: `MCP_TRIGGER_ALIVE` from the
+      generated BeginPlay, then `MCP_OVERLAP_ENTER`/`MCP_OVERLAP_EXIT` twice as
+      a JSON-authored physics body fell through the trigger volume. Four PIE
+      round trips, log lines and timings in
+      `reports/session-2026-08-01-f2-pie.json`; screenshot
+      `Saved/Screenshots/MCPBridge/phase-f2-scene-before-pie.png`; level back to
+      12 actors)
+- [ ] Phase F3 gameplay slice - NOT met by F2. F2 delivers the trigger volume
+      half and proves the runtime loop, but the slice also wants a door, a
+      sound and a HUD widget, and none of those are reachable: the node
+      vocabulary has no variables, no Timeline and no Delay (limitation 8), so
+      a door has no state and no motion, and there is no widget or audio
+      authoring surface at all. The next real step is CallFunction-driven state
+      (`Actor.K2_SetActorLocation` on self) plus re-fronting
+      `UBlueprintMutatorLibrary` for variables.
 - [ ] Phase F4 stamina feature
