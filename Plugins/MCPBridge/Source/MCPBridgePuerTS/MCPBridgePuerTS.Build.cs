@@ -6,6 +6,9 @@ public class MCPBridgePuerTS : ModuleRules
     {
         PCHUsage = PCHUsageMode.UseExplicitOrSharedPCHs;
         PublicDependencyModuleNames.AddRange(new string[] { "Core", "CoreUObject", "Engine" });
-        PrivateDependencyModuleNames.AddRange(new string[] { "AssetRegistry", "Json", "JsonUtilities", "JsEnv", "Projects", "UnrealEd" });
+        // MCPBridgeGraphBuilder is a dependency, not a copy: the blueprint_build
+        // command re-fronts the existing Blueprint graph builder rather than
+        // reimplementing node spawning inside this module.
+        PrivateDependencyModuleNames.AddRange(new string[] { "AssetRegistry", "Json", "JsonUtilities", "JsEnv", "MCPBridgeGraphBuilder", "Projects", "UnrealEd" });
     }
 }

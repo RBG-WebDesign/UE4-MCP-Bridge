@@ -47,7 +47,17 @@ async function readToken(): Promise<string> {
 export class PuerTSClient {
   readonly pipeName = process.env.MCP_PUERTS_PIPE ?? "\\\\.\\pipe\\UE427PuerTSMCP";
 
-  async call(command: string, params: Record<string, unknown>): Promise<PuerTSResponse> {
+  /** Send one command. `timeoutMs` is the budget for the whole round trip:
+      the editor runs these on the game thread, so a command that authors and
+      compiles an asset legitimately outlasts one that reads a property, and a
+      shared 7 second ceiling would report a timeout for work Unreal is still
+      finishing. Callers pass the tool's own budget; the default matches the
+      inspection tools. */
+  async call(
+    command: string,
+    params: Record<string, unknown>,
+    timeoutMs = 7000,
+  ): Promise<PuerTSResponse> {
     const token = await readToken();
     return new Promise<PuerTSResponse>((resolve, reject) => {
       const socket = createConnection(this.pipeName);
@@ -63,10 +73,15 @@ export class PuerTSClient {
       };
       const timer = setTimeout(
         () => finish(() => reject(new Error("PuerTS command pipe timed out"))),
-        7000,
+        timeoutMs,
       );
       socket.on("connect", () => socket.write(JSON.stringify({
-        id: randomUUID(), command, tool: command, params, timeout_ms: 5000, auth: token,
+        id: randomUUID(),
+        command,
+        tool: command,
+        params,
+        timeout_ms: Math.max(1000, timeoutMs - 2000),
+        auth: token,
       }) + "\n"));
       socket.on("data", (chunk: string) => {
         buffer += chunk;

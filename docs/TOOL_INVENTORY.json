@@ -15,12 +15,12 @@
     "deprecated",
     "migrated_verified"
   ],
-  "tool_count": 201,
+  "tool_count": 202,
   "by_backend": {
     "legacy_http": 170,
     "native_pipe_alias": 12,
     "server_local": 2,
-    "native_pipe": 17
+    "native_pipe": 18
   },
   "tools": [
     {
@@ -3791,6 +3791,34 @@
       },
       "module_listener_commands": [],
       "test_file": null
+    },
+    {
+      "name": "puerts_blueprint_build",
+      "module": "mcp-server/src/tools/puerts.ts",
+      "backend": "native_pipe",
+      "migration_state": "native",
+      "target_replacement": null,
+      "description": "[PRIMARY NATIVE IPC] Create or update a compiled Blueprint actor asset from one JSON spec: parent class, components, and an event graph. Supported graph node types are BeginPlay, ActorBeginOverlap, ActorEndOverlap, PrintString, CallFunction, Branch, Sequence, and Comment; anything else is rejected before the asset is touched. Rerunning the same spec converges: the asset is loaded rather than duplicated, an existing component of the same name and class is left alone, and the event graph is rebuilt from the spec. Assets are limited to /Game/MCPGenerated/. Response reports compile status with compiler errors and warnings; the asset is only saved when it built clean.",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "asset_path": "string",
+          "parent_class": "string?",
+          "components": "array?",
+          "graph": "object?",
+          "compile": "boolean?",
+          "save": "boolean?",
+          "clear_existing_graph": "boolean?"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": "mcp-server/tests/puerts-tools.test.ts"
     },
     {
       "name": "puerts_call_function",

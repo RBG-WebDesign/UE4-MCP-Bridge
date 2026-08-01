@@ -83,6 +83,9 @@ export const toolAnnotations: Record<string, ToolAnnotations> = {
   puerts_physics_build: mutating,
   puerts_pie_start: mutatingIdempotent,
   puerts_pie_stop: mutatingIdempotent,
+  // Converges on a rerun, but clear_existing_graph defaults to true, so a
+  // build aimed at an existing Blueprint replaces its event graph.
+  puerts_blueprint_build: destructiveIdempotent,
   puerts_delete_actor: destructiveIdempotent,
   puerts_save: destructive,
   puerts_undo: destructive,

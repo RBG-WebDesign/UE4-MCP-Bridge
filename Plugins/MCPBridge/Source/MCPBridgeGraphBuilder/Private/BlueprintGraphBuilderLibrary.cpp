@@ -25,6 +25,25 @@
 #include "Kismet2/CompilerResultsLog.h"
 #include "Logging/TokenizedMessage.h"
 
+TArray<FString> UBlueprintGraphBuilderLibrary::GetSupportedNodeTypes()
+{
+    // Keep in dispatch order with the if/else chain in BuildBlueprintFromJSON.
+    // The chain is guarded by this list, so a type present here but missing
+    // from the chain falls through to the "unknown type" warning, and a type
+    // in the chain but missing here never reaches it. Either way the drift is
+    // visible in the response instead of producing a silently empty graph.
+    return TArray<FString>({
+        TEXT("BeginPlay"),
+        TEXT("ActorBeginOverlap"),
+        TEXT("ActorEndOverlap"),
+        TEXT("PrintString"),
+        TEXT("CallFunction"),
+        TEXT("Branch"),
+        TEXT("Sequence"),
+        TEXT("Comment"),
+    });
+}
+
 void UBlueprintGraphBuilderLibrary::BuildBlueprintFromJSON(
     UBlueprint* Blueprint,
     const FString& JsonString,
@@ -92,6 +111,12 @@ void UBlueprintGraphBuilderLibrary::BuildBlueprintFromJSON(
         if (NodeId.IsEmpty() || NodeType.IsEmpty())
         {
             UE_LOG(LogTemp, Warning, TEXT("BuildBlueprintFromJSON: Skipping node with missing id or type"));
+            continue;
+        }
+
+        if (!GetSupportedNodeTypes().Contains(NodeType))
+        {
+            UE_LOG(LogTemp, Warning, TEXT("BuildBlueprintFromJSON: Unknown node type '%s', skipping"), *NodeType);
             continue;
         }
 
@@ -304,7 +329,12 @@ void UBlueprintGraphBuilderLibrary::BuildBlueprintFromJSON(
         }
         else
         {
-            UE_LOG(LogTemp, Warning, TEXT("BuildBlueprintFromJSON: Unknown node type '%s', skipping"), *NodeType);
+            // Reached only when GetSupportedNodeTypes names a type this chain
+            // does not build, which is the drift case that list exists to make
+            // visible.
+            UE_LOG(LogTemp, Error,
+                TEXT("BuildBlueprintFromJSON: Node type '%s' is advertised by GetSupportedNodeTypes but has no dispatch case"),
+                *NodeType);
             continue;
         }
 

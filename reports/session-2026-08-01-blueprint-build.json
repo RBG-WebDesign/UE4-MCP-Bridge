@@ -1,0 +1,119 @@
+{
+  "session_date": "2026-08-01",
+  "status": "success",
+  "goal": "Phase L item 3: re-front the existing MCPBridgeGraphBuilder Blueprint builder through the PuerTS allowlist as a native blueprint_build tool",
+  "context": "docs/MASTERY_PLAN_2026-07-31.md Phase L. Branch bridge/native-consolidation-2026-07-31. Live editor UE427PuerTSMCP, pipe UE427PuerTSMCP_UE427PuerTSMCP_81d778e7_skyshader5.",
+  "real_builder_surface_discovered": {
+    "entry_point": "UBlueprintGraphBuilderLibrary::BuildBlueprintFromJSON",
+    "supported_node_types": [
+      "BeginPlay", "ActorBeginOverlap", "ActorEndOverlap", "PrintString",
+      "CallFunction", "Branch", "Sequence", "Comment"
+    ],
+    "correction": "The Phase L3 spec and the header comment both understate and overstate this. The header said 'Pass 1: BeginPlay, PrintString'; the pass specs in docs/superpowers/specs/ describe eleven passes including Delay, VariableGet/VariableSet, ForLoop and ForEachLoop. Reading the implementation, only the eight types above have dispatch cases in this repository. The forty-odd node factories in BPNodeRegistry.cpp belong to a different subsystem, UBlueprintMutatorLibrary::AddNode, which BuildBlueprintFromJSON does not call.",
+    "other_functions_on_the_library": [
+      "AddComponentToBlueprint (used)",
+      "CompileAndReport (used, supplies the errors/warnings arrays)",
+      "SetComponentProperty (not fronted; see limitation 6 in CAPABILITY_FINDINGS)",
+      "ConfigureUserDefinedEnum (not fronted)"
+    ]
+  },
+  "design_decisions": [
+    "Validate before mutate. BuildBlueprintFromJSON returns void and only warns about an unknown node type, so a bad spec would otherwise produce a Blueprint that compiles clean and does nothing. The native command validates the whole spec first: asset path, parent class, component classes, attach targets, node types, duplicate ids, and connection endpoints. Every check that does not need the asset runs before the asset is created, and the two that do need it only apply when it already exists, so a rejected request never creates or mutates anything.",
+    "GetSupportedNodeTypes() is the gate, not a parallel list. The node loop in BuildBlueprintFromJSON now checks it, so a dispatch case missing from the list stops working loudly instead of the list going quietly stale.",
+    "Idempotency by convergence rather than by no-op. The asset is loaded when it exists; a component whose name and class already match is left alone; the event graph is rebuilt from the spec because clear_existing_graph defaults to true. A rerun of the same spec reaches the same end state.",
+    "A conflicting rerun is an error, not a silent update. A different parent class, or a different class under a component name the Blueprint already uses, is rejected rather than reparented or renamed.",
+    "Assets are limited to /Game/MCPGenerated/, matching sky_shader_create. clear_existing_graph would otherwise let a caller wipe a hand-authored Blueprint's event graph anywhere in /Game. Widening this is a deliberate later decision, not a default.",
+    "Annotated destructiveIdempotent. It converges, but a build aimed at an existing Blueprint replaces its event graph, which a plain undo does not restore.",
+    "Per-tool client timeout. PuerTSClient had one 7 second ceiling for every command; asset authoring blocks the game thread for as long as Unreal needs to compile and save, and a client timeout while the editor is still working reports a failure for work that succeeds. Added an optional timeout argument, 30 s for blueprint_build. Measured cost turned out to be 91 ms, so the headroom is unused today.",
+    "The MCP schema publishes the node types as an enum. A client told 'any node type' writes graphs the builder skips. The native side re-validates, so the enum can only reject earlier, never let through a type the builder cannot build."
+  ],
+  "changes": {
+    "Plugins/MCPBridge/Source/MCPBridgeGraphBuilder/Public/BlueprintGraphBuilderLibrary.h": "Replaced the stale Pass 1 doc comment with the real supported surface, per-node params/x/y fields, and the pin role rules; declared GetSupportedNodeTypes",
+    "Plugins/MCPBridge/Source/MCPBridgeGraphBuilder/Private/BlueprintGraphBuilderLibrary.cpp": "Implemented GetSupportedNodeTypes and made the node loop check it; the trailing else is now the drift detector and logs Error",
+    "Plugins/MCPBridge/Source/MCPBridgePuerTS/Private/MCPPuerTSBridgeBlueprint.cpp": "New. UMCPPuerTSBridgeService::BuildBlueprintJson: validation, FKismetEditorUtilities::CreateBlueprint or load, components through AddComponentToBlueprint, graph through BuildBlueprintFromJSON, compile through CompileAndReport, save through the existing SaveProjectAsset",
+    "Plugins/MCPBridge/Source/MCPBridgePuerTS/Public/MCPPuerTSBridgeService.h": "Declared BuildBlueprintJson",
+    "Plugins/MCPBridge/Source/MCPBridgePuerTS/Private/MCPPuerTSBridgeService.cpp": "blueprint_build added to the default AllowedTools allowlist and to IsToolMutating so it runs inside a transaction",
+    "Plugins/MCPBridge/Source/MCPBridgePuerTS/MCPBridgePuerTS.Build.cs": "Added the MCPBridgeGraphBuilder module dependency",
+    "puerts-runtime/src/registry.ts": "blueprint_build tool: composes the spec, calls the native method, splits errors and warnings out of data into the envelope, reports the asset in changed_assets",
+    "puerts-runtime/src/runtime.ts": "Added objectArray, the array-of-objects counterpart of stringArray, with the same structured-text decode",
+    "puerts-runtime/types/puerts-bootstrap.d.ts": "Declared BuildBlueprintJson",
+    "mcp-server/src/tools/puerts.ts": "puerts_blueprint_build spec with component, graph node, and connection schemas and the node-type enum; components and graph added to structuredParameters; new commandTimeouts map threaded into executeNativeCommand",
+    "mcp-server/src/puerts-client.ts": "call() takes an optional per-command timeout, default unchanged at 7000 ms",
+    "mcp-server/src/annotations.ts": "puerts_blueprint_build classified destructiveIdempotent with the reason",
+    "mcp-server/tests/puerts-tools.test.ts": "Tool count 17 to 18; new suite covering the advertised node types, structured parameters sent as JSON text, and specs rejected before the pipe",
+    "docs/CAPABILITY_FINDINGS.md": "Four new Working rows with evidence; new limitations 6 (component properties) and 7 (real node vocabulary)",
+    "docs/PUERTS.md": "Tool list 17 to 18",
+    "docs/TOOL_MIGRATION.md": "Catalog count 17 to 18",
+    "docs/MASTERY_PLAN_2026-07-31.md": "Phase L builder item ticked",
+    "docs/TOOL_INVENTORY.json": "Regenerated: 201 to 202 tools, native_pipe 17 to 18, one new entry"
+  },
+  "acceptance_live_editor": [
+    {
+      "case": "A. build BP_ProbeDoor",
+      "call": "puerts_blueprint_build asset_path /Game/MCPGenerated/BP_ProbeDoor, parent_class Actor, components [StaticMeshComponent DoorMesh], graph BeginPlay -> PrintString",
+      "result": "success true, created true, compile_status UpToDate, compiled true, saved true, errors [], generated_class_path /Game/MCPGenerated/BP_ProbeDoor.BP_ProbeDoor_C, transaction 61AE18FB-4EEB-E553-BFE4-8C88E7AF2AF8, 91 ms round trip (79.4 ms native)",
+      "log_evidence": "AddComponentToBlueprint: Added 'DoorMesh' (StaticMeshComponent) to BP_ProbeDoor; BuildBlueprintFromJSON: Done. 2 nodes spawned.; LogSavePackage moving the tmp to Content/MCPGenerated/BP_ProbeDoor.uasset"
+    },
+    {
+      "case": "B. identical rerun is idempotent",
+      "result": "success true, created false, component created false, compile_status UpToDate, and find_assets /Game/MCPGenerated returns exactly two assets (BP_ProbeDoor and the earlier M_NativeAuroraSky), so nothing was duplicated"
+    },
+    {
+      "case": "C. unsupported node type",
+      "call": "graph node type Delay against the unused path /Game/MCPGenerated/BP_ProbeBogus",
+      "result": "success false at the MCP schema, naming the eight valid options; nothing reached the editor; find_assets BP_ProbeBogus returns count 0"
+    },
+    {
+      "case": "C-native. the same guarantee below the schema",
+      "note": "The MCP enum rejects an unsupported type before the pipe, so six specs that are shape-valid but semantically wrong were used to exercise the C++ validator directly, all against the unused path /Game/MCPGenerated/BP_ProbeNative",
+      "results": [
+        "duplicate graph node id -> 'Duplicate graph node id: start'",
+        "connection to an unknown node id -> \"Connection references an unknown node id: 'start.exec' -> 'ghost.exec'.\"",
+        "component class that does not exist -> 'Component class was not found: NotARealComponent'",
+        "component class that is not an ActorComponent -> 'Component class must derive from ActorComponent: /Script/Engine.StaticMeshActor does not.'",
+        "parent class that is not an Actor -> 'Parent class must derive from Actor: /Script/Engine.StaticMeshComponent does not.'",
+        "attach_to naming nothing -> \"Component 'Mesh' attaches to 'Nowhere', which is neither declared earlier in components nor already on the Blueprint.\"",
+        "find_assets BP_ProbeNative afterwards -> count 0, so no half-built asset was left by any of them"
+      ]
+    },
+    {
+      "case": "D. spawn the generated class",
+      "call": "puerts_spawn_actor /Game/MCPGenerated/BP_ProbeDoor.BP_ProbeDoor_C at z 200",
+      "result": "success true, actor BP_ProbeDoor_C_0 at /Temp/Untitled_1.Untitled_1:PersistentLevel.BP_ProbeDoor_C_0, class_name BP_ProbeDoor_C"
+    },
+    {
+      "case": "E. conflicting rerun rejected",
+      "results": [
+        "parent_class Pawn against the existing Actor Blueprint -> 'Existing Blueprint has parent class /Script/Engine.Actor; the spec asks for /Script/Engine.Pawn. Reparenting is not done implicitly.'",
+        "PointLightComponent under the existing name DoorMesh -> \"Component 'DoorMesh' already exists as /Script/Engine.StaticMeshComponent; the spec asks for /Script/Engine.PointLightComponent.\""
+      ]
+    },
+    {
+      "case": "F. components-only build with a hierarchy",
+      "call": "BP_ProbeNative with SceneComponent Pivot and PointLightComponent Glow attached to Pivot, no graph",
+      "result": "success true, created true, both components created, graph.requested false, compile_status UpToDate"
+    },
+    {
+      "case": "G. screenshot",
+      "path": "D:/Unreal Projects/MASTER_PROJECT/SF_Repository/Sinfeld_240301/Tests/UE427PuerTSMCP/Saved/Screenshots/MCPBridge/phase-l3-bp-probedoor.png",
+      "note": "2085x1138, active viewport read-pixels. The actor shows as a selected gizmo above the floor because its StaticMeshComponent has no mesh assigned: the tool cannot set component properties yet (limitation 6)."
+    },
+    {
+      "case": "H. diagnostic still green",
+      "result": "success, is_game_thread true, 13 actors after cleanup, transport named_pipe, execution_context puerts_node_v8_in_process"
+    }
+  ],
+  "build_and_verify": {
+    "cpp_build": "Build.bat UE427PuerTSMCPEditor Win64 Development: 12 actions, 26.41 s total, zero errors, first attempt. Pre-existing C4996 deprecation warnings in AutoPIEHelper and GarmentMeshLibrary are untouched.",
+    "editor_restarts": 1,
+    "verify": "see verify_tail"
+  },
+  "notes": [
+    "The session's own MCP server process predates this build, so its tool list does not include puerts_blueprint_build. Acceptance was driven through the repo's freshly built mcp-server/dist/index.js over stdio, the same lane Scripts/puerts-live-smoke.mjs uses: same binary, same named pipe, same protocol as a real client. No second editor, no alternate transport. Restart the session to get the tool in the session catalog.",
+    "Every blueprint_build save logs 'Unable to Check Out From Source Control' as an auto-dismissed modal. The save succeeds; the test project has a source control provider configured that cannot reach its server. Worth knowing before someone reads it as a build failure.",
+    "puerts-runtime/typing/ue/ue.d.ts was not regenerated. It is an editor-toolbar snapshot documented in its PROVENANCE.md, already one commit behind after the serializer change, and the runtime compiles against the hand-written puerts-runtime/types/puerts-bootstrap.d.ts, which was updated.",
+    "One unexplained observation, not a finding: during the scratch acceptance run a find_actors name filter for BP_Probe returned zero immediately after a Blueprint compile, while the same filter through the session tools returned both actors a minute later. No reproduction, so it is recorded here rather than in CAPABILITY_FINDINGS.",
+    "Level left tidy: the second acceptance pass spawned a duplicate BP_ProbeDoor_C_1, which was deleted. BP_ProbeDoor_C_0 remains as the screenshot subject. The two generated assets remain in /Game/MCPGenerated."
+  ],
+  "recommended_next_goal": "Phase F1/F2 need limitation 6 first: add per-component properties to blueprint_build through SetObjectPropertyJson rather than SetComponentProperty's ImportText path, so a generated StaticMeshComponent can be given a mesh."
+}

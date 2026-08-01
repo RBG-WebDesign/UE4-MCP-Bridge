@@ -89,6 +89,20 @@ export function decodeStructuredValue(value: JsonValue): JsonValue {
   }
 }
 
+export function objectArray(input: JsonObject, key: string): JsonObject[] {
+  const raw = input[key];
+  if (raw === undefined || raw === null) {
+    return [];
+  }
+  const value = decodeStructuredValue(raw);
+  const isObjectEntry = (entry: JsonValue): boolean =>
+    entry !== null && typeof entry === "object" && !Array.isArray(entry);
+  if (!Array.isArray(value) || !value.every(isObjectEntry)) {
+    throw new Error(key + " must be an array of objects");
+  }
+  return value as JsonObject[];
+}
+
 export function stringArray(input: JsonObject, key: string): string[] {
   const raw = input[key];
   if (raw === undefined) {

@@ -105,7 +105,12 @@ project until something breaks; every break loops back to Phase L:
       reads now go through native FJsonObjectConverter for object paths too, and
       the untyped `value` schema that made clients stringify structs is gone;
       live acceptance in docs/CAPABILITY_FINDINGS.md, verify green)
-- [ ] Phase L: builder re-fronted
+- [x] Phase L: builder re-fronted (`puerts_blueprint_build`: JSON spec in,
+      compiled and saved Blueprint actor out, through the existing
+      MCPBridgeGraphBuilder rather than a rewrite. Validate-before-mutate, so a
+      rejected spec never creates an asset; idempotent on rerun. Real node
+      vocabulary is eight types, not the eleven passes the specs describe;
+      recorded in docs/CAPABILITY_FINDINGS.md)
 - [ ] Phase F1 material
 - [ ] Phase F2 blueprint actor
 - [ ] Phase F3 gameplay slice

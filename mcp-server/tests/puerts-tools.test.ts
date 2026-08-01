@@ -55,8 +55,9 @@ async function main(): Promise<void> {
     });
     const client = new PuerTSClient();
     const tools = createPuertsTools(client);
-    assert(tools.length === 17, "expected all 17 PuerTS tools");
+    assert(tools.length === 18, "expected all 18 PuerTS tools");
     assert(tools.some((tool) => tool.name === "puerts_sky_shader_create"), "native sky shader tool is missing");
+    assert(tools.some((tool) => tool.name === "puerts_blueprint_build"), "native Blueprint builder tool is missing");
     const response = await client.call("find_actors", {});
     assert(response.success && response.message === "Actors found.", "valid response was rejected");
     const actorTool = tools.find((tool) => tool.name === "puerts_find_actors");
@@ -217,8 +218,109 @@ async function marshalingSuite(): Promise<void> {
   }
 }
 
+/** puerts_blueprint_build advertises the node types the C++ builder can
+    actually spawn. A client that is told "any node type" writes graphs the
+    builder silently skips, which produces a Blueprint that compiles clean and
+    does nothing. These assertions pin the advertised surface and the
+    validation that keeps a bad spec off the pipe. */
+async function blueprintBuildSuite(): Promise<void> {
+  const directory = await mkdtemp(join(tmpdir(), "ue4-puerts-bp-"));
+  const tokenPath = join(directory, "token.txt");
+  const pipeName = `\\\\.\\pipe\\ue4-puerts-bp-${process.pid}-${Date.now()}`;
+  await writeFile(tokenPath, "test-token", "utf8");
+  process.env.MCP_PUERTS_TOKEN_PATH = tokenPath;
+  process.env.MCP_PUERTS_PIPE = pipeName;
+
+  const received: Record<string, unknown>[] = [];
+  const server = createServer((socket) => socket.once("data", (data: Buffer) => {
+    const request = JSON.parse(data.toString("utf8")) as {
+      params?: Record<string, unknown>;
+      tool?: string;
+      timeout_ms?: number;
+    };
+    received.push({ ...(request.params ?? {}), __tool: request.tool, __timeout: request.timeout_ms });
+    socket.end(JSON.stringify({
+      success: true,
+      message: "Blueprint created.",
+      data: { asset_path: "/Game/MCPGenerated/BP_ProbeDoor", created: true, compile_status: "UpToDate" },
+      changed_assets: ["/Game/MCPGenerated/BP_ProbeDoor.BP_ProbeDoor"],
+      changed_actors: [],
+      warnings: [],
+      errors: [],
+      log_output: [],
+      transaction_id: "T2",
+    }) + "\n");
+  }));
+
+  try {
+    await new Promise<void>((resolve, reject) => {
+      server.once("error", reject);
+      server.listen(pipeName, resolve);
+    });
+    const tool = createPuertsTools(new PuerTSClient())
+      .find((entry) => entry.name === "puerts_blueprint_build");
+    assert(tool !== undefined, "puerts_blueprint_build is missing");
+
+    const built = await tool.handler({
+      asset_path: "/Game/MCPGenerated/BP_ProbeDoor",
+      components: [{ class: "StaticMeshComponent", name: "Mesh" }],
+      graph: {
+        nodes: [
+          { id: "start", type: "BeginPlay" },
+          { id: "print", type: "PrintString", params: { InString: "probe" } },
+        ],
+        connections: [{ from: "start.exec", to: "print.exec" }],
+      },
+    });
+    assert(JSON.parse(built.content[0]?.text ?? "null").success === true, "a valid Blueprint spec was rejected");
+    const sent = received[0];
+    assert(Array.isArray(sent?.components), "components did not reach the pipe as an array");
+    assert(
+      (sent?.graph as { nodes?: unknown[] } | undefined)?.nodes?.length === 2,
+      "graph did not reach the pipe as an object",
+    );
+    assert(sent?.__tool === "blueprint_build", "the runtime command name is wrong");
+    assert(
+      typeof sent?.__timeout === "number" && (sent.__timeout as number) > 5000,
+      "asset authoring did not get its own timeout budget",
+    );
+
+    const structuredFromText = await tool.handler({
+      asset_path: "/Game/MCPGenerated/BP_ProbeDoor",
+      components: '[{"class":"StaticMeshComponent","name":"Mesh"}]',
+      graph: '{"nodes":[{"id":"start","type":"BeginPlay"}]}',
+    });
+    assert(
+      JSON.parse(structuredFromText.content[0]?.text ?? "null").success === true,
+      "structured Blueprint parameters sent as JSON text were rejected",
+    );
+    assert(Array.isArray(received[1]?.components), "components text was not decoded before the pipe");
+
+    const badNodeType = await tool.handler({
+      asset_path: "/Game/MCPGenerated/BP_ProbeDoor",
+      graph: { nodes: [{ id: "bogus", type: "TotallyNotANode" }] },
+    });
+    const badPayload = JSON.parse(badNodeType.content[0]?.text ?? "null") as Record<string, unknown>;
+    assert(badPayload.success === false, "an unsupported node type was accepted");
+    assert(received.length === 2, "the unsupported node type still reached the editor");
+
+    const badPath = await tool.handler({ asset_path: "/Engine/Transient" });
+    assert(
+      JSON.parse(badPath.content[0]?.text ?? "null").success === false,
+      "a path outside /Game/MCPGenerated was accepted",
+    );
+    console.log("  PASS  Blueprint build schema, structured parameters, and rejected specs");
+  } finally {
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+    await rm(directory, { recursive: true, force: true });
+    delete process.env.MCP_PUERTS_TOKEN_PATH;
+    delete process.env.MCP_PUERTS_PIPE;
+  }
+}
+
 main()
   .then(marshalingSuite)
+  .then(blueprintBuildSuite)
   .catch((error: unknown) => {
     console.error(`  FAIL  ${error instanceof Error ? error.message : String(error)}`);
     process.exit(1);

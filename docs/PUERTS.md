@@ -104,7 +104,7 @@ MCP_PUERTS_TOKEN=<token value>
 
 ## Tools
 
-The native catalog currently contributes 17 prefixed tools:
+The native catalog currently contributes 18 prefixed tools:
 
 ```text
 puerts_diagnostic
@@ -116,6 +116,7 @@ puerts_call_function
 puerts_spawn_actor
 puerts_delete_actor
 puerts_sky_shader_create
+puerts_blueprint_build
 puerts_physics_build
 puerts_physics_observe
 puerts_viewport_screenshot

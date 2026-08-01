@@ -1,6 +1,6 @@
 # Tool migration policy
 
-The bridge has two catalogs: 17 native pipe tools (default) and 170 legacy HTTP
+The bridge has two catalogs: 18 native pipe tools (default) and 170 legacy HTTP
 tools (opt-in via `MCP_ENABLE_LEGACY_HTTP=1`), plus 2 server-local engine-source
 tools. The legacy catalog is the starting capability library for the native
 system, not dead code. Its names, schemas, validation rules, and tests are the
@@ -39,7 +39,7 @@ stays in the tree.
 `needs_port`, `duplicate`, `blocked`, `deprecated`, `migrated_verified`.
 
 Initial assignment is automatic: the 12 legacy tools whose capability already
-exists in the native 17 are `hybrid_candidate` with `target_replacement` set;
+exists in the native catalog are `hybrid_candidate` with `target_replacement` set;
 the rest are `legacy_untested`. Reclassification is a reviewed inventory edit.
 
 A `wrap` entry is the alias itself, not the legacy tool. Alias and legacy tool

@@ -90,6 +90,7 @@ declare module "ue" {
     SpawnActorJson(classPath: string, x: number, y: number, z: number, pitch: number, yaw: number, roll: number, outActorJson: $Ref<string>, outError: $Ref<string>): boolean;
     DeleteLevelActor(nameOrPath: string, confirmed: boolean, outActorPath: $Ref<string>, outError: $Ref<string>): boolean;
     CreateAuroraSkyMaterialJson(assetPath: string, skyActorName: string, outResultJson: $Ref<string>, outError: $Ref<string>): boolean;
+    BuildBlueprintJson(specJson: string, outResultJson: $Ref<string>, outError: $Ref<string>): boolean;
     BuildPhysicsSceneJson(specJson: string, outResultJson: $Ref<string>, outError: $Ref<string>): boolean;
     ObservePhysicsSceneJson(requestJson: string, outResultJson: $Ref<string>, outError: $Ref<string>): boolean;
     CaptureViewportJson(requestJson: string, outResultJson: $Ref<string>, outError: $Ref<string>): boolean;

@@ -18,12 +18,25 @@ public:
      *
      * JSON format:
      * {
-     *   "nodes": [{"id": "start", "type": "BeginPlay"}, {"id": "print", "type": "PrintString"}],
+     *   "nodes": [{"id": "start", "type": "BeginPlay"},
+     *             {"id": "print", "type": "PrintString", "params": {"InString": "hi"}, "x": 300, "y": 0}],
      *   "connections": [{"from": "start.exec", "to": "print.exec"}]
      * }
      *
-     * Supported types (Pass 1): BeginPlay, PrintString
-     * Connection pin roles: exec (output Then on source, input Execute on target)
+     * Supported node types are exactly the list GetSupportedNodeTypes returns;
+     * anything else is skipped with a warning. Optional per-node fields:
+     * "params" (pin name -> default value, applied to CallFunction, PrintString,
+     * Sequence.num_outputs and Comment.text/width/height), "x" and "y".
+     *
+     * Connection endpoints are "nodeId.pinRole". The role "exec" is
+     * direction-aware (Then on the source, Execute on the target), "then" is
+     * always Then, and anything else is a literal pin name, so data pins wire
+     * through the same array.
+     *
+     * This is the low-level executor. It returns nothing and reports problems
+     * only to the log; callers that need a structured result should go through
+     * the blueprint_build native command, which validates the spec before any
+     * asset is touched and reports compiler messages.
      */
     UFUNCTION(BlueprintCallable, Category="BlueprintGraphBuilder")
     static void BuildBlueprintFromJSON(
@@ -31,6 +44,13 @@ public:
         const FString& JsonString,
         bool bClearExistingGraph = true
     );
+
+    /** The node types BuildBlueprintFromJSON can spawn today, in dispatch
+     *  order. This is the gate the node loop checks, not a parallel list, so a
+     *  dispatch case that is not named here stops working the moment it is
+     *  added: that failure is loud, and a silently stale list is not. */
+    UFUNCTION(BlueprintCallable, Category="BlueprintGraphBuilder")
+    static TArray<FString> GetSupportedNodeTypes();
 
     /** Add a component to a Blueprint's SimpleConstructionScript.
      *  This is the missing piece that lets Python build proper Blueprint actors

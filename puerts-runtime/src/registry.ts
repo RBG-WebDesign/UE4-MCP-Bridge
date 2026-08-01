@@ -17,6 +17,7 @@ import {
 import {
   commandFailure,
   decodeStructuredValue,
+  objectArray,
   optionalObject,
   outputSchema,
   resolveObject,
@@ -268,6 +269,59 @@ async function createSkyShader(context: ToolContext, input: JsonObject): Promise
   return result;
 }
 
+/** Create or update a Blueprint actor asset from one spec. The composition
+    happens here; the node spawning stays in MCPBridgeGraphBuilder, reached
+    through the native service. The native side validates the whole spec
+    before it touches an asset, so an unsupported node type is a rejection
+    rather than a Blueprint with a partial graph. */
+async function buildBlueprint(context: ToolContext, input: JsonObject): Promise<CommandResponse> {
+  const assetPath = requireString(input, "asset_path");
+  if (!assetPath.startsWith("/Game/MCPGenerated/")) {
+    throw new Error("Blueprint assets are limited to /Game/MCPGenerated/");
+  }
+  const spec: JsonObject = {
+    asset_path: assetPath,
+    parent_class: optionalString(input, "parent_class") ?? "Actor",
+    components: objectArray(input, "components"),
+    compile: optionalBoolean(input, "compile", true),
+    save: optionalBoolean(input, "save", true),
+    clear_existing_graph: optionalBoolean(input, "clear_existing_graph", true),
+  };
+  const graph = optionalObject(input, "graph");
+  if (graph !== undefined) {
+    spec.graph = graph;
+  }
+
+  const resultJson = puerts.$ref<string>("");
+  const error = puerts.$ref<string>("");
+  if (!context.bridge.BuildBlueprintJson(JSON.stringify(spec), resultJson, error)) {
+    throw new Error(puerts.$unref(error));
+  }
+  const parsed = JSON.parse(puerts.$unref(resultJson)) as JsonObject;
+  const errors = stringArray(parsed, "errors");
+  const warnings = stringArray(parsed, "warnings");
+  // The envelope's errors and warnings are the contract; repeating them
+  // inside data would give a caller two places to disagree about.
+  delete parsed.errors;
+  delete parsed.warnings;
+
+  const created = parsed.created === true;
+  const result = response(
+    errors.length === 0,
+    errors.length > 0
+      ? "Blueprint build reported errors."
+      : created ? "Blueprint created." : "Blueprint updated.",
+    parsed,
+  );
+  result.errors.push(...errors);
+  result.warnings.push(...warnings);
+  const objectPath = parsed.object_path;
+  if (typeof objectPath === "string" && objectPath.length > 0) {
+    result.changed_assets.push(objectPath);
+  }
+  return result;
+}
+
 async function buildPhysics(context: ToolContext, input: JsonObject): Promise<CommandResponse> {
   const actors = input.actors;
   if (!Array.isArray(actors) || actors.length === 0 || actors.length > 200) {
@@ -392,6 +446,7 @@ export const toolDefinitions: readonly ToolDefinition[] = [
   { name: "spawn_actor", inputSchema: schema({ class_path: { type: "string" }, location: { type: "object" }, rotation: { type: "object" } }, ["class_path"]), outputSchema, permissions: ["actors.spawn"], executionTimeoutMs: 3000, execute: spawnActor },
   { name: "delete_actor", inputSchema: schema({ actor: { type: "string" }, confirm: { type: "boolean" } }, ["actor", "confirm"]), outputSchema, permissions: ["actors.delete"], executionTimeoutMs: 2000, execute: deleteActor },
   { name: "sky_shader_create", inputSchema: schema({ asset_path: { type: "string" }, sky_actor: { type: "string" } }), outputSchema, permissions: ["assets.write", "reflection.write"], executionTimeoutMs: 10000, execute: createSkyShader },
+  { name: "blueprint_build", inputSchema: schema({ asset_path: { type: "string" }, parent_class: { type: "string" }, components: { type: "array", items: { type: "object" } }, graph: { type: "object" }, compile: { type: "boolean" }, save: { type: "boolean" }, clear_existing_graph: { type: "boolean" } }, ["asset_path"]), outputSchema, permissions: ["assets.write"], executionTimeoutMs: 30000, execute: buildBlueprint },
   { name: "physics_build", inputSchema: schema({ actors: { type: "array", items: { type: "object" } } }, ["actors"]), outputSchema, permissions: ["actors.spawn"], executionTimeoutMs: 10000, execute: buildPhysics },
   { name: "physics_observe", inputSchema: schema({ actors: { type: "array", items: { type: "string" } } }), outputSchema, permissions: ["actors.read"], executionTimeoutMs: 2000, execute: observePhysics },
   { name: "viewport_screenshot", inputSchema: schema({ actors: { type: "array", items: { type: "string" } }, filename: { type: "string" } }), outputSchema, permissions: ["viewport.capture"], executionTimeoutMs: 2000, execute: captureViewport },

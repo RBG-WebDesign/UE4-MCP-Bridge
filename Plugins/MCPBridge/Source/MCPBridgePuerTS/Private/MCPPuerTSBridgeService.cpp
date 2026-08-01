@@ -120,7 +120,8 @@ bool UMCPPuerTSBridgeService::Initialize(FString& OutError)
             TEXT("diagnostic"), TEXT("find_assets"), TEXT("find_actors"), TEXT("read_property"), TEXT("set_property"),
             TEXT("call_function"), TEXT("spawn_actor"), TEXT("delete_actor"), TEXT("save"),
             TEXT("pie_start"), TEXT("pie_stop"), TEXT("get_logs"), TEXT("undo"),
-            TEXT("physics_build"), TEXT("physics_observe"), TEXT("viewport_screenshot"), TEXT("sky_shader_create")
+            TEXT("physics_build"), TEXT("physics_observe"), TEXT("viewport_screenshot"), TEXT("sky_shader_create"),
+            TEXT("blueprint_build")
         };
         for (const TCHAR* Value : Defaults) { AllowedTools.Add(Value); }
     }
@@ -1153,7 +1154,8 @@ bool UMCPPuerTSBridgeService::IsToolMutating(const FString& ToolName) const
         || ToolName == TEXT("spawn_actor")
         || ToolName == TEXT("delete_actor")
         || ToolName == TEXT("physics_build")
-        || ToolName == TEXT("sky_shader_create");
+        || ToolName == TEXT("sky_shader_create")
+        || ToolName == TEXT("blueprint_build");
 }
 
 void UMCPPuerTSBridgeService::EndActiveCommand()
