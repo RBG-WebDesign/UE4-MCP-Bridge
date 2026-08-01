@@ -111,7 +111,15 @@ project until something breaks; every break loops back to Phase L:
       rejected spec never creates an asset; idempotent on rerun. Real node
       vocabulary is eight types, not the eleven passes the specs describe;
       recorded in docs/CAPABILITY_FINDINGS.md)
-- [ ] Phase F1 material
+- [x] Phase L: component properties on generated Blueprints (`properties` per
+      component, marshaled through FJsonObjectConverter with UObject references
+      resolved by explicit load; two silent-no-op holes in the converter's
+      ImportText fallback found by probing and closed)
+- [x] Phase F1 material (BP_ProbeDoor rebuilt with an engine mesh, an engine
+      material, and the Game-authored M_NativeAuroraSky on a second component;
+      spawned and visually confirmed in
+      `Saved/Screenshots/MCPBridge/phase-f1-component-properties.png`; idempotent
+      rerun and changed-value rerun both proven, level returned to 12 actors)
 - [ ] Phase F2 blueprint actor
 - [ ] Phase F3 gameplay slice
 - [ ] Phase F4 stamina feature

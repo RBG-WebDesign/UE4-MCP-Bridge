@@ -11,11 +11,13 @@
 #include "Engine/SimpleConstructionScript.h"
 #include "GameFramework/Actor.h"
 #include "Json.h"
+#include "JsonObjectConverter.h"
 #include "Kismet2/BlueprintEditorUtils.h"
 #include "Kismet2/KismetEditorUtilities.h"
 #include "Misc/PackageName.h"
 #include "Modules/ModuleManager.h"
 #include "UObject/Package.h"
+#include "UObject/UnrealType.h"
 
 namespace
 {
@@ -53,6 +55,15 @@ namespace
         return nullptr;
     }
 
+    /** One requested property of a component template. The order the caller
+        wrote them in is kept, so an error message names the property the
+        caller can find in its own spec. */
+    struct FRequestedProperty
+    {
+        FString Name;
+        TSharedPtr<FJsonValue> Value;
+    };
+
     /** One entry of the validated components list. Validation runs to
         completion before a single SCS node is created, so the build loop
         cannot fail halfway and leave an asset with some of its components. */
@@ -61,7 +72,225 @@ namespace
         FString Name;
         FString AttachTo;
         UClass* Class = nullptr;
+        TArray<FRequestedProperty> Properties;
     };
+
+    /** Does this JSON value have the shape its property can actually take?
+
+        FJsonObjectConverter answers "yes" to more than it can honour. Its
+        fallback for a value it does not recognise is FProperty::ImportText
+        with the result discarded, so `"RelativeScale3D": "big"` sets nothing,
+        reports success, and leaves a caller believing a scale was applied.
+        Requiring the shape up front turns that into a rejection with a reason.
+        The table is deliberately narrow: a category not named here still goes
+        to the converter. */
+    bool CheckJsonShape(const FProperty* Property, const TSharedPtr<FJsonValue>& Value, FString& OutError)
+    {
+        const EJson Type = Value->Type;
+        const TCHAR* Expected = nullptr;
+        if (Property->IsA<FStructProperty>())
+        {
+            Expected = (Type == EJson::Object) ? nullptr : TEXT("an object such as {\"x\":0,\"y\":0,\"z\":0}");
+        }
+        else if (Property->IsA<FArrayProperty>() || Property->IsA<FSetProperty>())
+        {
+            Expected = (Type == EJson::Array) ? nullptr : TEXT("an array");
+        }
+        else if (Property->IsA<FMapProperty>())
+        {
+            Expected = (Type == EJson::Object) ? nullptr : TEXT("an object of key/value pairs");
+        }
+        else if (Property->IsA<FBoolProperty>())
+        {
+            Expected = (Type == EJson::Boolean) ? nullptr : TEXT("true or false");
+        }
+        else if (Property->IsA<FEnumProperty>() || Property->IsA<FByteProperty>())
+        {
+            // An enum is the one numeric property where an in-range check is
+            // not pedantry: writing 7.5 into Mobility passes reflection and
+            // then trips an engine ensure inside PostEditChangeProperty.
+            const UEnum* Enum = nullptr;
+            if (const FEnumProperty* EnumProperty = CastField<const FEnumProperty>(Property))
+            {
+                Enum = EnumProperty->GetEnum();
+            }
+            else if (const FByteProperty* ByteProperty = CastField<const FByteProperty>(Property))
+            {
+                Enum = ByteProperty->Enum;
+            }
+            if (Type != EJson::String && Type != EJson::Number)
+            {
+                Expected = TEXT("an enumerator name or its numeric value");
+            }
+            else if (Enum != nullptr)
+            {
+                const bool bValid = (Type == EJson::String)
+                    ? Enum->GetValueByNameString(Value->AsString()) != INDEX_NONE
+                    : (static_cast<double>(static_cast<int64>(Value->AsNumber())) == Value->AsNumber()
+                        && Enum->IsValidEnumValue(static_cast<int64>(Value->AsNumber())));
+                if (!bValid)
+                {
+                    TArray<FString> Names;
+                    for (int32 Index = 0; Index < Enum->NumEnums() - 1; ++Index)
+                    {
+                        Names.Add(FString::Printf(
+                            TEXT("%s=%lld"), *Enum->GetNameStringByIndex(Index), Enum->GetValueByIndex(Index)));
+                    }
+                    OutError = FString::Printf(
+                        TEXT("expects a %s enumerator: %s"), *Enum->GetName(), *FString::Join(Names, TEXT(", ")));
+                    return false;
+                }
+            }
+        }
+        else if (Property->IsA<FNumericProperty>())
+        {
+            Expected = (Type == EJson::Number) ? nullptr : TEXT("a number");
+        }
+        else if (Property->IsA<FStrProperty>() || Property->IsA<FNameProperty>() || Property->IsA<FTextProperty>())
+        {
+            Expected = (Type == EJson::String) ? nullptr : TEXT("a string");
+        }
+        if (Expected == nullptr)
+        {
+            return true;
+        }
+        OutError = FString::Printf(TEXT("expects %s"), Expected);
+        return false;
+    }
+
+    /** Marshal one JSON value into one reflected property, or, with a null
+        ValuePtr, check that it could be without writing anything.
+
+        FJsonObjectConverter does the work for every type it handles well, which
+        after the Phase L serializer change is the same path read_property and
+        set_property use. Two shapes are resolved here instead:
+
+        - A UObject* property from an asset path string. The converter's own
+          route for that case is FProperty::ImportText, which ignores its own
+          parse result: an unresolvable path silently leaves the property null
+          and still reports success. An asset reference that quietly does not
+          apply is exactly the failure this tool exists to make visible, so the
+          object is loaded explicitly and a miss is an error.
+        - An array of UObject* properties, element by element, for the same
+          reason. OverrideMaterials is the common case. */
+    bool ApplyJsonToProperty(
+        FProperty* Property,
+        void* ValuePtr,
+        const TSharedPtr<FJsonValue>& Value,
+        FString& OutError)
+    {
+        if (!Value.IsValid())
+        {
+            OutError = TEXT("value is missing");
+            return false;
+        }
+        if (FObjectProperty* ObjectProperty = CastField<FObjectProperty>(Property))
+        {
+            FString Path;
+            if (Value->Type != EJson::Null && !Value->TryGetString(Path))
+            {
+                OutError = TEXT("expects an asset path string such as \"/Engine/BasicShapes/Cube.Cube\", or null to clear");
+                return false;
+            }
+            if (Value->Type == EJson::Null || Path.IsEmpty() || Path == TEXT("None"))
+            {
+                if (ValuePtr != nullptr)
+                {
+                    ObjectProperty->SetObjectPropertyValue(ValuePtr, nullptr);
+                }
+                return true;
+            }
+            UObject* Loaded = LoadObject<UObject>(nullptr, *Path);
+            if (Loaded == nullptr)
+            {
+                OutError = FString::Printf(TEXT("asset '%s' could not be loaded"), *Path);
+                return false;
+            }
+            if (ObjectProperty->PropertyClass != nullptr && !Loaded->IsA(ObjectProperty->PropertyClass))
+            {
+                OutError = FString::Printf(
+                    TEXT("'%s' is a %s, but the property holds a %s"),
+                    *Path,
+                    *Loaded->GetClass()->GetName(),
+                    *ObjectProperty->PropertyClass->GetName());
+                return false;
+            }
+            if (const FClassProperty* ClassProperty = CastField<FClassProperty>(Property))
+            {
+                UClass* LoadedClass = Cast<UClass>(Loaded);
+                if (LoadedClass == nullptr
+                    || (ClassProperty->MetaClass != nullptr && !LoadedClass->IsChildOf(ClassProperty->MetaClass)))
+                {
+                    OutError = FString::Printf(
+                        TEXT("'%s' is not a class deriving from %s"),
+                        *Path,
+                        ClassProperty->MetaClass != nullptr ? *ClassProperty->MetaClass->GetName() : TEXT("Object"));
+                    return false;
+                }
+            }
+            if (ValuePtr != nullptr)
+            {
+                ObjectProperty->SetObjectPropertyValue(ValuePtr, Loaded);
+            }
+            return true;
+        }
+        if (FArrayProperty* ArrayProperty = CastField<FArrayProperty>(Property))
+        {
+            if (CastField<FObjectProperty>(ArrayProperty->Inner) != nullptr)
+            {
+                const TArray<TSharedPtr<FJsonValue>>* Items = nullptr;
+                if (!Value->TryGetArray(Items))
+                {
+                    OutError = TEXT("expects an array of asset path strings");
+                    return false;
+                }
+                if (ValuePtr == nullptr)
+                {
+                    for (int32 Index = 0; Index < Items->Num(); ++Index)
+                    {
+                        FString ElementError;
+                        if (!ApplyJsonToProperty(ArrayProperty->Inner, nullptr, (*Items)[Index], ElementError))
+                        {
+                            OutError = FString::Printf(TEXT("element %d: %s"), Index, *ElementError);
+                            return false;
+                        }
+                    }
+                    return true;
+                }
+                FScriptArrayHelper ArrayHelper(ArrayProperty, ValuePtr);
+                ArrayHelper.Resize(Items->Num());
+                for (int32 Index = 0; Index < Items->Num(); ++Index)
+                {
+                    FString ElementError;
+                    if (!ApplyJsonToProperty(
+                            ArrayProperty->Inner, ArrayHelper.GetRawPtr(Index), (*Items)[Index], ElementError))
+                    {
+                        OutError = FString::Printf(TEXT("element %d: %s"), Index, *ElementError);
+                        return false;
+                    }
+                }
+                return true;
+            }
+        }
+        if (!CheckJsonShape(Property, Value, OutError))
+        {
+            return false;
+        }
+        if (ValuePtr == nullptr)
+        {
+            // The shape is as much as can be checked without writing. The
+            // converter has no dry run, so a value of the right shape that it
+            // still refuses is reported at apply time.
+            return true;
+        }
+        if (!FJsonObjectConverter::JsonValueToUProperty(Value, Property, ValuePtr))
+        {
+            OutError = FString::Printf(
+                TEXT("value is not valid for its reflected type (%s)"), *Property->GetCPPType());
+            return false;
+        }
+        return true;
+    }
 
     FString JoinStrings(const TArray<FString>& Values)
     {
@@ -163,6 +392,35 @@ bool UMCPPuerTSBridgeService::BuildBlueprintJson(
                     TEXT("Component class must derive from ActorComponent: %s does not."),
                     *Component.Class->GetPathName());
                 return false;
+            }
+
+            // Properties are checked against the component class here, before
+            // anything is created, so a misspelled property name or an asset
+            // path that does not resolve rejects the whole spec rather than
+            // leaving a Blueprint whose mesh is silently null.
+            const TSharedPtr<FJsonObject>* PropertyObject = nullptr;
+            if ((*Entry)->TryGetObjectField(TEXT("properties"), PropertyObject))
+            {
+                for (const TPair<FString, TSharedPtr<FJsonValue>>& Pair : (*PropertyObject)->Values)
+                {
+                    FProperty* Property = FindFProperty<FProperty>(Component.Class, *Pair.Key);
+                    if (Property == nullptr)
+                    {
+                        OutError = FString::Printf(
+                            TEXT("Component '%s' property '%s': %s has no reflected property by that name."),
+                            *Component.Name, *Pair.Key, *Component.Class->GetName());
+                        return false;
+                    }
+                    FString PropertyError;
+                    if (!ApplyJsonToProperty(Property, nullptr, Pair.Value, PropertyError))
+                    {
+                        OutError = FString::Printf(
+                            TEXT("Component '%s' property '%s': %s."),
+                            *Component.Name, *Pair.Key, *PropertyError);
+                        return false;
+                    }
+                    Component.Properties.Add({ Pair.Key, Pair.Value });
+                }
             }
             Components.Add(Component);
         }
@@ -360,6 +618,7 @@ bool UMCPPuerTSBridgeService::BuildBlueprintJson(
     TArray<TSharedPtr<FJsonValue>> ComponentResults;
     TArray<TSharedPtr<FJsonValue>> Errors;
     TArray<TSharedPtr<FJsonValue>> Warnings;
+    bool bTemplatesChanged = false;
     for (const FValidatedComponent& Component : Components)
     {
         const bool bComponentExisted = FindComponentNode(Blueprint, Component.Name) != nullptr;
@@ -371,12 +630,68 @@ bool UMCPPuerTSBridgeService::BuildBlueprintJson(
                 FString::Printf(TEXT("Component '%s' could not be added."), *Component.Name)));
             continue;
         }
+        // Properties are applied to the SCS template, which is the archetype
+        // every spawned instance copies, on both new and existing components:
+        // a rerun with a changed value has to converge on the new value.
+        TArray<TSharedPtr<FJsonValue>> AppliedProperties;
+        if (Component.Properties.Num() > 0)
+        {
+            USCS_Node* Node = FindComponentNode(Blueprint, Component.Name);
+            UActorComponent* Template = Node != nullptr ? Node->ComponentTemplate : nullptr;
+            if (Template == nullptr)
+            {
+                Errors.Add(MakeShared<FJsonValueString>(FString::Printf(
+                    TEXT("Component '%s' has no component template, so its properties were not applied."),
+                    *Component.Name)));
+            }
+            else
+            {
+                Template->Modify();
+                for (const FRequestedProperty& Requested : Component.Properties)
+                {
+                    FProperty* Property = FindFProperty<FProperty>(Template->GetClass(), *Requested.Name);
+                    if (Property == nullptr)
+                    {
+                        Errors.Add(MakeShared<FJsonValueString>(FString::Printf(
+                            TEXT("Component '%s' property '%s': %s has no reflected property by that name."),
+                            *Component.Name, *Requested.Name, *Template->GetClass()->GetName())));
+                        continue;
+                    }
+                    FString PropertyError;
+                    if (!ApplyJsonToProperty(
+                            Property,
+                            Property->ContainerPtrToValuePtr<void>(Template),
+                            Requested.Value,
+                            PropertyError))
+                    {
+                        Errors.Add(MakeShared<FJsonValueString>(FString::Printf(
+                            TEXT("Component '%s' property '%s': %s."),
+                            *Component.Name, *Requested.Name, *PropertyError)));
+                        continue;
+                    }
+                    // Name the property that changed: a component only rebuilds
+                    // the state that depends on it when the event says which
+                    // property moved.
+                    FPropertyChangedEvent ChangedEvent(Property, EPropertyChangeType::ValueSet);
+                    Template->PostEditChangeProperty(ChangedEvent);
+                    AppliedProperties.Add(MakeShared<FJsonValueString>(Requested.Name));
+                }
+                bTemplatesChanged = bTemplatesChanged || AppliedProperties.Num() > 0;
+            }
+        }
+
         TSharedPtr<FJsonObject> Result = MakeShared<FJsonObject>();
         Result->SetStringField(TEXT("name"), Component.Name);
         Result->SetStringField(TEXT("class"), Component.Class->GetPathName());
         Result->SetStringField(TEXT("attach_to"), Component.AttachTo);
         Result->SetBoolField(TEXT("created"), !bComponentExisted);
+        Result->SetArrayField(TEXT("properties_applied"), AppliedProperties);
         ComponentResults.Add(MakeShared<FJsonValueObject>(Result));
+    }
+
+    if (bTemplatesChanged)
+    {
+        FBlueprintEditorUtils::MarkBlueprintAsStructurallyModified(Blueprint);
     }
 
     if (bHasGraph)

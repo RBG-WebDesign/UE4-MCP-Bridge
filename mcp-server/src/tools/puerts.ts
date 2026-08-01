@@ -44,6 +44,15 @@ const blueprintComponent = z.object({
     "Name of a component declared earlier in this array or already on the "
     + "Blueprint. Omit to add at the root.",
   ),
+  properties: z.record(reflectedValue).optional().describe(
+    "Reflected properties applied to the component template, by property name: "
+    + "{\"StaticMesh\": \"/Engine/BasicShapes/Cube.Cube\", "
+    + "\"RelativeScale3D\": {\"x\":2,\"y\":2,\"z\":2}}. An asset reference is the "
+    + "object path as a string, and an array of them for a list such as "
+    + "OverrideMaterials; null clears a reference. A property name the component "
+    + "class does not have, or an asset path that does not resolve, rejects the "
+    + "whole spec before the asset is touched.",
+  ),
 }).strict();
 
 /** The node types UBlueprintGraphBuilderLibrary::BuildBlueprintFromJSON can
@@ -100,7 +109,10 @@ const specs = [
   ["puerts_sky_shader_create", "sky_shader_create", "Create an animated native HLSL aurora sky material and apply it to a sky sphere in one transaction.", z.object({ asset_path: z.string().optional(), sky_actor: z.string().optional() }).strict()],
   ["puerts_blueprint_build", "blueprint_build",
     "Create or update a compiled Blueprint actor asset from one JSON spec: parent class, "
-    + "components, and an event graph. Supported graph node types are BeginPlay, "
+    + "components with their template properties, and an event graph. A component property "
+    + "takes the value in its own reflected shape, and an asset reference as an object path "
+    + "string, so a StaticMeshComponent can be given a mesh and materials. Supported graph "
+    + "node types are BeginPlay, "
     + "ActorBeginOverlap, ActorEndOverlap, PrintString, CallFunction, Branch, Sequence, and "
     + "Comment; anything else is rejected before the asset is touched. Rerunning the same "
     + "spec converges: the asset is loaded rather than duplicated, an existing component of "

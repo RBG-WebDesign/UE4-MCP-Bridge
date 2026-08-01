@@ -309,7 +309,70 @@ async function blueprintBuildSuite(): Promise<void> {
       JSON.parse(badPath.content[0]?.text ?? "null").success === false,
       "a path outside /Game/MCPGenerated was accepted",
     );
+
+    // Component template properties. This is the marshaling that gives a
+    // generated StaticMeshComponent an actual mesh, so every value shape the
+    // native side distinguishes has to survive the trip: an asset path as a
+    // string, a list of them as an array, a struct as an object.
+    const withProperties = await tool.handler({
+      asset_path: "/Game/MCPGenerated/BP_ProbeDoor",
+      components: [{
+        class: "StaticMeshComponent",
+        name: "DoorMesh",
+        properties: {
+          StaticMesh: "/Engine/BasicShapes/Cube.Cube",
+          OverrideMaterials: ["/Engine/BasicShapes/BasicShapeMaterial.BasicShapeMaterial"],
+          RelativeScale3D: { x: 2, y: 2, z: 2 },
+          bVisible: true,
+        },
+      }],
+    });
+    assert(
+      JSON.parse(withProperties.content[0]?.text ?? "null").success === true,
+      "a component property spec was rejected",
+    );
+    const sentComponents = received[2]?.components as { properties?: Record<string, unknown> }[] | undefined;
+    const sentProperties = sentComponents?.[0]?.properties;
+    assert(
+      sentProperties?.StaticMesh === "/Engine/BasicShapes/Cube.Cube",
+      "an asset reference did not reach the pipe as a path string",
+    );
+    assert(
+      Array.isArray(sentProperties?.OverrideMaterials),
+      "a material list did not reach the pipe as an array",
+    );
+    assert(
+      (sentProperties?.RelativeScale3D as { x?: number } | undefined)?.x === 2,
+      "a struct property was flattened before the pipe",
+    );
+    assert(sentProperties?.bVisible === true, "a boolean property did not reach the pipe");
+
+    const propertiesFromText = await tool.handler({
+      asset_path: "/Game/MCPGenerated/BP_ProbeDoor",
+      components: '[{"class":"StaticMeshComponent","name":"DoorMesh",'
+        + '"properties":{"StaticMesh":"/Engine/BasicShapes/Cube.Cube"}}]',
+    });
+    assert(
+      JSON.parse(propertiesFromText.content[0]?.text ?? "null").success === true,
+      "component properties sent as JSON text were rejected",
+    );
+    const decodedComponents = received[3]?.components as { properties?: Record<string, unknown> }[] | undefined;
+    assert(
+      decodedComponents?.[0]?.properties?.StaticMesh === "/Engine/BasicShapes/Cube.Cube",
+      "nested component properties were not decoded before the pipe",
+    );
+
+    const badProperties = await tool.handler({
+      asset_path: "/Game/MCPGenerated/BP_ProbeDoor",
+      components: [{ class: "StaticMeshComponent", name: "DoorMesh", properties: ["StaticMesh"] }],
+    });
+    assert(
+      JSON.parse(badProperties.content[0]?.text ?? "null").success === false,
+      "properties as an array was accepted",
+    );
+    assert(received.length === 4, "a malformed properties value still reached the editor");
     console.log("  PASS  Blueprint build schema, structured parameters, and rejected specs");
+    console.log("  PASS  component template properties reach the pipe in their own shapes");
   } finally {
     await new Promise<void>((resolve) => server.close(() => resolve()));
     await rm(directory, { recursive: true, force: true });

@@ -3798,7 +3798,7 @@
       "backend": "native_pipe",
       "migration_state": "native",
       "target_replacement": null,
-      "description": "[PRIMARY NATIVE IPC] Create or update a compiled Blueprint actor asset from one JSON spec: parent class, components, and an event graph. Supported graph node types are BeginPlay, ActorBeginOverlap, ActorEndOverlap, PrintString, CallFunction, Branch, Sequence, and Comment; anything else is rejected before the asset is touched. Rerunning the same spec converges: the asset is loaded rather than duplicated, an existing component of the same name and class is left alone, and the event graph is rebuilt from the spec. Assets are limited to /Game/MCPGenerated/. Response reports compile status with compiler errors and warnings; the asset is only saved when it built clean.",
+      "description": "[PRIMARY NATIVE IPC] Create or update a compiled Blueprint actor asset from one JSON spec: parent class, components with their template properties, and an event graph. A component property takes the value in its own reflected shape, and an asset reference as an object path string, so a StaticMeshComponent can be given a mesh and materials. Supported graph node types are BeginPlay, ActorBeginOverlap, ActorEndOverlap, PrintString, CallFunction, Branch, Sequence, and Comment; anything else is rejected before the asset is touched. Rerunning the same spec converges: the asset is loaded rather than duplicated, an existing component of the same name and class is left alone, and the event graph is rebuilt from the spec. Assets are limited to /Game/MCPGenerated/. Response reports compile status with compiler errors and warnings; the asset is only saved when it built clean.",
       "schema": {
         "kind": "object",
         "params": {

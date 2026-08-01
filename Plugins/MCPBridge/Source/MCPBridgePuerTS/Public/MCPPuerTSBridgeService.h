@@ -141,9 +141,12 @@ public:
 
     /** Create or update a Blueprint actor asset from one JSON spec: parent
         class, SimpleConstructionScript components, and an event graph handed
-        to the existing MCPBridgeGraphBuilder executor. The whole spec is
-        validated before any asset is created or mutated, so a rejected request
-        never leaves a half-built Blueprint behind. */
+        to the existing MCPBridgeGraphBuilder executor. A component may carry a
+        properties object applied to its SCS template through
+        FJsonObjectConverter, with UObject references resolved by an explicit
+        load rather than by ImportText. The whole spec is validated before any
+        asset is created or mutated, so a rejected request never leaves a
+        half-built Blueprint behind. */
     UFUNCTION(BlueprintCallable, Category="MCP PuerTS Bridge")
     bool BuildBlueprintJson(
         const FString& SpecJson,

@@ -1,0 +1,81 @@
+{
+  "session_date": "2026-08-01",
+  "status": "success",
+  "goal": "Give puerts_blueprint_build per-component template properties (Phase L limitation 6), then Phase F1: first visible generated content in the level",
+  "context": "docs/MASTERY_PLAN_2026-07-31.md. Branch bridge/native-consolidation-2026-07-31. Live editor UE427PuerTSMCP, pipe UE427PuerTSMCP_UE427PuerTSMCP_81d778e7_skyshader5. Acceptance driven through the freshly built mcp-server/dist over stdio, because the session's own MCP server process predates the tool.",
+  "design_decisions": [
+    "SetComponentProperty was not used. Despite its JsonValue parameter name it calls FProperty::ImportText, wants Unreal text format, and discards the parse result. Component properties marshal through FJsonObjectConverter instead, the same call ReadObjectPropertyJson and SetObjectPropertyJson use, so one marshaling story covers the whole reflection lane.",
+    "UObject references are resolved by explicit LoadObject rather than left to the converter. Verified in 4.27 engine source first: JsonObjectConverter.cpp line 726 sends an FObjectProperty string to FProperty::ImportText, and FObjectPropertyBase::ImportText_Internal (PropertyBaseObject.cpp line 346) ignores its own bOk, setting the property to null and returning a non-null buffer. FindImportedObject does load a fully qualified path, so the happy path would have worked, but an unresolvable path would have applied nothing and reported success. That is the exact failure this tool exists to make visible.",
+    "The JSON value's shape is checked against the property category before the converter runs. The same discarded-ImportText fallback covers every other type, and probing caught two live cases: \"RelativeScale3D\": \"big\" was accepted and wrote nothing, and \"Mobility\": 7.5 wrote an out-of-range enumerator that tripped an engine ensure inside USceneComponent::PostEditChangeProperty. A struct now requires an object, an array an array, a number a number, an enum a real enumerator by name or value. The table is narrow on purpose: a property category not named there still goes to the converter.",
+    "Property checks run in the existing validate-before-mutate pass, so a bad property name or asset path rejects the whole spec before an asset is created. The apply pass still reports its own failures as structured errors, which set success false through the runtime's errors.length gate, so a rerun after a fix converges.",
+    "The writable-property allowlist that governs set_property on level actors is not consulted. It is eight entries long and would reject StaticMesh outright. The boundary for authoring is the /Game/MCPGenerated/ asset-path limit blueprint_build already enforced.",
+    "Properties are applied to existing components too, not only newly created ones, because a rerun with a changed value has to converge on the new value.",
+    "Errors name component, property, and reason in one sentence, including the array element index, so a caller can find the entry in its own spec."
+  ],
+  "changes": {
+    "Plugins/MCPBridge/Source/MCPBridgePuerTS/Private/MCPPuerTSBridgeBlueprint.cpp": "CheckJsonShape and ApplyJsonToProperty helpers (dry run when ValuePtr is null); per-component properties validated against the component class before any mutation and applied to the SCS template inside the same transaction, before compile; component results report properties_applied; one MarkBlueprintAsStructurallyModified after the loop",
+    "Plugins/MCPBridge/Source/MCPBridgePuerTS/Public/MCPPuerTSBridgeService.h": "BuildBlueprintJson doc comment records the properties field and the explicit-load rule",
+    "mcp-server/src/tools/puerts.ts": "blueprintComponent gains properties: z.record(reflectedValue) with examples; tool description mentions template properties",
+    "mcp-server/tests/puerts-tools.test.ts": "New assertions: a mixed-shape properties object reaches the pipe as string, array, object, and boolean; properties nested inside a JSON-text components array are decoded; properties as an array is rejected before the pipe",
+    "docs/CAPABILITY_FINDINGS.md": "Five new Working rows (template properties, Game-asset references, F1 visible content, convergence, property validate-before-mutate); limitation 6 moved to Fixed with the two converter holes written up; two new limitations (instance staleness, misspelled struct field)",
+    "docs/MASTERY_PLAN_2026-07-31.md": "Component-properties item and Phase F1 material ticked",
+    "docs/TOOL_INVENTORY.json": "Regenerated: contract drift on puerts_blueprint_build only (description and schema), still 202 tools, native_pipe 18"
+  },
+  "acceptance_live_editor": [
+    {
+      "case": "A. F1 build with component properties",
+      "call": "puerts_blueprint_build /Game/MCPGenerated/BP_ProbeDoor; DoorMesh = StaticMesh /Engine/BasicShapes/Cube.Cube, OverrideMaterials [/Engine/BasicShapes/BasicShapeMaterial.BasicShapeMaterial], RelativeScale3D {2,2,2}, Mobility \"Movable\"; SkyPanel attached to DoorMesh = the same cube with OverrideMaterials [/Game/MCPGenerated/M_NativeAuroraSky.M_NativeAuroraSky], RelativeLocation {y:150}, RelativeScale3D {0.5,0.5,0.5}, Mobility \"Movable\"; graph BeginPlay -> PrintString",
+      "result": "success true, created false (converged onto the Phase L asset), DoorMesh properties_applied [StaticMesh, OverrideMaterials, RelativeScale3D, Mobility], SkyPanel created true then false on later runs with its four properties, compile_status UpToDate, saved true, errors [], 177 ms round trip"
+    },
+    {
+      "case": "B. read-back off the spawned instance",
+      "result": "DoorMesh.StaticMesh = \"StaticMesh'/Engine/BasicShapes/Cube.Cube'\"; DoorMesh.OverrideMaterials = [\"Material'/Engine/BasicShapes/BasicShapeMaterial.BasicShapeMaterial'\"]; DoorMesh.Mobility = \"Movable\"; SkyPanel.OverrideMaterials = [\"Material'/Game/MCPGenerated/M_NativeAuroraSky.M_NativeAuroraSky'\"]; DoorMesh.RelativeScale3D = {x:2,y:2,z:2}"
+    },
+    {
+      "case": "C. screenshot, read by the agent",
+      "path": "D:/Unreal Projects/MASTER_PROJECT/SF_Repository/Sinfeld_240301/Tests/UE427PuerTSMCP/Saved/Screenshots/MCPBridge/phase-f1-component-properties.png",
+      "description": "2085x1138. A large light-grey cube stands on the dark checkered floor plane with its own cast shadow, lit from above, orange selection outline and the move gizmo at its origin. To its right, a smaller cube renders the aurora material: magenta and cyan zigzag waves over dark violet, also inside the selection outline. Sun, sky-light and atmosphere editor icons sit above; the background is the pale grey default sky. Solid shaded geometry, not the gizmo-only frame of the Phase L run."
+    },
+    {
+      "case": "D. idempotent rerun",
+      "result": "identical spec: success true, created false for the asset and for both components, the same seven properties applied, compile_status UpToDate, find_assets /Game/MCPGenerated count 3 (BP_ProbeDoor, BP_ProbeNative, M_NativeAuroraSky), find_actors BP_ProbeDoor count 1. No duplicates."
+    },
+    {
+      "case": "E. changed property value on rerun (convergence)",
+      "result": "A rerun with StaticMesh Cylinder, OverrideMaterials WorldGridMaterial and RelativeScale3D z 3 returned success with created false. A newly spawned instance read back Cylinder, WorldGridMaterial, z 3. Screenshot Saved/Screenshots/MCPBridge/phase-f1-convergence.png shows both actors: the tall dark checkered cylinder of the new state behind the white cube of the old one, each with its aurora panel. The restoring rerun (back to Cube, BasicShapeMaterial, z 2, plus Mobility) converged the same way and is the state the saved asset ends in."
+    },
+    {
+      "case": "F. property validate-before-mutate, eight rejected specs against the unused path /Game/MCPGenerated/BP_ProbeProps",
+      "results": [
+        "unknown property -> \"Component 'Mesh' property 'NotAProperty': StaticMeshComponent has no reflected property by that name.\"",
+        "unloadable asset -> \"Component 'Mesh' property 'StaticMesh': asset '/Engine/BasicShapes/NopeMesh.NopeMesh' could not be loaded.\"",
+        "asset of the wrong class -> \"Component 'Mesh' property 'StaticMesh': '/Engine/BasicShapes/BasicShapeMaterial.BasicShapeMaterial' is a Material, but the property holds a StaticMesh.\"",
+        "wrong class inside a material array -> \"Component 'Mesh' property 'OverrideMaterials': element 0: '/Engine/BasicShapes/Cube.Cube' is a StaticMesh, but the property holds a MaterialInterface.\"",
+        "string where an array belongs -> \"Component 'Mesh' property 'OverrideMaterials': expects an array of asset path strings.\"",
+        "string where a struct belongs -> \"Component 'Mesh' property 'RelativeScale3D': expects an object such as {\\\"x\\\":0,\\\"y\\\":0,\\\"z\\\":0}.\"",
+        "string where a bool belongs -> \"Component 'Mesh' property 'bVisible': expects true or false.\"",
+        "out-of-range and misspelled enumerator -> \"Component 'Mesh' property 'Mobility': expects a EComponentMobility enumerator: Static=0, Stationary=1, Movable=2.\" (7.5 and \"Teleporting\")",
+        "find_assets BP_ProbeProps afterwards -> count 0"
+      ]
+    },
+    {
+      "case": "G. cleanup",
+      "result": "puerts_delete_actor BP_ProbeDoor_C_0 confirmed, find_actors BP_Probe count 0, puerts_diagnostic actor_count_total 12, is_game_thread true, transport named_pipe. The level is back to its original 12 actors; the three assets in /Game/MCPGenerated remain."
+    }
+  ],
+  "build_and_verify": {
+    "cpp_builds": 3,
+    "cpp_build_detail": "Build.bat UE427PuerTSMCPEditor Win64 Development, zero errors each time: 8 actions / 13.0 s for the first cut, then 4 actions / 7.2 s for the shape check, then 4 actions / 7.4 s for the enum range check. The two extra cycles are the two silent-no-op holes probing found after the first build; each needed the editor stopped, the file copied to the test project, and a restart.",
+    "editor_restarts": 3,
+    "verify": "see verify_tail"
+  },
+  "notes": [
+    "The two follow-up C++ cycles are the interesting part of this chunk. The first cut applied properties correctly and passed its acceptance; probing invalid values afterwards is what found that FJsonObjectConverter answers success for values it cannot honour. Both holes are engine behaviour, not bridge behaviour, and both are now rejected before an asset is touched.",
+    "The Mobility 7.5 probe created /Game/MCPGenerated/BP_ProbeProps before the fix landed. It was deleted from disk while the editor was stopped for the next rebuild, so /Game/MCPGenerated ends with the same three assets it started with.",
+    "Changing a component template does not update instances already in the level; the compile does not re-run construction on them. Recorded as limitation 6 in its new form. A probe actor has to be respawned to show a template change.",
+    "Every blueprint_build save still logs 'Unable to Check Out From Source Control' as an auto-dismissed modal. The save succeeds; the test project has a source control provider it cannot reach.",
+    "puerts-runtime/src/registry.ts needed no change: objectArray passes each component object through untouched, and the runtime's success gate is already errors.length === 0, so an apply-time property error reports success false without new code.",
+    "puerts-runtime/typing/ue/ue.d.ts was not regenerated; it is an editor-toolbar snapshot and the runtime compiles against the hand-written puerts-bootstrap.d.ts, which needed no new declaration."
+  ],
+  "recommended_next_goal": "Phase F2: a Blueprint actor with variables and a real event graph. The blocker is the node vocabulary (limitation 8): BuildBlueprintFromJSON has eight node types and no variables, loops, or timers. UBlueprintMutatorLibrary is the richer surface to re-front next."
+}
