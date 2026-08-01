@@ -1,10 +1,12 @@
 # Tool migration policy
 
-The bridge has two catalogs: 18 native pipe tools (default) and 170 legacy HTTP
-tools (opt-in via `MCP_ENABLE_LEGACY_HTTP=1`), plus 2 server-local engine-source
-tools. The legacy catalog is the starting capability library for the native
-system, not dead code. Its names, schemas, validation rules, and tests are the
-salvageable assets; only the HTTP/Python execution paths get replaced.
+The bridge has two catalogs: the native pipe tools (default) and the legacy
+HTTP tools (opt-in via `MCP_ENABLE_LEGACY_HTTP=1`), plus the server-local
+engine-source tools. Counts live in the generated `docs/TOOL_INVENTORY.json`
+and `docs/CAPABILITY_SCOREBOARD.json`, never in prose. The legacy catalog is
+the starting capability library for the native system, not dead code. Its
+names, schemas, validation rules, and tests are the salvageable assets; only
+the HTTP/Python execution paths get replaced.
 
 ## Inventory
 
@@ -71,8 +73,8 @@ disagree.
 ## Alias policy
 
 Old public names survive as router-level aliases, not as default-advertised MCP
-tools. Advertising 189 names in `tools/list` bloats every client's tool
-selection context. The default catalog stays curated and native. A
+tools. Advertising every legacy name in `tools/list` bloats every client's
+tool selection context. The default catalog stays curated and native. A
 compatibility mode may register alias names for old prompts; an aliased result
 must report `requested_tool` and `canonical_tool` so callers can migrate.
 

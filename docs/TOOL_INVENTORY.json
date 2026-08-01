@@ -51,7 +51,22 @@
         "openWorldHint": false
       },
       "module_listener_commands": [],
-      "test_file": null
+      "test_file": null,
+      "capability_category": "actors",
+      "canonical_capability": "actors.delete",
+      "owner": "legacy Python listener",
+      "lifecycle": "active",
+      "migration_action": "ALIAS",
+      "replacement_tool": "puerts_delete_actor",
+      "compatibility_alias": true,
+      "cpp_builder": null,
+      "cpp_entry_point": null,
+      "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/actors.py",
+      "live_evidence": [],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": "layer: direct_reflection or new_native_wrapper per tool",
+      "verification": "untested"
     },
     {
       "name": "actor_delete",
@@ -73,7 +88,22 @@
         "openWorldHint": false
       },
       "module_listener_commands": [],
-      "test_file": "mcp-server/tests/compat-tools.test.ts"
+      "test_file": "mcp-server/tests/compat-tools.test.ts",
+      "capability_category": "compat",
+      "canonical_capability": "actors.delete",
+      "owner": "compat alias router",
+      "lifecycle": "active",
+      "migration_action": "ALIAS",
+      "replacement_tool": "puerts_delete_actor",
+      "compatibility_alias": true,
+      "cpp_builder": null,
+      "cpp_entry_point": null,
+      "python_handler": null,
+      "live_evidence": [],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": null,
+      "verification": "mock_only"
     },
     {
       "name": "actor_duplicate",
@@ -98,7 +128,22 @@
         "openWorldHint": false
       },
       "module_listener_commands": [],
-      "test_file": null
+      "test_file": null,
+      "capability_category": "actors",
+      "canonical_capability": "actors.actor_duplicate",
+      "owner": "legacy Python listener",
+      "lifecycle": "active",
+      "migration_action": "PORT",
+      "replacement_tool": null,
+      "compatibility_alias": false,
+      "cpp_builder": null,
+      "cpp_entry_point": null,
+      "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/actors.py",
+      "live_evidence": [],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": "layer: new_native_wrapper (transactions plus template copy)",
+      "verification": "untested"
     },
     {
       "name": "actor_modify",
@@ -126,7 +171,22 @@
         "openWorldHint": false
       },
       "module_listener_commands": [],
-      "test_file": null
+      "test_file": null,
+      "capability_category": "actors",
+      "canonical_capability": "properties.set",
+      "owner": "legacy Python listener",
+      "lifecycle": "active",
+      "migration_action": "ALIAS",
+      "replacement_tool": "puerts_set_property",
+      "compatibility_alias": true,
+      "cpp_builder": null,
+      "cpp_entry_point": null,
+      "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/actors.py",
+      "live_evidence": [],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": "layer: direct_reflection or new_native_wrapper per tool",
+      "verification": "untested"
     },
     {
       "name": "actor_modify",
@@ -154,7 +214,22 @@
         "openWorldHint": false
       },
       "module_listener_commands": [],
-      "test_file": "mcp-server/tests/compat-tools.test.ts"
+      "test_file": "mcp-server/tests/compat-tools.test.ts",
+      "capability_category": "compat",
+      "canonical_capability": "properties.set",
+      "owner": "compat alias router",
+      "lifecycle": "active",
+      "migration_action": "ALIAS",
+      "replacement_tool": "puerts_set_property",
+      "compatibility_alias": true,
+      "cpp_builder": null,
+      "cpp_entry_point": null,
+      "python_handler": null,
+      "live_evidence": [],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": null,
+      "verification": "mock_only"
     },
     {
       "name": "actor_organize",
@@ -177,7 +252,22 @@
         "openWorldHint": false
       },
       "module_listener_commands": [],
-      "test_file": null
+      "test_file": null,
+      "capability_category": "actors",
+      "canonical_capability": "actors.actor_organize",
+      "owner": "legacy Python listener",
+      "lifecycle": "active",
+      "migration_action": "PORT",
+      "replacement_tool": null,
+      "compatibility_alias": false,
+      "cpp_builder": null,
+      "cpp_entry_point": null,
+      "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/actors.py",
+      "live_evidence": [],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": "layer: direct_reflection or new_native_wrapper per tool",
+      "verification": "untested"
     },
     {
       "name": "actor_selection",
@@ -197,7 +287,22 @@
         "openWorldHint": false
       },
       "module_listener_commands": [],
-      "test_file": null
+      "test_file": null,
+      "capability_category": "actors",
+      "canonical_capability": "actors.actor_selection",
+      "owner": "legacy Python listener",
+      "lifecycle": "active",
+      "migration_action": "PORT",
+      "replacement_tool": null,
+      "compatibility_alias": false,
+      "cpp_builder": null,
+      "cpp_entry_point": null,
+      "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/actors.py",
+      "live_evidence": [],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": "layer: direct_reflection or new_native_wrapper per tool",
+      "verification": "untested"
     },
     {
       "name": "actor_snap_to_socket",
@@ -221,7 +326,22 @@
         "openWorldHint": false
       },
       "module_listener_commands": [],
-      "test_file": null
+      "test_file": null,
+      "capability_category": "actors",
+      "canonical_capability": "actors.actor_snap_to_socket",
+      "owner": "legacy Python listener",
+      "lifecycle": "active",
+      "migration_action": "PORT",
+      "replacement_tool": null,
+      "compatibility_alias": false,
+      "cpp_builder": null,
+      "cpp_entry_point": null,
+      "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/actors.py",
+      "live_evidence": [],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": "layer: new_native_wrapper",
+      "verification": "untested"
     },
     {
       "name": "actor_spawn",
@@ -249,7 +369,22 @@
         "openWorldHint": false
       },
       "module_listener_commands": [],
-      "test_file": null
+      "test_file": null,
+      "capability_category": "actors",
+      "canonical_capability": "actors.spawn",
+      "owner": "legacy Python listener",
+      "lifecycle": "active",
+      "migration_action": "ALIAS",
+      "replacement_tool": "puerts_spawn_actor",
+      "compatibility_alias": true,
+      "cpp_builder": null,
+      "cpp_entry_point": null,
+      "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/actors.py",
+      "live_evidence": [],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": "layer: direct_reflection or new_native_wrapper per tool",
+      "verification": "untested"
     },
     {
       "name": "actor_spawn",
@@ -277,7 +412,22 @@
         "openWorldHint": false
       },
       "module_listener_commands": [],
-      "test_file": "mcp-server/tests/compat-tools.test.ts"
+      "test_file": "mcp-server/tests/compat-tools.test.ts",
+      "capability_category": "compat",
+      "canonical_capability": "actors.spawn",
+      "owner": "compat alias router",
+      "lifecycle": "active",
+      "migration_action": "ALIAS",
+      "replacement_tool": "puerts_spawn_actor",
+      "compatibility_alias": true,
+      "cpp_builder": null,
+      "cpp_entry_point": null,
+      "python_handler": null,
+      "live_evidence": [],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": null,
+      "verification": "mock_only"
     },
     {
       "name": "ai_nav_rebuild",
@@ -297,7 +447,22 @@
         "openWorldHint": false
       },
       "module_listener_commands": [],
-      "test_file": null
+      "test_file": null,
+      "capability_category": "gameplay-setup",
+      "canonical_capability": "gameplay-setup.ai_nav_rebuild",
+      "owner": "legacy Python listener",
+      "lifecycle": "active",
+      "migration_action": "PORT",
+      "replacement_tool": null,
+      "compatibility_alias": false,
+      "cpp_builder": null,
+      "cpp_entry_point": null,
+      "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/gamedev.py",
+      "live_evidence": [],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": "layer: new_native_wrapper (UNavigationSystemV1)",
+      "verification": "untested"
     },
     {
       "name": "anim_batch_reanchor",
@@ -334,7 +499,22 @@
         "openWorldHint": false
       },
       "module_listener_commands": [],
-      "test_file": "mcp-server/tests/animation-tools.test.ts"
+      "test_file": "mcp-server/tests/animation-tools.test.ts",
+      "capability_category": "animation",
+      "canonical_capability": "animation.anim_batch_reanchor",
+      "owner": "legacy Python listener",
+      "lifecycle": "active",
+      "migration_action": "REFRONT",
+      "replacement_tool": null,
+      "compatibility_alias": false,
+      "cpp_builder": "AnimPoseLibrary",
+      "cpp_entry_point": null,
+      "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/animation.py",
+      "live_evidence": [],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": null,
+      "verification": "mock_only"
     },
     {
       "name": "anim_blueprint_build_from_json",
@@ -359,7 +539,22 @@
         "openWorldHint": false
       },
       "module_listener_commands": [],
-      "test_file": null
+      "test_file": null,
+      "capability_category": "blueprint",
+      "canonical_capability": "animation.blueprint_build",
+      "owner": "legacy Python listener",
+      "lifecycle": "active",
+      "migration_action": "REFRONT",
+      "replacement_tool": null,
+      "compatibility_alias": false,
+      "cpp_builder": "AnimBlueprintBuilderLibrary",
+      "cpp_entry_point": "BuildAnimBlueprintFromJSON",
+      "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/blueprints.py",
+      "live_evidence": [],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": "highest-value REFRONT: builder v1 complete, same shape as behavior_tree_build",
+      "verification": "untested"
     },
     {
       "name": "anim_pose_delta",
@@ -386,7 +581,22 @@
         "openWorldHint": false
       },
       "module_listener_commands": [],
-      "test_file": "mcp-server/tests/animation-tools.test.ts"
+      "test_file": "mcp-server/tests/animation-tools.test.ts",
+      "capability_category": "animation",
+      "canonical_capability": "animation.anim_pose_delta",
+      "owner": "legacy Python listener",
+      "lifecycle": "active",
+      "migration_action": "REFRONT",
+      "replacement_tool": null,
+      "compatibility_alias": false,
+      "cpp_builder": "AnimPoseLibrary",
+      "cpp_entry_point": null,
+      "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/animation.py",
+      "live_evidence": [],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": null,
+      "verification": "mock_only"
     },
     {
       "name": "anim_pose_snapshot",
@@ -410,7 +620,22 @@
         "openWorldHint": false
       },
       "module_listener_commands": [],
-      "test_file": "mcp-server/tests/animation-tools.test.ts"
+      "test_file": "mcp-server/tests/animation-tools.test.ts",
+      "capability_category": "animation",
+      "canonical_capability": "animation.anim_pose_snapshot",
+      "owner": "legacy Python listener",
+      "lifecycle": "active",
+      "migration_action": "REFRONT",
+      "replacement_tool": null,
+      "compatibility_alias": false,
+      "cpp_builder": "AnimPoseLibrary",
+      "cpp_entry_point": null,
+      "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/animation.py",
+      "live_evidence": [],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": null,
+      "verification": "mock_only"
     },
     {
       "name": "anim_reanchor",
@@ -443,7 +668,22 @@
         "openWorldHint": false
       },
       "module_listener_commands": [],
-      "test_file": "mcp-server/tests/animation-tools.test.ts"
+      "test_file": "mcp-server/tests/animation-tools.test.ts",
+      "capability_category": "animation",
+      "canonical_capability": "animation.anim_reanchor",
+      "owner": "legacy Python listener",
+      "lifecycle": "active",
+      "migration_action": "REFRONT",
+      "replacement_tool": null,
+      "compatibility_alias": false,
+      "cpp_builder": "AnimPoseLibrary",
+      "cpp_entry_point": null,
+      "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/animation.py",
+      "live_evidence": [],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": null,
+      "verification": "mock_only"
     },
     {
       "name": "anim_root_motion_analyze",
@@ -470,7 +710,22 @@
         "openWorldHint": false
       },
       "module_listener_commands": [],
-      "test_file": "mcp-server/tests/animation-tools.test.ts"
+      "test_file": "mcp-server/tests/animation-tools.test.ts",
+      "capability_category": "animation",
+      "canonical_capability": "animation.anim_root_motion_analyze",
+      "owner": "legacy Python listener",
+      "lifecycle": "active",
+      "migration_action": "REFRONT",
+      "replacement_tool": null,
+      "compatibility_alias": false,
+      "cpp_builder": "AnimPoseLibrary",
+      "cpp_entry_point": null,
+      "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/animation.py",
+      "live_evidence": [],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": null,
+      "verification": "mock_only"
     },
     {
       "name": "asset_info",
@@ -492,7 +747,22 @@
         "openWorldHint": false
       },
       "module_listener_commands": [],
-      "test_file": null
+      "test_file": null,
+      "capability_category": "project",
+      "canonical_capability": "assets.find",
+      "owner": "legacy Python listener",
+      "lifecycle": "active",
+      "migration_action": "MERGE",
+      "replacement_tool": "puerts_find_assets",
+      "compatibility_alias": false,
+      "cpp_builder": null,
+      "cpp_entry_point": null,
+      "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/project.py",
+      "live_evidence": [],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": null,
+      "verification": "untested"
     },
     {
       "name": "asset_list",
@@ -518,7 +788,22 @@
         "openWorldHint": false
       },
       "module_listener_commands": [],
-      "test_file": "mcp-server/tests/compat-tools.test.ts"
+      "test_file": "mcp-server/tests/compat-tools.test.ts",
+      "capability_category": "compat",
+      "canonical_capability": "assets.find",
+      "owner": "compat alias router",
+      "lifecycle": "active",
+      "migration_action": "ALIAS",
+      "replacement_tool": "puerts_find_assets",
+      "compatibility_alias": true,
+      "cpp_builder": null,
+      "cpp_entry_point": null,
+      "python_handler": null,
+      "live_evidence": [],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": null,
+      "verification": "mock_only"
     },
     {
       "name": "asset_list",
@@ -543,7 +828,22 @@
         "openWorldHint": false
       },
       "module_listener_commands": [],
-      "test_file": null
+      "test_file": null,
+      "capability_category": "project",
+      "canonical_capability": "assets.find",
+      "owner": "legacy Python listener",
+      "lifecycle": "active",
+      "migration_action": "ALIAS",
+      "replacement_tool": "puerts_find_assets",
+      "compatibility_alias": true,
+      "cpp_builder": null,
+      "cpp_entry_point": null,
+      "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/project.py",
+      "live_evidence": [],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": null,
+      "verification": "untested"
     },
     {
       "name": "asset_load_diagnostics",
@@ -568,7 +868,22 @@
         "openWorldHint": false
       },
       "module_listener_commands": [],
-      "test_file": null
+      "test_file": null,
+      "capability_category": "project",
+      "canonical_capability": "project.asset_load_diagnostics",
+      "owner": "legacy Python listener",
+      "lifecycle": "active",
+      "migration_action": "PORT",
+      "replacement_tool": null,
+      "compatibility_alias": false,
+      "cpp_builder": null,
+      "cpp_entry_point": null,
+      "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/project.py",
+      "live_evidence": [],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": null,
+      "verification": "untested"
     },
     {
       "name": "asset_save_many",
@@ -590,7 +905,22 @@
         "openWorldHint": false
       },
       "module_listener_commands": [],
-      "test_file": "mcp-server/tests/compat-tools.test.ts"
+      "test_file": "mcp-server/tests/compat-tools.test.ts",
+      "capability_category": "compat",
+      "canonical_capability": "assets.save",
+      "owner": "compat alias router",
+      "lifecycle": "active",
+      "migration_action": "ALIAS",
+      "replacement_tool": "puerts_save",
+      "compatibility_alias": true,
+      "cpp_builder": null,
+      "cpp_entry_point": null,
+      "python_handler": null,
+      "live_evidence": [],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": null,
+      "verification": "mock_only"
     },
     {
       "name": "asset_save_many",
@@ -612,7 +942,22 @@
         "openWorldHint": false
       },
       "module_listener_commands": [],
-      "test_file": null
+      "test_file": null,
+      "capability_category": "project",
+      "canonical_capability": "assets.save",
+      "owner": "legacy Python listener",
+      "lifecycle": "active",
+      "migration_action": "ALIAS",
+      "replacement_tool": "puerts_save",
+      "compatibility_alias": true,
+      "cpp_builder": null,
+      "cpp_entry_point": null,
+      "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/project.py",
+      "live_evidence": [],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": null,
+      "verification": "untested"
     },
     {
       "name": "audio_component_add",
@@ -638,7 +983,22 @@
         "openWorldHint": false
       },
       "module_listener_commands": [],
-      "test_file": "mcp-server/tests/content-tools.test.ts"
+      "test_file": "mcp-server/tests/content-tools.test.ts",
+      "capability_category": "assets",
+      "canonical_capability": "assets.audio_component_add",
+      "owner": "legacy Python listener",
+      "lifecycle": "active",
+      "migration_action": "PORT",
+      "replacement_tool": null,
+      "compatibility_alias": false,
+      "cpp_builder": null,
+      "cpp_entry_point": null,
+      "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/content_tools.py",
+      "live_evidence": [],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": null,
+      "verification": "mock_only"
     },
     {
       "name": "batch_operations",
@@ -660,7 +1020,22 @@
         "openWorldHint": false
       },
       "module_listener_commands": [],
-      "test_file": null
+      "test_file": null,
+      "capability_category": "editor-ops",
+      "canonical_capability": "editor-ops.batch_operations",
+      "owner": "legacy Python listener",
+      "lifecycle": "active",
+      "migration_action": "MERGE",
+      "replacement_tool": "puerts_blueprint_build",
+      "compatibility_alias": false,
+      "cpp_builder": null,
+      "cpp_entry_point": null,
+      "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/system.py",
+      "live_evidence": [],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": "the batch concept moves into per-domain batch primitives, not one generic executor",
+      "verification": "untested"
     },
     {
       "name": "batch_spawn",
@@ -682,7 +1057,22 @@
         "openWorldHint": false
       },
       "module_listener_commands": [],
-      "test_file": null
+      "test_file": null,
+      "capability_category": "actors",
+      "canonical_capability": "actors.batch_spawn",
+      "owner": "legacy Python listener",
+      "lifecycle": "active",
+      "migration_action": "MERGE",
+      "replacement_tool": "puerts_spawn_actor",
+      "compatibility_alias": false,
+      "cpp_builder": null,
+      "cpp_entry_point": null,
+      "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/actors.py",
+      "live_evidence": [],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": "future batch primitive; native spawn is single-actor today",
+      "verification": "untested"
     },
     {
       "name": "behavior_tree_create",
@@ -708,7 +1098,22 @@
         "openWorldHint": false
       },
       "module_listener_commands": [],
-      "test_file": null
+      "test_file": null,
+      "capability_category": "gameplay-setup",
+      "canonical_capability": "ai.behavior_tree_build",
+      "owner": "legacy Python listener",
+      "lifecycle": "active",
+      "migration_action": "ALIAS",
+      "replacement_tool": "puerts_behavior_tree_build",
+      "compatibility_alias": false,
+      "cpp_builder": null,
+      "cpp_entry_point": null,
+      "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/gamedev.py",
+      "live_evidence": [],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": "alias not yet written; native replacement is pending_live",
+      "verification": "untested"
     },
     {
       "name": "blackboard_create",
@@ -732,7 +1137,22 @@
         "openWorldHint": false
       },
       "module_listener_commands": [],
-      "test_file": null
+      "test_file": null,
+      "capability_category": "gameplay-setup",
+      "canonical_capability": "ai.behavior_tree_build",
+      "owner": "legacy Python listener",
+      "lifecycle": "active",
+      "migration_action": "ALIAS",
+      "replacement_tool": "puerts_behavior_tree_build",
+      "compatibility_alias": false,
+      "cpp_builder": null,
+      "cpp_entry_point": null,
+      "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/gamedev.py",
+      "live_evidence": [],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": "blackboard creation is part of the native BT build; alias not yet written",
+      "verification": "untested"
     },
     {
       "name": "blueprint_add_event_dispatcher",
@@ -756,7 +1176,22 @@
         "openWorldHint": false
       },
       "module_listener_commands": [],
-      "test_file": "mcp-server/tests/blueprint-graph-tools.test.ts"
+      "test_file": "mcp-server/tests/blueprint-graph-tools.test.ts",
+      "capability_category": "blueprint",
+      "canonical_capability": "blueprint.blueprint_add_event_dispatcher",
+      "owner": "legacy Python listener",
+      "lifecycle": "active",
+      "migration_action": "REFRONT",
+      "replacement_tool": null,
+      "compatibility_alias": false,
+      "cpp_builder": "BlueprintMutatorLibrary",
+      "cpp_entry_point": null,
+      "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/blueprint_graph.py",
+      "live_evidence": [],
+      "migration_risk": "medium",
+      "capability_loss_risk": "low",
+      "notes": "idempotent graph patching is the deferred capability; mutator library is compiled and callable",
+      "verification": "mock_only"
     },
     {
       "name": "blueprint_add_function",
@@ -781,7 +1216,22 @@
         "openWorldHint": false
       },
       "module_listener_commands": [],
-      "test_file": "mcp-server/tests/blueprint-graph-tools.test.ts"
+      "test_file": "mcp-server/tests/blueprint-graph-tools.test.ts",
+      "capability_category": "blueprint",
+      "canonical_capability": "blueprint.blueprint_add_function",
+      "owner": "legacy Python listener",
+      "lifecycle": "active",
+      "migration_action": "REFRONT",
+      "replacement_tool": null,
+      "compatibility_alias": false,
+      "cpp_builder": "BlueprintMutatorLibrary",
+      "cpp_entry_point": null,
+      "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/blueprint_graph.py",
+      "live_evidence": [],
+      "migration_risk": "medium",
+      "capability_loss_risk": "low",
+      "notes": "idempotent graph patching is the deferred capability; mutator library is compiled and callable",
+      "verification": "mock_only"
     },
     {
       "name": "blueprint_add_interface",
@@ -804,7 +1254,22 @@
         "openWorldHint": false
       },
       "module_listener_commands": [],
-      "test_file": "mcp-server/tests/blueprint-graph-tools.test.ts"
+      "test_file": "mcp-server/tests/blueprint-graph-tools.test.ts",
+      "capability_category": "blueprint",
+      "canonical_capability": "blueprint.blueprint_add_interface",
+      "owner": "legacy Python listener",
+      "lifecycle": "active",
+      "migration_action": "REFRONT",
+      "replacement_tool": null,
+      "compatibility_alias": false,
+      "cpp_builder": "BlueprintMutatorLibrary",
+      "cpp_entry_point": null,
+      "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/blueprint_graph.py",
+      "live_evidence": [],
+      "migration_risk": "medium",
+      "capability_loss_risk": "low",
+      "notes": "idempotent graph patching is the deferred capability; mutator library is compiled and callable",
+      "verification": "mock_only"
     },
     {
       "name": "blueprint_add_variable",
@@ -830,7 +1295,22 @@
         "openWorldHint": false
       },
       "module_listener_commands": [],
-      "test_file": "mcp-server/tests/blueprint-graph-tools.test.ts"
+      "test_file": "mcp-server/tests/blueprint-graph-tools.test.ts",
+      "capability_category": "blueprint",
+      "canonical_capability": "blueprint.blueprint_add_variable",
+      "owner": "legacy Python listener",
+      "lifecycle": "active",
+      "migration_action": "REFRONT",
+      "replacement_tool": null,
+      "compatibility_alias": false,
+      "cpp_builder": "BlueprintMutatorLibrary",
+      "cpp_entry_point": null,
+      "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/blueprint_graph.py",
+      "live_evidence": [],
+      "migration_risk": "medium",
+      "capability_loss_risk": "low",
+      "notes": "idempotent graph patching is the deferred capability; mutator library is compiled and callable",
+      "verification": "mock_only"
     },
     {
       "name": "blueprint_build_from_description",
@@ -854,7 +1334,22 @@
         "openWorldHint": false
       },
       "module_listener_commands": [],
-      "test_file": null
+      "test_file": null,
+      "capability_category": "blueprint",
+      "canonical_capability": "blueprint.blueprint_build_from_description",
+      "owner": "legacy Python listener",
+      "lifecycle": "active",
+      "migration_action": "PORT",
+      "replacement_tool": null,
+      "compatibility_alias": false,
+      "cpp_builder": null,
+      "cpp_entry_point": null,
+      "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/blueprints.py",
+      "live_evidence": [],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": "layer: puerts_workflow",
+      "verification": "untested"
     },
     {
       "name": "blueprint_build_from_json",
@@ -878,7 +1373,22 @@
         "openWorldHint": false
       },
       "module_listener_commands": [],
-      "test_file": null
+      "test_file": null,
+      "capability_category": "blueprint",
+      "canonical_capability": "blueprints.build",
+      "owner": "legacy Python listener",
+      "lifecycle": "active",
+      "migration_action": "ALIAS",
+      "replacement_tool": "puerts_blueprint_build",
+      "compatibility_alias": false,
+      "cpp_builder": null,
+      "cpp_entry_point": null,
+      "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/blueprints.py",
+      "live_evidence": [],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": "alias not yet written; the native replacement is live-verified",
+      "verification": "untested"
     },
     {
       "name": "blueprint_compile",
@@ -900,7 +1410,22 @@
         "openWorldHint": false
       },
       "module_listener_commands": [],
-      "test_file": null
+      "test_file": null,
+      "capability_category": "blueprint",
+      "canonical_capability": "blueprint.blueprint_compile",
+      "owner": "legacy Python listener",
+      "lifecycle": "active",
+      "migration_action": "REFRONT",
+      "replacement_tool": null,
+      "compatibility_alias": false,
+      "cpp_builder": "BlueprintGraphBuilderLibrary",
+      "cpp_entry_point": "CompileAndReport",
+      "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/blueprints.py",
+      "live_evidence": [],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": null,
+      "verification": "untested"
     },
     {
       "name": "blueprint_component_remove",
@@ -923,7 +1448,22 @@
         "openWorldHint": false
       },
       "module_listener_commands": [],
-      "test_file": "mcp-server/tests/blueprint-graph-tools.test.ts"
+      "test_file": "mcp-server/tests/blueprint-graph-tools.test.ts",
+      "capability_category": "blueprint",
+      "canonical_capability": "blueprint.blueprint_component_remove",
+      "owner": "legacy Python listener",
+      "lifecycle": "active",
+      "migration_action": "REFRONT",
+      "replacement_tool": null,
+      "compatibility_alias": false,
+      "cpp_builder": "BlueprintMutatorLibrary",
+      "cpp_entry_point": null,
+      "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/blueprint_graph.py",
+      "live_evidence": [],
+      "migration_risk": "medium",
+      "capability_loss_risk": "low",
+      "notes": "idempotent graph patching is the deferred capability; mutator library is compiled and callable",
+      "verification": "mock_only"
     },
     {
       "name": "blueprint_component_rename",
@@ -947,7 +1487,22 @@
         "openWorldHint": false
       },
       "module_listener_commands": [],
-      "test_file": "mcp-server/tests/blueprint-graph-tools.test.ts"
+      "test_file": "mcp-server/tests/blueprint-graph-tools.test.ts",
+      "capability_category": "blueprint",
+      "canonical_capability": "blueprint.blueprint_component_rename",
+      "owner": "legacy Python listener",
+      "lifecycle": "active",
+      "migration_action": "REFRONT",
+      "replacement_tool": null,
+      "compatibility_alias": false,
+      "cpp_builder": "BlueprintMutatorLibrary",
+      "cpp_entry_point": null,
+      "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/blueprint_graph.py",
+      "live_evidence": [],
+      "migration_risk": "medium",
+      "capability_loss_risk": "low",
+      "notes": "idempotent graph patching is the deferred capability; mutator library is compiled and callable",
+      "verification": "mock_only"
     },
     {
       "name": "blueprint_create",
@@ -973,7 +1528,22 @@
         "openWorldHint": false
       },
       "module_listener_commands": [],
-      "test_file": null
+      "test_file": null,
+      "capability_category": "blueprint",
+      "canonical_capability": "blueprints.build",
+      "owner": "legacy Python listener",
+      "lifecycle": "active",
+      "migration_action": "MERGE",
+      "replacement_tool": "puerts_blueprint_build",
+      "compatibility_alias": false,
+      "cpp_builder": null,
+      "cpp_entry_point": null,
+      "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/blueprints.py",
+      "live_evidence": [],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": null,
+      "verification": "untested"
     },
     {
       "name": "blueprint_document",
@@ -996,7 +1566,22 @@
         "openWorldHint": false
       },
       "module_listener_commands": [],
-      "test_file": null
+      "test_file": null,
+      "capability_category": "blueprint",
+      "canonical_capability": "blueprint.blueprint_document",
+      "owner": "legacy Python listener",
+      "lifecycle": "active",
+      "migration_action": "PORT",
+      "replacement_tool": null,
+      "compatibility_alias": false,
+      "cpp_builder": null,
+      "cpp_entry_point": null,
+      "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/blueprints.py",
+      "live_evidence": [],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": "layer: puerts_workflow over blueprints.inspect",
+      "verification": "untested"
     },
     {
       "name": "blueprint_info",
@@ -1018,7 +1603,22 @@
         "openWorldHint": false
       },
       "module_listener_commands": [],
-      "test_file": null
+      "test_file": null,
+      "capability_category": "blueprint",
+      "canonical_capability": "blueprints.inspect",
+      "owner": "legacy Python listener",
+      "lifecycle": "active",
+      "migration_action": "MERGE",
+      "replacement_tool": "puerts_graph_inspect",
+      "compatibility_alias": false,
+      "cpp_builder": null,
+      "cpp_entry_point": null,
+      "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/blueprints.py",
+      "live_evidence": [],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": null,
+      "verification": "untested"
     },
     {
       "name": "blueprint_inspect",
@@ -1044,7 +1644,22 @@
         "openWorldHint": false
       },
       "module_listener_commands": [],
-      "test_file": "mcp-server/tests/blueprint-graph-tools.test.ts"
+      "test_file": "mcp-server/tests/blueprint-graph-tools.test.ts",
+      "capability_category": "blueprint",
+      "canonical_capability": "blueprints.inspect",
+      "owner": "legacy Python listener",
+      "lifecycle": "active",
+      "migration_action": "ALIAS",
+      "replacement_tool": "puerts_graph_inspect",
+      "compatibility_alias": false,
+      "cpp_builder": "BlueprintMutatorLibrary",
+      "cpp_entry_point": null,
+      "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/blueprint_graph.py",
+      "live_evidence": [],
+      "migration_risk": "medium",
+      "capability_loss_risk": "low",
+      "notes": "alias not yet written; the native replacement is live-verified",
+      "verification": "mock_only"
     },
     {
       "name": "blueprint_list",
@@ -1069,7 +1684,22 @@
         "openWorldHint": false
       },
       "module_listener_commands": [],
-      "test_file": null
+      "test_file": null,
+      "capability_category": "blueprint",
+      "canonical_capability": "assets.find",
+      "owner": "legacy Python listener",
+      "lifecycle": "active",
+      "migration_action": "MERGE",
+      "replacement_tool": "puerts_find_assets",
+      "compatibility_alias": false,
+      "cpp_builder": null,
+      "cpp_entry_point": null,
+      "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/blueprints.py",
+      "live_evidence": [],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": null,
+      "verification": "untested"
     },
     {
       "name": "blueprint_node_add",
@@ -1095,7 +1725,22 @@
         "openWorldHint": false
       },
       "module_listener_commands": [],
-      "test_file": "mcp-server/tests/blueprint-graph-tools.test.ts"
+      "test_file": "mcp-server/tests/blueprint-graph-tools.test.ts",
+      "capability_category": "blueprint",
+      "canonical_capability": "blueprint.blueprint_node_add",
+      "owner": "legacy Python listener",
+      "lifecycle": "active",
+      "migration_action": "REFRONT",
+      "replacement_tool": null,
+      "compatibility_alias": false,
+      "cpp_builder": "BlueprintMutatorLibrary",
+      "cpp_entry_point": null,
+      "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/blueprint_graph.py",
+      "live_evidence": [],
+      "migration_risk": "medium",
+      "capability_loss_risk": "low",
+      "notes": "idempotent graph patching is the deferred capability; mutator library is compiled and callable",
+      "verification": "mock_only"
     },
     {
       "name": "blueprint_node_delete",
@@ -1119,7 +1764,22 @@
         "openWorldHint": false
       },
       "module_listener_commands": [],
-      "test_file": "mcp-server/tests/blueprint-graph-tools.test.ts"
+      "test_file": "mcp-server/tests/blueprint-graph-tools.test.ts",
+      "capability_category": "blueprint",
+      "canonical_capability": "blueprint.blueprint_node_delete",
+      "owner": "legacy Python listener",
+      "lifecycle": "active",
+      "migration_action": "REFRONT",
+      "replacement_tool": null,
+      "compatibility_alias": false,
+      "cpp_builder": "BlueprintMutatorLibrary",
+      "cpp_entry_point": null,
+      "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/blueprint_graph.py",
+      "live_evidence": [],
+      "migration_risk": "medium",
+      "capability_loss_risk": "low",
+      "notes": "idempotent graph patching is the deferred capability; mutator library is compiled and callable",
+      "verification": "mock_only"
     },
     {
       "name": "blueprint_node_move",
@@ -1144,7 +1804,22 @@
         "openWorldHint": false
       },
       "module_listener_commands": [],
-      "test_file": "mcp-server/tests/blueprint-graph-tools.test.ts"
+      "test_file": "mcp-server/tests/blueprint-graph-tools.test.ts",
+      "capability_category": "blueprint",
+      "canonical_capability": "blueprint.blueprint_node_move",
+      "owner": "legacy Python listener",
+      "lifecycle": "active",
+      "migration_action": "REFRONT",
+      "replacement_tool": null,
+      "compatibility_alias": false,
+      "cpp_builder": "BlueprintMutatorLibrary",
+      "cpp_entry_point": null,
+      "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/blueprint_graph.py",
+      "live_evidence": [],
+      "migration_risk": "medium",
+      "capability_loss_risk": "low",
+      "notes": "idempotent graph patching is the deferred capability; mutator library is compiled and callable",
+      "verification": "mock_only"
     },
     {
       "name": "blueprint_node_set_enabled",
@@ -1169,7 +1844,22 @@
         "openWorldHint": false
       },
       "module_listener_commands": [],
-      "test_file": "mcp-server/tests/blueprint-graph-tools.test.ts"
+      "test_file": "mcp-server/tests/blueprint-graph-tools.test.ts",
+      "capability_category": "blueprint",
+      "canonical_capability": "blueprint.blueprint_node_set_enabled",
+      "owner": "legacy Python listener",
+      "lifecycle": "active",
+      "migration_action": "REFRONT",
+      "replacement_tool": null,
+      "compatibility_alias": false,
+      "cpp_builder": "BlueprintMutatorLibrary",
+      "cpp_entry_point": null,
+      "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/blueprint_graph.py",
+      "live_evidence": [],
+      "migration_risk": "medium",
+      "capability_loss_risk": "low",
+      "notes": "idempotent graph patching is the deferred capability; mutator library is compiled and callable",
+      "verification": "mock_only"
     },
     {
       "name": "blueprint_pins_break",
@@ -1194,7 +1884,22 @@
         "openWorldHint": false
       },
       "module_listener_commands": [],
-      "test_file": "mcp-server/tests/blueprint-graph-tools.test.ts"
+      "test_file": "mcp-server/tests/blueprint-graph-tools.test.ts",
+      "capability_category": "blueprint",
+      "canonical_capability": "blueprint.blueprint_pins_break",
+      "owner": "legacy Python listener",
+      "lifecycle": "active",
+      "migration_action": "REFRONT",
+      "replacement_tool": null,
+      "compatibility_alias": false,
+      "cpp_builder": "BlueprintMutatorLibrary",
+      "cpp_entry_point": null,
+      "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/blueprint_graph.py",
+      "live_evidence": [],
+      "migration_risk": "medium",
+      "capability_loss_risk": "low",
+      "notes": "idempotent graph patching is the deferred capability; mutator library is compiled and callable",
+      "verification": "mock_only"
     },
     {
       "name": "blueprint_pins_connect",
@@ -1221,7 +1926,22 @@
         "openWorldHint": false
       },
       "module_listener_commands": [],
-      "test_file": "mcp-server/tests/blueprint-graph-tools.test.ts"
+      "test_file": "mcp-server/tests/blueprint-graph-tools.test.ts",
+      "capability_category": "blueprint",
+      "canonical_capability": "blueprint.blueprint_pins_connect",
+      "owner": "legacy Python listener",
+      "lifecycle": "active",
+      "migration_action": "REFRONT",
+      "replacement_tool": null,
+      "compatibility_alias": false,
+      "cpp_builder": "BlueprintMutatorLibrary",
+      "cpp_entry_point": null,
+      "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/blueprint_graph.py",
+      "live_evidence": [],
+      "migration_risk": "medium",
+      "capability_loss_risk": "low",
+      "notes": "idempotent graph patching is the deferred capability; mutator library is compiled and callable",
+      "verification": "mock_only"
     },
     {
       "name": "blueprint_remove_event_dispatcher",
@@ -1244,7 +1964,22 @@
         "openWorldHint": false
       },
       "module_listener_commands": [],
-      "test_file": "mcp-server/tests/blueprint-graph-tools.test.ts"
+      "test_file": "mcp-server/tests/blueprint-graph-tools.test.ts",
+      "capability_category": "blueprint",
+      "canonical_capability": "blueprint.blueprint_remove_event_dispatcher",
+      "owner": "legacy Python listener",
+      "lifecycle": "active",
+      "migration_action": "REFRONT",
+      "replacement_tool": null,
+      "compatibility_alias": false,
+      "cpp_builder": "BlueprintMutatorLibrary",
+      "cpp_entry_point": null,
+      "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/blueprint_graph.py",
+      "live_evidence": [],
+      "migration_risk": "medium",
+      "capability_loss_risk": "low",
+      "notes": "idempotent graph patching is the deferred capability; mutator library is compiled and callable",
+      "verification": "mock_only"
     },
     {
       "name": "blueprint_remove_function",
@@ -1267,7 +2002,22 @@
         "openWorldHint": false
       },
       "module_listener_commands": [],
-      "test_file": "mcp-server/tests/blueprint-graph-tools.test.ts"
+      "test_file": "mcp-server/tests/blueprint-graph-tools.test.ts",
+      "capability_category": "blueprint",
+      "canonical_capability": "blueprint.blueprint_remove_function",
+      "owner": "legacy Python listener",
+      "lifecycle": "active",
+      "migration_action": "REFRONT",
+      "replacement_tool": null,
+      "compatibility_alias": false,
+      "cpp_builder": "BlueprintMutatorLibrary",
+      "cpp_entry_point": null,
+      "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/blueprint_graph.py",
+      "live_evidence": [],
+      "migration_risk": "medium",
+      "capability_loss_risk": "low",
+      "notes": "idempotent graph patching is the deferred capability; mutator library is compiled and callable",
+      "verification": "mock_only"
     },
     {
       "name": "blueprint_remove_interface",
@@ -1290,7 +2040,22 @@
         "openWorldHint": false
       },
       "module_listener_commands": [],
-      "test_file": "mcp-server/tests/blueprint-graph-tools.test.ts"
+      "test_file": "mcp-server/tests/blueprint-graph-tools.test.ts",
+      "capability_category": "blueprint",
+      "canonical_capability": "blueprint.blueprint_remove_interface",
+      "owner": "legacy Python listener",
+      "lifecycle": "active",
+      "migration_action": "REFRONT",
+      "replacement_tool": null,
+      "compatibility_alias": false,
+      "cpp_builder": "BlueprintMutatorLibrary",
+      "cpp_entry_point": null,
+      "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/blueprint_graph.py",
+      "live_evidence": [],
+      "migration_risk": "medium",
+      "capability_loss_risk": "low",
+      "notes": "idempotent graph patching is the deferred capability; mutator library is compiled and callable",
+      "verification": "mock_only"
     },
     {
       "name": "blueprint_remove_variable",
@@ -1313,7 +2078,22 @@
         "openWorldHint": false
       },
       "module_listener_commands": [],
-      "test_file": "mcp-server/tests/blueprint-graph-tools.test.ts"
+      "test_file": "mcp-server/tests/blueprint-graph-tools.test.ts",
+      "capability_category": "blueprint",
+      "canonical_capability": "blueprint.blueprint_remove_variable",
+      "owner": "legacy Python listener",
+      "lifecycle": "active",
+      "migration_action": "REFRONT",
+      "replacement_tool": null,
+      "compatibility_alias": false,
+      "cpp_builder": "BlueprintMutatorLibrary",
+      "cpp_entry_point": null,
+      "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/blueprint_graph.py",
+      "live_evidence": [],
+      "migration_risk": "medium",
+      "capability_loss_risk": "low",
+      "notes": "idempotent graph patching is the deferred capability; mutator library is compiled and callable",
+      "verification": "mock_only"
     },
     {
       "name": "blueprint_set_variable_default",
@@ -1337,7 +2117,22 @@
         "openWorldHint": false
       },
       "module_listener_commands": [],
-      "test_file": "mcp-server/tests/blueprint-graph-tools.test.ts"
+      "test_file": "mcp-server/tests/blueprint-graph-tools.test.ts",
+      "capability_category": "blueprint",
+      "canonical_capability": "blueprint.blueprint_set_variable_default",
+      "owner": "legacy Python listener",
+      "lifecycle": "active",
+      "migration_action": "REFRONT",
+      "replacement_tool": null,
+      "compatibility_alias": false,
+      "cpp_builder": "BlueprintMutatorLibrary",
+      "cpp_entry_point": null,
+      "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/blueprint_graph.py",
+      "live_evidence": [],
+      "migration_risk": "medium",
+      "capability_loss_risk": "low",
+      "notes": "idempotent graph patching is the deferred capability; mutator library is compiled and callable",
+      "verification": "mock_only"
     },
     {
       "name": "bridge_clear_log",
@@ -1357,7 +2152,22 @@
         "openWorldHint": false
       },
       "module_listener_commands": [],
-      "test_file": null
+      "test_file": null,
+      "capability_category": "listener-admin",
+      "canonical_capability": "system.listener_admin",
+      "owner": "legacy Python listener",
+      "lifecycle": "active",
+      "migration_action": "KEEP",
+      "replacement_tool": null,
+      "compatibility_alias": false,
+      "cpp_builder": null,
+      "cpp_entry_point": null,
+      "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/system.py",
+      "live_evidence": [],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": "transport plumbing for the legacy listener, not a capability; shares one canonical name so it never inflates the unique count",
+      "verification": "untested"
     },
     {
       "name": "bridge_command_manifest",
@@ -1377,7 +2187,22 @@
         "openWorldHint": false
       },
       "module_listener_commands": [],
-      "test_file": null
+      "test_file": null,
+      "capability_category": "listener-admin",
+      "canonical_capability": "system.listener_admin",
+      "owner": "legacy Python listener",
+      "lifecycle": "active",
+      "migration_action": "KEEP",
+      "replacement_tool": null,
+      "compatibility_alias": false,
+      "cpp_builder": null,
+      "cpp_entry_point": null,
+      "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/system.py",
+      "live_evidence": [],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": "transport plumbing for the legacy listener, not a capability; shares one canonical name so it never inflates the unique count",
+      "verification": "untested"
     },
     {
       "name": "camera_rig_create",
@@ -1402,7 +2227,22 @@
         "openWorldHint": false
       },
       "module_listener_commands": [],
-      "test_file": null
+      "test_file": null,
+      "capability_category": "gameplay-setup",
+      "canonical_capability": "gameplay-setup.camera_rig_create",
+      "owner": "legacy Python listener",
+      "lifecycle": "active",
+      "migration_action": "PORT",
+      "replacement_tool": null,
+      "compatibility_alias": false,
+      "cpp_builder": null,
+      "cpp_entry_point": null,
+      "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/gamedev.py",
+      "live_evidence": [],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": null,
+      "verification": "untested"
     },
     {
       "name": "camera_shake_blueprint",
@@ -1444,7 +2284,22 @@
         "openWorldHint": false
       },
       "module_listener_commands": [],
-      "test_file": null
+      "test_file": null,
+      "capability_category": "effects",
+      "canonical_capability": "effects.camera_shake_blueprint",
+      "owner": "legacy Python listener",
+      "lifecycle": "active",
+      "migration_action": "PORT",
+      "replacement_tool": null,
+      "compatibility_alias": false,
+      "cpp_builder": null,
+      "cpp_entry_point": null,
+      "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/effects.py",
+      "live_evidence": [],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": "layer: existing_native_builder (BlueprintGraphBuilderLibrary) once camera-shake node types are in the vocabulary",
+      "verification": "untested"
     },
     {
       "name": "camera_shake_play",
@@ -1468,7 +2323,22 @@
         "openWorldHint": false
       },
       "module_listener_commands": [],
-      "test_file": null
+      "test_file": null,
+      "capability_category": "effects",
+      "canonical_capability": "effects.camera_shake_play",
+      "owner": "legacy Python listener",
+      "lifecycle": "active",
+      "migration_action": "REFRONT",
+      "replacement_tool": null,
+      "compatibility_alias": false,
+      "cpp_builder": "AutoPIEHelper",
+      "cpp_entry_point": "PlayCameraShakeOnPlayer",
+      "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/effects.py",
+      "live_evidence": [],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": "layer: direct_reflection for post-process volumes and console effects",
+      "verification": "untested"
     },
     {
       "name": "camera_shake_spawn",
@@ -1494,7 +2364,22 @@
         "openWorldHint": false
       },
       "module_listener_commands": [],
-      "test_file": null
+      "test_file": null,
+      "capability_category": "effects",
+      "canonical_capability": "effects.camera_shake_spawn",
+      "owner": "legacy Python listener",
+      "lifecycle": "active",
+      "migration_action": "REFRONT",
+      "replacement_tool": null,
+      "compatibility_alias": false,
+      "cpp_builder": "AutoPIEHelper",
+      "cpp_entry_point": null,
+      "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/effects.py",
+      "live_evidence": [],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": "layer: direct_reflection for post-process volumes and console effects",
+      "verification": "untested"
     },
     {
       "name": "camera_shake_trigger",
@@ -1520,7 +2405,22 @@
         "openWorldHint": false
       },
       "module_listener_commands": [],
-      "test_file": null
+      "test_file": null,
+      "capability_category": "effects",
+      "canonical_capability": "effects.camera_shake_trigger",
+      "owner": "legacy Python listener",
+      "lifecycle": "active",
+      "migration_action": "REFRONT",
+      "replacement_tool": null,
+      "compatibility_alias": false,
+      "cpp_builder": "AutoPIEHelper",
+      "cpp_entry_point": "PlayCameraShakeByPath",
+      "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/effects.py",
+      "live_evidence": [],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": "layer: direct_reflection for post-process volumes and console effects",
+      "verification": "untested"
     },
     {
       "name": "checkpoint_create",
@@ -1543,7 +2443,22 @@
         "openWorldHint": false
       },
       "module_listener_commands": [],
-      "test_file": null
+      "test_file": null,
+      "capability_category": "editor-ops",
+      "canonical_capability": "editor-ops.checkpoint_create",
+      "owner": "legacy Python listener",
+      "lifecycle": "active",
+      "migration_action": "KEEP",
+      "replacement_tool": null,
+      "compatibility_alias": false,
+      "cpp_builder": null,
+      "cpp_entry_point": null,
+      "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/system.py",
+      "live_evidence": [],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": "source-control checkpoint; transport-independent",
+      "verification": "untested"
     },
     {
       "name": "checkpoint_restore",
@@ -1565,7 +2480,22 @@
         "openWorldHint": false
       },
       "module_listener_commands": [],
-      "test_file": null
+      "test_file": null,
+      "capability_category": "editor-ops",
+      "canonical_capability": "editor-ops.checkpoint_restore",
+      "owner": "legacy Python listener",
+      "lifecycle": "active",
+      "migration_action": "KEEP",
+      "replacement_tool": null,
+      "compatibility_alias": false,
+      "cpp_builder": null,
+      "cpp_entry_point": null,
+      "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/system.py",
+      "live_evidence": [],
+      "migration_risk": "low",
+      "capability_loss_risk": "medium",
+      "notes": "restore is destructive; keep the proven path until a native equivalent has parity tests",
+      "verification": "untested"
     },
     {
       "name": "clear_output_log",
@@ -1585,7 +2515,22 @@
         "openWorldHint": false
       },
       "module_listener_commands": [],
-      "test_file": null
+      "test_file": null,
+      "capability_category": "listener-admin",
+      "canonical_capability": "system.listener_admin",
+      "owner": "legacy Python listener",
+      "lifecycle": "active",
+      "migration_action": "KEEP",
+      "replacement_tool": null,
+      "compatibility_alias": false,
+      "cpp_builder": null,
+      "cpp_entry_point": null,
+      "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/system.py",
+      "live_evidence": [],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": "transport plumbing for the legacy listener, not a capability; shares one canonical name so it never inflates the unique count",
+      "verification": "untested"
     },
     {
       "name": "cloth_apply_fabric_profile",
@@ -1610,7 +2555,22 @@
         "openWorldHint": false
       },
       "module_listener_commands": [],
-      "test_file": null
+      "test_file": null,
+      "capability_category": "technical-art",
+      "canonical_capability": "technical-art.cloth_apply_fabric_profile",
+      "owner": "legacy Python listener",
+      "lifecycle": "active",
+      "migration_action": "REFRONT",
+      "replacement_tool": null,
+      "compatibility_alias": false,
+      "cpp_builder": "MCPBridgeClothOptimizer",
+      "cpp_entry_point": null,
+      "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/cloth_optimizer.py",
+      "live_evidence": [],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": null,
+      "verification": "untested"
     },
     {
       "name": "cloth_apply_lower_leg_gradient",
@@ -1635,7 +2595,22 @@
         "openWorldHint": false
       },
       "module_listener_commands": [],
-      "test_file": null
+      "test_file": null,
+      "capability_category": "technical-art",
+      "canonical_capability": "technical-art.cloth_apply_lower_leg_gradient",
+      "owner": "legacy Python listener",
+      "lifecycle": "active",
+      "migration_action": "REFRONT",
+      "replacement_tool": null,
+      "compatibility_alias": false,
+      "cpp_builder": "MCPBridgeClothOptimizer",
+      "cpp_entry_point": null,
+      "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/cloth_optimizer.py",
+      "live_evidence": [],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": null,
+      "verification": "untested"
     },
     {
       "name": "cloth_inspect_asset",
@@ -1657,7 +2632,22 @@
         "openWorldHint": false
       },
       "module_listener_commands": [],
-      "test_file": null
+      "test_file": null,
+      "capability_category": "technical-art",
+      "canonical_capability": "technical-art.cloth_inspect_asset",
+      "owner": "legacy Python listener",
+      "lifecycle": "active",
+      "migration_action": "REFRONT",
+      "replacement_tool": null,
+      "compatibility_alias": false,
+      "cpp_builder": "MCPBridgeClothOptimizer",
+      "cpp_entry_point": null,
+      "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/cloth_optimizer.py",
+      "live_evidence": [],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": null,
+      "verification": "untested"
     },
     {
       "name": "cloth_smooth_max_distance",
@@ -1683,7 +2673,22 @@
         "openWorldHint": false
       },
       "module_listener_commands": [],
-      "test_file": null
+      "test_file": null,
+      "capability_category": "technical-art",
+      "canonical_capability": "technical-art.cloth_smooth_max_distance",
+      "owner": "legacy Python listener",
+      "lifecycle": "active",
+      "migration_action": "REFRONT",
+      "replacement_tool": null,
+      "compatibility_alias": false,
+      "cpp_builder": "MCPBridgeClothOptimizer",
+      "cpp_entry_point": null,
+      "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/cloth_optimizer.py",
+      "live_evidence": [],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": null,
+      "verification": "untested"
     },
     {
       "name": "console_effect",
@@ -1706,7 +2711,22 @@
         "openWorldHint": false
       },
       "module_listener_commands": [],
-      "test_file": null
+      "test_file": null,
+      "capability_category": "effects",
+      "canonical_capability": "effects.console_effect",
+      "owner": "legacy Python listener",
+      "lifecycle": "active",
+      "migration_action": "PORT",
+      "replacement_tool": null,
+      "compatibility_alias": false,
+      "cpp_builder": null,
+      "cpp_entry_point": null,
+      "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/effects.py",
+      "live_evidence": [],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": "layer: direct_reflection for post-process volumes and console effects",
+      "verification": "untested"
     },
     {
       "name": "cpp_build",
@@ -1732,7 +2752,22 @@
         "openWorldHint": false
       },
       "module_listener_commands": [],
-      "test_file": null
+      "test_file": null,
+      "capability_category": "cpp-build",
+      "canonical_capability": "cpp-build.cpp_build",
+      "owner": "legacy Python listener",
+      "lifecycle": "active",
+      "migration_action": "KEEP",
+      "replacement_tool": null,
+      "compatibility_alias": false,
+      "cpp_builder": null,
+      "cpp_entry_point": null,
+      "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/cpp_tools.py",
+      "live_evidence": [],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": "belongs to a future build/commandlet backend; legacy lane is the only owner today",
+      "verification": "untested"
     },
     {
       "name": "cpp_class_create",
@@ -1758,7 +2793,22 @@
         "openWorldHint": false
       },
       "module_listener_commands": [],
-      "test_file": null
+      "test_file": null,
+      "capability_category": "cpp-build",
+      "canonical_capability": "cpp-build.cpp_class_create",
+      "owner": "legacy Python listener",
+      "lifecycle": "active",
+      "migration_action": "KEEP",
+      "replacement_tool": null,
+      "compatibility_alias": false,
+      "cpp_builder": null,
+      "cpp_entry_point": null,
+      "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/cpp_tools.py",
+      "live_evidence": [],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": "belongs to a future build/commandlet backend; legacy lane is the only owner today",
+      "verification": "untested"
     },
     {
       "name": "data_table_create",
@@ -1783,7 +2833,22 @@
         "openWorldHint": false
       },
       "module_listener_commands": [],
-      "test_file": "mcp-server/tests/content-tools.test.ts"
+      "test_file": "mcp-server/tests/content-tools.test.ts",
+      "capability_category": "assets",
+      "canonical_capability": "assets.data_table_create",
+      "owner": "legacy Python listener",
+      "lifecycle": "active",
+      "migration_action": "REFRONT",
+      "replacement_tool": null,
+      "compatibility_alias": false,
+      "cpp_builder": "MCPBridgeDataLibrary",
+      "cpp_entry_point": "FillDataTableFromJSON",
+      "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/content_tools.py",
+      "live_evidence": [],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": null,
+      "verification": "mock_only"
     },
     {
       "name": "data_table_fill_from_json",
@@ -1806,7 +2871,22 @@
         "openWorldHint": false
       },
       "module_listener_commands": [],
-      "test_file": "mcp-server/tests/content-tools.test.ts"
+      "test_file": "mcp-server/tests/content-tools.test.ts",
+      "capability_category": "assets",
+      "canonical_capability": "assets.data_table_fill_from_json",
+      "owner": "legacy Python listener",
+      "lifecycle": "active",
+      "migration_action": "REFRONT",
+      "replacement_tool": null,
+      "compatibility_alias": false,
+      "cpp_builder": "MCPBridgeDataLibrary",
+      "cpp_entry_point": "FillDataTableFromJSON",
+      "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/content_tools.py",
+      "live_evidence": [],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": null,
+      "verification": "mock_only"
     },
     {
       "name": "engine_source_read",
@@ -1830,7 +2910,22 @@
         "openWorldHint": false
       },
       "module_listener_commands": [],
-      "test_file": "mcp-server/tests/engine-source-tools.test.ts"
+      "test_file": "mcp-server/tests/engine-source-tools.test.ts",
+      "capability_category": "engine-source",
+      "canonical_capability": "engine_source.read",
+      "owner": "mcp-server (engine source on disk)",
+      "lifecycle": "active",
+      "migration_action": "KEEP",
+      "replacement_tool": null,
+      "compatibility_alias": false,
+      "cpp_builder": null,
+      "cpp_entry_point": null,
+      "python_handler": null,
+      "live_evidence": [],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": "no editor involved; unit tests run against the real installed engine source",
+      "verification": "live_verified"
     },
     {
       "name": "engine_source_search",
@@ -1859,7 +2954,22 @@
         "openWorldHint": false
       },
       "module_listener_commands": [],
-      "test_file": "mcp-server/tests/engine-source-tools.test.ts"
+      "test_file": "mcp-server/tests/engine-source-tools.test.ts",
+      "capability_category": "engine-source",
+      "canonical_capability": "engine_source.search",
+      "owner": "mcp-server (engine source on disk)",
+      "lifecycle": "active",
+      "migration_action": "KEEP",
+      "replacement_tool": null,
+      "compatibility_alias": false,
+      "cpp_builder": null,
+      "cpp_entry_point": null,
+      "python_handler": null,
+      "live_evidence": [],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": "no editor involved; unit tests run against the real installed engine source",
+      "verification": "live_verified"
     },
     {
       "name": "folder_hidden_list",
@@ -1879,7 +2989,22 @@
         "openWorldHint": false
       },
       "module_listener_commands": [],
-      "test_file": null
+      "test_file": null,
+      "capability_category": "project",
+      "canonical_capability": "project.folder_hidden_list",
+      "owner": "legacy Python listener",
+      "lifecycle": "active",
+      "migration_action": "REFRONT",
+      "replacement_tool": null,
+      "compatibility_alias": false,
+      "cpp_builder": "FolderVisibilityLibrary",
+      "cpp_entry_point": "GetHiddenFolders",
+      "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/folder_visibility.py",
+      "live_evidence": [],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": null,
+      "verification": "untested"
     },
     {
       "name": "folder_hide",
@@ -1902,7 +3027,22 @@
         "openWorldHint": false
       },
       "module_listener_commands": [],
-      "test_file": null
+      "test_file": null,
+      "capability_category": "project",
+      "canonical_capability": "project.folder_hide",
+      "owner": "legacy Python listener",
+      "lifecycle": "active",
+      "migration_action": "REFRONT",
+      "replacement_tool": null,
+      "compatibility_alias": false,
+      "cpp_builder": "FolderVisibilityLibrary",
+      "cpp_entry_point": "HideFolder",
+      "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/folder_visibility.py",
+      "live_evidence": [],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": null,
+      "verification": "untested"
     },
     {
       "name": "folder_show",
@@ -1925,7 +3065,22 @@
         "openWorldHint": false
       },
       "module_listener_commands": [],
-      "test_file": null
+      "test_file": null,
+      "capability_category": "project",
+      "canonical_capability": "project.folder_show",
+      "owner": "legacy Python listener",
+      "lifecycle": "active",
+      "migration_action": "REFRONT",
+      "replacement_tool": null,
+      "compatibility_alias": false,
+      "cpp_builder": "FolderVisibilityLibrary",
+      "cpp_entry_point": "ShowFolder",
+      "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/folder_visibility.py",
+      "live_evidence": [],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": null,
+      "verification": "untested"
     },
     {
       "name": "game_template_create",
@@ -1951,7 +3106,22 @@
         "openWorldHint": false
       },
       "module_listener_commands": [],
-      "test_file": "mcp-server/tests/content-tools.test.ts"
+      "test_file": "mcp-server/tests/content-tools.test.ts",
+      "capability_category": "assets",
+      "canonical_capability": "assets.game_template_create",
+      "owner": "legacy Python listener",
+      "lifecycle": "active",
+      "migration_action": "PORT",
+      "replacement_tool": null,
+      "compatibility_alias": false,
+      "cpp_builder": null,
+      "cpp_entry_point": null,
+      "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/content_tools.py",
+      "live_evidence": [],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": null,
+      "verification": "mock_only"
     },
     {
       "name": "gameplay_framework_create",
@@ -1975,7 +3145,22 @@
         "openWorldHint": false
       },
       "module_listener_commands": [],
-      "test_file": null
+      "test_file": null,
+      "capability_category": "gameplay-setup",
+      "canonical_capability": "gameplay-setup.gameplay_framework_create",
+      "owner": "legacy Python listener",
+      "lifecycle": "active",
+      "migration_action": "PORT",
+      "replacement_tool": null,
+      "compatibility_alias": false,
+      "cpp_builder": null,
+      "cpp_entry_point": null,
+      "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/gamedev.py",
+      "live_evidence": [],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": null,
+      "verification": "untested"
     },
     {
       "name": "gameplay_pattern_search",
@@ -2001,7 +3186,22 @@
         "openWorldHint": false
       },
       "module_listener_commands": [],
-      "test_file": "mcp-server/tests/intelligence-tools.test.ts"
+      "test_file": "mcp-server/tests/intelligence-tools.test.ts",
+      "capability_category": "project-intelligence",
+      "canonical_capability": "project-intelligence.gameplay_pattern_search",
+      "owner": "legacy Python listener",
+      "lifecycle": "active",
+      "migration_action": "PORT",
+      "replacement_tool": null,
+      "compatibility_alias": false,
+      "cpp_builder": null,
+      "cpp_entry_point": null,
+      "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/project_index.py",
+      "live_evidence": [],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": "layer: puerts_workflow; no editor mutation involved",
+      "verification": "mock_only"
     },
     {
       "name": "gameplay_pie_start",
@@ -2023,7 +3223,22 @@
         "openWorldHint": false
       },
       "module_listener_commands": [],
-      "test_file": "mcp-server/tests/compat-tools.test.ts"
+      "test_file": "mcp-server/tests/compat-tools.test.ts",
+      "capability_category": "compat",
+      "canonical_capability": "editor.pie_start",
+      "owner": "compat alias router",
+      "lifecycle": "active",
+      "migration_action": "ALIAS",
+      "replacement_tool": "puerts_pie_start",
+      "compatibility_alias": true,
+      "cpp_builder": null,
+      "cpp_entry_point": null,
+      "python_handler": null,
+      "live_evidence": [],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": null,
+      "verification": "mock_only"
     },
     {
       "name": "gameplay_pie_start",
@@ -2045,7 +3260,22 @@
         "openWorldHint": false
       },
       "module_listener_commands": [],
-      "test_file": "mcp-server/tests/gameplay-tools.test.ts"
+      "test_file": "mcp-server/tests/gameplay-tools.test.ts",
+      "capability_category": "pie",
+      "canonical_capability": "editor.pie_start",
+      "owner": "legacy Python listener",
+      "lifecycle": "active",
+      "migration_action": "ALIAS",
+      "replacement_tool": "puerts_pie_start",
+      "compatibility_alias": true,
+      "cpp_builder": null,
+      "cpp_entry_point": null,
+      "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/gameplay.py",
+      "live_evidence": [],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": null,
+      "verification": "mock_only"
     },
     {
       "name": "gameplay_pie_status",
@@ -2065,7 +3295,22 @@
         "openWorldHint": false
       },
       "module_listener_commands": [],
-      "test_file": "mcp-server/tests/gameplay-tools.test.ts"
+      "test_file": "mcp-server/tests/gameplay-tools.test.ts",
+      "capability_category": "pie",
+      "canonical_capability": "bridge.diagnostic",
+      "owner": "legacy Python listener",
+      "lifecycle": "active",
+      "migration_action": "MERGE",
+      "replacement_tool": "puerts_diagnostic",
+      "compatibility_alias": false,
+      "cpp_builder": null,
+      "cpp_entry_point": null,
+      "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/gameplay.py",
+      "live_evidence": [],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": null,
+      "verification": "mock_only"
     },
     {
       "name": "gameplay_pie_stop",
@@ -2085,7 +3330,22 @@
         "openWorldHint": false
       },
       "module_listener_commands": [],
-      "test_file": "mcp-server/tests/compat-tools.test.ts"
+      "test_file": "mcp-server/tests/compat-tools.test.ts",
+      "capability_category": "compat",
+      "canonical_capability": "editor.pie_stop",
+      "owner": "compat alias router",
+      "lifecycle": "active",
+      "migration_action": "ALIAS",
+      "replacement_tool": "puerts_pie_stop",
+      "compatibility_alias": true,
+      "cpp_builder": null,
+      "cpp_entry_point": null,
+      "python_handler": null,
+      "live_evidence": [],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": null,
+      "verification": "mock_only"
     },
     {
       "name": "gameplay_pie_stop",
@@ -2105,7 +3365,22 @@
         "openWorldHint": false
       },
       "module_listener_commands": [],
-      "test_file": "mcp-server/tests/gameplay-tools.test.ts"
+      "test_file": "mcp-server/tests/gameplay-tools.test.ts",
+      "capability_category": "pie",
+      "canonical_capability": "editor.pie_stop",
+      "owner": "legacy Python listener",
+      "lifecycle": "active",
+      "migration_action": "ALIAS",
+      "replacement_tool": "puerts_pie_stop",
+      "compatibility_alias": true,
+      "cpp_builder": null,
+      "cpp_entry_point": null,
+      "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/gameplay.py",
+      "live_evidence": [],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": null,
+      "verification": "mock_only"
     },
     {
       "name": "gameplay_run_acceptance_tests",
@@ -2128,7 +3403,22 @@
         "openWorldHint": false
       },
       "module_listener_commands": [],
-      "test_file": "mcp-server/tests/gameplay-tools.test.ts"
+      "test_file": "mcp-server/tests/gameplay-tools.test.ts",
+      "capability_category": "pie",
+      "canonical_capability": "pie.gameplay_run_acceptance_tests",
+      "owner": "legacy Python listener",
+      "lifecycle": "active",
+      "migration_action": "KEEP",
+      "replacement_tool": null,
+      "compatibility_alias": false,
+      "cpp_builder": null,
+      "cpp_entry_point": null,
+      "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/gameplay.py",
+      "live_evidence": [],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": "legacy acceptance harness; replaced by per-capability native acceptance scripts over time",
+      "verification": "mock_only"
     },
     {
       "name": "gameplay_telemetry_snapshot",
@@ -2148,7 +3438,22 @@
         "openWorldHint": false
       },
       "module_listener_commands": [],
-      "test_file": "mcp-server/tests/gameplay-tools.test.ts"
+      "test_file": "mcp-server/tests/gameplay-tools.test.ts",
+      "capability_category": "pie",
+      "canonical_capability": "pie.gameplay_telemetry_snapshot",
+      "owner": "legacy Python listener",
+      "lifecycle": "active",
+      "migration_action": "REFRONT",
+      "replacement_tool": null,
+      "compatibility_alias": false,
+      "cpp_builder": "MCPBridgePIEAgent",
+      "cpp_entry_point": null,
+      "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/gameplay.py",
+      "live_evidence": [],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": null,
+      "verification": "mock_only"
     },
     {
       "name": "help",
@@ -2170,7 +3475,22 @@
         "openWorldHint": false
       },
       "module_listener_commands": [],
-      "test_file": null
+      "test_file": null,
+      "capability_category": "listener-admin",
+      "canonical_capability": "system.listener_admin",
+      "owner": "legacy Python listener",
+      "lifecycle": "active",
+      "migration_action": "KEEP",
+      "replacement_tool": null,
+      "compatibility_alias": false,
+      "cpp_builder": null,
+      "cpp_entry_point": null,
+      "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/system.py",
+      "live_evidence": [],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": "transport plumbing for the legacy listener, not a capability; shares one canonical name so it never inflates the unique count",
+      "verification": "untested"
     },
     {
       "name": "history_list",
@@ -2192,7 +3512,22 @@
         "openWorldHint": false
       },
       "module_listener_commands": [],
-      "test_file": null
+      "test_file": null,
+      "capability_category": "editor-ops",
+      "canonical_capability": "editor-ops.history_list",
+      "owner": "legacy Python listener",
+      "lifecycle": "active",
+      "migration_action": "PORT",
+      "replacement_tool": null,
+      "compatibility_alias": false,
+      "cpp_builder": null,
+      "cpp_entry_point": null,
+      "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/system.py",
+      "live_evidence": [],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": "layer: new_native_wrapper over the native transaction history",
+      "verification": "untested"
     },
     {
       "name": "input_mapping_add",
@@ -2221,7 +3556,22 @@
         "openWorldHint": false
       },
       "module_listener_commands": [],
-      "test_file": null
+      "test_file": null,
+      "capability_category": "gameplay-setup",
+      "canonical_capability": "gameplay-setup.input_mapping_add",
+      "owner": "legacy Python listener",
+      "lifecycle": "active",
+      "migration_action": "REFRONT",
+      "replacement_tool": null,
+      "compatibility_alias": false,
+      "cpp_builder": "MCPBridgeInputLibrary",
+      "cpp_entry_point": "AddActionMapping",
+      "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/gamedev.py",
+      "live_evidence": [],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": null,
+      "verification": "untested"
     },
     {
       "name": "input_mapping_info",
@@ -2245,7 +3595,22 @@
         "openWorldHint": false
       },
       "module_listener_commands": [],
-      "test_file": null
+      "test_file": null,
+      "capability_category": "project",
+      "canonical_capability": "project.input_mapping_info",
+      "owner": "legacy Python listener",
+      "lifecycle": "active",
+      "migration_action": "REFRONT",
+      "replacement_tool": null,
+      "compatibility_alias": false,
+      "cpp_builder": "MCPBridgeInputLibrary",
+      "cpp_entry_point": null,
+      "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/project.py",
+      "live_evidence": [],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": null,
+      "verification": "untested"
     },
     {
       "name": "input_mapping_remove",
@@ -2269,7 +3634,22 @@
         "openWorldHint": false
       },
       "module_listener_commands": [],
-      "test_file": null
+      "test_file": null,
+      "capability_category": "gameplay-setup",
+      "canonical_capability": "gameplay-setup.input_mapping_remove",
+      "owner": "legacy Python listener",
+      "lifecycle": "active",
+      "migration_action": "REFRONT",
+      "replacement_tool": null,
+      "compatibility_alias": false,
+      "cpp_builder": "MCPBridgeInputLibrary",
+      "cpp_entry_point": "RemoveActionMapping",
+      "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/gamedev.py",
+      "live_evidence": [],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": null,
+      "verification": "untested"
     },
     {
       "name": "input_preset_apply",
@@ -2291,7 +3671,22 @@
         "openWorldHint": false
       },
       "module_listener_commands": [],
-      "test_file": null
+      "test_file": null,
+      "capability_category": "gameplay-setup",
+      "canonical_capability": "gameplay-setup.input_preset_apply",
+      "owner": "legacy Python listener",
+      "lifecycle": "active",
+      "migration_action": "REFRONT",
+      "replacement_tool": null,
+      "compatibility_alias": false,
+      "cpp_builder": "MCPBridgeInputLibrary",
+      "cpp_entry_point": null,
+      "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/gamedev.py",
+      "live_evidence": [],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": null,
+      "verification": "untested"
     },
     {
       "name": "job_cancel",
@@ -2313,7 +3708,22 @@
         "openWorldHint": false
       },
       "module_listener_commands": [],
-      "test_file": null
+      "test_file": null,
+      "capability_category": "cpp-build",
+      "canonical_capability": "cpp-build.job_cancel",
+      "owner": "legacy Python listener",
+      "lifecycle": "active",
+      "migration_action": "KEEP",
+      "replacement_tool": null,
+      "compatibility_alias": false,
+      "cpp_builder": null,
+      "cpp_entry_point": null,
+      "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/cpp_tools.py",
+      "live_evidence": [],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": "belongs to a future build/commandlet backend; legacy lane is the only owner today",
+      "verification": "untested"
     },
     {
       "name": "job_list",
@@ -2333,7 +3743,22 @@
         "openWorldHint": false
       },
       "module_listener_commands": [],
-      "test_file": null
+      "test_file": null,
+      "capability_category": "cpp-build",
+      "canonical_capability": "cpp-build.job_list",
+      "owner": "legacy Python listener",
+      "lifecycle": "active",
+      "migration_action": "KEEP",
+      "replacement_tool": null,
+      "compatibility_alias": false,
+      "cpp_builder": null,
+      "cpp_entry_point": null,
+      "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/cpp_tools.py",
+      "live_evidence": [],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": "belongs to a future build/commandlet backend; legacy lane is the only owner today",
+      "verification": "untested"
     },
     {
       "name": "job_status",
@@ -2356,7 +3781,22 @@
         "openWorldHint": false
       },
       "module_listener_commands": [],
-      "test_file": null
+      "test_file": null,
+      "capability_category": "cpp-build",
+      "canonical_capability": "cpp-build.job_status",
+      "owner": "legacy Python listener",
+      "lifecycle": "active",
+      "migration_action": "KEEP",
+      "replacement_tool": null,
+      "compatibility_alias": false,
+      "cpp_builder": null,
+      "cpp_entry_point": null,
+      "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/cpp_tools.py",
+      "live_evidence": [],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": "belongs to a future build/commandlet backend; legacy lane is the only owner today",
+      "verification": "untested"
     },
     {
       "name": "level_actors",
@@ -2383,7 +3823,22 @@
         "openWorldHint": false
       },
       "module_listener_commands": [],
-      "test_file": "mcp-server/tests/compat-tools.test.ts"
+      "test_file": "mcp-server/tests/compat-tools.test.ts",
+      "capability_category": "compat",
+      "canonical_capability": "actors.find",
+      "owner": "compat alias router",
+      "lifecycle": "active",
+      "migration_action": "ALIAS",
+      "replacement_tool": "puerts_find_actors",
+      "compatibility_alias": true,
+      "cpp_builder": null,
+      "cpp_entry_point": null,
+      "python_handler": null,
+      "live_evidence": [],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": null,
+      "verification": "mock_only"
     },
     {
       "name": "level_actors",
@@ -2410,7 +3865,22 @@
         "openWorldHint": false
       },
       "module_listener_commands": [],
-      "test_file": null
+      "test_file": null,
+      "capability_category": "levels",
+      "canonical_capability": "actors.find",
+      "owner": "legacy Python listener",
+      "lifecycle": "active",
+      "migration_action": "ALIAS",
+      "replacement_tool": "puerts_find_actors",
+      "compatibility_alias": true,
+      "cpp_builder": null,
+      "cpp_entry_point": null,
+      "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/level.py",
+      "live_evidence": [],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": null,
+      "verification": "untested"
     },
     {
       "name": "level_new",
@@ -2433,7 +3903,22 @@
         "openWorldHint": false
       },
       "module_listener_commands": [],
-      "test_file": "mcp-server/tests/content-tools.test.ts"
+      "test_file": "mcp-server/tests/content-tools.test.ts",
+      "capability_category": "assets",
+      "canonical_capability": "assets.level_new",
+      "owner": "legacy Python listener",
+      "lifecycle": "active",
+      "migration_action": "PORT",
+      "replacement_tool": null,
+      "compatibility_alias": false,
+      "cpp_builder": null,
+      "cpp_entry_point": null,
+      "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/content_tools.py",
+      "live_evidence": [],
+      "migration_risk": "high",
+      "capability_loss_risk": "low",
+      "notes": "no native map-load or map-create exists (findings defect 5); layer: new_native_wrapper",
+      "verification": "mock_only"
     },
     {
       "name": "level_outliner",
@@ -2455,7 +3940,22 @@
         "openWorldHint": false
       },
       "module_listener_commands": [],
-      "test_file": null
+      "test_file": null,
+      "capability_category": "levels",
+      "canonical_capability": "actors.find",
+      "owner": "legacy Python listener",
+      "lifecycle": "active",
+      "migration_action": "MERGE",
+      "replacement_tool": "puerts_find_actors",
+      "compatibility_alias": false,
+      "cpp_builder": null,
+      "cpp_entry_point": null,
+      "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/level.py",
+      "live_evidence": [],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": null,
+      "verification": "untested"
     },
     {
       "name": "level_save",
@@ -2477,7 +3977,22 @@
         "openWorldHint": false
       },
       "module_listener_commands": [],
-      "test_file": "mcp-server/tests/compat-tools.test.ts"
+      "test_file": "mcp-server/tests/compat-tools.test.ts",
+      "capability_category": "compat",
+      "canonical_capability": "assets.save",
+      "owner": "compat alias router",
+      "lifecycle": "active",
+      "migration_action": "ALIAS",
+      "replacement_tool": "puerts_save",
+      "compatibility_alias": true,
+      "cpp_builder": null,
+      "cpp_entry_point": null,
+      "python_handler": null,
+      "live_evidence": [],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": null,
+      "verification": "mock_only"
     },
     {
       "name": "level_save",
@@ -2499,7 +4014,22 @@
         "openWorldHint": false
       },
       "module_listener_commands": [],
-      "test_file": null
+      "test_file": null,
+      "capability_category": "levels",
+      "canonical_capability": "assets.save",
+      "owner": "legacy Python listener",
+      "lifecycle": "active",
+      "migration_action": "ALIAS",
+      "replacement_tool": "puerts_save",
+      "compatibility_alias": true,
+      "cpp_builder": null,
+      "cpp_entry_point": null,
+      "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/level.py",
+      "live_evidence": [],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": null,
+      "verification": "untested"
     },
     {
       "name": "material_apply",
@@ -2525,7 +4055,22 @@
         "openWorldHint": false
       },
       "module_listener_commands": [],
-      "test_file": null
+      "test_file": null,
+      "capability_category": "materials",
+      "canonical_capability": "materials.material_apply",
+      "owner": "legacy Python listener",
+      "lifecycle": "active",
+      "migration_action": "PORT",
+      "replacement_tool": null,
+      "compatibility_alias": false,
+      "cpp_builder": null,
+      "cpp_entry_point": null,
+      "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/materials.py",
+      "live_evidence": [],
+      "migration_risk": "high",
+      "capability_loss_risk": "low",
+      "notes": "layer: new_native_wrapper; a generic material graph builder is a known gap (sky demo is not one)",
+      "verification": "untested"
     },
     {
       "name": "material_create",
@@ -2544,7 +4089,22 @@
         "openWorldHint": false
       },
       "module_listener_commands": [],
-      "test_file": null
+      "test_file": null,
+      "capability_category": "materials",
+      "canonical_capability": "materials.material_create",
+      "owner": "legacy Python listener",
+      "lifecycle": "active",
+      "migration_action": "PORT",
+      "replacement_tool": null,
+      "compatibility_alias": false,
+      "cpp_builder": null,
+      "cpp_entry_point": null,
+      "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/materials.py",
+      "live_evidence": [],
+      "migration_risk": "high",
+      "capability_loss_risk": "low",
+      "notes": "layer: new_native_wrapper; a generic material graph builder is a known gap (sky demo is not one)",
+      "verification": "untested"
     },
     {
       "name": "material_info",
@@ -2566,7 +4126,22 @@
         "openWorldHint": false
       },
       "module_listener_commands": [],
-      "test_file": null
+      "test_file": null,
+      "capability_category": "materials",
+      "canonical_capability": "materials.material_info",
+      "owner": "legacy Python listener",
+      "lifecycle": "active",
+      "migration_action": "PORT",
+      "replacement_tool": null,
+      "compatibility_alias": false,
+      "cpp_builder": null,
+      "cpp_entry_point": null,
+      "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/materials.py",
+      "live_evidence": [],
+      "migration_risk": "high",
+      "capability_loss_risk": "low",
+      "notes": "layer: new_native_wrapper; a generic material graph builder is a known gap (sky demo is not one)",
+      "verification": "untested"
     },
     {
       "name": "material_instance_create",
@@ -2593,7 +4168,22 @@
         "openWorldHint": false
       },
       "module_listener_commands": [],
-      "test_file": "mcp-server/tests/content-tools.test.ts"
+      "test_file": "mcp-server/tests/content-tools.test.ts",
+      "capability_category": "assets",
+      "canonical_capability": "assets.material_instance_create",
+      "owner": "legacy Python listener",
+      "lifecycle": "active",
+      "migration_action": "PORT",
+      "replacement_tool": null,
+      "compatibility_alias": false,
+      "cpp_builder": null,
+      "cpp_entry_point": null,
+      "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/content_tools.py",
+      "live_evidence": [],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": null,
+      "verification": "mock_only"
     },
     {
       "name": "material_instance_set_params",
@@ -2618,7 +4208,22 @@
         "openWorldHint": false
       },
       "module_listener_commands": [],
-      "test_file": "mcp-server/tests/content-tools.test.ts"
+      "test_file": "mcp-server/tests/content-tools.test.ts",
+      "capability_category": "assets",
+      "canonical_capability": "assets.material_instance_set_params",
+      "owner": "legacy Python listener",
+      "lifecycle": "active",
+      "migration_action": "PORT",
+      "replacement_tool": null,
+      "compatibility_alias": false,
+      "cpp_builder": null,
+      "cpp_entry_point": null,
+      "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/content_tools.py",
+      "live_evidence": [],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": null,
+      "verification": "mock_only"
     },
     {
       "name": "material_list",
@@ -2643,7 +4248,22 @@
         "openWorldHint": false
       },
       "module_listener_commands": [],
-      "test_file": null
+      "test_file": null,
+      "capability_category": "materials",
+      "canonical_capability": "materials.material_list",
+      "owner": "legacy Python listener",
+      "lifecycle": "active",
+      "migration_action": "PORT",
+      "replacement_tool": null,
+      "compatibility_alias": false,
+      "cpp_builder": null,
+      "cpp_entry_point": null,
+      "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/materials.py",
+      "live_evidence": [],
+      "migration_risk": "high",
+      "capability_loss_risk": "low",
+      "notes": "layer: new_native_wrapper; a generic material graph builder is a known gap (sky demo is not one)",
+      "verification": "untested"
     },
     {
       "name": "optimization_apply_low_risk_fixes",
@@ -2667,7 +4287,22 @@
         "openWorldHint": false
       },
       "module_listener_commands": [],
-      "test_file": null
+      "test_file": null,
+      "capability_category": "optimization",
+      "canonical_capability": "optimization.optimization_apply_low_risk_fixes",
+      "owner": "legacy Python listener",
+      "lifecycle": "active",
+      "migration_action": "KEEP",
+      "replacement_tool": null,
+      "compatibility_alias": false,
+      "cpp_builder": null,
+      "cpp_entry_point": null,
+      "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/optimization.py",
+      "live_evidence": [],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": "24-tool profiling suite with no native equivalent; migrate late, by capability group",
+      "verification": "untested"
     },
     {
       "name": "optimization_asset_audit",
@@ -2695,7 +4330,22 @@
         "openWorldHint": false
       },
       "module_listener_commands": [],
-      "test_file": null
+      "test_file": null,
+      "capability_category": "optimization",
+      "canonical_capability": "optimization.optimization_asset_audit",
+      "owner": "legacy Python listener",
+      "lifecycle": "active",
+      "migration_action": "KEEP",
+      "replacement_tool": null,
+      "compatibility_alias": false,
+      "cpp_builder": null,
+      "cpp_entry_point": null,
+      "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/optimization.py",
+      "live_evidence": [],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": "24-tool profiling suite with no native equivalent; migrate late, by capability group",
+      "verification": "untested"
     },
     {
       "name": "optimization_asset_cost_rank",
@@ -2718,7 +4368,22 @@
         "openWorldHint": false
       },
       "module_listener_commands": [],
-      "test_file": null
+      "test_file": null,
+      "capability_category": "optimization",
+      "canonical_capability": "optimization.optimization_asset_cost_rank",
+      "owner": "legacy Python listener",
+      "lifecycle": "active",
+      "migration_action": "KEEP",
+      "replacement_tool": null,
+      "compatibility_alias": false,
+      "cpp_builder": null,
+      "cpp_entry_point": null,
+      "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/optimization.py",
+      "live_evidence": [],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": "24-tool profiling suite with no native equivalent; migrate late, by capability group",
+      "verification": "untested"
     },
     {
       "name": "optimization_before_after_verify",
@@ -2747,7 +4412,22 @@
         "openWorldHint": false
       },
       "module_listener_commands": [],
-      "test_file": null
+      "test_file": null,
+      "capability_category": "optimization",
+      "canonical_capability": "optimization.optimization_before_after_verify",
+      "owner": "legacy Python listener",
+      "lifecycle": "active",
+      "migration_action": "KEEP",
+      "replacement_tool": null,
+      "compatibility_alias": false,
+      "cpp_builder": null,
+      "cpp_entry_point": null,
+      "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/optimization.py",
+      "live_evidence": [],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": "24-tool profiling suite with no native equivalent; migrate late, by capability group",
+      "verification": "untested"
     },
     {
       "name": "optimization_camera_path_profile",
@@ -2772,7 +4452,22 @@
         "openWorldHint": false
       },
       "module_listener_commands": [],
-      "test_file": null
+      "test_file": null,
+      "capability_category": "optimization",
+      "canonical_capability": "optimization.optimization_camera_path_profile",
+      "owner": "legacy Python listener",
+      "lifecycle": "active",
+      "migration_action": "KEEP",
+      "replacement_tool": null,
+      "compatibility_alias": false,
+      "cpp_builder": null,
+      "cpp_entry_point": null,
+      "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/optimization.py",
+      "live_evidence": [],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": "24-tool profiling suite with no native equivalent; migrate late, by capability group",
+      "verification": "untested"
     },
     {
       "name": "optimization_cpu_capture",
@@ -2799,7 +4494,22 @@
         "openWorldHint": false
       },
       "module_listener_commands": [],
-      "test_file": null
+      "test_file": null,
+      "capability_category": "optimization",
+      "canonical_capability": "optimization.optimization_cpu_capture",
+      "owner": "legacy Python listener",
+      "lifecycle": "active",
+      "migration_action": "KEEP",
+      "replacement_tool": null,
+      "compatibility_alias": false,
+      "cpp_builder": null,
+      "cpp_entry_point": null,
+      "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/optimization.py",
+      "live_evidence": [],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": "24-tool profiling suite with no native equivalent; migrate late, by capability group",
+      "verification": "untested"
     },
     {
       "name": "optimization_fix_candidates",
@@ -2824,7 +4534,22 @@
         "openWorldHint": false
       },
       "module_listener_commands": [],
-      "test_file": null
+      "test_file": null,
+      "capability_category": "optimization",
+      "canonical_capability": "optimization.optimization_fix_candidates",
+      "owner": "legacy Python listener",
+      "lifecycle": "active",
+      "migration_action": "KEEP",
+      "replacement_tool": null,
+      "compatibility_alias": false,
+      "cpp_builder": null,
+      "cpp_entry_point": null,
+      "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/optimization.py",
+      "live_evidence": [],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": "24-tool profiling suite with no native equivalent; migrate late, by capability group",
+      "verification": "untested"
     },
     {
       "name": "optimization_generate_report",
@@ -2852,7 +4577,22 @@
         "openWorldHint": false
       },
       "module_listener_commands": [],
-      "test_file": null
+      "test_file": null,
+      "capability_category": "optimization",
+      "canonical_capability": "optimization.optimization_generate_report",
+      "owner": "legacy Python listener",
+      "lifecycle": "active",
+      "migration_action": "KEEP",
+      "replacement_tool": null,
+      "compatibility_alias": false,
+      "cpp_builder": null,
+      "cpp_entry_point": null,
+      "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/optimization.py",
+      "live_evidence": [],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": "24-tool profiling suite with no native equivalent; migrate late, by capability group",
+      "verification": "untested"
     },
     {
       "name": "optimization_gpu_capture",
@@ -2879,7 +4619,22 @@
         "openWorldHint": false
       },
       "module_listener_commands": [],
-      "test_file": null
+      "test_file": null,
+      "capability_category": "optimization",
+      "canonical_capability": "optimization.optimization_gpu_capture",
+      "owner": "legacy Python listener",
+      "lifecycle": "active",
+      "migration_action": "KEEP",
+      "replacement_tool": null,
+      "compatibility_alias": false,
+      "cpp_builder": null,
+      "cpp_entry_point": null,
+      "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/optimization.py",
+      "live_evidence": [],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": "24-tool profiling suite with no native equivalent; migrate late, by capability group",
+      "verification": "untested"
     },
     {
       "name": "optimization_insights_trace_start",
@@ -2901,7 +4656,22 @@
         "openWorldHint": false
       },
       "module_listener_commands": [],
-      "test_file": null
+      "test_file": null,
+      "capability_category": "optimization",
+      "canonical_capability": "optimization.optimization_insights_trace_start",
+      "owner": "legacy Python listener",
+      "lifecycle": "active",
+      "migration_action": "KEEP",
+      "replacement_tool": null,
+      "compatibility_alias": false,
+      "cpp_builder": null,
+      "cpp_entry_point": null,
+      "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/optimization.py",
+      "live_evidence": [],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": "24-tool profiling suite with no native equivalent; migrate late, by capability group",
+      "verification": "untested"
     },
     {
       "name": "optimization_insights_trace_stop",
@@ -2923,7 +4693,22 @@
         "openWorldHint": false
       },
       "module_listener_commands": [],
-      "test_file": null
+      "test_file": null,
+      "capability_category": "optimization",
+      "canonical_capability": "optimization.optimization_insights_trace_stop",
+      "owner": "legacy Python listener",
+      "lifecycle": "active",
+      "migration_action": "KEEP",
+      "replacement_tool": null,
+      "compatibility_alias": false,
+      "cpp_builder": null,
+      "cpp_entry_point": null,
+      "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/optimization.py",
+      "live_evidence": [],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": "24-tool profiling suite with no native equivalent; migrate late, by capability group",
+      "verification": "untested"
     },
     {
       "name": "optimization_insights_trace_summary",
@@ -2945,7 +4730,22 @@
         "openWorldHint": false
       },
       "module_listener_commands": [],
-      "test_file": null
+      "test_file": null,
+      "capability_category": "optimization",
+      "canonical_capability": "optimization.optimization_insights_trace_summary",
+      "owner": "legacy Python listener",
+      "lifecycle": "active",
+      "migration_action": "KEEP",
+      "replacement_tool": null,
+      "compatibility_alias": false,
+      "cpp_builder": null,
+      "cpp_entry_point": null,
+      "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/optimization.py",
+      "live_evidence": [],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": "24-tool profiling suite with no native equivalent; migrate late, by capability group",
+      "verification": "untested"
     },
     {
       "name": "optimization_memory_streaming_capture",
@@ -2979,7 +4779,22 @@
         "openWorldHint": false
       },
       "module_listener_commands": [],
-      "test_file": null
+      "test_file": null,
+      "capability_category": "optimization",
+      "canonical_capability": "optimization.optimization_memory_streaming_capture",
+      "owner": "legacy Python listener",
+      "lifecycle": "active",
+      "migration_action": "KEEP",
+      "replacement_tool": null,
+      "compatibility_alias": false,
+      "cpp_builder": null,
+      "cpp_entry_point": null,
+      "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/optimization.py",
+      "live_evidence": [],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": "24-tool profiling suite with no native equivalent; migrate late, by capability group",
+      "verification": "untested"
     },
     {
       "name": "optimization_profilegpu_capture",
@@ -3004,7 +4819,22 @@
         "openWorldHint": false
       },
       "module_listener_commands": [],
-      "test_file": null
+      "test_file": null,
+      "capability_category": "optimization",
+      "canonical_capability": "optimization.optimization_profilegpu_capture",
+      "owner": "legacy Python listener",
+      "lifecycle": "active",
+      "migration_action": "KEEP",
+      "replacement_tool": null,
+      "compatibility_alias": false,
+      "cpp_builder": null,
+      "cpp_entry_point": null,
+      "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/optimization.py",
+      "live_evidence": [],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": "24-tool profiling suite with no native equivalent; migrate late, by capability group",
+      "verification": "untested"
     },
     {
       "name": "optimization_quick_triage",
@@ -3039,7 +4869,22 @@
         "openWorldHint": false
       },
       "module_listener_commands": [],
-      "test_file": null
+      "test_file": null,
+      "capability_category": "optimization",
+      "canonical_capability": "optimization.optimization_quick_triage",
+      "owner": "legacy Python listener",
+      "lifecycle": "active",
+      "migration_action": "KEEP",
+      "replacement_tool": null,
+      "compatibility_alias": false,
+      "cpp_builder": null,
+      "cpp_entry_point": null,
+      "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/optimization.py",
+      "live_evidence": [],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": "24-tool profiling suite with no native equivalent; migrate late, by capability group",
+      "verification": "untested"
     },
     {
       "name": "optimization_rendering_capture",
@@ -3066,7 +4911,22 @@
         "openWorldHint": false
       },
       "module_listener_commands": [],
-      "test_file": null
+      "test_file": null,
+      "capability_category": "optimization",
+      "canonical_capability": "optimization.optimization_rendering_capture",
+      "owner": "legacy Python listener",
+      "lifecycle": "active",
+      "migration_action": "KEEP",
+      "replacement_tool": null,
+      "compatibility_alias": false,
+      "cpp_builder": null,
+      "cpp_entry_point": null,
+      "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/optimization.py",
+      "live_evidence": [],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": "24-tool profiling suite with no native equivalent; migrate late, by capability group",
+      "verification": "untested"
     },
     {
       "name": "optimization_run_console_checklist",
@@ -3094,7 +4954,22 @@
         "openWorldHint": false
       },
       "module_listener_commands": [],
-      "test_file": null
+      "test_file": null,
+      "capability_category": "optimization",
+      "canonical_capability": "optimization.optimization_run_console_checklist",
+      "owner": "legacy Python listener",
+      "lifecycle": "active",
+      "migration_action": "KEEP",
+      "replacement_tool": null,
+      "compatibility_alias": false,
+      "cpp_builder": null,
+      "cpp_entry_point": null,
+      "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/optimization.py",
+      "live_evidence": [],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": "24-tool profiling suite with no native equivalent; migrate late, by capability group",
+      "verification": "untested"
     },
     {
       "name": "optimization_scene_audit",
@@ -3117,7 +4992,22 @@
         "openWorldHint": false
       },
       "module_listener_commands": [],
-      "test_file": null
+      "test_file": null,
+      "capability_category": "optimization",
+      "canonical_capability": "optimization.optimization_scene_audit",
+      "owner": "legacy Python listener",
+      "lifecycle": "active",
+      "migration_action": "KEEP",
+      "replacement_tool": null,
+      "compatibility_alias": false,
+      "cpp_builder": null,
+      "cpp_entry_point": null,
+      "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/optimization.py",
+      "live_evidence": [],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": "24-tool profiling suite with no native equivalent; migrate late, by capability group",
+      "verification": "untested"
     },
     {
       "name": "optimization_stat_capture",
@@ -3145,7 +5035,22 @@
         "openWorldHint": false
       },
       "module_listener_commands": [],
-      "test_file": null
+      "test_file": null,
+      "capability_category": "optimization",
+      "canonical_capability": "optimization.optimization_stat_capture",
+      "owner": "legacy Python listener",
+      "lifecycle": "active",
+      "migration_action": "KEEP",
+      "replacement_tool": null,
+      "compatibility_alias": false,
+      "cpp_builder": null,
+      "cpp_entry_point": null,
+      "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/optimization.py",
+      "live_evidence": [],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": "24-tool profiling suite with no native equivalent; migrate late, by capability group",
+      "verification": "untested"
     },
     {
       "name": "optimization_texture_harm_rank",
@@ -3169,7 +5074,22 @@
         "openWorldHint": false
       },
       "module_listener_commands": [],
-      "test_file": null
+      "test_file": null,
+      "capability_category": "optimization",
+      "canonical_capability": "optimization.optimization_texture_harm_rank",
+      "owner": "legacy Python listener",
+      "lifecycle": "active",
+      "migration_action": "KEEP",
+      "replacement_tool": null,
+      "compatibility_alias": false,
+      "cpp_builder": null,
+      "cpp_entry_point": null,
+      "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/optimization.py",
+      "live_evidence": [],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": "24-tool profiling suite with no native equivalent; migrate late, by capability group",
+      "verification": "untested"
     },
     {
       "name": "optimization_tool_catalog",
@@ -3192,7 +5112,22 @@
         "openWorldHint": false
       },
       "module_listener_commands": [],
-      "test_file": null
+      "test_file": null,
+      "capability_category": "optimization",
+      "canonical_capability": "optimization.optimization_tool_catalog",
+      "owner": "legacy Python listener",
+      "lifecycle": "active",
+      "migration_action": "KEEP",
+      "replacement_tool": null,
+      "compatibility_alias": false,
+      "cpp_builder": null,
+      "cpp_entry_point": null,
+      "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/optimization.py",
+      "live_evidence": [],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": "24-tool profiling suite with no native equivalent; migrate late, by capability group",
+      "verification": "untested"
     },
     {
       "name": "optimization_viewmode_capture_set",
@@ -3219,7 +5154,22 @@
         "openWorldHint": false
       },
       "module_listener_commands": [],
-      "test_file": null
+      "test_file": null,
+      "capability_category": "optimization",
+      "canonical_capability": "optimization.optimization_viewmode_capture_set",
+      "owner": "legacy Python listener",
+      "lifecycle": "active",
+      "migration_action": "KEEP",
+      "replacement_tool": null,
+      "compatibility_alias": false,
+      "cpp_builder": null,
+      "cpp_entry_point": null,
+      "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/optimization.py",
+      "live_evidence": [],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": "24-tool profiling suite with no native equivalent; migrate late, by capability group",
+      "verification": "untested"
     },
     {
       "name": "optimization_visual_logger_ingest",
@@ -3243,7 +5193,22 @@
         "openWorldHint": false
       },
       "module_listener_commands": [],
-      "test_file": null
+      "test_file": null,
+      "capability_category": "optimization",
+      "canonical_capability": "optimization.optimization_visual_logger_ingest",
+      "owner": "legacy Python listener",
+      "lifecycle": "active",
+      "migration_action": "KEEP",
+      "replacement_tool": null,
+      "compatibility_alias": false,
+      "cpp_builder": null,
+      "cpp_entry_point": null,
+      "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/optimization.py",
+      "live_evidence": [],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": "24-tool profiling suite with no native equivalent; migrate late, by capability group",
+      "verification": "untested"
     },
     {
       "name": "optimization_vr_audit",
@@ -3272,7 +5237,22 @@
         "openWorldHint": false
       },
       "module_listener_commands": [],
-      "test_file": null
+      "test_file": null,
+      "capability_category": "optimization",
+      "canonical_capability": "optimization.optimization_vr_audit",
+      "owner": "legacy Python listener",
+      "lifecycle": "active",
+      "migration_action": "KEEP",
+      "replacement_tool": null,
+      "compatibility_alias": false,
+      "cpp_builder": null,
+      "cpp_entry_point": null,
+      "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/optimization.py",
+      "live_evidence": [],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": "24-tool profiling suite with no native equivalent; migrate late, by capability group",
+      "verification": "untested"
     },
     {
       "name": "pie_agent_expect",
@@ -3295,7 +5275,22 @@
         "openWorldHint": false
       },
       "module_listener_commands": [],
-      "test_file": "mcp-server/tests/pie-agent-tools.test.ts"
+      "test_file": "mcp-server/tests/pie-agent-tools.test.ts",
+      "capability_category": "pie",
+      "canonical_capability": "pie.pie_agent_expect",
+      "owner": "legacy Python listener",
+      "lifecycle": "active",
+      "migration_action": "REFRONT",
+      "replacement_tool": null,
+      "compatibility_alias": false,
+      "cpp_builder": "MCPBridgePIEAgent",
+      "cpp_entry_point": null,
+      "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/pie_agent.py",
+      "live_evidence": [],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": null,
+      "verification": "mock_only"
     },
     {
       "name": "pie_agent_look_at",
@@ -3318,7 +5313,22 @@
         "openWorldHint": false
       },
       "module_listener_commands": [],
-      "test_file": "mcp-server/tests/pie-agent-tools.test.ts"
+      "test_file": "mcp-server/tests/pie-agent-tools.test.ts",
+      "capability_category": "pie",
+      "canonical_capability": "pie.pie_agent_look_at",
+      "owner": "legacy Python listener",
+      "lifecycle": "active",
+      "migration_action": "REFRONT",
+      "replacement_tool": null,
+      "compatibility_alias": false,
+      "cpp_builder": "MCPBridgePIEAgent",
+      "cpp_entry_point": null,
+      "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/pie_agent.py",
+      "live_evidence": [],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": null,
+      "verification": "mock_only"
     },
     {
       "name": "pie_agent_move_to",
@@ -3343,7 +5353,22 @@
         "openWorldHint": false
       },
       "module_listener_commands": [],
-      "test_file": "mcp-server/tests/pie-agent-tools.test.ts"
+      "test_file": "mcp-server/tests/pie-agent-tools.test.ts",
+      "capability_category": "pie",
+      "canonical_capability": "pie.pie_agent_move_to",
+      "owner": "legacy Python listener",
+      "lifecycle": "active",
+      "migration_action": "REFRONT",
+      "replacement_tool": null,
+      "compatibility_alias": false,
+      "cpp_builder": "MCPBridgePIEAgent",
+      "cpp_entry_point": null,
+      "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/pie_agent.py",
+      "live_evidence": [],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": null,
+      "verification": "mock_only"
     },
     {
       "name": "pie_agent_observe",
@@ -3367,7 +5392,22 @@
         "openWorldHint": false
       },
       "module_listener_commands": [],
-      "test_file": "mcp-server/tests/pie-agent-tools.test.ts"
+      "test_file": "mcp-server/tests/pie-agent-tools.test.ts",
+      "capability_category": "pie",
+      "canonical_capability": "pie.pie_agent_observe",
+      "owner": "legacy Python listener",
+      "lifecycle": "active",
+      "migration_action": "REFRONT",
+      "replacement_tool": null,
+      "compatibility_alias": false,
+      "cpp_builder": "MCPBridgePIEAgent",
+      "cpp_entry_point": null,
+      "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/pie_agent.py",
+      "live_evidence": [],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": null,
+      "verification": "mock_only"
     },
     {
       "name": "pie_agent_press",
@@ -3391,7 +5431,22 @@
         "openWorldHint": false
       },
       "module_listener_commands": [],
-      "test_file": "mcp-server/tests/pie-agent-tools.test.ts"
+      "test_file": "mcp-server/tests/pie-agent-tools.test.ts",
+      "capability_category": "pie",
+      "canonical_capability": "pie.pie_agent_press",
+      "owner": "legacy Python listener",
+      "lifecycle": "active",
+      "migration_action": "REFRONT",
+      "replacement_tool": null,
+      "compatibility_alias": false,
+      "cpp_builder": "MCPBridgePIEAgent",
+      "cpp_entry_point": null,
+      "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/pie_agent.py",
+      "live_evidence": [],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": null,
+      "verification": "mock_only"
     },
     {
       "name": "pie_agent_record_start",
@@ -3416,7 +5471,22 @@
         "openWorldHint": false
       },
       "module_listener_commands": [],
-      "test_file": "mcp-server/tests/pie-agent-tools.test.ts"
+      "test_file": "mcp-server/tests/pie-agent-tools.test.ts",
+      "capability_category": "pie",
+      "canonical_capability": "pie.pie_agent_record_start",
+      "owner": "legacy Python listener",
+      "lifecycle": "active",
+      "migration_action": "REFRONT",
+      "replacement_tool": null,
+      "compatibility_alias": false,
+      "cpp_builder": "MCPBridgePIEAgent",
+      "cpp_entry_point": null,
+      "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/pie_agent.py",
+      "live_evidence": [],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": null,
+      "verification": "mock_only"
     },
     {
       "name": "pie_agent_record_stop",
@@ -3436,7 +5506,22 @@
         "openWorldHint": false
       },
       "module_listener_commands": [],
-      "test_file": "mcp-server/tests/pie-agent-tools.test.ts"
+      "test_file": "mcp-server/tests/pie-agent-tools.test.ts",
+      "capability_category": "pie",
+      "canonical_capability": "pie.pie_agent_record_stop",
+      "owner": "legacy Python listener",
+      "lifecycle": "active",
+      "migration_action": "REFRONT",
+      "replacement_tool": null,
+      "compatibility_alias": false,
+      "cpp_builder": "MCPBridgePIEAgent",
+      "cpp_entry_point": null,
+      "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/pie_agent.py",
+      "live_evidence": [],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": null,
+      "verification": "mock_only"
     },
     {
       "name": "pie_agent_replay",
@@ -3461,7 +5546,22 @@
         "openWorldHint": false
       },
       "module_listener_commands": [],
-      "test_file": "mcp-server/tests/pie-agent-tools.test.ts"
+      "test_file": "mcp-server/tests/pie-agent-tools.test.ts",
+      "capability_category": "pie",
+      "canonical_capability": "pie.pie_agent_replay",
+      "owner": "legacy Python listener",
+      "lifecycle": "active",
+      "migration_action": "REFRONT",
+      "replacement_tool": null,
+      "compatibility_alias": false,
+      "cpp_builder": "MCPBridgePIEAgent",
+      "cpp_entry_point": null,
+      "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/pie_agent.py",
+      "live_evidence": [],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": null,
+      "verification": "mock_only"
     },
     {
       "name": "pie_agent_status",
@@ -3483,7 +5583,22 @@
         "openWorldHint": false
       },
       "module_listener_commands": [],
-      "test_file": "mcp-server/tests/pie-agent-tools.test.ts"
+      "test_file": "mcp-server/tests/pie-agent-tools.test.ts",
+      "capability_category": "pie",
+      "canonical_capability": "pie.pie_agent_status",
+      "owner": "legacy Python listener",
+      "lifecycle": "active",
+      "migration_action": "REFRONT",
+      "replacement_tool": null,
+      "compatibility_alias": false,
+      "cpp_builder": "MCPBridgePIEAgent",
+      "cpp_entry_point": null,
+      "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/pie_agent.py",
+      "live_evidence": [],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": null,
+      "verification": "mock_only"
     },
     {
       "name": "placement_validate",
@@ -3509,7 +5624,22 @@
         "openWorldHint": false
       },
       "module_listener_commands": [],
-      "test_file": null
+      "test_file": null,
+      "capability_category": "actors",
+      "canonical_capability": "actors.placement_validate",
+      "owner": "legacy Python listener",
+      "lifecycle": "active",
+      "migration_action": "PORT",
+      "replacement_tool": null,
+      "compatibility_alias": false,
+      "cpp_builder": null,
+      "cpp_entry_point": null,
+      "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/actors.py",
+      "live_evidence": [],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": "layer: puerts_workflow over properties.get",
+      "verification": "untested"
     },
     {
       "name": "pp_preset",
@@ -3533,7 +5663,22 @@
         "openWorldHint": false
       },
       "module_listener_commands": [],
-      "test_file": null
+      "test_file": null,
+      "capability_category": "effects",
+      "canonical_capability": "effects.pp_preset",
+      "owner": "legacy Python listener",
+      "lifecycle": "active",
+      "migration_action": "PORT",
+      "replacement_tool": null,
+      "compatibility_alias": false,
+      "cpp_builder": null,
+      "cpp_entry_point": null,
+      "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/effects.py",
+      "live_evidence": [],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": "layer: direct_reflection for post-process volumes and console effects",
+      "verification": "untested"
     },
     {
       "name": "pp_volume_modify",
@@ -3560,7 +5705,22 @@
         "openWorldHint": false
       },
       "module_listener_commands": [],
-      "test_file": null
+      "test_file": null,
+      "capability_category": "effects",
+      "canonical_capability": "effects.pp_volume_modify",
+      "owner": "legacy Python listener",
+      "lifecycle": "active",
+      "migration_action": "PORT",
+      "replacement_tool": null,
+      "compatibility_alias": false,
+      "cpp_builder": null,
+      "cpp_entry_point": null,
+      "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/effects.py",
+      "live_evidence": [],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": "layer: direct_reflection for post-process volumes and console effects",
+      "verification": "untested"
     },
     {
       "name": "pp_volume_spawn",
@@ -3589,7 +5749,22 @@
         "openWorldHint": false
       },
       "module_listener_commands": [],
-      "test_file": null
+      "test_file": null,
+      "capability_category": "effects",
+      "canonical_capability": "effects.pp_volume_spawn",
+      "owner": "legacy Python listener",
+      "lifecycle": "active",
+      "migration_action": "PORT",
+      "replacement_tool": null,
+      "compatibility_alias": false,
+      "cpp_builder": null,
+      "cpp_entry_point": null,
+      "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/effects.py",
+      "live_evidence": [],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": "layer: direct_reflection for post-process volumes and console effects",
+      "verification": "untested"
     },
     {
       "name": "project_enable_plugins",
@@ -3611,7 +5786,22 @@
         "openWorldHint": false
       },
       "module_listener_commands": [],
-      "test_file": null
+      "test_file": null,
+      "capability_category": "project",
+      "canonical_capability": "project.project_enable_plugins",
+      "owner": "legacy Python listener",
+      "lifecycle": "active",
+      "migration_action": "PORT",
+      "replacement_tool": null,
+      "compatibility_alias": false,
+      "cpp_builder": null,
+      "cpp_entry_point": null,
+      "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/project.py",
+      "live_evidence": [],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": null,
+      "verification": "untested"
     },
     {
       "name": "project_index_query",
@@ -3637,7 +5827,22 @@
         "openWorldHint": false
       },
       "module_listener_commands": [],
-      "test_file": "mcp-server/tests/intelligence-tools.test.ts"
+      "test_file": "mcp-server/tests/intelligence-tools.test.ts",
+      "capability_category": "project-intelligence",
+      "canonical_capability": "project-intelligence.project_index_query",
+      "owner": "legacy Python listener",
+      "lifecycle": "active",
+      "migration_action": "PORT",
+      "replacement_tool": null,
+      "compatibility_alias": false,
+      "cpp_builder": null,
+      "cpp_entry_point": null,
+      "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/project_index.py",
+      "live_evidence": [],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": "layer: puerts_workflow; no editor mutation involved",
+      "verification": "mock_only"
     },
     {
       "name": "project_index_rebuild",
@@ -3664,7 +5869,22 @@
         "openWorldHint": false
       },
       "module_listener_commands": [],
-      "test_file": "mcp-server/tests/intelligence-tools.test.ts"
+      "test_file": "mcp-server/tests/intelligence-tools.test.ts",
+      "capability_category": "project-intelligence",
+      "canonical_capability": "project-intelligence.project_index_rebuild",
+      "owner": "legacy Python listener",
+      "lifecycle": "active",
+      "migration_action": "PORT",
+      "replacement_tool": null,
+      "compatibility_alias": false,
+      "cpp_builder": null,
+      "cpp_entry_point": null,
+      "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/project_index.py",
+      "live_evidence": [],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": "layer: puerts_workflow; no editor mutation involved",
+      "verification": "mock_only"
     },
     {
       "name": "project_info",
@@ -3684,7 +5904,22 @@
         "openWorldHint": false
       },
       "module_listener_commands": [],
-      "test_file": null
+      "test_file": null,
+      "capability_category": "project",
+      "canonical_capability": "project.project_info",
+      "owner": "legacy Python listener",
+      "lifecycle": "active",
+      "migration_action": "PORT",
+      "replacement_tool": null,
+      "compatibility_alias": false,
+      "cpp_builder": null,
+      "cpp_entry_point": null,
+      "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/project.py",
+      "live_evidence": [],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": null,
+      "verification": "untested"
     },
     {
       "name": "project_semantic_diff",
@@ -3711,7 +5946,22 @@
         "openWorldHint": false
       },
       "module_listener_commands": [],
-      "test_file": "mcp-server/tests/intelligence-tools.test.ts"
+      "test_file": "mcp-server/tests/intelligence-tools.test.ts",
+      "capability_category": "project-intelligence",
+      "canonical_capability": "project-intelligence.project_semantic_diff",
+      "owner": "legacy Python listener",
+      "lifecycle": "active",
+      "migration_action": "PORT",
+      "replacement_tool": null,
+      "compatibility_alias": false,
+      "cpp_builder": null,
+      "cpp_entry_point": null,
+      "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/project_index.py",
+      "live_evidence": [],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": "layer: puerts_workflow; no editor mutation involved",
+      "verification": "mock_only"
     },
     {
       "name": "project_settings_maps",
@@ -3735,7 +5985,22 @@
         "openWorldHint": false
       },
       "module_listener_commands": [],
-      "test_file": null
+      "test_file": null,
+      "capability_category": "gameplay-setup",
+      "canonical_capability": "gameplay-setup.project_settings_maps",
+      "owner": "legacy Python listener",
+      "lifecycle": "active",
+      "migration_action": "PORT",
+      "replacement_tool": null,
+      "compatibility_alias": false,
+      "cpp_builder": null,
+      "cpp_entry_point": null,
+      "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/gamedev.py",
+      "live_evidence": [],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": null,
+      "verification": "untested"
     },
     {
       "name": "prompt_generate",
@@ -3758,7 +6023,22 @@
         "openWorldHint": false
       },
       "module_listener_commands": [],
-      "test_file": null
+      "test_file": null,
+      "capability_category": "ui",
+      "canonical_capability": "ui.prompt_generate",
+      "owner": "legacy Python listener",
+      "lifecycle": "active",
+      "migration_action": "KEEP",
+      "replacement_tool": null,
+      "compatibility_alias": false,
+      "cpp_builder": null,
+      "cpp_entry_point": null,
+      "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/promptbrush.py",
+      "live_evidence": [],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": "PromptBrush orchestration; PORT to puerts_workflow when the pipeline migrates",
+      "verification": "untested"
     },
     {
       "name": "prompt_spec_list",
@@ -3778,7 +6058,22 @@
         "openWorldHint": false
       },
       "module_listener_commands": [],
-      "test_file": null
+      "test_file": null,
+      "capability_category": "ui",
+      "canonical_capability": "ui.prompt_spec_list",
+      "owner": "legacy Python listener",
+      "lifecycle": "active",
+      "migration_action": "KEEP",
+      "replacement_tool": null,
+      "compatibility_alias": false,
+      "cpp_builder": null,
+      "cpp_entry_point": null,
+      "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/promptbrush.py",
+      "live_evidence": [],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": "PromptBrush orchestration; PORT to puerts_workflow when the pipeline migrates",
+      "verification": "untested"
     },
     {
       "name": "prompt_status",
@@ -3798,7 +6093,22 @@
         "openWorldHint": false
       },
       "module_listener_commands": [],
-      "test_file": null
+      "test_file": null,
+      "capability_category": "ui",
+      "canonical_capability": "ui.prompt_status",
+      "owner": "legacy Python listener",
+      "lifecycle": "active",
+      "migration_action": "KEEP",
+      "replacement_tool": null,
+      "compatibility_alias": false,
+      "cpp_builder": null,
+      "cpp_entry_point": null,
+      "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/promptbrush.py",
+      "live_evidence": [],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": "PromptBrush orchestration; PORT to puerts_workflow when the pipeline migrates",
+      "verification": "untested"
     },
     {
       "name": "puerts_behavior_tree_build",
@@ -3824,7 +6134,24 @@
         "openWorldHint": false
       },
       "module_listener_commands": [],
-      "test_file": "mcp-server/tests/puerts-tools.test.ts"
+      "test_file": "mcp-server/tests/puerts-tools.test.ts",
+      "capability_category": "ai",
+      "canonical_capability": "ai.behavior_tree_build",
+      "owner": "MCPBridgePuerTS service",
+      "lifecycle": "active",
+      "migration_action": "KEEP",
+      "replacement_tool": null,
+      "compatibility_alias": false,
+      "cpp_builder": "BehaviorTreeBuilderLibrary",
+      "cpp_entry_point": "BuildBehaviorTreeFromJSON",
+      "python_handler": null,
+      "live_evidence": [
+        "Scripts/behavior-tree-acceptance.mjs"
+      ],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": "acceptance exists but has not run against a live editor (blocked on editor-remnant reboot)",
+      "verification": "pending_live"
     },
     {
       "name": "puerts_blueprint_build",
@@ -3853,13 +6180,30 @@
         "openWorldHint": false
       },
       "module_listener_commands": [],
-      "test_file": "mcp-server/tests/puerts-tools.test.ts"
+      "test_file": "mcp-server/tests/puerts-tools.test.ts",
+      "capability_category": "blueprint",
+      "canonical_capability": "blueprints.build",
+      "owner": "MCPBridgePuerTS service",
+      "lifecycle": "active",
+      "migration_action": "KEEP",
+      "replacement_tool": null,
+      "compatibility_alias": false,
+      "cpp_builder": "BlueprintGraphBuilderLibrary",
+      "cpp_entry_point": "BuildBlueprintFromJSON",
+      "python_handler": null,
+      "live_evidence": [
+        "Scripts/graph-inspect-acceptance.mjs"
+      ],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": null,
+      "verification": "live_verified"
     },
     {
       "name": "puerts_call_function",
       "module": "mcp-server/src/tools/puerts.ts",
       "backend": "native_pipe",
-      "migration_state": "native",
+      "migration_state": "native_live_partial",
       "target_replacement": null,
       "description": "[PRIMARY NATIVE IPC] Call a native-approved Unreal function.",
       "schema": {
@@ -3877,13 +6221,30 @@
         "openWorldHint": false
       },
       "module_listener_commands": [],
-      "test_file": "mcp-server/tests/puerts-tools.test.ts"
+      "test_file": "mcp-server/tests/puerts-tools.test.ts",
+      "capability_category": "properties",
+      "canonical_capability": "reflection.call_function",
+      "owner": "MCPBridgePuerTS service",
+      "lifecycle": "active",
+      "migration_action": "KEEP",
+      "replacement_tool": null,
+      "compatibility_alias": false,
+      "cpp_builder": null,
+      "cpp_entry_point": null,
+      "python_handler": null,
+      "live_evidence": [
+        "docs/UE427_PUERST_MCP_HANDOFF_2026-07-31.md"
+      ],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": "handoff: full live coverage not recorded; 3-function default allowlist",
+      "verification": "live_partial"
     },
     {
       "name": "puerts_delete_actor",
       "module": "mcp-server/src/tools/puerts.ts",
       "backend": "native_pipe",
-      "migration_state": "native",
+      "migration_state": "native_live_partial",
       "target_replacement": null,
       "description": "[PRIMARY NATIVE IPC] Delete an actor in a transaction. Requires confirm=true.",
       "schema": {
@@ -3900,7 +6261,24 @@
         "openWorldHint": false
       },
       "module_listener_commands": [],
-      "test_file": "mcp-server/tests/puerts-tools.test.ts"
+      "test_file": "mcp-server/tests/puerts-tools.test.ts",
+      "capability_category": "actors",
+      "canonical_capability": "actors.delete",
+      "owner": "MCPBridgePuerTS service",
+      "lifecycle": "active",
+      "migration_action": "KEEP",
+      "replacement_tool": null,
+      "compatibility_alias": false,
+      "cpp_builder": null,
+      "cpp_entry_point": null,
+      "python_handler": null,
+      "live_evidence": [
+        "docs/UE427_PUERST_MCP_HANDOFF_2026-07-31.md"
+      ],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": "handoff: final delete regression absent",
+      "verification": "live_partial"
     },
     {
       "name": "puerts_diagnostic",
@@ -3922,7 +6300,25 @@
         "openWorldHint": false
       },
       "module_listener_commands": [],
-      "test_file": "mcp-server/tests/puerts-tools.test.ts"
+      "test_file": "mcp-server/tests/puerts-tools.test.ts",
+      "capability_category": "bridge",
+      "canonical_capability": "bridge.diagnostic",
+      "owner": "MCPBridgePuerTS service",
+      "lifecycle": "active",
+      "migration_action": "KEEP",
+      "replacement_tool": null,
+      "compatibility_alias": false,
+      "cpp_builder": null,
+      "cpp_entry_point": null,
+      "python_handler": null,
+      "live_evidence": [
+        "Scripts/graph-inspect-acceptance.mjs",
+        "Scripts/puerts-live-smoke.mjs"
+      ],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": null,
+      "verification": "live_verified"
     },
     {
       "name": "puerts_find_actors",
@@ -3946,7 +6342,24 @@
         "openWorldHint": false
       },
       "module_listener_commands": [],
-      "test_file": "mcp-server/tests/puerts-tools.test.ts"
+      "test_file": "mcp-server/tests/puerts-tools.test.ts",
+      "capability_category": "actors",
+      "canonical_capability": "actors.find",
+      "owner": "MCPBridgePuerTS service",
+      "lifecycle": "active",
+      "migration_action": "KEEP",
+      "replacement_tool": null,
+      "compatibility_alias": false,
+      "cpp_builder": null,
+      "cpp_entry_point": null,
+      "python_handler": null,
+      "live_evidence": [
+        "Scripts/puerts-live-smoke.mjs"
+      ],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": null,
+      "verification": "live_verified"
     },
     {
       "name": "puerts_find_assets",
@@ -3972,13 +6385,30 @@
         "openWorldHint": false
       },
       "module_listener_commands": [],
-      "test_file": "mcp-server/tests/puerts-tools.test.ts"
+      "test_file": "mcp-server/tests/puerts-tools.test.ts",
+      "capability_category": "assets",
+      "canonical_capability": "assets.find",
+      "owner": "MCPBridgePuerTS service",
+      "lifecycle": "active",
+      "migration_action": "KEEP",
+      "replacement_tool": null,
+      "compatibility_alias": false,
+      "cpp_builder": null,
+      "cpp_entry_point": null,
+      "python_handler": null,
+      "live_evidence": [
+        "Scripts/graph-inspect-acceptance.mjs"
+      ],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": null,
+      "verification": "live_verified"
     },
     {
       "name": "puerts_get_logs",
       "module": "mcp-server/src/tools/puerts.ts",
       "backend": "native_pipe",
-      "migration_state": "native",
+      "migration_state": "native_live_partial",
       "target_replacement": null,
       "description": "[PRIMARY NATIVE IPC] Read captured Unreal logs and command output.",
       "schema": {
@@ -3994,7 +6424,24 @@
         "openWorldHint": false
       },
       "module_listener_commands": [],
-      "test_file": "mcp-server/tests/puerts-tools.test.ts"
+      "test_file": "mcp-server/tests/puerts-tools.test.ts",
+      "capability_category": "editor-ops",
+      "canonical_capability": "editor.logs",
+      "owner": "MCPBridgePuerTS service",
+      "lifecycle": "active",
+      "migration_action": "KEEP",
+      "replacement_tool": null,
+      "compatibility_alias": false,
+      "cpp_builder": null,
+      "cpp_entry_point": null,
+      "python_handler": null,
+      "live_evidence": [
+        "docs/UE427_PUERST_MCP_HANDOFF_2026-07-31.md"
+      ],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": "used ad hoc across live sessions; no scripted acceptance exercises it",
+      "verification": "live_partial"
     },
     {
       "name": "puerts_graph_inspect",
@@ -4018,13 +6465,30 @@
         "openWorldHint": false
       },
       "module_listener_commands": [],
-      "test_file": "mcp-server/tests/puerts-tools.test.ts"
+      "test_file": "mcp-server/tests/puerts-tools.test.ts",
+      "capability_category": "blueprint",
+      "canonical_capability": "blueprints.inspect",
+      "owner": "MCPBridgePuerTS service",
+      "lifecycle": "active",
+      "migration_action": "KEEP",
+      "replacement_tool": null,
+      "compatibility_alias": false,
+      "cpp_builder": "BlueprintInspectorLibrary",
+      "cpp_entry_point": "DescribeBlueprintGraphJSON",
+      "python_handler": null,
+      "live_evidence": [
+        "Scripts/graph-inspect-acceptance.mjs"
+      ],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": null,
+      "verification": "live_verified"
     },
     {
       "name": "puerts_physics_build",
       "module": "mcp-server/src/tools/puerts.ts",
       "backend": "native_pipe",
-      "migration_state": "native",
+      "migration_state": "native_live_partial",
       "target_replacement": null,
       "description": "[PRIMARY NATIVE IPC] Build a validated static-mesh rigid-body scene in one transaction.",
       "schema": {
@@ -4040,13 +6504,30 @@
         "openWorldHint": false
       },
       "module_listener_commands": [],
-      "test_file": "mcp-server/tests/puerts-tools.test.ts"
+      "test_file": "mcp-server/tests/puerts-tools.test.ts",
+      "capability_category": "gameplay-setup",
+      "canonical_capability": "physics.scene_build",
+      "owner": "MCPBridgePuerTS service",
+      "lifecycle": "active",
+      "migration_action": "KEEP",
+      "replacement_tool": null,
+      "compatibility_alias": false,
+      "cpp_builder": null,
+      "cpp_entry_point": null,
+      "python_handler": null,
+      "live_evidence": [
+        "Scripts/puerts-live-smoke.mjs"
+      ],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": "handoff: final physics smoke not re-run",
+      "verification": "live_partial"
     },
     {
       "name": "puerts_physics_observe",
       "module": "mcp-server/src/tools/puerts.ts",
       "backend": "native_pipe",
-      "migration_state": "native",
+      "migration_state": "native_live_partial",
       "target_replacement": null,
       "description": "[PRIMARY NATIVE IPC] Read rigid-body transforms and velocities from the editor or PIE world.",
       "schema": {
@@ -4062,13 +6543,30 @@
         "openWorldHint": false
       },
       "module_listener_commands": [],
-      "test_file": "mcp-server/tests/puerts-tools.test.ts"
+      "test_file": "mcp-server/tests/puerts-tools.test.ts",
+      "capability_category": "gameplay-setup",
+      "canonical_capability": "physics.scene_observe",
+      "owner": "MCPBridgePuerTS service",
+      "lifecycle": "active",
+      "migration_action": "KEEP",
+      "replacement_tool": null,
+      "compatibility_alias": false,
+      "cpp_builder": null,
+      "cpp_entry_point": null,
+      "python_handler": null,
+      "live_evidence": [
+        "Scripts/puerts-live-smoke.mjs"
+      ],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": "handoff: final physics smoke not re-run",
+      "verification": "live_partial"
     },
     {
       "name": "puerts_pie_start",
       "module": "mcp-server/src/tools/puerts.ts",
       "backend": "native_pipe",
-      "migration_state": "native",
+      "migration_state": "native_live_partial",
       "target_replacement": null,
       "description": "[PRIMARY NATIVE IPC] Request Play In Editor start.",
       "schema": {
@@ -4082,13 +6580,30 @@
         "openWorldHint": false
       },
       "module_listener_commands": [],
-      "test_file": "mcp-server/tests/puerts-tools.test.ts"
+      "test_file": "mcp-server/tests/puerts-tools.test.ts",
+      "capability_category": "pie",
+      "canonical_capability": "editor.pie_start",
+      "owner": "MCPBridgePuerTS service",
+      "lifecycle": "active",
+      "migration_action": "KEEP",
+      "replacement_tool": null,
+      "compatibility_alias": false,
+      "cpp_builder": null,
+      "cpp_entry_point": null,
+      "python_handler": null,
+      "live_evidence": [
+        "docs/UE427_PUERST_MCP_HANDOFF_2026-07-31.md"
+      ],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": "handoff: implemented, partial history; timing coverage weak",
+      "verification": "live_partial"
     },
     {
       "name": "puerts_pie_stop",
       "module": "mcp-server/src/tools/puerts.ts",
       "backend": "native_pipe",
-      "migration_state": "native",
+      "migration_state": "native_live_partial",
       "target_replacement": null,
       "description": "[PRIMARY NATIVE IPC] Request Play In Editor stop.",
       "schema": {
@@ -4102,7 +6617,24 @@
         "openWorldHint": false
       },
       "module_listener_commands": [],
-      "test_file": "mcp-server/tests/puerts-tools.test.ts"
+      "test_file": "mcp-server/tests/puerts-tools.test.ts",
+      "capability_category": "pie",
+      "canonical_capability": "editor.pie_stop",
+      "owner": "MCPBridgePuerTS service",
+      "lifecycle": "active",
+      "migration_action": "KEEP",
+      "replacement_tool": null,
+      "compatibility_alias": false,
+      "cpp_builder": null,
+      "cpp_entry_point": null,
+      "python_handler": null,
+      "live_evidence": [
+        "docs/UE427_PUERST_MCP_HANDOFF_2026-07-31.md"
+      ],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": "handoff: implemented, partial history",
+      "verification": "live_partial"
     },
     {
       "name": "puerts_read_property",
@@ -4126,7 +6658,24 @@
         "openWorldHint": false
       },
       "module_listener_commands": [],
-      "test_file": "mcp-server/tests/puerts-tools.test.ts"
+      "test_file": "mcp-server/tests/puerts-tools.test.ts",
+      "capability_category": "properties",
+      "canonical_capability": "properties.get",
+      "owner": "MCPBridgePuerTS service",
+      "lifecycle": "active",
+      "migration_action": "KEEP",
+      "replacement_tool": null,
+      "compatibility_alias": false,
+      "cpp_builder": null,
+      "cpp_entry_point": null,
+      "python_handler": null,
+      "live_evidence": [
+        "Scripts/puerts-live-smoke.mjs"
+      ],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": null,
+      "verification": "live_verified"
     },
     {
       "name": "puerts_save",
@@ -4149,7 +6698,24 @@
         "openWorldHint": false
       },
       "module_listener_commands": [],
-      "test_file": "mcp-server/tests/puerts-tools.test.ts"
+      "test_file": "mcp-server/tests/puerts-tools.test.ts",
+      "capability_category": "assets",
+      "canonical_capability": "assets.save",
+      "owner": "MCPBridgePuerTS service",
+      "lifecycle": "active",
+      "migration_action": "KEEP",
+      "replacement_tool": null,
+      "compatibility_alias": false,
+      "cpp_builder": null,
+      "cpp_entry_point": null,
+      "python_handler": null,
+      "live_evidence": [
+        "Scripts/puerts-live-smoke.mjs"
+      ],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": null,
+      "verification": "live_verified"
     },
     {
       "name": "puerts_set_property",
@@ -4174,7 +6740,24 @@
         "openWorldHint": false
       },
       "module_listener_commands": [],
-      "test_file": "mcp-server/tests/puerts-tools.test.ts"
+      "test_file": "mcp-server/tests/puerts-tools.test.ts",
+      "capability_category": "properties",
+      "canonical_capability": "properties.set",
+      "owner": "MCPBridgePuerTS service",
+      "lifecycle": "active",
+      "migration_action": "KEEP",
+      "replacement_tool": null,
+      "compatibility_alias": false,
+      "cpp_builder": null,
+      "cpp_entry_point": null,
+      "python_handler": null,
+      "live_evidence": [
+        "Scripts/puerts-live-smoke.mjs"
+      ],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": null,
+      "verification": "live_verified"
     },
     {
       "name": "puerts_sky_shader_create",
@@ -4197,13 +6780,30 @@
         "openWorldHint": false
       },
       "module_listener_commands": [],
-      "test_file": "mcp-server/tests/puerts-tools.test.ts"
+      "test_file": "mcp-server/tests/puerts-tools.test.ts",
+      "capability_category": "materials",
+      "canonical_capability": "materials.sky_demo",
+      "owner": "MCPBridgePuerTS service",
+      "lifecycle": "active",
+      "migration_action": "KEEP",
+      "replacement_tool": null,
+      "compatibility_alias": false,
+      "cpp_builder": null,
+      "cpp_entry_point": null,
+      "python_handler": null,
+      "live_evidence": [
+        "docs/UE427_PUERST_MCP_HANDOFF_2026-07-31.md"
+      ],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": "specialized demo, not generic material editing",
+      "verification": "live_verified"
     },
     {
       "name": "puerts_spawn_actor",
       "module": "mcp-server/src/tools/puerts.ts",
       "backend": "native_pipe",
-      "migration_state": "native",
+      "migration_state": "native_live_partial",
       "target_replacement": null,
       "description": "[PRIMARY NATIVE IPC] Spawn an actor in a transaction.",
       "schema": {
@@ -4221,7 +6821,24 @@
         "openWorldHint": false
       },
       "module_listener_commands": [],
-      "test_file": "mcp-server/tests/puerts-tools.test.ts"
+      "test_file": "mcp-server/tests/puerts-tools.test.ts",
+      "capability_category": "actors",
+      "canonical_capability": "actors.spawn",
+      "owner": "MCPBridgePuerTS service",
+      "lifecycle": "active",
+      "migration_action": "KEEP",
+      "replacement_tool": null,
+      "compatibility_alias": false,
+      "cpp_builder": null,
+      "cpp_entry_point": null,
+      "python_handler": null,
+      "live_evidence": [
+        "docs/UE427_PUERST_MCP_HANDOFF_2026-07-31.md"
+      ],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": "handoff: implemented, code/schema present; no dedicated live regression recorded",
+      "verification": "live_partial"
     },
     {
       "name": "puerts_undo",
@@ -4243,7 +6860,24 @@
         "openWorldHint": false
       },
       "module_listener_commands": [],
-      "test_file": "mcp-server/tests/puerts-tools.test.ts"
+      "test_file": "mcp-server/tests/puerts-tools.test.ts",
+      "capability_category": "editor-ops",
+      "canonical_capability": "editor.undo",
+      "owner": "MCPBridgePuerTS service",
+      "lifecycle": "active",
+      "migration_action": "KEEP",
+      "replacement_tool": null,
+      "compatibility_alias": false,
+      "cpp_builder": null,
+      "cpp_entry_point": null,
+      "python_handler": null,
+      "live_evidence": [
+        "Scripts/puerts-live-smoke.mjs"
+      ],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": null,
+      "verification": "live_verified"
     },
     {
       "name": "puerts_viewport_screenshot",
@@ -4266,7 +6900,24 @@
         "openWorldHint": false
       },
       "module_listener_commands": [],
-      "test_file": "mcp-server/tests/puerts-tools.test.ts"
+      "test_file": "mcp-server/tests/puerts-tools.test.ts",
+      "capability_category": "viewport",
+      "canonical_capability": "viewport.screenshot",
+      "owner": "MCPBridgePuerTS service",
+      "lifecycle": "active",
+      "migration_action": "KEEP",
+      "replacement_tool": null,
+      "compatibility_alias": false,
+      "cpp_builder": null,
+      "cpp_entry_point": null,
+      "python_handler": null,
+      "live_evidence": [
+        "docs/UE427_PUERST_MCP_HANDOFF_2026-07-31.md"
+      ],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": "handoff: tested successfully, aurora PNG visually reviewed",
+      "verification": "live_verified"
     },
     {
       "name": "puerts_widget_build",
@@ -4290,7 +6941,24 @@
         "openWorldHint": false
       },
       "module_listener_commands": [],
-      "test_file": "mcp-server/tests/puerts-tools.test.ts"
+      "test_file": "mcp-server/tests/puerts-tools.test.ts",
+      "capability_category": "ui",
+      "canonical_capability": "widgets.build",
+      "owner": "MCPBridgePuerTS service",
+      "lifecycle": "active",
+      "migration_action": "KEEP",
+      "replacement_tool": null,
+      "compatibility_alias": false,
+      "cpp_builder": "MCPPuerTSBridgeService",
+      "cpp_entry_point": "BuildWidgetJson",
+      "python_handler": null,
+      "live_evidence": [
+        "docs/CAPABILITY_FINDINGS.md"
+      ],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": "live proof is the stamina HUD session (WBP_StaminaHUD and probes saved in the test project); no scripted acceptance yet",
+      "verification": "live_verified"
     },
     {
       "name": "python_proxy",
@@ -4312,7 +6980,24 @@
         "openWorldHint": false
       },
       "module_listener_commands": [],
-      "test_file": null
+      "test_file": null,
+      "capability_category": "listener-admin",
+      "canonical_capability": "system.listener_admin",
+      "owner": "legacy Python listener",
+      "lifecycle": "blocked",
+      "migration_action": "RETIRE",
+      "replacement_tool": "puerts_call_function",
+      "compatibility_alias": false,
+      "cpp_builder": null,
+      "cpp_entry_point": null,
+      "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/system.py",
+      "live_evidence": [
+        "docs/UE427_PUERST_MCP_HANDOFF_2026-07-31.md"
+      ],
+      "migration_risk": "low",
+      "capability_loss_risk": "high",
+      "notes": "RETIRE proposed, human sign-off required: arbitrary Python execution is outside every native safety control (handoff risk register, High). Replacement is the allowlisted native catalog itself; the lost generality is deliberate. Blocked until a human approves the loss.",
+      "verification": "untested"
     },
     {
       "name": "redo",
@@ -4334,7 +7019,22 @@
         "openWorldHint": false
       },
       "module_listener_commands": [],
-      "test_file": null
+      "test_file": null,
+      "capability_category": "editor-ops",
+      "canonical_capability": "editor-ops.redo",
+      "owner": "legacy Python listener",
+      "lifecycle": "active",
+      "migration_action": "PORT",
+      "replacement_tool": null,
+      "compatibility_alias": false,
+      "cpp_builder": null,
+      "cpp_entry_point": null,
+      "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/system.py",
+      "live_evidence": [],
+      "migration_risk": "medium",
+      "capability_loss_risk": "medium",
+      "notes": "no native redo exists; this is a legacy capability with no current replacement",
+      "verification": "untested"
     },
     {
       "name": "refresh_tools",
@@ -4354,7 +7054,22 @@
         "openWorldHint": false
       },
       "module_listener_commands": [],
-      "test_file": null
+      "test_file": null,
+      "capability_category": "listener-admin",
+      "canonical_capability": "system.listener_admin",
+      "owner": "legacy Python listener",
+      "lifecycle": "active",
+      "migration_action": "KEEP",
+      "replacement_tool": null,
+      "compatibility_alias": false,
+      "cpp_builder": null,
+      "cpp_entry_point": null,
+      "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/system.py",
+      "live_evidence": [],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": "transport plumbing for the legacy listener, not a capability; shares one canonical name so it never inflates the unique count",
+      "verification": "untested"
     },
     {
       "name": "restart_listener",
@@ -4377,7 +7092,22 @@
         "openWorldHint": false
       },
       "module_listener_commands": [],
-      "test_file": null
+      "test_file": null,
+      "capability_category": "listener-admin",
+      "canonical_capability": "system.listener_admin",
+      "owner": "legacy Python listener",
+      "lifecycle": "active",
+      "migration_action": "KEEP",
+      "replacement_tool": null,
+      "compatibility_alias": false,
+      "cpp_builder": null,
+      "cpp_entry_point": null,
+      "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/system.py",
+      "live_evidence": [],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": "transport plumbing for the legacy listener, not a capability; shares one canonical name so it never inflates the unique count",
+      "verification": "untested"
     },
     {
       "name": "test_connection",
@@ -4397,7 +7127,22 @@
         "openWorldHint": false
       },
       "module_listener_commands": [],
-      "test_file": null
+      "test_file": null,
+      "capability_category": "listener-admin",
+      "canonical_capability": "system.listener_admin",
+      "owner": "legacy Python listener",
+      "lifecycle": "active",
+      "migration_action": "KEEP",
+      "replacement_tool": null,
+      "compatibility_alias": false,
+      "cpp_builder": null,
+      "cpp_entry_point": null,
+      "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/system.py",
+      "live_evidence": [],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": "transport plumbing for the legacy listener, not a capability; shares one canonical name so it never inflates the unique count",
+      "verification": "untested"
     },
     {
       "name": "title_controller_create",
@@ -4423,7 +7168,22 @@
         "openWorldHint": false
       },
       "module_listener_commands": [],
-      "test_file": null
+      "test_file": null,
+      "capability_category": "cinematics",
+      "canonical_capability": "cinematics.title_controller_create",
+      "owner": "legacy Python listener",
+      "lifecycle": "active",
+      "migration_action": "KEEP",
+      "replacement_tool": null,
+      "compatibility_alias": false,
+      "cpp_builder": null,
+      "cpp_entry_point": null,
+      "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/titles.py",
+      "live_evidence": [],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": "title pipeline; migrate with UMG/sequencer groups",
+      "verification": "untested"
     },
     {
       "name": "title_manifest_adjust",
@@ -4449,7 +7209,22 @@
         "openWorldHint": false
       },
       "module_listener_commands": [],
-      "test_file": null
+      "test_file": null,
+      "capability_category": "cinematics",
+      "canonical_capability": "cinematics.title_manifest_adjust",
+      "owner": "legacy Python listener",
+      "lifecycle": "active",
+      "migration_action": "KEEP",
+      "replacement_tool": null,
+      "compatibility_alias": false,
+      "cpp_builder": null,
+      "cpp_entry_point": null,
+      "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/titles.py",
+      "live_evidence": [],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": "title pipeline; migrate with UMG/sequencer groups",
+      "verification": "untested"
     },
     {
       "name": "title_manifest_create",
@@ -4478,7 +7253,22 @@
         "openWorldHint": false
       },
       "module_listener_commands": [],
-      "test_file": null
+      "test_file": null,
+      "capability_category": "cinematics",
+      "canonical_capability": "cinematics.title_manifest_create",
+      "owner": "legacy Python listener",
+      "lifecycle": "active",
+      "migration_action": "KEEP",
+      "replacement_tool": null,
+      "compatibility_alias": false,
+      "cpp_builder": null,
+      "cpp_entry_point": null,
+      "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/titles.py",
+      "live_evidence": [],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": "title pipeline; migrate with UMG/sequencer groups",
+      "verification": "untested"
     },
     {
       "name": "title_manifest_from_reference",
@@ -4508,7 +7298,22 @@
         "openWorldHint": false
       },
       "module_listener_commands": [],
-      "test_file": null
+      "test_file": null,
+      "capability_category": "cinematics",
+      "canonical_capability": "cinematics.title_manifest_from_reference",
+      "owner": "legacy Python listener",
+      "lifecycle": "active",
+      "migration_action": "KEEP",
+      "replacement_tool": null,
+      "compatibility_alias": false,
+      "cpp_builder": null,
+      "cpp_entry_point": null,
+      "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/titles.py",
+      "live_evidence": [],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": "title pipeline; migrate with UMG/sequencer groups",
+      "verification": "untested"
     },
     {
       "name": "title_manifest_validate",
@@ -4532,7 +7337,22 @@
         "openWorldHint": false
       },
       "module_listener_commands": [],
-      "test_file": null
+      "test_file": null,
+      "capability_category": "cinematics",
+      "canonical_capability": "cinematics.title_manifest_validate",
+      "owner": "legacy Python listener",
+      "lifecycle": "active",
+      "migration_action": "KEEP",
+      "replacement_tool": null,
+      "compatibility_alias": false,
+      "cpp_builder": null,
+      "cpp_entry_point": null,
+      "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/titles.py",
+      "live_evidence": [],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": "title pipeline; migrate with UMG/sequencer groups",
+      "verification": "untested"
     },
     {
       "name": "title_render_compare",
@@ -4556,7 +7376,22 @@
         "openWorldHint": false
       },
       "module_listener_commands": [],
-      "test_file": null
+      "test_file": null,
+      "capability_category": "cinematics",
+      "canonical_capability": "cinematics.title_render_compare",
+      "owner": "legacy Python listener",
+      "lifecycle": "active",
+      "migration_action": "KEEP",
+      "replacement_tool": null,
+      "compatibility_alias": false,
+      "cpp_builder": null,
+      "cpp_entry_point": null,
+      "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/titles.py",
+      "live_evidence": [],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": "title pipeline; migrate with UMG/sequencer groups",
+      "verification": "untested"
     },
     {
       "name": "title_sequence_bind",
@@ -4582,7 +7417,22 @@
         "openWorldHint": false
       },
       "module_listener_commands": [],
-      "test_file": null
+      "test_file": null,
+      "capability_category": "cinematics",
+      "canonical_capability": "cinematics.title_sequence_bind",
+      "owner": "legacy Python listener",
+      "lifecycle": "active",
+      "migration_action": "KEEP",
+      "replacement_tool": null,
+      "compatibility_alias": false,
+      "cpp_builder": null,
+      "cpp_entry_point": null,
+      "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/titles.py",
+      "live_evidence": [],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": "title pipeline; migrate with UMG/sequencer groups",
+      "verification": "untested"
     },
     {
       "name": "title_widget_build_from_manifest",
@@ -4609,7 +7459,22 @@
         "openWorldHint": false
       },
       "module_listener_commands": [],
-      "test_file": null
+      "test_file": null,
+      "capability_category": "cinematics",
+      "canonical_capability": "cinematics.title_widget_build_from_manifest",
+      "owner": "legacy Python listener",
+      "lifecycle": "active",
+      "migration_action": "REFRONT",
+      "replacement_tool": null,
+      "compatibility_alias": false,
+      "cpp_builder": "WidgetBlueprintBuilderLibrary",
+      "cpp_entry_point": null,
+      "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/titles.py",
+      "live_evidence": [],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": "title pipeline; migrate with UMG/sequencer groups",
+      "verification": "untested"
     },
     {
       "name": "ue_logs",
@@ -4633,7 +7498,22 @@
         "openWorldHint": false
       },
       "module_listener_commands": [],
-      "test_file": "mcp-server/tests/compat-tools.test.ts"
+      "test_file": "mcp-server/tests/compat-tools.test.ts",
+      "capability_category": "compat",
+      "canonical_capability": "editor.logs",
+      "owner": "compat alias router",
+      "lifecycle": "active",
+      "migration_action": "ALIAS",
+      "replacement_tool": "puerts_get_logs",
+      "compatibility_alias": true,
+      "cpp_builder": null,
+      "cpp_entry_point": null,
+      "python_handler": null,
+      "live_evidence": [],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": null,
+      "verification": "mock_only"
     },
     {
       "name": "ue_logs",
@@ -4656,7 +7536,22 @@
         "openWorldHint": false
       },
       "module_listener_commands": [],
-      "test_file": null
+      "test_file": null,
+      "capability_category": "listener-admin",
+      "canonical_capability": "editor.logs",
+      "owner": "legacy Python listener",
+      "lifecycle": "active",
+      "migration_action": "ALIAS",
+      "replacement_tool": "puerts_get_logs",
+      "compatibility_alias": true,
+      "cpp_builder": null,
+      "cpp_entry_point": null,
+      "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/system.py",
+      "live_evidence": [],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": "transport plumbing for the legacy listener, not a capability; shares one canonical name so it never inflates the unique count",
+      "verification": "untested"
     },
     {
       "name": "undo",
@@ -4679,7 +7574,22 @@
         "openWorldHint": false
       },
       "module_listener_commands": [],
-      "test_file": "mcp-server/tests/compat-tools.test.ts"
+      "test_file": "mcp-server/tests/compat-tools.test.ts",
+      "capability_category": "compat",
+      "canonical_capability": "editor.undo",
+      "owner": "compat alias router",
+      "lifecycle": "active",
+      "migration_action": "ALIAS",
+      "replacement_tool": "puerts_undo",
+      "compatibility_alias": true,
+      "cpp_builder": null,
+      "cpp_entry_point": null,
+      "python_handler": null,
+      "live_evidence": [],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": null,
+      "verification": "mock_only"
     },
     {
       "name": "undo",
@@ -4701,7 +7611,22 @@
         "openWorldHint": false
       },
       "module_listener_commands": [],
-      "test_file": null
+      "test_file": null,
+      "capability_category": "editor-ops",
+      "canonical_capability": "editor.undo",
+      "owner": "legacy Python listener",
+      "lifecycle": "active",
+      "migration_action": "ALIAS",
+      "replacement_tool": "puerts_undo",
+      "compatibility_alias": true,
+      "cpp_builder": null,
+      "cpp_entry_point": null,
+      "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/system.py",
+      "live_evidence": [],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": null,
+      "verification": "untested"
     },
     {
       "name": "viewport_bounds",
@@ -4721,7 +7646,22 @@
         "openWorldHint": false
       },
       "module_listener_commands": [],
-      "test_file": null
+      "test_file": null,
+      "capability_category": "viewport",
+      "canonical_capability": "viewport.viewport_bounds",
+      "owner": "legacy Python listener",
+      "lifecycle": "active",
+      "migration_action": "PORT",
+      "replacement_tool": null,
+      "compatibility_alias": false,
+      "cpp_builder": null,
+      "cpp_entry_point": null,
+      "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/viewport.py",
+      "live_evidence": [],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": "layer: new_native_wrapper; MCPPuerTSBridgeViewport.cpp already holds the native focus/capture half",
+      "verification": "untested"
     },
     {
       "name": "viewport_camera",
@@ -4740,7 +7680,22 @@
         "openWorldHint": false
       },
       "module_listener_commands": [],
-      "test_file": null
+      "test_file": null,
+      "capability_category": "viewport",
+      "canonical_capability": "viewport.viewport_camera",
+      "owner": "legacy Python listener",
+      "lifecycle": "active",
+      "migration_action": "PORT",
+      "replacement_tool": null,
+      "compatibility_alias": false,
+      "cpp_builder": null,
+      "cpp_entry_point": null,
+      "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/viewport.py",
+      "live_evidence": [],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": "layer: new_native_wrapper; MCPPuerTSBridgeViewport.cpp already holds the native focus/capture half",
+      "verification": "untested"
     },
     {
       "name": "viewport_fit",
@@ -4763,7 +7718,22 @@
         "openWorldHint": false
       },
       "module_listener_commands": [],
-      "test_file": null
+      "test_file": null,
+      "capability_category": "viewport",
+      "canonical_capability": "viewport.screenshot",
+      "owner": "legacy Python listener",
+      "lifecycle": "active",
+      "migration_action": "MERGE",
+      "replacement_tool": "puerts_viewport_screenshot",
+      "compatibility_alias": false,
+      "cpp_builder": null,
+      "cpp_entry_point": null,
+      "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/viewport.py",
+      "live_evidence": [],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": "layer: new_native_wrapper; MCPPuerTSBridgeViewport.cpp already holds the native focus/capture half",
+      "verification": "untested"
     },
     {
       "name": "viewport_focus",
@@ -4786,7 +7756,22 @@
         "openWorldHint": false
       },
       "module_listener_commands": [],
-      "test_file": null
+      "test_file": null,
+      "capability_category": "viewport",
+      "canonical_capability": "viewport.screenshot",
+      "owner": "legacy Python listener",
+      "lifecycle": "active",
+      "migration_action": "MERGE",
+      "replacement_tool": "puerts_viewport_screenshot",
+      "compatibility_alias": false,
+      "cpp_builder": null,
+      "cpp_entry_point": null,
+      "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/viewport.py",
+      "live_evidence": [],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": "native screenshot already fits requested actors",
+      "verification": "untested"
     },
     {
       "name": "viewport_look_at",
@@ -4805,7 +7790,22 @@
         "openWorldHint": false
       },
       "module_listener_commands": [],
-      "test_file": null
+      "test_file": null,
+      "capability_category": "viewport",
+      "canonical_capability": "viewport.viewport_look_at",
+      "owner": "legacy Python listener",
+      "lifecycle": "active",
+      "migration_action": "PORT",
+      "replacement_tool": null,
+      "compatibility_alias": false,
+      "cpp_builder": null,
+      "cpp_entry_point": null,
+      "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/viewport.py",
+      "live_evidence": [],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": "layer: new_native_wrapper; MCPPuerTSBridgeViewport.cpp already holds the native focus/capture half",
+      "verification": "untested"
     },
     {
       "name": "viewport_mode",
@@ -4827,7 +7827,22 @@
         "openWorldHint": false
       },
       "module_listener_commands": [],
-      "test_file": null
+      "test_file": null,
+      "capability_category": "viewport",
+      "canonical_capability": "viewport.viewport_mode",
+      "owner": "legacy Python listener",
+      "lifecycle": "active",
+      "migration_action": "PORT",
+      "replacement_tool": null,
+      "compatibility_alias": false,
+      "cpp_builder": null,
+      "cpp_entry_point": null,
+      "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/viewport.py",
+      "live_evidence": [],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": "layer: new_native_wrapper; MCPPuerTSBridgeViewport.cpp already holds the native focus/capture half",
+      "verification": "untested"
     },
     {
       "name": "viewport_render_mode",
@@ -4849,7 +7864,22 @@
         "openWorldHint": false
       },
       "module_listener_commands": [],
-      "test_file": null
+      "test_file": null,
+      "capability_category": "viewport",
+      "canonical_capability": "viewport.viewport_render_mode",
+      "owner": "legacy Python listener",
+      "lifecycle": "active",
+      "migration_action": "PORT",
+      "replacement_tool": null,
+      "compatibility_alias": false,
+      "cpp_builder": null,
+      "cpp_entry_point": null,
+      "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/viewport.py",
+      "live_evidence": [],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": "layer: new_native_wrapper; MCPPuerTSBridgeViewport.cpp already holds the native focus/capture half",
+      "verification": "untested"
     },
     {
       "name": "viewport_screenshot",
@@ -4874,7 +7904,22 @@
         "openWorldHint": false
       },
       "module_listener_commands": [],
-      "test_file": "mcp-server/tests/compat-tools.test.ts"
+      "test_file": "mcp-server/tests/compat-tools.test.ts",
+      "capability_category": "compat",
+      "canonical_capability": "viewport.screenshot",
+      "owner": "compat alias router",
+      "lifecycle": "active",
+      "migration_action": "ALIAS",
+      "replacement_tool": "puerts_viewport_screenshot",
+      "compatibility_alias": true,
+      "cpp_builder": null,
+      "cpp_entry_point": null,
+      "python_handler": null,
+      "live_evidence": [],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": null,
+      "verification": "mock_only"
     },
     {
       "name": "viewport_screenshot",
@@ -4898,7 +7943,22 @@
         "openWorldHint": false
       },
       "module_listener_commands": [],
-      "test_file": null
+      "test_file": null,
+      "capability_category": "viewport",
+      "canonical_capability": "viewport.screenshot",
+      "owner": "legacy Python listener",
+      "lifecycle": "active",
+      "migration_action": "ALIAS",
+      "replacement_tool": "puerts_viewport_screenshot",
+      "compatibility_alias": true,
+      "cpp_builder": null,
+      "cpp_entry_point": null,
+      "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/viewport.py",
+      "live_evidence": [],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": "layer: new_native_wrapper; MCPPuerTSBridgeViewport.cpp already holds the native focus/capture half",
+      "verification": "untested"
     },
     {
       "name": "widget_build_from_json",
@@ -4922,7 +7982,22 @@
         "openWorldHint": false
       },
       "module_listener_commands": [],
-      "test_file": null
+      "test_file": null,
+      "capability_category": "ui",
+      "canonical_capability": "widgets.build",
+      "owner": "legacy Python listener",
+      "lifecycle": "active",
+      "migration_action": "ALIAS",
+      "replacement_tool": "puerts_widget_build",
+      "compatibility_alias": false,
+      "cpp_builder": null,
+      "cpp_entry_point": null,
+      "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/widgets.py",
+      "live_evidence": [],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": "alias not yet written; native replacement is live-verified",
+      "verification": "untested"
     },
     {
       "name": "widget_lower_third_create",
@@ -4959,7 +8034,22 @@
         "openWorldHint": false
       },
       "module_listener_commands": [],
-      "test_file": null
+      "test_file": null,
+      "capability_category": "ui",
+      "canonical_capability": "ui.widget_lower_third_create",
+      "owner": "legacy Python listener",
+      "lifecycle": "active",
+      "migration_action": "REFRONT",
+      "replacement_tool": null,
+      "compatibility_alias": false,
+      "cpp_builder": "WidgetBlueprintBuilderLibrary",
+      "cpp_entry_point": null,
+      "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/widgets.py",
+      "live_evidence": [],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": "PromptBrush orchestration; PORT to puerts_workflow when the pipeline migrates",
+      "verification": "untested"
     },
     {
       "name": "widget_title_card_create",
@@ -4996,7 +8086,22 @@
         "openWorldHint": false
       },
       "module_listener_commands": [],
-      "test_file": null
+      "test_file": null,
+      "capability_category": "ui",
+      "canonical_capability": "ui.widget_title_card_create",
+      "owner": "legacy Python listener",
+      "lifecycle": "active",
+      "migration_action": "REFRONT",
+      "replacement_tool": null,
+      "compatibility_alias": false,
+      "cpp_builder": "WidgetBlueprintBuilderLibrary",
+      "cpp_entry_point": null,
+      "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/widgets.py",
+      "live_evidence": [],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": "PromptBrush orchestration; PORT to puerts_workflow when the pipeline migrates",
+      "verification": "untested"
     },
     {
       "name": "widget_title_template",
@@ -5035,7 +8140,22 @@
         "openWorldHint": false
       },
       "module_listener_commands": [],
-      "test_file": null
+      "test_file": null,
+      "capability_category": "ui",
+      "canonical_capability": "ui.widget_title_template",
+      "owner": "legacy Python listener",
+      "lifecycle": "active",
+      "migration_action": "REFRONT",
+      "replacement_tool": null,
+      "compatibility_alias": false,
+      "cpp_builder": "WidgetBlueprintBuilderLibrary",
+      "cpp_entry_point": null,
+      "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/widgets.py",
+      "live_evidence": [],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": "PromptBrush orchestration; PORT to puerts_workflow when the pipeline migrates",
+      "verification": "untested"
     }
   ]
 }
