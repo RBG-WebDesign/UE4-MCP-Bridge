@@ -23,6 +23,10 @@ const inventoryPath = join(repoRoot, 'docs', 'TOOL_INVENTORY.json');
 
 const write = process.argv.includes('--write');
 
+const NATIVE_PENDING_LIVE = {
+  puerts_behavior_tree_build: 'native_pending_live',
+};
+
 if (!existsSync(join(distDir, 'index.js'))) {
   console.error('FAIL: mcp-server/dist is missing. Run npm run build first.');
   process.exit(1);
@@ -145,7 +149,12 @@ for (const [moduleFile, factoryName, backend, args] of MODULES) {
     let state;
     let target = null;
     if (backend === 'native_pipe') {
-      state = 'native';
+      // 'native' means live-verified against a real editor. A tool that has
+      // compiled and passed unit tests but not its live acceptance stays in
+      // NATIVE_PENDING_LIVE until that run passes; when its only structural
+      // evidence is the builder's own report, it graduates to
+      // 'native_live_partial' instead, until an independent reader exists.
+      state = NATIVE_PENDING_LIVE[definition.name] ?? 'native';
     } else if (backend === 'native_pipe_alias') {
       // The Wrap action from docs/TOOL_MIGRATION.md: old name, native execution.
       state = 'wrap';
@@ -197,10 +206,16 @@ const inventory = {
   purpose:
     'Frozen inventory of every bridge tool across both lanes. No tool may be removed until its replacement reaches migrated_verified. See docs/TOOL_MIGRATION.md.',
   states: [
-    'native', 'server_local', 'legacy_verified', 'legacy_untested', 'native_equivalent',
-    'puerts_equivalent', 'hybrid_candidate', 'wrap', 'needs_port', 'duplicate', 'blocked',
-    'deprecated', 'migrated_verified',
+    'native', 'native_pending_live', 'native_live_partial', 'server_local', 'legacy_verified',
+    'legacy_untested', 'native_equivalent', 'puerts_equivalent', 'hybrid_candidate', 'wrap',
+    'needs_port', 'duplicate', 'blocked', 'deprecated', 'migrated_verified',
   ],
+  state_definitions: {
+    native: 'default catalog, unit-tested, and proven against a live editor',
+    native_pending_live: 'default catalog and unit-tested; the live editor acceptance has not passed yet',
+    native_live_partial: 'live acceptance passed, but part of the evidence is the builder own report because no independent reader exists yet',
+    legacy_untested: 'no live editor proof of any kind; a non-null test_file covers only the mock listener',
+  },
   tool_count: tools.length,
   by_backend: tools.reduce((acc, t) => ((acc[t.backend] = (acc[t.backend] ?? 0) + 1), acc), {}),
   tools,

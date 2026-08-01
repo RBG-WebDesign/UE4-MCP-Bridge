@@ -73,6 +73,27 @@ maintains this file; Phase L consumes it.
 
 ## Defects and limitations (Phase L queue)
 
+0. **Cast with a short target_class silently spawns no node, and the build
+   report counts the phantom** (found 2026-08-01 by the graph_inspect
+   acceptance). `{"type": "Cast", "params": {"target_class":
+   "StaticMeshActor"}}` produces a build that reports success with the Cast
+   in `node_count` and `node_types`, while no node exists in the graph; the
+   full path `/Script/Engine.StaticMeshActor` spawns it correctly. Two
+   defects: the registry Cast factory does not resolve reflected short names
+   even though the variable type resolver does, and `node_count`/`node_types`
+   are computed from the spec entries processed rather than the nodes actually
+   added, so a factory returning null is invisible unless a connection touches
+   the phantom (`node 'x' spawned no node`). Proven by
+   `Scripts/graph-inspect-acceptance.mjs`, whose build-vs-read node-count
+   assertion now fails loudly on any silent drop. Both fixes are builder-side
+   graph mutation work and are deliberately not part of the inspector change.
+
+0b. **MultiGate ignores num_outputs** (found 2026-08-01 by the same
+   acceptance). `{"type": "MultiGate", "params": {"num_outputs": 4}}` builds a
+   MultiGate with the default 2 exec outputs and no warning; the identical key
+   on Sequence is honored (probe: Sequence 4, MultiGate 2). Builder-side
+   registry config work, same lane as defect 0.
+
 1. call_function requires QUALIFIED names (`Actor.GetActorLocation`); the bare
    name fails with `Function is not approved.` Undocumented. Default allowlist
    is 3 functions and each approved function also needs a hand-written native
@@ -406,6 +427,17 @@ maintains this file; Phase L consumes it.
     fresh with `spawn_actor` at the same place reported `z=110.149994` on every
     tick of a twelve-second run. Deleting and respawning is the reliable move;
     the property write is not. Not diagnosed further.
+
+## Pending capabilities (tracked, deliberately not started)
+
+- **Behavior Tree inspection** (tracked 2026-08-01). `puerts_behavior_tree_build`
+  landed compiled and unit-tested (`native_pending_live` in the inventory), but
+  its live acceptance can only verify the node graph through the builder's own
+  report: there is no BT equivalent of `graph_inspect`. Until a Behavior Tree
+  reader exists, a full live pass classifies the tool `native_live_partial`,
+  never `native`. The reader is its own capability, same pattern as Blueprint
+  inspection: re-front the runtime tree (composites, tasks, decorators,
+  services, key bindings) as canonical JSON, read-only, no transaction.
 
 ## Unknown (tracked, not explained)
 

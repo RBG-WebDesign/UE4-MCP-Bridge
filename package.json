@@ -20,6 +20,8 @@
     "smoke:editor": "node Scripts/mcp-smoke.mjs --require-editor",
     "smoke:puerts": "node Scripts/puerts-live-smoke.mjs",
     "smoke:physics": "node Scripts/puerts-live-smoke.mjs --physics",
+    "smoke:inspect": "node Scripts/graph-inspect-acceptance.mjs",
+    "smoke:bt": "node Scripts/behavior-tree-acceptance.mjs",
     "acceptance:editor": "node Scripts/editor-acceptance.mjs",
     "verify": "npm run build && npm test && npm run check:puerts && npm run check:inventory && npm run smoke",
     "inspect": "mcp-inspector node mcp-server/dist/index.js",

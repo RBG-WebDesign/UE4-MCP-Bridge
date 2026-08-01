@@ -210,6 +210,19 @@ public:
         FString& OutResultJson,
         FString& OutError) const;
 
+    /** Create or update a BehaviorTree asset with its Blackboard from one
+        spec: keys, assignment, and the full node graph. A re-front of three
+        libraries already compiled into MCPBridgeGraphBuilder -
+        UMCPBridgeAILibrary for the reflection-protected blackboard
+        operations and UBehaviorTreeBuilderLibrary for the graph, which
+        replaces the tree's root only on full success, so a failed build
+        leaves an existing tree untouched. */
+    UFUNCTION(BlueprintCallable, Category="MCP PuerTS Bridge")
+    bool BuildBehaviorTreeJson(
+        const FString& SpecJson,
+        FString& OutResultJson,
+        FString& OutError);
+
     UFUNCTION(BlueprintCallable, Category="MCP PuerTS Bridge")
     bool BuildPhysicsSceneJson(
         const FString& SpecJson,

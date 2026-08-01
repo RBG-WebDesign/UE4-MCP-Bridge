@@ -391,6 +391,44 @@ const specs = [
         + "graph, so it is off unless a caller needs pin-level detail.",
       ),
     }).strict()],
+  ["puerts_behavior_tree_build", "behavior_tree_build",
+    "Create or update a UE4.27 BehaviorTree asset with its Blackboard from one JSON spec, in "
+    + "one transaction: blackboard keys, blackboard assignment, and the full node graph, then "
+    + "compile-free save (Behavior Trees have no compile step). The graph replaces the tree's "
+    + "root only when every node builds, so a failed spec leaves an existing tree untouched, "
+    + "and a rerun of the same spec converges. Node structure: {id, type, name?, params?, "
+    + "children?, decorators?, services?}. Composites: Selector, Sequence, SimpleParallel. "
+    + "Tasks: MoveTo, Wait, WaitBlackboardTime, RotateToFaceBBEntry, PlayAnimation, MakeNoise, "
+    + "RunBehavior, PlaySound, FinishWithResult, SetTagCooldown. Decorators: Blackboard, "
+    + "ForceSuccess, Loop, TimeLimit, Cooldown, CompareBBEntries, IsAtLocation, DoesPathExist, "
+    + "TagCooldown, ConditionalLoop, KeepInCone, IsBBEntryOfClass. Services: DefaultFocus, "
+    + "RunEQS. Unknown types are rejected before the asset is touched. params values are "
+    + "strings (\"5.0\", \"TargetActor\"); a params key naming a blackboard key is validated "
+    + "against the keys that exist. The response reports the keys actually on the blackboard "
+    + "asset, read back rather than echoed.",
+    z.object({
+      asset_path: z.string().regex(/^\/Game\/MCPGenerated\/[A-Za-z0-9_]+(\/[A-Za-z0-9_]+)*$/).describe(
+        "BehaviorTree package path under /Game/MCPGenerated/, no asset-name suffix.",
+      ),
+      blackboard_path: z.string().regex(/^\/Game\/MCPGenerated\/[A-Za-z0-9_]+(\/[A-Za-z0-9_]+)*$/).optional().describe(
+        "Blackboard asset path under /Game/MCPGenerated/. Defaults to <asset_path>_BB. "
+        + "Point several trees at one path to share a blackboard.",
+      ),
+      keys: z.array(z.object({
+        name: z.string().min(1).max(64).regex(/^[A-Za-z0-9_]+$/),
+        type: z.string().describe("Bool, Int, Float, String, Name, Vector, Rotator, Object, or Class."),
+        base_class: z.string().optional().describe(
+          "For Object and Class keys: the required base, e.g. \"/Script/Engine.Actor\".",
+        ),
+      }).strict()).max(64).optional().describe(
+        "Blackboard keys. Existing keys with the same name are left alone (idempotent).",
+      ),
+      root: z.record(z.unknown()).describe(
+        "The root node of the tree, usually a composite. Required: a Behavior Tree without "
+        + "nodes does nothing in PIE.",
+      ),
+      save: z.boolean().optional().describe("Default true. A tree that did not build cleanly is never saved."),
+    }).strict()],
   ["puerts_physics_build", "physics_build", "Build a validated static-mesh rigid-body scene in one transaction.", z.object({ actors: z.array(physicsActor).min(1).max(200) }).strict()],
   ["puerts_physics_observe", "physics_observe", "Read rigid-body transforms and velocities from the editor or PIE world.", z.object({ actors: z.array(z.string()).max(200).optional() }).strict()],
   ["puerts_viewport_screenshot", "viewport_screenshot", "Fit requested actors and save a PNG of the active editor viewport.", z.object({ actors: z.array(z.string()).max(200).optional(), filename: z.string().optional() }).strict()],
@@ -459,6 +497,7 @@ const structuredParameters: Readonly<Record<string, readonly string[]>> = {
   puerts_save: ["assets"],
   puerts_blueprint_build: ["components", "variables", "graph"],
   puerts_widget_build: ["tree"],
+  puerts_behavior_tree_build: ["keys", "root"],
 };
 
 /** Round-trip budget per tool, in milliseconds. Absent means the 7 second
@@ -468,6 +507,7 @@ const structuredParameters: Readonly<Record<string, readonly string[]>> = {
 const commandTimeouts: Readonly<Record<string, number>> = {
   puerts_blueprint_build: 30000,
   puerts_widget_build: 30000,
+  puerts_behavior_tree_build: 30000,
   // Reading is cheaper than building, but a 200-node graph with include_pins
   // is a large serialization on the game thread and the 7 second default is
   // close enough to it to report a failure for work that succeeds.

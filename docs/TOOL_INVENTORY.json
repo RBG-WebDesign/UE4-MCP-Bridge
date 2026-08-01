@@ -2,6 +2,8 @@
   "purpose": "Frozen inventory of every bridge tool across both lanes. No tool may be removed until its replacement reaches migrated_verified. See docs/TOOL_MIGRATION.md.",
   "states": [
     "native",
+    "native_pending_live",
+    "native_live_partial",
     "server_local",
     "legacy_verified",
     "legacy_untested",
@@ -15,12 +17,18 @@
     "deprecated",
     "migrated_verified"
   ],
-  "tool_count": 204,
+  "state_definitions": {
+    "native": "default catalog, unit-tested, and proven against a live editor",
+    "native_pending_live": "default catalog and unit-tested; the live editor acceptance has not passed yet",
+    "native_live_partial": "live acceptance passed, but part of the evidence is the builder own report because no independent reader exists yet",
+    "legacy_untested": "no live editor proof of any kind; a non-null test_file covers only the mock listener"
+  },
+  "tool_count": 205,
   "by_backend": {
     "legacy_http": 170,
     "native_pipe_alias": 12,
     "server_local": 2,
-    "native_pipe": 20
+    "native_pipe": 21
   },
   "tools": [
     {
@@ -3791,6 +3799,32 @@
       },
       "module_listener_commands": [],
       "test_file": null
+    },
+    {
+      "name": "puerts_behavior_tree_build",
+      "module": "mcp-server/src/tools/puerts.ts",
+      "backend": "native_pipe",
+      "migration_state": "native_pending_live",
+      "target_replacement": null,
+      "description": "[PRIMARY NATIVE IPC] Create or update a UE4.27 BehaviorTree asset with its Blackboard from one JSON spec, in one transaction: blackboard keys, blackboard assignment, and the full node graph, then compile-free save (Behavior Trees have no compile step). The graph replaces the tree's root only when every node builds, so a failed spec leaves an existing tree untouched, and a rerun of the same spec converges. Node structure: {id, type, name?, params?, children?, decorators?, services?}. Composites: Selector, Sequence, SimpleParallel. Tasks: MoveTo, Wait, WaitBlackboardTime, RotateToFaceBBEntry, PlayAnimation, MakeNoise, RunBehavior, PlaySound, FinishWithResult, SetTagCooldown. Decorators: Blackboard, ForceSuccess, Loop, TimeLimit, Cooldown, CompareBBEntries, IsAtLocation, DoesPathExist, TagCooldown, ConditionalLoop, KeepInCone, IsBBEntryOfClass. Services: DefaultFocus, RunEQS. Unknown types are rejected before the asset is touched. params values are strings (\"5.0\", \"TargetActor\"); a params key naming a blackboard key is validated against the keys that exist. The response reports the keys actually on the blackboard asset, read back rather than echoed.",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "asset_path": "string",
+          "blackboard_path": "string?",
+          "keys": "array?",
+          "root": "record",
+          "save": "boolean?"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": "mcp-server/tests/puerts-tools.test.ts"
     },
     {
       "name": "puerts_blueprint_build",

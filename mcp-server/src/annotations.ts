@@ -83,6 +83,9 @@ export const toolAnnotations: Record<string, ToolAnnotations> = {
   puerts_viewport_screenshot: mutatingIdempotent,
   puerts_set_property: mutatingIdempotent,
   puerts_call_function: mutating,
+  // Converges on rerun: the tree's root is replaced only on full success and
+  // existing blackboard keys are left alone.
+  puerts_behavior_tree_build: mutatingIdempotent,
   puerts_spawn_actor: mutating,
   puerts_sky_shader_create: mutating,
   puerts_physics_build: mutating,

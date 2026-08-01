@@ -55,7 +55,8 @@ async function main(): Promise<void> {
     });
     const client = new PuerTSClient();
     const tools = createPuertsTools(client);
-    assert(tools.length === 20, "expected all 20 PuerTS tools");
+    assert(tools.length === 21, "expected all 21 PuerTS tools");
+    assert(tools.some((tool) => tool.name === "puerts_behavior_tree_build"), "native Behavior Tree builder tool is missing");
     assert(tools.some((tool) => tool.name === "puerts_sky_shader_create"), "native sky shader tool is missing");
     assert(tools.some((tool) => tool.name === "puerts_blueprint_build"), "native Blueprint builder tool is missing");
     assert(tools.some((tool) => tool.name === "puerts_widget_build"), "native widget builder tool is missing");
@@ -926,9 +927,98 @@ async function discoverySuite(): Promise<void> {
   }
 }
 
+/** puerts_behavior_tree_build sends its structured spec through the pipe and
+    rejects what the native side would reject, before the pipe is touched. */
+async function behaviorTreeBuildSuite(): Promise<void> {
+  const directory = await mkdtemp(join(tmpdir(), "ue4-puerts-bt-"));
+  const tokenPath = join(directory, "token.txt");
+  const pipeName = `\\\\.\\pipe\\ue4-puerts-bt-${process.pid}-${Date.now()}`;
+  await writeFile(tokenPath, "test-token", "utf8");
+  process.env.MCP_PUERTS_TOKEN_PATH = tokenPath;
+  process.env.MCP_PUERTS_PIPE = pipeName;
+
+  const received: Record<string, unknown>[] = [];
+  const server = createServer((socket) => socket.once("data", (data: Buffer) => {
+    const request = JSON.parse(data.toString("utf8")) as {
+      params?: Record<string, unknown>;
+      tool?: string;
+      timeout_ms?: number;
+    };
+    received.push({ ...(request.params ?? {}), __tool: request.tool, __timeout: request.timeout_ms });
+    socket.end(JSON.stringify({
+      success: true,
+      message: "Behavior Tree created.",
+      data: {
+        asset_path: "/Game/MCPGenerated/BT_Probe",
+        blackboard_path: "/Game/MCPGenerated/BT_Probe_BB",
+        created: true,
+        has_root: true,
+        saved: true,
+      },
+      changed_assets: ["/Game/MCPGenerated/BT_Probe.BT_Probe"],
+      changed_actors: [],
+      warnings: [],
+      errors: [],
+      log_output: [],
+      transaction_id: "T7",
+    }) + "\n");
+  }));
+
+  try {
+    await new Promise<void>((resolve, reject) => {
+      server.once("error", reject);
+      server.listen(pipeName, resolve);
+    });
+    const tool = createPuertsTools(new PuerTSClient())
+      .find((entry) => entry.name === "puerts_behavior_tree_build");
+    assert(tool !== undefined, "puerts_behavior_tree_build is missing");
+
+    const built = await tool.handler({
+      asset_path: "/Game/MCPGenerated/BT_Probe",
+      keys: [{ name: "TargetActor", type: "Object", base_class: "/Script/Engine.Actor" }],
+      root: {
+        id: "root", type: "Selector", children: [
+          { id: "wait", type: "Wait", params: { WaitTime: "2.0" } },
+        ],
+      },
+    });
+    assert(JSON.parse(built.content[0]?.text ?? "null").success === true, "a valid Behavior Tree spec was rejected");
+    const sent = received[0];
+    assert(sent?.__tool === "behavior_tree_build", "the runtime command name is wrong");
+    assert(
+      typeof sent?.__timeout === "number" && (sent.__timeout as number) > 5000,
+      "asset authoring did not get its own timeout budget",
+    );
+    const sentRoot = sent?.root as { type?: string; children?: unknown[] } | undefined;
+    assert(sentRoot?.type === "Selector" && sentRoot?.children?.length === 1,
+      "root did not reach the pipe as a structure");
+    assert(Array.isArray(sent?.keys) && (sent.keys as unknown[]).length === 1,
+      "keys did not reach the pipe as an array");
+
+    const missingRoot = await tool.handler({ asset_path: "/Game/MCPGenerated/BT_Probe" });
+    assert(
+      JSON.parse(missingRoot.content[0]?.text ?? "null").success === false,
+      "a spec without root was accepted",
+    );
+    const badPath = await tool.handler({ asset_path: "/Game/Elsewhere/BT_X", root: { id: "r", type: "Selector" } });
+    assert(
+      JSON.parse(badPath.content[0]?.text ?? "null").success === false,
+      "a path outside /Game/MCPGenerated was accepted",
+    );
+    assert(received.length === 1, "a rejected request still reached the pipe");
+    console.log("  PASS  Behavior Tree build schema and structured spec marshaling");
+  } finally {
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+    await rm(directory, { recursive: true, force: true });
+    delete process.env.MCP_PUERTS_TOKEN_PATH;
+    delete process.env.MCP_PUERTS_PIPE;
+  }
+}
+
 main()
   .then(marshalingSuite)
   .then(blueprintBuildSuite)
+  .then(behaviorTreeBuildSuite)
   .then(widgetBuildSuite)
   .then(connectionContractSuite)
   .then(nonActorParentSuite)

@@ -406,6 +406,61 @@ async function inspectGraph(context: ToolContext, input: JsonObject): Promise<Co
   return result;
 }
 
+/** Create or update a BehaviorTree asset with its Blackboard from one spec.
+    The same shape as buildBlueprint: composition here, every protected
+    operation in the native libraries. The native side replaces the tree's
+    root only on full success, so a failed build leaves an existing tree
+    untouched. */
+async function buildBehaviorTree(context: ToolContext, input: JsonObject): Promise<CommandResponse> {
+  const assetPath = requireString(input, "asset_path");
+  if (!assetPath.startsWith("/Game/MCPGenerated/")) {
+    throw new Error("Behavior Tree assets are limited to /Game/MCPGenerated/");
+  }
+  const root = optionalObject(input, "root");
+  if (root === undefined) {
+    throw new Error("root is required: a Behavior Tree without nodes does nothing in PIE");
+  }
+  const spec: JsonObject = {
+    asset_path: assetPath,
+    root,
+    keys: objectArray(input, "keys"),
+    save: optionalBoolean(input, "save", true),
+  };
+  const blackboardPath = optionalString(input, "blackboard_path");
+  if (blackboardPath !== undefined) {
+    spec.blackboard_path = blackboardPath;
+  }
+
+  const resultJson = puerts.$ref<string>("");
+  const error = puerts.$ref<string>("");
+  if (!context.bridge.BuildBehaviorTreeJson(JSON.stringify(spec), resultJson, error)) {
+    throw new Error(puerts.$unref(error));
+  }
+  const parsed = JSON.parse(puerts.$unref(resultJson)) as JsonObject;
+  const errors = stringArray(parsed, "errors");
+  const warnings = stringArray(parsed, "warnings");
+  delete parsed.errors;
+  delete parsed.warnings;
+
+  const created = parsed.created === true;
+  const result = response(
+    errors.length === 0,
+    errors.length > 0
+      ? "Behavior Tree build reported errors."
+      : created ? "Behavior Tree created." : "Behavior Tree updated.",
+    parsed,
+  );
+  result.errors.push(...errors);
+  result.warnings.push(...warnings);
+  for (const key of ["object_path", "blackboard_object_path"]) {
+    const path = parsed[key];
+    if (typeof path === "string" && path.length > 0) {
+      result.changed_assets.push(path);
+    }
+  }
+  return result;
+}
+
 async function buildPhysics(context: ToolContext, input: JsonObject): Promise<CommandResponse> {
   const actors = input.actors;
   if (!Array.isArray(actors) || actors.length === 0 || actors.length > 200) {
@@ -533,6 +588,7 @@ export const toolDefinitions: readonly ToolDefinition[] = [
   { name: "blueprint_build", inputSchema: schema({ asset_path: { type: "string" }, parent_class: { type: "string" }, components: { type: "array", items: { type: "object" } }, variables: { type: "array", items: { type: "object" } }, graph: { type: "object" }, compile: { type: "boolean" }, save: { type: "boolean" }, clear_existing_graph: { type: "boolean" } }, ["asset_path"]), outputSchema, permissions: ["assets.write"], executionTimeoutMs: 30000, execute: buildBlueprint },
   { name: "widget_build", inputSchema: schema({ asset_path: { type: "string" }, tree: { type: "object" }, save: { type: "boolean" } }, ["asset_path", "tree"]), outputSchema, permissions: ["assets.write"], executionTimeoutMs: 30000, execute: buildWidget },
   { name: "graph_inspect", inputSchema: schema({ asset_path: { type: "string" }, graph_name: { type: "string" }, include_pins: { type: "boolean" } }, ["asset_path"]), outputSchema, permissions: ["assets.read"], executionTimeoutMs: 15000, execute: inspectGraph },
+  { name: "behavior_tree_build", inputSchema: schema({ asset_path: { type: "string" }, blackboard_path: { type: "string" }, keys: { type: "array", items: { type: "object" } }, root: { type: "object" }, save: { type: "boolean" } }, ["asset_path", "root"]), outputSchema, permissions: ["assets.write"], executionTimeoutMs: 30000, execute: buildBehaviorTree },
   { name: "physics_build", inputSchema: schema({ actors: { type: "array", items: { type: "object" } } }, ["actors"]), outputSchema, permissions: ["actors.spawn"], executionTimeoutMs: 10000, execute: buildPhysics },
   { name: "physics_observe", inputSchema: schema({ actors: { type: "array", items: { type: "string" } } }), outputSchema, permissions: ["actors.read"], executionTimeoutMs: 2000, execute: observePhysics },
   { name: "viewport_screenshot", inputSchema: schema({ actors: { type: "array", items: { type: "string" } }, filename: { type: "string" } }), outputSchema, permissions: ["viewport.capture"], executionTimeoutMs: 2000, execute: captureViewport },

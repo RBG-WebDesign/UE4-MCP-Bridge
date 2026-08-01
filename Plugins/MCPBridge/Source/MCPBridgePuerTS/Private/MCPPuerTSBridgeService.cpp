@@ -121,7 +121,7 @@ bool UMCPPuerTSBridgeService::Initialize(FString& OutError)
             TEXT("call_function"), TEXT("spawn_actor"), TEXT("delete_actor"), TEXT("save"),
             TEXT("pie_start"), TEXT("pie_stop"), TEXT("get_logs"), TEXT("undo"),
             TEXT("physics_build"), TEXT("physics_observe"), TEXT("viewport_screenshot"), TEXT("sky_shader_create"),
-            TEXT("blueprint_build"), TEXT("widget_build"),
+            TEXT("blueprint_build"), TEXT("widget_build"), TEXT("behavior_tree_build"),
             // Read only. Deliberately absent from IsToolMutating below, so it
             // opens no transaction and returns no transaction id.
             TEXT("graph_inspect")
@@ -1170,7 +1170,8 @@ bool UMCPPuerTSBridgeService::IsToolMutating(const FString& ToolName) const
         || ToolName == TEXT("physics_build")
         || ToolName == TEXT("sky_shader_create")
         || ToolName == TEXT("blueprint_build")
-        || ToolName == TEXT("widget_build");
+        || ToolName == TEXT("widget_build")
+        || ToolName == TEXT("behavior_tree_build");
 }
 
 void UMCPPuerTSBridgeService::EndActiveCommand()

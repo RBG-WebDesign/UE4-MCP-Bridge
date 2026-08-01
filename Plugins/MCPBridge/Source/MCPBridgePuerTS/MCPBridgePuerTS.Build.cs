@@ -13,6 +13,8 @@ public class MCPBridgePuerTS : ModuleRules
         // UWidgetTree back out of the UWidgetBlueprint to answer with the
         // hierarchy that actually landed. The tree construction itself stays
         // in MCPBridgeGraphBuilder.
-        PrivateDependencyModuleNames.AddRange(new string[] { "AssetRegistry", "Json", "JsonUtilities", "JsEnv", "MCPBridgeGraphBuilder", "Projects", "UMG", "UMGEditor", "UnrealEd" });
+        // AIModule and GameplayTasks are for behavior_tree_build only: the
+        // UBehaviorTree and UBlackboardData types it creates live there.
+        PrivateDependencyModuleNames.AddRange(new string[] { "AIModule", "AssetRegistry", "GameplayTasks", "Json", "JsonUtilities", "JsEnv", "MCPBridgeGraphBuilder", "Projects", "UMG", "UMGEditor", "UnrealEd" });
     }
 }
