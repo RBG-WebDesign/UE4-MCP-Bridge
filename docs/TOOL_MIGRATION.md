@@ -61,6 +61,16 @@ must report `requested_tool` and `canonical_tool` so callers can migrate.
   inspection, dependency ordering, batch preparation, repair loops, reporting.
 - Do not port tool-by-tool to reach a count. The target shape is a smaller set
   of batch primitives plus workflow tools, with old names as adapters.
+- A third native lane exists beside reflection and UFUNCTION service wrappers:
+  PuerTS template-based static binding (puerts::DefineClass) can expose
+  non-reflected C++ batch APIs directly to the in-engine runtime. The official
+  manual's guidance matches this file: expose stable batch APIs, not many
+  small native calls. See docs/PUERTS_MANUAL_DIGEST.md section 8.
+
+When classifying a Port, record which implementation layer executes it:
+`direct_reflection`, `puerts_workflow`, `existing_native_builder`,
+`new_native_wrapper` (UFUNCTION service or static binding), `build_process`,
+`legacy_only`, or `unsupported`.
 
 ## First migration slice
 

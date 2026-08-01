@@ -56,6 +56,21 @@ The local PuerTS bundle lives at `Plugins/Puerts`. It is ignored by Git because 
 
 `npm run build` compiles the PuerTS runtime first, then the existing MCP server.
 
+Operational notes from the official manual (full digest: `docs/PUERTS_MANUAL_DIGEST.md`):
+
+- This bridge uses a manually started `FJsEnv`, not PuerTS automatic binding
+  mode. The FAQ's TypeScript version ceiling applies only to automatic binding,
+  which bundles its own compiler; our external TypeScript 5.5.4 is unaffected.
+  Do not enable automatic binding without re-reading that constraint.
+- If PuerTS extension methods ever come up missing after module load-order
+  changes, call `IPuertsModule::Get().InitExtensionMethodsMap()` after all
+  modules load.
+- Declarations can be regenerated from the console with `Puerts.Gen FULL`
+  (unverified here); see `puerts-runtime/typing/ue/PROVENANCE.md`.
+- TypeScript-created delegates via `toManualReleaseDelegate` leak unless
+  explicitly released. Delegate lifetime remains untested in this bridge; do
+  not rely on delegates until add, callback, remove, and GC are covered.
+
 ## Connection configuration
 
 The UE plugin writes a random bearer token to:

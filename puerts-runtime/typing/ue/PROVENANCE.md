@@ -15,5 +15,16 @@ To regenerate: open the target project, click the puerts toolbar button
 (tooltip: "Generate *.d.ts and copy some js builtin libs"), then copy
 <Project>/Typing/ue/ue.d.ts here and update this file.
 
+The official manual also documents a console command form, which a workflow
+can drive without the toolbar: `Puerts.Gen FULL` regenerates everything, and
+`Puerts.Gen PATH=/Game/SomePath` scopes Blueprint declaration generation to a
+clean content path (useful when a broken Blueprint produces invalid TypeScript
+in ue_bp.d.ts). Documented in docs/PUERTS_MANUAL_DIGEST.md; not yet exercised
+in this project, verify before relying on it.
+
+ue_bp.d.ts is project-specific and incrementally generated. A reusable plugin
+must regenerate declarations per installed project and must not depend on one
+game's ue_bp.d.ts.
+
 Lines: 118976
 SHA256: f1ee4bd659b1e2d9d0c8d752a4c810206f36d3cd064b795b9a3ce604aa176736
