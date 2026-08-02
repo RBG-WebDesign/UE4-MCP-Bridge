@@ -124,7 +124,8 @@ JavaScript runtime. Do not continue. Record it.
 npm run test:editor-free
 ```
 
-Expected: three suites, all green, in about 3 minutes. They install into a
+Expected: three suites, all green. Measured at 26 seconds on the development
+machine on 2026-08-02, so budget under a minute. They install into a
 throwaway directory under `Temp`, package a zip, and attack the security
 boundary. If any of these fails, the problem is the checkout and not your
 project, and installing into a real project will only add variables.

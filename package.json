@@ -19,7 +19,6 @@
     "install:check": "node Scripts/bridge-install.mjs --check",
     "install:sync": "node Scripts/bridge-install.mjs --sync",
     "test:install": "node Scripts/bridge-install-acceptance.mjs",
-    "test:install:fresh": "node Scripts/fresh-install-acceptance.mjs",
     "test:fresh-install": "node Scripts/fresh-install-acceptance.mjs",
     "test:package": "node Scripts/package-acceptance.mjs",
     "test:security": "node Scripts/security-refusal-acceptance.mjs",
