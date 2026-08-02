@@ -1512,3 +1512,69 @@ Open, not yet fixed. Two candidate fixes, neither implemented:
 Related: the same run surfaced `extra:` files in `native_source` (the two
 orphan-installed files above), which `install:check` DID catch and refuse. The
 content gate works. The build-artifact gate does not exist.
+
+## Finding 0n: three gaps that make a live fixture impossible to reset
+
+Found by lane H, 2026-08-02, while making the member_patch acceptance
+deterministic. Recorded together because they are one practical problem: there
+is no way to return a live editor's asset to a known state.
+
+1. **No delete-asset primitive exists in the catalog.** Nothing in the 209
+   registrations deletes an asset. `puerts_delete_actor` deletes a level actor,
+   which is a different thing.
+2. **`blueprint_build`'s `remove_unlisted` rejects the `components` scope as
+   unsupported.** So there is no downward convergence on components: a build can
+   add a component and cannot take one away.
+3. **Unlinking the `.uasset` does not reseed a live editor.** The package is
+   already loaded, so the next build finds the in-memory object and the file on
+   disk is irrelevant.
+
+Together these mean a fixture cannot be restored in place while the editor is
+running, which is why the previous member_patch acceptance was order dependent
+and why two live runs of it disagreed.
+
+Lane H's workaround is sound and does not need any of the three fixed: build the
+fixture at a fresh path per run (`BP_MemberProbe_<runId>`) and assert the path
+did not exist by requiring `graph_inspect` to fail on it first. Determinism
+comes from never reusing a path, not from cleaning one up.
+
+Worth fixing anyway, because the workaround only helps tests. A caller
+authoring real content needs (1) and (2) to converge downward at all, and the
+absence of (2) means `remove_unlisted` is convergent for graphs and not for
+components, which is a surprising asymmetry in a command whose whole contract is
+convergence.
+
+## Finding 0o: ImportText returning non-null is not a type check
+
+Confirmed by lane H, 2026-08-02, by reading engine source. This is the defect
+behind the integrator's first live member_patch run.
+
+`CompareVariableDefault` (`MCPPuerTSBridgeBlueprintMember.cpp:220`) asks whether
+a type can hold a value by testing `FProperty::ImportText` for a non-null
+return. For a floating point property that is not a test:
+`FNumericProperty::ImportText_Internal`
+(`Runtime/CoreUObject/Private/UObject/PropertyNumeric.cpp:113`) advances past
+`[+-.0-9]`, consumes nothing at all for `"not a number"`, calls
+`SetNumericPropertyValueFromString`, and returns non-null.
+
+So the value imports as `0.0`, is classified `Different` rather than
+`Unavailable`, and is applied. The applier (`BPVariableOps.cpp:168`) uses the
+same non-test, and verification re-reads through the same comparator, which
+agrees with itself. `0.0` is written, verified, and saved.
+
+`FIntProperty` does reject, through `UEnum::ParseEnum` returning `INDEX_NONE`,
+so an int control passing beside a float failing localises it precisely.
+
+Fix: require the whole buffer consumed, not merely a non-null return. Accept
+only when `End != nullptr && *End == '\0'`. It belongs in one shared helper on
+`UBlueprintMutatorLibrary` beside `JsonDefaultToImportText`, because THREE call
+sites carry the identical non-test: the member validator, `SetVariableDefault`,
+and `add_variable`'s default path.
+
+Assigned to lane G with the build lock. The acceptance check stays red until it
+lands, on purpose, so the fix has a failing test to turn green.
+
+The general lesson is the one this file keeps recording: a verifier that shares
+its comparator with the writer cannot catch the writer being wrong. The member
+hash read back through `graph_inspect` is a genuinely independent check; the
+default-value comparison was not.
