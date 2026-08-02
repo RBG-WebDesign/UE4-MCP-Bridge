@@ -1123,11 +1123,39 @@ bool UMCPPuerTSBridgeService::BuildBlueprintJson(
     // assumed. FBPVariableDescription carries the name, pin type, default
     // value, category, metadata, replication settings, the RepNotify function
     // and the VarGuid in one struct, so copying it captures the variable whole.
+    //
+    // The node half is captured whole rather than recreated from the incoming
+    // spec, because the spec is exactly what cannot be trusted here: a request
+    // that removes a variable normally stops declaring the nodes that read it,
+    // so rebuilding from the spec would restore the variable and silently drop
+    // its graph. The ledger therefore carries the node's own class, name,
+    // position, variable reference and every pin link, keyed by the endpoint's
+    // node name so the links can be rebuilt after the nodes are.
+    struct FCapturedPinLink
+    {
+        FString PinName;
+        EEdGraphPinDirection Direction = EGPD_Input;
+        FString LinkedNodeName;
+        FString LinkedPinName;
+    };
+    struct FCapturedNode
+    {
+        UClass* NodeClass = nullptr;
+        FString NodeName;
+        FName VariableName;
+        int32 PosX = 0;
+        int32 PosY = 0;
+        FString NodeComment;
+        FString GraphName;
+        TMap<FString, FString> PinDefaults;
+        TArray<FCapturedPinLink> Links;
+    };
     struct FRemovalLedgerEntry
     {
         FBPVariableDescription Description;
         bool bWasManaged = false;
         TArray<FString> ReferenceLocations;
+        TArray<FCapturedNode> CapturedNodes;
     };
     TArray<FRemovalLedgerEntry> RemovalLedger;
     TSharedPtr<FJsonObject> RollbackLedgerJson;
@@ -1182,12 +1210,44 @@ bool UMCPPuerTSBridgeService::BuildBlueprintJson(
             {
                 // Delete the nodes that read or write it first: removing the
                 // member while nodes still reference it leaves the graph with
-                // unresolved pins that only surface at compile time.
+                // unresolved pins that only surface at compile time. Capture
+                // each one whole before it goes.
                 for (UEdGraphNode* Node : CollectVariableReferenceNodes(Blueprint, VarName))
                 {
                     if (Node == nullptr) { continue; }
+                    FCapturedNode Captured;
+                    Captured.NodeClass = Node->GetClass();
+                    Captured.NodeName = Node->GetName();
+                    Captured.VariableName = VarName;
+                    Captured.PosX = Node->NodePosX;
+                    Captured.PosY = Node->NodePosY;
+                    Captured.NodeComment = Node->NodeComment;
+                    Captured.GraphName = Node->GetGraph()->GetName();
+                    for (const UEdGraphPin* Pin : Node->Pins)
+                    {
+                        if (Pin == nullptr) { continue; }
+                        const FString PinName = Pin->PinName.ToString();
+                        if (!Pin->DefaultValue.IsEmpty())
+                        {
+                            Captured.PinDefaults.Add(PinName, Pin->DefaultValue);
+                        }
+                        for (const UEdGraphPin* Linked : Pin->LinkedTo)
+                        {
+                            if (Linked == nullptr || Linked->GetOwningNode() == nullptr) { continue; }
+                            FCapturedPinLink Link;
+                            Link.PinName = PinName;
+                            Link.Direction = Pin->Direction;
+                            Link.LinkedNodeName = Linked->GetOwningNode()->GetName();
+                            Link.LinkedPinName = Linked->PinName.ToString();
+                            Captured.Links.Add(Link);
+                        }
+                    }
+                    if (RemovalLedger.Num() > 0)
+                    {
+                        RemovalLedger.Last().CapturedNodes.Add(Captured);
+                    }
                     RemovedReferenceNodes.Add(FString::Printf(TEXT("%s.%s"),
-                        *Node->GetGraph()->GetName(), *Node->GetName()));
+                        *Captured.GraphName, *Captured.NodeName));
                     Node->GetGraph()->Modify();
                     Node->Modify();
                     Node->GetGraph()->RemoveNode(Node);
@@ -1287,6 +1347,11 @@ bool UMCPPuerTSBridgeService::BuildBlueprintJson(
         // a failed build permanently dropped the variables.
         TArray<FString> RestoredVariables;
         TArray<FString> RestorationMismatches;
+        int32 ReferenceNodesCaptured = 0;
+        for (const FRemovalLedgerEntry& Entry : RemovalLedger)
+        {
+            ReferenceNodesCaptured += Entry.CapturedNodes.Num();
+        }
         for (const FRemovalLedgerEntry& Entry : RemovalLedger)
         {
             const bool bPresent = Blueprint->NewVariables.ContainsByPredicate(
@@ -1304,6 +1369,119 @@ bool UMCPPuerTSBridgeService::BuildBlueprintJson(
             }
             RestoredVariables.Add(Entry.Description.VarName.ToString());
         }
+        // Recreate the captured reference nodes from the ledger, NOT from the
+        // incoming spec. A request that removes a variable normally stops
+        // declaring the nodes that read it, so rebuilding from the spec would
+        // restore the variable and silently drop its graph.
+        int32 NodesRecreated = 0;
+        int32 LinksCaptured = 0;
+        int32 LinksRestored = 0;
+        int32 PinDefaultsRestored = 0;
+        {
+            TArray<UEdGraph*> AllGraphs;
+            Blueprint->GetAllGraphs(AllGraphs);
+            // Two passes: every node has to exist before any link can be made.
+            TMap<FString, UEdGraphNode*> Recreated;
+            for (const FRemovalLedgerEntry& Entry : RemovalLedger)
+            {
+                for (const FCapturedNode& Captured : Entry.CapturedNodes)
+                {
+                    UEdGraph* Target = nullptr;
+                    for (UEdGraph* Candidate : AllGraphs)
+                    {
+                        if (Candidate != nullptr && Candidate->GetName() == Captured.GraphName)
+                        {
+                            Target = Candidate; break;
+                        }
+                    }
+                    if (Target == nullptr || Captured.NodeClass == nullptr)
+                    {
+                        RestorationMismatches.Add(FString::Printf(
+                            TEXT("%s: could not resolve the graph to recreate node %s"),
+                            *Entry.Description.VarName.ToString(), *Captured.NodeName));
+                        continue;
+                    }
+                    UK2Node_Variable* NewNode =
+                        NewObject<UK2Node_Variable>(Target, Captured.NodeClass, NAME_None, RF_Transactional);
+                    if (NewNode == nullptr)
+                    {
+                        RestorationMismatches.Add(FString::Printf(
+                            TEXT("%s: could not recreate node %s"),
+                            *Entry.Description.VarName.ToString(), *Captured.NodeName));
+                        continue;
+                    }
+                    NewNode->VariableReference.SetSelfMember(Captured.VariableName);
+                    NewNode->NodePosX = Captured.PosX;
+                    NewNode->NodePosY = Captured.PosY;
+                    NewNode->NodeComment = Captured.NodeComment;
+                    Target->Modify();
+                    Target->AddNode(NewNode, /*bFromUI=*/false, /*bSelectNewNode=*/false);
+                    NewNode->CreateNewGuid();
+                    NewNode->PostPlacedNewNode();
+                    NewNode->AllocateDefaultPins();
+                    Recreated.Add(Captured.NodeName, NewNode);
+                    NodesRecreated++;
+
+                    for (const TPair<FString, FString>& Default : Captured.PinDefaults)
+                    {
+                        if (UEdGraphPin* Pin = NewNode->FindPin(FName(*Default.Key)))
+                        {
+                            Pin->DefaultValue = Default.Value;
+                            PinDefaultsRestored++;
+                        }
+                    }
+                }
+            }
+            // Second pass: relink. Endpoints are found by node name, which is
+            // stable for the nodes that were never removed.
+            for (const FRemovalLedgerEntry& Entry : RemovalLedger)
+            {
+                for (const FCapturedNode& Captured : Entry.CapturedNodes)
+                {
+                    UEdGraphNode** Restored = Recreated.Find(Captured.NodeName);
+                    if (Restored == nullptr || *Restored == nullptr) { continue; }
+                    for (const FCapturedPinLink& Link : Captured.Links)
+                    {
+                        LinksCaptured++;
+                        UEdGraphPin* OwnPin = (*Restored)->FindPin(FName(*Link.PinName));
+                        UEdGraphNode* Other = nullptr;
+                        if (UEdGraphNode** AlsoRecreated = Recreated.Find(Link.LinkedNodeName))
+                        {
+                            Other = *AlsoRecreated;
+                        }
+                        else
+                        {
+                            for (UEdGraph* Candidate : AllGraphs)
+                            {
+                                if (Candidate == nullptr) { continue; }
+                                for (UEdGraphNode* Node : Candidate->Nodes)
+                                {
+                                    if (Node != nullptr && Node->GetName() == Link.LinkedNodeName)
+                                    {
+                                        Other = Node; break;
+                                    }
+                                }
+                                if (Other != nullptr) { break; }
+                            }
+                        }
+                        UEdGraphPin* OtherPin =
+                            Other != nullptr ? Other->FindPin(FName(*Link.LinkedPinName)) : nullptr;
+                        if (OwnPin == nullptr || OtherPin == nullptr)
+                        {
+                            RestorationMismatches.Add(FString::Printf(
+                                TEXT("%s: link %s.%s -> %s.%s was not restored"),
+                                *Entry.Description.VarName.ToString(),
+                                *Captured.NodeName, *Link.PinName,
+                                *Link.LinkedNodeName, *Link.LinkedPinName));
+                            continue;
+                        }
+                        OwnPin->MakeLinkTo(OtherPin);
+                        LinksRestored++;
+                    }
+                }
+            }
+        }
+
         if (RemovalLedger.Num() > 0)
         {
             FBlueprintEditorUtils::MarkBlueprintAsStructurallyModified(Blueprint);
@@ -1372,6 +1550,12 @@ bool UMCPPuerTSBridgeService::BuildBlueprintJson(
         RollbackLedgerJson->SetArrayField(TEXT("variables_restored"), StringsToJson(RestoredVariables));
         RollbackLedgerJson->SetArrayField(TEXT("reference_nodes_removed"), StringsToJson(RemovedReferenceNodes));
         RollbackLedgerJson->SetArrayField(TEXT("reference_nodes_restored"), StringsToJson(ReferenceNodesRestored));
+        RollbackLedgerJson->SetNumberField(TEXT("reference_nodes_captured"), ReferenceNodesCaptured);
+        RollbackLedgerJson->SetNumberField(TEXT("reference_nodes_recreated"), NodesRecreated);
+        RollbackLedgerJson->SetNumberField(TEXT("pin_defaults_restored"), PinDefaultsRestored);
+        RollbackLedgerJson->SetNumberField(TEXT("links_captured"), LinksCaptured);
+        RollbackLedgerJson->SetNumberField(TEXT("links_restored"), LinksRestored);
+        RollbackLedgerJson->SetArrayField(TEXT("graph_restoration_mismatches"), StringsToJson(RestorationMismatches));
         RollbackLedgerJson->SetArrayField(TEXT("restoration_mismatches"), StringsToJson(RestorationMismatches));
         RollbackLedgerJson->SetBoolField(TEXT("rollback_succeeded"),
             RestorationMismatches.Num() == 0);

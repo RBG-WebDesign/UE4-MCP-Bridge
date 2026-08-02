@@ -270,7 +270,15 @@ try {
     const seedForRollback = await call("puerts_blueprint_build", {
       asset_path: BP, parent_class: "Actor",
       variables: [...DESIRED_THREE, { name: "RollbackVictim", type: "float", default: 9 }],
-      graph: GRAPH_AFTER,
+      graph: {
+        nodes: [
+          { id: "begin", type: "BeginPlay" },
+          { id: "getA", type: "VariableGet", params: { varName: "KeptA" } },
+          { id: "getVictim", type: "VariableGet", params: { varName: "RollbackVictim" } },
+          { id: "say", type: "PrintString" },
+        ],
+        connections: [{ from: "begin.then", to: "say.exec" }],
+      },
     });
     assert(seedForRollback.success === true, "(12) the rollback fixture seeds");
     const shaBeforeFailure = fileSha(contentFile(BP));
@@ -278,6 +286,10 @@ try {
     const beforeVars = names((beforeFailure.data?.variables ?? []).map((v) => v.name));
     assert(beforeVars.includes("RollbackVictim"), "(12) the victim variable exists before the failed build");
 
+    // The spec below omits RollbackVictim AND omits the node that reads it.
+    // Restoration must therefore come from the ledger, not from the request:
+    // rebuilding the graph from this spec would bring the variable back and
+    // silently drop its reader.
     const failed = await call("puerts_blueprint_build", {
       asset_path: BP, parent_class: "Actor", variables: DESIRED_THREE,
       remove_unlisted: { variables: true }, force_remove_referenced: true,
@@ -305,6 +317,21 @@ try {
       "(12) the variable set is byte-identical to before the failed build");
     assert(fileSha(contentFile(BP)) === shaBeforeFailure,
       "(8) the asset file on disk is byte-identical after the failed build");
+    const ledger = failed.data?.cleanup?.removal_ledger ?? {};
+    assert(ledger.reference_nodes_captured > 0,
+      `(8) the reference node was captured before deletion (${ledger.reference_nodes_captured})`);
+    assert(ledger.reference_nodes_recreated === ledger.reference_nodes_captured,
+      `(8) every captured reference node was recreated (${ledger.reference_nodes_recreated}/${ledger.reference_nodes_captured})`);
+    assert(ledger.links_restored === ledger.links_captured,
+      `(9) every captured link was restored (${ledger.links_restored}/${ledger.links_captured})`);
+    assert((ledger.graph_restoration_mismatches ?? []).length === 0,
+      "(10) no graph restoration mismatches");
+    // The decisive one: the node reading RollbackVictim is back even though the
+    // failing spec never declared it.
+    const nodeCountAfter = (afterFailure.data?.graph?.nodes ?? []).filter((n) => n.type === "VariableGet").length;
+    const nodeCountBefore = (beforeFailure.data?.graph?.nodes ?? []).filter((n) => n.type === "VariableGet").length;
+    assert(nodeCountAfter === nodeCountBefore,
+      `(8) the omitted reference node returned from the ledger (VariableGet ${nodeCountAfter} vs ${nodeCountBefore})`);
     assert(failed.data?.cleanup?.rollback_succeeded === true,
       "(13) the failed build reports rollback_succeeded");
     assert((failed.data?.cleanup?.dirty_packages_after ?? []).length === 0,

@@ -95,7 +95,7 @@
       "success": false,
       "cleanup": {
         "rollback_attempted": true,
-        "rollback_succeeded": true,
+        "rollback_succeeded": false,
         "created_assets": [],
         "removed_assets": [],
         "dirty_packages_before": [],
@@ -117,10 +117,24 @@
           "variables_restored": [
             "RollbackVictim"
           ],
-          "reference_nodes_removed": [],
-          "reference_nodes_restored": [],
-          "restoration_mismatches": [],
-          "rollback_succeeded": true
+          "reference_nodes_removed": [
+            "EventGraph.K2Node_VariableGet_6"
+          ],
+          "reference_nodes_restored": [
+            "EventGraph.K2Node_VariableGet_7"
+          ],
+          "reference_nodes_captured": 1,
+          "reference_nodes_recreated": 1,
+          "pin_defaults_restored": 1,
+          "links_captured": 0,
+          "links_restored": 0,
+          "graph_restoration_mismatches": [
+            "RollbackVictim: reference node EventGraph.K2Node_VariableGet_6 was not restored"
+          ],
+          "restoration_mismatches": [
+            "RollbackVictim: reference node EventGraph.K2Node_VariableGet_6 was not restored"
+          ],
+          "rollback_succeeded": false
         }
       }
     }

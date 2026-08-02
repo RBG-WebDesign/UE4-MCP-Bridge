@@ -82,6 +82,36 @@ maintains this file; Phase L consumes it.
 
 ## Defects and limitations (Phase L queue)
 
+0j. **Reference-node restoration is captured and attempted but does not land in
+   the live graph** (2026-08-02). The removal ledger now captures each deleted
+   reference node whole - class, name, position, comment, graph, variable
+   reference, pin defaults and every pin link - and recreates it on the failure
+   path from the ledger rather than from the incoming spec, which is the right
+   shape: a request that removes a variable normally stops declaring the nodes
+   that read it, so rebuilding from the spec would restore the variable and
+   silently drop its graph.
+
+   It does not yet work. The ledger reports `reference_nodes_captured 1` and
+   `reference_nodes_recreated 1`, but `graph_inspect` afterwards finds one
+   `VariableGet` where the pre-request graph had two, and the reference-location
+   comparison reports a mismatch. Two candidate causes, neither confirmed: the
+   graph resolved by name may not be the live EventGraph object the failing
+   build rebuilt, and the recreated node is given a fresh object name
+   (`NAME_None`), so the location string it produces cannot match the captured
+   one even when the node is present.
+
+   **The important half works.** `rollback_succeeded` reports **false** for
+   exactly this reason, so the system refuses to claim a restoration it cannot
+   verify. That is the property 0g was fixed to get: the dangerous failure was
+   never the incomplete restore, it was reporting success while data was gone.
+   Variable restoration itself is complete and verified (0g), so a failed build
+   loses no variable; what is not yet restored is the graph node that read it,
+   and that is reported rather than hidden.
+
+   `remove_unlisted.variables` is therefore NOT promoted to live_verified.
+
+
+
 0i. **RESOLVED 2026-08-02. Unknown authoring keys are now rejected.** Kept for
    the normalisation, which is the non-obvious part. A node type's accepted
    parameters are its RoutingKeys plus its own pin names, but the first attempt
