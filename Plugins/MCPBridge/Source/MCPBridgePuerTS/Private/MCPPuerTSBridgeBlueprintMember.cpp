@@ -217,8 +217,11 @@ namespace
             ValueToJsonText(DesiredValue), bTextLike);
 
         FDefaultConstructedPropertyElement Scratch(Property);
-        const bool bImported = Property->ImportText(
-            *ImportText, Scratch.GetObjAddress(), PPF_SerializedAsImportText, DefaultObject) != nullptr;
+        // Not `ImportText(...) != nullptr`. That returned non-null for a float
+        // handed "not-a-number", which then compared Different against the real
+        // default, applied as 0.0, verified against itself and saved.
+        const bool bImported = UBlueprintMutatorLibrary::ImportDefaultValue(
+            Property, ImportText, Scratch.GetObjAddress(), DefaultObject);
         bool bEqual = false;
         if (bImported)
         {
@@ -693,7 +696,16 @@ bool UMCPPuerTSBridgeService::PatchBlueprintMembersJson(
     auto FailWithRollback = [&](const FString& Error) -> bool
     {
         bRollbackAttempted = true;
-        if (ActiveTransaction != nullptr) { ActiveTransaction->Cancel(); }
+        // This is the outermost transaction (AcceptCommand opened it), so this
+        // is the scope allowed to revert. Cancel() alone never restored
+        // anything - it pops the record and leaves the writes, which is the
+        // whole of finding 0g - so the revert has to run before it.
+        // FBPMutatorHelpers::RunMutation deliberately does NOT roll back its own
+        // failures, because every mutator scope is nested inside this one.
+        if (ActiveTransaction != nullptr)
+        {
+            UBlueprintMutatorLibrary::RevertAndCancelTransaction(*ActiveTransaction);
+        }
         Rollback.Rollback();
         // Trust the read-back, not the undo. Findings 0g: a cancelled
         // transaction looked transactional and was not, and the only thing that

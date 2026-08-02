@@ -6,6 +6,8 @@
 #include "Kismet/BlueprintFunctionLibrary.h"
 #include "BlueprintMutatorLibrary.generated.h"
 
+class FProperty;
+class FScopedTransaction;
 class UBlueprint;
 class UClass;
 
@@ -15,6 +17,31 @@ class MCPBRIDGEGRAPHBUILDER_API UBlueprintMutatorLibrary : public UBlueprintFunc
     GENERATED_BODY()
 
 public:
+    /**
+     * Revert every object recorded in the currently open transaction, then
+     * discard the transaction.
+     *
+     * UE4.27's `FScopedTransaction::Cancel()` does NOT restore state. It calls
+     * `UTransBuffer::Cancel`, which pops the transaction off the undo buffer and
+     * returns (EditorTransaction.cpp:1280-1331). Whatever the body already wrote
+     * stays written; all that is lost is the ability to undo it. Finding 0g
+     * measured the same thing from the other end.
+     *
+     * The restore is `ITransaction::Apply()` on the still-open transaction:
+     * the records were begun with bFlip, so Apply saves the current state and
+     * loads the recorded one, in reverse record order (Inc = -1). The engine
+     * documents this exact use at EditorTransaction.cpp:895 and does it at
+     * `FLevelEditorViewportClient::AbortTracking`, LevelEditorViewport.cpp:3199.
+     *
+     * Reverts and cancels the WHOLE transaction, not one scope of it: UE4.27
+     * cannot cancel part of a transaction and says so
+     * (EditorTransaction.cpp:1287, "Canceling transaction partially is
+     * unsupported. Canceling %s entirely."). Only call this from the scope that
+     * opened the outermost transaction. Calling it from a nested scope discards
+     * the enclosing caller's work as well.
+     */
+    static void RevertAndCancelTransaction(FScopedTransaction& Transaction);
+
     /**
      * Convert a JSON scalar (json.dumps output) to FProperty::ImportText form.
      *
@@ -29,6 +56,34 @@ public:
      */
     UFUNCTION(BlueprintCallable, Category="BlueprintMutator")
     static FString JsonDefaultToImportText(const FString& DefaultValueJson, bool bTextLike);
+
+    /**
+     * Import a default value into ValueAddress and report whether the WHOLE
+     * value was read. Public for the same reason JsonDefaultToImportText is:
+     * the validator that decides whether a type can hold a value and the
+     * mutator that writes it must apply one rule, or the validator passes what
+     * the mutator then mangles.
+     *
+     * A non-null return from FProperty::ImportText is not a parse success.
+     * FNumericProperty's floating point branch
+     * (PropertyNumeric.cpp:113-123) advances over `[+-.0-9]` then `f`, calls
+     * SetNumericPropertyValueFromString on whatever it has and returns the
+     * buffer pointer, WITHOUT the `Start == Buffer` guard its integer branch
+     * has fourteen lines above. So "not-a-number" on a float consumes nothing,
+     * imports as 0.0, and reports success. FIntProperty rejects the same string
+     * (UEnum::ParseEnum returns INDEX_NONE), which is why int looked correct
+     * while float silently wrote a zero, verified it against itself and saved it.
+     *
+     * The only thing that separates a parse from a shrug is whether the buffer
+     * was consumed, so that is what is checked. Trailing whitespace is skipped
+     * because struct and array importers legitimately leave it.
+     *
+     * On false, ValueAddress may already have been written: ImportText has no
+     * dry-run mode. Import into an FDefaultConstructedPropertyElement first
+     * when the destination is real state.
+     */
+    static bool ImportDefaultValue(const FProperty* Property, const FString& ImportText,
+        void* ValueAddress, UObject* Owner);
 
     // --- Tier 2: simple mutations (Phase 2) ---
 

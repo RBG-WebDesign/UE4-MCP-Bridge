@@ -15,8 +15,21 @@
 #include "EdGraph/EdGraph.h"
 #include "EdGraph/EdGraphNode.h"
 #include "EdGraph/EdGraphPin.h"
+#include "Misc/ITransaction.h"
+#include "ScopedTransaction.h"
+#include "UObject/UnrealType.h"
 
 #define LOCTEXT_NAMESPACE "BlueprintMutatorLibrary"
+
+void UBlueprintMutatorLibrary::RevertAndCancelTransaction(FScopedTransaction& Transaction)
+{
+    // Order matters: Cancel() clears GUndo, so the restore has to run first.
+    if (GUndo != nullptr)
+    {
+        GUndo->Apply();
+    }
+    Transaction.Cancel();
+}
 
 FString UBlueprintMutatorLibrary::JsonDefaultToImportText(const FString& DefaultValueJson, bool bTextLike)
 {
@@ -30,6 +43,33 @@ FString UBlueprintMutatorLibrary::JsonDefaultToImportText(const FString& Default
     Inner.ReplaceInline(TEXT("\\\""), TEXT("\""));
     Inner.ReplaceInline(TEXT("\\\\"), TEXT("\\"));
     return Inner;
+}
+
+bool UBlueprintMutatorLibrary::ImportDefaultValue(const FProperty* Property, const FString& ImportText,
+    void* ValueAddress, UObject* Owner)
+{
+    if (Property == nullptr || ValueAddress == nullptr)
+    {
+        return false;
+    }
+    const TCHAR* End = Property->ImportText(*ImportText, ValueAddress, PPF_SerializedAsImportText, Owner);
+    if (End == nullptr)
+    {
+        return false;
+    }
+    while (*End == TEXT(' ') || *End == TEXT('\t') || *End == TEXT('\r') || *End == TEXT('\n'))
+    {
+        ++End;
+    }
+    if (*End != TEXT('\0'))
+    {
+        UE_LOG(LogBlueprintMutator, Warning,
+            TEXT("ImportDefaultValue: %s read only part of '%s' and stopped at '%s'. "
+                 "Treated as a refusal, not a value."),
+            *Property->GetClass()->GetName(), *ImportText, End);
+        return false;
+    }
+    return true;
 }
 
 bool UBlueprintMutatorLibrary::SetNodeEnabled(UBlueprint* Blueprint, const FString& GraphName, const FString& NodeGuid, bool bEnabled)
