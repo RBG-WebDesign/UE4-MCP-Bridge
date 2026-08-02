@@ -133,6 +133,25 @@ try {
     console.log("\n-- 1. a fixture with more members than the patch touches");
     const built = await call("puerts_blueprint_build", FIXTURE);
     assert(built.success === true, `(1) the fixture builds ${built.success ? "" : JSON.stringify(built.errors)}`);
+    // Normalise before measuring. blueprint_build converges on what the spec
+    // NAMES, and a component left behind by an earlier run is named by nothing:
+    // remove_unlisted implements only the variables scope, so a stale "Beacon"
+    // from a previous rename survives the rebuild and then collides with the
+    // rename this acceptance exists to test. The first live run died exactly
+    // there, on operation 5, and took the other sixteen checks down with it.
+    // A fixture that depends on whatever state the last run happened to leave
+    // is not a fixture.
+    const seeded = await call("puerts_graph_inspect", { asset_path: BP });
+    if ((seeded.data?.components ?? []).some((c) => c.name === "Beacon")) {
+      const undo = await call("puerts_blueprint_member_patch", {
+        asset_path: BP,
+        operations: [{ op: "rename_component", from: "Beacon", to: "Lamp" }],
+      });
+      assert(undo.success === true,
+        `(1) a leftover Beacon from an earlier run is renamed back to Lamp ${
+          undo.success ? "" : JSON.stringify(undo.errors)}`);
+    }
+
     const before = await call("puerts_graph_inspect", { asset_path: BP });
     assert(before.success === true, "(1) the fixture inspects");
     const hashBefore = memberHash(before.data);

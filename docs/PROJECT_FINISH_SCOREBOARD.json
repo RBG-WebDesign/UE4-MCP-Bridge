@@ -289,11 +289,11 @@
   "remaining_actionable": [
     {
       "id": "live_proof_member_patch",
-      "state": "FIRST LIVE RUN DONE, acceptance red",
-      "what_the_run_proved": "puerts_blueprint_member_patch EXECUTES. The DLL carries it, the command is reachable, and it returned a precise, correct-looking refusal: \"operation 5 (rename_component Lamp -> Beacon): 'Beacon' is already taken by a different component.\" That is the batch classifier refusing before mutating, which is the safety property the command was built for.",
-      "why_it_is_red": "fixture state, not (yet) a product defect. 17 checks fail and all of them cascade from operation 5. The fixture asset already carries a component named Beacon from an earlier partial run, so the seed does not reset to a known starting state and the rename can never apply. Scripts/bp-member-patch-acceptance.mjs must make its own fixture deterministic, the way Scripts/bp-graph-patch-acceptance.mjs reseeds before each phase.",
-      "not_yet_known": "whether anything beyond operation 5 is wrong. Nothing past it has ever run, because the whole batch is refused before the first mutation. Fix the fixture first, then re-read the failures; do not diagnose the other 16 from this run.",
-      "next": "reseed the fixture deterministically, rerun warm, restart, rerun cold, then promote or fix what it finds."
+      "state": "SECOND LIVE RUN, acceptance still red, one real defect isolated",
+      "product_defect_found": "rename_component is NOT convergent. After a batch renames Lamp to Beacon, rerunning the same batch fails with \"operation 5 (rename_component Lamp -> Beacon): 'Beacon' is already taken by a different component.\" A rename whose source is gone and whose target already exists is ALREADY SATISFIED, and the satisfied-check must say so instead of reading the existing target as a collision. Same class of bug lane A hit on links: the predicate answers the pre-state question rather than the post-state one. This breaks convergence, which the tool is annotated destructiveIdempotent for.",
+      "fixture_fix_applied": "the acceptance now normalises before measuring: if a leftover Beacon exists it is renamed back to Lamp first, because blueprint_build converges only on what the spec NAMES and remove_unlisted implements only the variables scope, so a stale component survives a rebuild.",
+      "still_unexplained": "step (3) 'the batch applies' still fails after normalisation and I did not isolate why before running out of session. Do NOT assume it is the same cause as the rename defect; read the actual error from a fresh run first.",
+      "next": "fix rename_component's satisfied-check, rerun warm, isolate whatever remains at step 3, then restart and run cold."
     }
   ],
   "live_suites_green_this_wave": [
