@@ -4,12 +4,12 @@
     "fixture": {
       "node_count": 22,
       "structure_hash": "ca12eaf79ac8545e80160847393779d484bd3d5d",
-      "file_sha256": "f5cb11acbc9e8c40292d1677ec1a423e927c5e5c633492597b8ce4ce0d5613ee"
+      "file_sha256": "ec25e1bf7665ff2f7540d355d11dad155ed489fa80ce1a7b70c23a73e9375be6"
     },
     "plan": {
       "graph": "EventGraph",
       "matched_nodes": [
-        "operation 0 (set_pin_default) target -> PrintString [K2Node_CallFunction fn=PrintString] at 600,0 (guid C01ACAF34B35E76CE740F6B609E04BC7, object K2Node_CallFunction_1)"
+        "operation 0 (set_pin_default) target -> PrintString [K2Node_CallFunction fn=PrintString] at 600,0 (guid B99F3A4140D8ED39649881B74AE48E4F, object K2Node_CallFunction_13)"
       ],
       "unmatched_selectors": [],
       "ambiguous_selectors": [],
@@ -17,7 +17,7 @@
       "nodes_to_update": [],
       "nodes_to_remove": [],
       "pin_defaults_to_change": [
-        "PrintString [K2Node_CallFunction fn=PrintString] at 600,0 (guid C01ACAF34B35E76CE740F6B609E04BC7, object K2Node_CallFunction_1).InString: currently 'two'"
+        "PrintString [K2Node_CallFunction fn=PrintString] at 600,0 (guid B99F3A4140D8ED39649881B74AE48E4F, object K2Node_CallFunction_13).InString: currently 'two'"
       ],
       "links_to_add": [],
       "links_to_remove": [],
@@ -28,23 +28,23 @@
       "plan_only": true,
       "ok": true,
       "pre_structure_hash": "ca12eaf79ac8545e80160847393779d484bd3d5d",
-      "elapsed_ms": 7.354900000791531
+      "elapsed_ms": 7.6539000001503155
     },
     "patch": {
-      "elapsed_ms": 77.94190000277013,
-      "applied_operation_count": 7,
+      "elapsed_ms": 79.87300000240793,
+      "applied_operation_count": 8,
       "pre_structure_hash": "ca12eaf79ac8545e80160847393779d484bd3d5d",
-      "post_structure_hash": "7b7c660b6651d9097afda732552388e3684a9be9"
+      "post_structure_hash": "64ef958352d0d6c41c67756c4d0fb423efa2b278"
     },
     "untouched_nodes_compared": 19,
     "rerun": {
-      "applied": 1,
-      "converged": false
+      "applied": 0,
+      "converged": true
     },
     "partial_batch_refused": true,
     "source_control_quiescent": true
   },
-  "post_patch_structure_hash": "7b7c660b6651d9097afda732552388e3684a9be9",
+  "post_patch_structure_hash": "64ef958352d0d6c41c67756c4d0fb423efa2b278",
   "post_patch_node_count": 22,
   "mcp_round_trips": 11
 }
