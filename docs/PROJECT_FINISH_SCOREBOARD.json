@@ -98,32 +98,36 @@
         {
           "id": "D",
           "title": "Performance and autonomy harness",
-          "owner": "unassigned",
-          "state": "deferred_this_wave",
+          "owner": "subagent lane-d",
+          "state": "launched",
           "depends_on": [],
           "needs_live_editor": true,
           "note": "The long-job API does not exist; the handoff lists it as P2. Command timeouts clamp 100 ms to 30 s today.",
           "risk": "medium.",
-          "deferred_reason": "needs a live editor and its own copied project. Lane A is building into the shared BridgeInstallTest this wave, and the max-two-editor rule plus one-project-per-live-agent makes a concurrent launch unsafe. Ready as soon as A's build completes and a copied project exists."
+          "branch": "lane/d-perf-harness",
+          "worktree": "D:/Unreal Projects/_bridge_worktrees/lane-d",
+          "scope_this_wave": "editor-free: measurement design, benchmark harness written for the integrator to run, results schema, and the long-job design against the real constraint (serialized game thread, NOT_THREAD_SAFE, AcceptCommand refuses a concurrent command). Told not to implement a progress API that cannot report progress."
         },
         {
           "id": "E",
           "title": "Re-front existing C++ builder groups",
-          "owner": "unassigned",
-          "state": "ready",
+          "owner": "subagent lane-e",
+          "state": "launched",
           "depends_on": [
             "A"
           ],
           "needs_live_editor": true,
           "scope": "54 REFRONT tools, led by BlueprintMutatorLibrary, plus AnimBP, Widget, Input, Data, PIE, pose, cloth and editor utilities.",
           "risk": "high. Largest single lane by tool count.",
-          "deferred_reason": "unblocked: lane A is now live_verified. Needs a live editor and its own copied project."
+          "branch": "lane/e-refront",
+          "worktree": "D:/Unreal Projects/_bridge_worktrees/lane-e",
+          "scope_this_wave": "the real 54-tool REFRONT table derived from the inventory, plus ONE builder group re-fronted end to end through the documented add-a-tool chain. Depth over breadth. Exclusive build rights this wave."
         },
         {
           "id": "F",
           "title": "Release engineering",
-          "owner": "unassigned",
-          "state": "deferred_this_wave",
+          "owner": "subagent lane-f",
+          "state": "launched",
           "depends_on": [],
           "needs_live_editor": true,
           "already_landed": [
@@ -133,10 +137,23 @@
           ],
           "remaining": "fresh-machine install proof, packaging, upgrade path, CI, security regressions, modal detection, same-project multi-editor handling.",
           "risk": "medium.",
-          "deferred_reason": "needs a live editor and a fresh project copy; same two-editor constraint as D. Three of its items already landed (e6efcf7, 2fa0bca, 5edf2e7)."
+          "branch": "lane/f-release",
+          "worktree": "D:/Unreal Projects/_bridge_worktrees/lane-f",
+          "scope_this_wave": "fresh-project install proof up to the compiler boundary, manifest schema versioning following session.json's precedent, packaging verdict, CI split by what can and cannot run without a live editor, and the four security negative tests. Modal detection and same-project multi-editor are design only."
         }
       ],
       "launched_at": "2026-08-02"
+    },
+    {
+      "wave": 2,
+      "state": "launched",
+      "launched_at": "2026-08-02",
+      "lanes": [
+        "D",
+        "E",
+        "F"
+      ],
+      "note": "Same split that made wave one work: agents write and compile, the integrator runs every live proof. Only lane E has build rights, because three concurrent builds into the one shared test project is exactly the collision that blocked lane A twice."
     }
   ],
   "roadmap_rows_open": 19,
