@@ -1712,8 +1712,16 @@ void UBlueprintGraphBuilderLibrary::BuildBlueprintFromJSONWithReport(
                 }
             }
         }
-        else if (DeferredNodesToRemove.Num() > 0)
+        else
         {
+            // Unconditional on purpose. This used to be guarded by
+            // DeferredNodesToRemove.Num() > 0, which made non-destruction a
+            // property of clear_existing_graph rather than of failure: an
+            // additive build (clear_existing_graph false) that failed left its
+            // half-built nodes wired into the caller's graph, because there
+            // were no deferred nodes to notice. Same defect as 0k, one branch
+            // over. A failed build discards what it made, whatever mode it ran
+            // in.
             for (const TPair<FString, UEdGraphNode*>& Spawned : NodeMap)
             {
                 if (Spawned.Value != nullptr)

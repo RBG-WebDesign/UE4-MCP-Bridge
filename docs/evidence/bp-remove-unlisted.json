@@ -35,7 +35,7 @@
     "protected_variables": [],
     "referenced_variables": {
       "DropReferenced": [
-        "EventGraph.K2Node_VariableGet_1"
+        "EventGraph.K2Node_VariableGet_11"
       ]
     },
     "blocked_removals": [
@@ -55,7 +55,7 @@
     ],
     "skipped_variables": [],
     "removed_reference_nodes": [
-      "EventGraph.K2Node_VariableGet_3"
+      "EventGraph.K2Node_VariableGet_13"
     ],
     "managed_variables_after": [
       "KeptA",
