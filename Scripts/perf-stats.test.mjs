@@ -14,7 +14,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   buildRunReport, compareRuns, describeRefusal, percentile,
-  runSchema, summarize, validateRunReport,
+  runSchema, runScenario, summarize, validateRunReport,
 } from "./perf-stats.mjs";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
@@ -169,6 +169,106 @@ ok("compareRuns matches scenarios by name and reports the p95 delta as a percent
 
 assert.deepEqual(compareRuns(report, { scenarios: [] }), []);
 ok("comparing against a run with no shared scenario yields no rows, not a fabricated zero");
+
+// ------------------------------------------------------ scenario runner
+
+/** A stub `call`: `plan` is one entry per call, `true` for success. */
+function stubCall(plan, { nativeMs = 1.5, clientMs = 5 } = {}) {
+  const calls = [];
+  let index = 0;
+  const call = async (tool, args) => {
+    const succeeds = plan[index] ?? true;
+    index += 1;
+    calls.push({ tool, args });
+    return {
+      result: succeeds
+        ? { success: true, native_duration_ms: nativeMs + index, data: {} }
+        : { success: false, errors: ["Bridge is busy."] },
+      clientMs: clientMs + index,
+      bytes: 100,
+    };
+  };
+  return { call, calls };
+}
+
+{
+  const { call, calls } = stubCall([]);
+  const scenario = await runScenario(
+    { name: "probe", tool: "puerts_diagnostic", args: { actor_limit: 1 }, targetMs: 100 },
+    { call, iterations: 5, warmup: 2 },
+  );
+  assert.equal(calls.length, 7, "warm-up calls were not made, or were counted as measured");
+  assert.equal(scenario.status, "measured");
+  assert.equal(scenario.iterations, 5);
+  assert.equal(scenario.round_trips_per_iteration, 1);
+  // clientMs is 6,7,8,... so the two warm-ups (6,7) must be absent.
+  assert.deepEqual(scenario.client_round_trip_ms.samples, [8, 9, 10, 11, 12]);
+  assert.equal(scenario.native_duration_ms.count, 5);
+  assert.equal(scenario.response_bytes.p50, 100);
+  assert.equal(scenario.target_met, true);
+  assert.deepEqual(validateRunReport({ ...sampleReport(), scenarios: [scenario] }), { ok: true, problems: [] });
+  ok("a measured scenario discards warm-up samples, keeps the measured ones, and validates");
+}
+
+{
+  const { call } = stubCall([], { clientMs: 500 });
+  const scenario = await runScenario(
+    { name: "slow", tool: "puerts_find_actors", args: { limit: 500 }, targetMs: 50 },
+    { call, iterations: 3, warmup: 0 },
+  );
+  assert.equal(scenario.target_met, false);
+  assert.equal(scenario.target_ms, 50);
+  ok("a scenario over its target reports target_met false rather than omitting the verdict");
+}
+
+{
+  const { call } = stubCall([true, false]);
+  const scenario = await runScenario(
+    { name: "warmfail", tool: "puerts_save", args: {} },
+    { call, iterations: 5, warmup: 2 },
+  );
+  assert.equal(scenario.status, "skipped");
+  assert.ok(scenario.skip_reason.startsWith("warm-up failed"), scenario.skip_reason);
+  assert.ok(scenario.skip_reason.includes("Bridge is busy."), "the editor's own error was discarded");
+  assert.equal(scenario.client_round_trip_ms, undefined, "a skipped scenario reported statistics");
+  ok("a failure during warm-up skips the scenario and carries the editor's error");
+}
+
+{
+  const { call } = stubCall([true, true, false]);
+  const scenario = await runScenario(
+    { name: "midfail", tool: "puerts_set_property", args: {}, targetMs: 100 },
+    { call, iterations: 5, warmup: 0 },
+  );
+  assert.equal(scenario.status, "skipped");
+  assert.ok(scenario.skip_reason.startsWith("iteration 2 failed"), scenario.skip_reason);
+  assert.equal(scenario.client_round_trip_ms, undefined);
+  assert.equal(scenario.target_met, null, "a scenario that did not finish claimed a target verdict");
+  ok("a failure mid-run skips the whole scenario rather than reporting a partial distribution");
+}
+
+{
+  const { call, calls } = stubCall([]);
+  const scenario = await runScenario(
+    { name: "nolevel", tool: "puerts_read_property", args: {}, skip: "no actor in the editor level" },
+    { call, iterations: 5, warmup: 2 },
+  );
+  assert.equal(scenario.status, "skipped");
+  assert.equal(scenario.skip_reason, "no actor in the editor level");
+  assert.equal(calls.length, 0, "a pre-skipped scenario still called the editor");
+  ok("a scenario skipped before it starts calls nothing and records why");
+}
+
+{
+  // A tool that reports elapsed_ms in data instead of native_duration_ms.
+  const call = async () => ({ result: { success: true, data: { elapsed_ms: 72.3 } }, clientMs: 80, bytes: 10 });
+  const scenario = await runScenario(
+    { name: "patch", tool: "puerts_blueprint_graph_patch", args: {} },
+    { call, iterations: 3, warmup: 0 },
+  );
+  assert.equal(scenario.native_duration_ms.p50, 72.3);
+  ok("data.elapsed_ms is picked up when native_duration_ms is absent");
+}
 
 // -------------------------------------------------------- refusal path
 

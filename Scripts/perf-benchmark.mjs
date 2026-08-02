@@ -28,14 +28,13 @@
  * gates on requireCurrentInstall() so a run against a stale install cannot
  * masquerade as evidence about this checkout.
  */
-import { spawn } from "node:child_process";
-import { execSync } from "node:child_process";
+import { execSync, spawn } from "node:child_process";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { hostname, cpus, platform, totalmem } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { requireCurrentInstall } from "./bridge-install.mjs";
-import { buildRunReport, compareRuns, describeRefusal, summarize, validateRunReport } from "./perf-stats.mjs";
+import { buildRunReport, compareRuns, describeRefusal, runScenario, validateRunReport } from "./perf-stats.mjs";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const serverPath = join(root, "mcp-server", "dist", "index.js");
@@ -112,62 +111,6 @@ function gitCommit() {
   } catch {
     return "unknown";
   }
-}
-
-/**
- * Run one scenario: warm-up calls that are discarded, then measured calls.
- * A failure during the measured phase skips the whole scenario with the
- * editor's own error rather than reporting a partial distribution.
- */
-async function runScenario(spec) {
-  const base = {
-    name: spec.name,
-    tool: spec.tool,
-    layer: spec.layer ?? "client_round_trip",
-    iterations: 0,
-    round_trips_per_iteration: 1,
-    target_ms: spec.targetMs ?? null,
-    target_met: null,
-  };
-  if (spec.skip) {
-    return { ...base, status: "skipped", skip_reason: spec.skip };
-  }
-  if (spec.targetBasis) base.target_basis = spec.targetBasis;
-
-  for (let i = 0; i < warmup; i += 1) {
-    const { result } = await call(spec.tool, spec.args);
-    if (result.success !== true) {
-      return { ...base, status: "skipped", skip_reason: `warm-up failed: ${(result.errors ?? []).join("; ") || result.message}` };
-    }
-  }
-
-  const clientSamples = [];
-  const nativeSamples = [];
-  const byteSamples = [];
-  for (let i = 0; i < iterations; i += 1) {
-    const { result, clientMs, bytes } = await call(spec.tool, spec.args);
-    if (result.success !== true) {
-      return { ...base, status: "skipped", skip_reason: `iteration ${i} failed: ${(result.errors ?? []).join("; ") || result.message}` };
-    }
-    clientSamples.push(clientMs);
-    byteSamples.push(bytes);
-    if (typeof result.native_duration_ms === "number") nativeSamples.push(result.native_duration_ms);
-    // blueprint_graph_patch and the planners report their own elapsed_ms.
-    else if (typeof result.data?.elapsed_ms === "number") nativeSamples.push(result.data.elapsed_ms);
-  }
-
-  const client = summarize(clientSamples);
-  const scenario = {
-    ...base,
-    status: "measured",
-    iterations,
-    client_round_trip_ms: client,
-    response_bytes: summarize(byteSamples, { keepSamples: false }),
-  };
-  const native = summarize(nativeSamples);
-  if (native) scenario.native_duration_ms = native;
-  if (typeof spec.targetMs === "number") scenario.target_met = client.p95 <= spec.targetMs;
-  return scenario;
 }
 
 const startedAt = new Date();
@@ -264,7 +207,7 @@ try {
   const scenarios = [];
   for (const spec of specs) {
     process.stderr.write(`  running ${spec.name}...`);
-    const scenario = await runScenario(spec);
+    const scenario = await runScenario(spec, { call, iterations, warmup });
     scenarios.push(scenario);
     process.stderr.write(scenario.status === "measured"
       ? ` p50 ${scenario.client_round_trip_ms.p50.toFixed(2)} ms, p95 ${scenario.client_round_trip_ms.p95.toFixed(2)} ms\n`

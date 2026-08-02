@@ -133,6 +133,70 @@ export function buildRunReport({ run, environment, scenarios, wallMs, roundTrips
   };
 }
 
+// --------------------------------------------------------------- scenario
+
+/**
+ * Run one scenario: `warmup` calls that are discarded, then `iterations` calls
+ * that are timed. `call(tool, args)` returns `{result, clientMs, bytes}` and
+ * must not throw on a failed command.
+ *
+ * A failure during the measured phase skips the whole scenario with the
+ * editor's own error, rather than reporting a distribution over whichever
+ * iterations happened to succeed. Lives here, apart from the stdio plumbing,
+ * so the skip and target logic is testable with no editor.
+ */
+export async function runScenario(spec, { call, iterations, warmup }) {
+  const base = {
+    name: spec.name,
+    tool: spec.tool,
+    layer: spec.layer ?? "client_round_trip",
+    iterations: 0,
+    round_trips_per_iteration: spec.roundTripsPerIteration ?? 1,
+    target_ms: spec.targetMs ?? null,
+    target_met: null,
+  };
+  if (spec.skip) return { ...base, status: "skipped", skip_reason: spec.skip };
+  if (spec.targetBasis) base.target_basis = spec.targetBasis;
+
+  const why = (result) => (result?.errors ?? []).join("; ") || String(result?.message ?? "no error reported");
+
+  for (let i = 0; i < warmup; i += 1) {
+    const { result } = await call(spec.tool, spec.args);
+    if (result?.success !== true) {
+      return { ...base, status: "skipped", skip_reason: `warm-up failed: ${why(result)}` };
+    }
+  }
+
+  const clientSamples = [];
+  const nativeSamples = [];
+  const byteSamples = [];
+  for (let i = 0; i < iterations; i += 1) {
+    const { result, clientMs, bytes } = await call(spec.tool, spec.args);
+    if (result?.success !== true) {
+      return { ...base, status: "skipped", skip_reason: `iteration ${i} failed: ${why(result)}` };
+    }
+    clientSamples.push(clientMs);
+    byteSamples.push(bytes);
+    // Every native response carries native_duration_ms. The planners and
+    // blueprint_graph_patch report their own elapsed_ms inside data instead.
+    if (typeof result.native_duration_ms === "number") nativeSamples.push(result.native_duration_ms);
+    else if (typeof result.data?.elapsed_ms === "number") nativeSamples.push(result.data.elapsed_ms);
+  }
+
+  const client = summarize(clientSamples);
+  const scenario = {
+    ...base,
+    status: "measured",
+    iterations,
+    client_round_trip_ms: client,
+    response_bytes: summarize(byteSamples, { keepSamples: false }),
+  };
+  const native = summarize(nativeSamples);
+  if (native) scenario.native_duration_ms = native;
+  if (typeof spec.targetMs === "number") scenario.target_met = client.p95 <= spec.targetMs;
+  return scenario;
+}
+
 // ---------------------------------------------------------------- refusal
 
 /**

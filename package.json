@@ -12,6 +12,7 @@
     "dev": "npm run dev --workspace=mcp-server",
     "test": "npm test --workspace=mcp-server",
     "test:integration": "npm run test:integration --workspace=mcp-server",
+    "test:perf": "node Scripts/perf-stats.test.mjs",
     "doctor": "node Scripts/bridge-doctor.mjs",
     "check:puerts": "node Scripts/check-puerts-pin.mjs",
     "check:inventory": "node Scripts/generate-tool-inventory.mjs",
@@ -26,7 +27,7 @@
     "smoke:inspect": "node Scripts/graph-inspect-acceptance.mjs",
     "smoke:bt": "node Scripts/behavior-tree-acceptance.mjs",
     "acceptance:editor": "node Scripts/editor-acceptance.mjs",
-    "verify": "npm run build && npm test && npm run check:puerts && npm run check:inventory && npm run smoke",
+    "verify": "npm run build && npm test && npm run test:perf && npm run check:puerts && npm run check:inventory && npm run smoke",
     "inspect": "mcp-inspector node mcp-server/dist/index.js",
     "inspect:list": "mcp-inspector --cli node mcp-server/dist/index.js --method tools/list"
   },
