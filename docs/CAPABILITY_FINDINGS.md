@@ -82,35 +82,30 @@ maintains this file; Phase L consumes it.
 
 ## Defects and limitations (Phase L queue)
 
-0i. **Unknown authoring keys are detected but cannot yet be rejected: the
-   accepted-name set is two vocabularies** (found 2026-08-02 by trying to make
-   rejection fatal). A node type's accepted parameters ought to be its
-   RoutingKeys plus its pin names, and `ApplyParamsAsPinDefaults` now collects
-   every key matching neither and logs it with the accepted list. Making that
-   fatal **regressed valid specs**: RoutingKeys are snake_case (`var_name`,
-   `target_class`, `num_outputs`) while the registry factories read camelCase
-   config (`varName`, `targetClass`), so the valid four-node fixture failed
-   with `varName` reported as unknown. The reverted attempt is recorded because
-   the failure is the useful part: the two vocabularies are converted by
-   `RegistryConfigJson`, so neither set alone is the accepted-name table.
+0i. **RESOLVED 2026-08-02. Unknown authoring keys are now rejected.** Kept for
+   the normalisation, which is the non-obvious part. A node type's accepted
+   parameters are its RoutingKeys plus its own pin names, but the first attempt
+   to reject on that set **regressed valid specs**: RoutingKeys are declared
+   snake_case (`var_name`, `target_class`) while the registry factories read
+   camelCase config (`varName`, `targetClass`), converted by
+   `RegistryConfigJson`, so the valid four-node fixture failed with `varName`
+   reported as unknown. Neither spelling alone is the table.
 
-   Fix: one normalised accepted-name table per node type, declared once and
-   used by both the factory and the validator, then rejection becomes safe.
-   Until then an unknown key is a warning in the editor log with the accepted
-   names beside it, not a silent drop and not a false refusal.
+   `NormalizeParamKey` folds out underscores and case, so `var_name` and
+   `varName` are one accepted name while a genuinely wrong key like `variable`
+   still matches nothing. Rejection is fatal on that normalised set: the node
+   is removed from the graph, reported as `unknown_parameter` with the offending
+   keys and the accepted list, and the build fails.
 
-0h. **A connection naming an unknown node id fails the build but is not in the
-   structured connection report** (found 2026-08-02 by the truthful-reporting
-   acceptance, case 9). `{"from": "begin.then", "to": "ghost.exec"}` where no
-   node `ghost` exists correctly returns `success false` and saves nothing, but
-   `failed_connection_count` is 0 and `unresolved_connections` is empty: the
-   reason appears only in `errors`. `ConnectionCount` is counted over
-   connections whose endpoints name known node ids, so an unknown id is
-   excluded from the requested total and the shortfall arithmetic cannot see
-   it. Narrow and non-silent - the build does fail - but the structured
-   report is incomplete for that one shape. Fix: count every connection entry
-   as requested, and record an unknown endpoint id as an unresolved
-   connection. Not done in this session.
+0h. **WITHDRAWN 2026-08-02: this was a mis-diagnosis, and the behaviour is
+   correct.** A connection naming an unknown node id was read as a reporting
+   gap because `failed_connection_count` and `unresolved_connections` were both
+   empty. They are empty because the spec is rejected by
+   validate-before-mutate (`MCPPuerTSBridgeBlueprint.cpp`, the `NodeIds`
+   check) BEFORE anything is created, returning a named error and no graph
+   payload. Reporting counts for a graph that was never built would be the same
+   lie in the other direction. The acceptance now asserts exactly that: the
+   error names the unknown id, and `data.graph` is absent.
 
 
 

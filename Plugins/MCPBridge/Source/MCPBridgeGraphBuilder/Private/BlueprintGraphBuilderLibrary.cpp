@@ -516,6 +516,17 @@ namespace
      * "variable" case survived precisely because a wrong key costs nothing.
      * OutUnknownParams collects them so the caller can refuse the node.
      */
+    /** RoutingKeys are declared snake_case (var_name) while the registry
+        factories read camelCase config (varName) and RegistryConfigJson
+        converts between them, so neither spelling alone is the accepted-name
+        table. Folding out underscores and case makes the two vocabularies one:
+        var_name and varName both normalise to varname, while a genuinely wrong
+        key like "variable" still does not match anything. */
+    FString NormalizeParamKey(const FString& Key)
+    {
+        return Key.Replace(TEXT("_"), TEXT("")).ToLower();
+    }
+
     void ApplyParamsAsPinDefaults(
         UEdGraphNode* Node,
         const TSharedPtr<FJsonObject>& Params,
@@ -527,16 +538,30 @@ namespace
         {
             return;
         }
+        TSet<FString> NormalizedRouting;
+        for (const FString& Key : RoutingKeys) { NormalizedRouting.Add(NormalizeParamKey(Key)); }
+        TSet<FString> NormalizedPins;
+        for (const UEdGraphPin* Pin : Node->Pins)
+        {
+            if (Pin != nullptr) { NormalizedPins.Add(NormalizeParamKey(Pin->PinName.ToString())); }
+        }
         for (const TPair<FString, TSharedPtr<FJsonValue>>& Pair : Params->Values)
         {
-            if (RoutingKeys.Contains(Pair.Key))
+            const FString Normalized = NormalizeParamKey(Pair.Key);
+            if (RoutingKeys.Contains(Pair.Key) || NormalizedRouting.Contains(Normalized))
             {
+                continue;
+            }
+            if (Node->FindPin(FName(*Pair.Key)) == nullptr && !NormalizedPins.Contains(Normalized))
+            {
+                OutUnknownParams.Add(Pair.Key);
                 continue;
             }
             UEdGraphPin* Pin = Node->FindPin(FName(*Pair.Key));
             if (Pin == nullptr)
             {
-                OutUnknownParams.Add(Pair.Key);
+                // Normalised match only: the key names a real pin under a
+                // different spelling, so it is accepted rather than refused.
                 continue;
             }
             FString Error;
@@ -1494,24 +1519,26 @@ void UBlueprintGraphBuilderLibrary::BuildBlueprintFromJSONWithReport(
             continue;
         }
 
-        // Unknown-parameter detection is collected but NOT fatal, and that is
-        // deliberate. RoutingKeys are snake_case (var_name, target_class) while
-        // the factories read camelCase config (varName, targetClass), so the
-        // accepted-name set is not yet a single normalised table: rejecting on
-        // it refuses legitimate specs. Proven by trying it - the valid
-        // four-node fixture failed because varName was flagged as unknown.
-        // Making this fatal needs one normalised accepted-name table per node
-        // type first; findings 0i.
+        // An unknown authoring key is refused, not ignored. It is almost always
+        // a misspelling of a real one, and applying the rest of the spec around
+        // it produces a node that looks authored and is not - which is how the
+        // VariableGet "variable" case cost nothing and stayed invisible.
+        // Matching is normalised (underscores and case folded) so the
+        // snake_case routing vocabulary and the camelCase factory config are
+        // one accepted-name set; see NormalizeParamKey.
         TArray<FString> UnknownParams;
         ApplyParamsAsPinDefaults(SpawnedNode, Params, RoutingKeys, NodeId, UnknownParams);
         if (UnknownParams.Num() > 0 && SpawnedNode != nullptr)
         {
             UnknownParams.Sort();
-            UE_LOG(LogTemp, Warning,
-                TEXT("BuildBlueprintFromJSON: node '%s' (%s) carried parameter(s) [%s] that matched "
-                     "neither a factory config key nor a pin. Accepted here: [%s]"),
-                *NodeId, *NodeType, *FString::Join(UnknownParams, TEXT(", ")),
-                *DescribeAcceptedParams(SpawnedNode, RoutingKeys));
+            OutFailedNodes.Add(FString::Printf(
+                TEXT("%s: %s: unknown_parameter: [%s] is not accepted by this node type. "
+                     "Accepted parameters: [%s]."),
+                *NodeId, *NodeType,
+                *FString::Join(UnknownParams, TEXT(", ")),
+                *DescribeAcceptedParams(SpawnedNode, RoutingKeys)));
+            SpawnedNode->GetGraph()->RemoveNode(SpawnedNode);
+            continue;
         }
 
         // Per-node position override (top-level "x" / "y" on the node spec)

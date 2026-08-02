@@ -134,9 +134,13 @@ try {
       expectFailedNode: null,
     },
     {
+      // Rejected BEFORE mutation, so there is deliberately no graph payload:
+      // nothing was created, so there is nothing to count. The earlier reading
+      // of this as a reporting gap was wrong.
       n: "(9) a connection referencing an unknown node id",
       spec: { nodes: [{ id: "begin", type: "BeginPlay" }, { id: "say", type: "PrintString" }], connections: [{ from: "begin.then", to: "ghost.exec" }] },
       expectFailedNode: null,
+      preMutation: "unknown node id",
     },
   ];
 
@@ -155,6 +159,14 @@ try {
       assert(bad.data?.graph?.failed_node_count > 0, `${c.n}: failed_node_count is non-zero`);
       assert(bad.data?.graph?.created_node_count < bad.data?.graph?.requested_node_count,
         `${c.n}: created_node_count excludes the phantom (created ${bad.data?.graph?.created_node_count} < requested ${bad.data?.graph?.requested_node_count})`);
+    } else if (c.preMutation) {
+      // Rejected before anything was created. The correct report is a named
+      // error and NO graph payload: counting a graph that was never built
+      // would be the same lie in the other direction.
+      assert(JSON.stringify(bad.errors).includes("unknown node id"),
+        `${c.n}: rejected before mutation with the unknown id named`);
+      assert(bad.data?.graph === undefined,
+        `${c.n}: no graph counts are reported for a build that never started`);
     } else {
       // A connection can be refused in two shapes: it resolved to fewer links
       // than requested (failed_connection_count), or the resolver rejected the
