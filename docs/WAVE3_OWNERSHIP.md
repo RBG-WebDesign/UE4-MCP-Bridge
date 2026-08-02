@@ -1,0 +1,54 @@
+# Wave three ownership
+
+One writer per worktree. Recorded before any lane started, so a collision is a
+rule break rather than an ambiguity. This file is the authority; if a lane and
+this table disagree, this table is right.
+
+Integration branch: `bridge/native-consolidation-2026-07-31`.
+All lanes branched from `7997964`.
+
+## Pre-work completed 2026-08-02
+
+| Step | Result |
+|---|---|
+| Stop orphan agents | Done. PID 29320, a claude-code session started 08:55, killed with its whole tree. My session is 25068 and survived; the Claude desktop app 21624 was not touched. |
+| Preserve their commits | Verified. `git log HEAD..<branch>` is 0 for all seven prior branches, so every commit any orphan produced is already an ancestor of the integration head. Nothing to rescue. Their unique findings, including `55b971e` "rename_component is not convergent", are preserved. |
+| One writer per worktree | Confirmed. All six prior worktrees clean, 0 uncommitted files each. Ten new worktrees created empty at `7997964`. |
+| Close UE4Editor 36268 | Done. 0 editors alive. |
+| `git status` | Clean. |
+| `install:check` | `install is current`, installed from `7b242f5`. |
+
+## Lanes
+
+| Lane | Branch | Worktree | Domain | Build rights | Editor |
+|---|---|---|---|---|---|
+| G | `lane/g-mutator-atomicity` | `lane-g` | BPMutatorHelpers failure atomicity, 19-point audit | **YES, exclusive on BridgeInstallTest** | no |
+| H | `lane/h-member-patch` | `lane-h` | Deterministic member_patch acceptance | no | no |
+| I | `lane/i-material` | `lane-i` | Material inspect, instances, parameters | no | no |
+| J | `lane/j-animation` | `lane-j` | AnimBP inspect and build, state machines | no | no |
+| K | `lane/k-ai-gameplay` | `lane-k` | Blackboard, EQS, navigation, perception | no | no |
+| L | `lane/l-level-scene` | `lane-l` | scene_inspect, scene_batch, lighting, volumes | no | no |
+| M | `lane/m-refront2` | `lane-m` | REFRONT groups 2 and 4, doc reconciliation | no | no |
+| N | `lane/n-packaging` | `lane-n` | Package the PuerTS bundle, run UAT for real | **own fresh project only** | no |
+| O | `lane/o-perf-live` | `lane-o` | Benchmark hardening, honest progress, orchestrator | no | no |
+| P | `lane/p-slices` | `lane-p` | Seven vertical slice harnesses | no | no |
+
+## Standing constraints this wave
+
+- Only lane G touches `D:/Unreal Projects/BridgeInstallTest`. It is the only
+  installed target: `Tests/UE427PuerTSMCP` does not exist on disk.
+- Lane N may create and build its OWN throwaway project and must not touch
+  BridgeInstallTest.
+- No lane launches an interactive editor. The integrator runs every live proof,
+  which is the split that made lane A and the wave two suites trustworthy.
+- No lane merges, pushes, rebases, or edits the integration checkout. Wave two
+  lost time to exactly that.
+- Lanes commit as `implemented_unverified` or `implemented_partial`. Only the
+  integrator promotes to `live_verified`, and only after a live run.
+
+## Known dependency
+
+REFRONT group 1, the 18 Blueprint editing tools, is blocked on lane G. That
+library commits on failure today, so re-fronting onto it would ship 18 mutations
+that cannot roll back. Lane M is designing group 1 on paper and landing groups 2
+and 4 instead.
