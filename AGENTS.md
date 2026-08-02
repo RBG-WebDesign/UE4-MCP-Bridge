@@ -79,6 +79,20 @@ writes to the target. Every live acceptance script calls it before connecting,
 so this is a gate you notice only when it saves you. Details and the target
 list: `docs/MCP_BRIDGE_INSTALLER.md`.
 
+Three more acceptances need no editor, no UBT and no target project. They build
+their own fixtures under the temp directory and are the ones CI can run:
+
+```bash
+npm run test:security      # bad token, path escape, shell execution, property allowlist
+npm run test:fresh-install # a throwaway project, the real installer, everything short of the compiler
+npm run test:package       # what Scripts/package-mcp-bridge.ps1 actually produces
+npm run test:editor-free   # all three
+```
+
+`.github/workflows/ci.yml` runs those plus `npm run verify`, and lists at the
+bottom exactly which acceptances cannot run in CI because they need a live
+UE4.27 editor. That split is worth reading before adding a test.
+
 Other useful entry points:
 
 ```bash

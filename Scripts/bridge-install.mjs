@@ -373,7 +373,7 @@ function buildTarget(root) {
   return target;
 }
 
-function syncInstall(projectRoot, { build = true } = {}) {
+export function syncInstall(projectRoot, { build = true } = {}) {
   const root = resolveProject(projectRoot);
   const pluginDir = join(root, 'Plugins', 'MCPBridge');
   const sourceDir = join(repoRoot, 'Plugins', 'MCPBridge');

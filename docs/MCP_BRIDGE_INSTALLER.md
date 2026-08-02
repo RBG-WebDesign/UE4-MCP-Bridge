@@ -158,6 +158,38 @@ unknown provenance rather than treated as current. To retire a target instead of
 maintaining it, set `"status": "deprecated"` and a `"deprecated_reason"` in its
 manifest; the gate then blocks it from acceptance even when its files are current.
 
+### Manifest schema version, and what an upgrade does
+
+`MCPBridgeInstall.json` carries `"schema_version"`, currently `1`. The rule is
+the one `session.json` already follows: a manifest whose version this checkout
+does not recognise is refused, not read optimistically.
+
+That matters because the manifest is not decoration. Two of its fields decide
+outcomes - `status`, which can block a target outright, and `dll_hashes`, which
+binds the compiled binary to the sources it was built from. Reading either out
+of a shape this checkout does not understand is a guess, and both guesses fail
+the same way: a target that should have been refused reports a pass. So when the
+version does not match, `install:check` reports `manifest_schema:` and reads no
+field of that manifest at all, including the ones that would have failed it.
+
+| What the gate finds | What it says | What to do |
+|---|---|---|
+| no `schema_version` | written before the manifest was versioned | `npm run install:sync` rewrites it |
+| `schema_version` lower than this checkout's | older manifest | `npm run install:sync` rewrites it |
+| `schema_version` higher than this checkout's | the target was installed from a NEWER bridge checkout | update this checkout; do not sync, which would move the target backwards |
+
+Upgrading is therefore a re-sync, and a re-sync builds. **Every target installed
+before this change is refused on the next `install:check`** with the
+"before the manifest was versioned" message, and stays refused until it is
+synced. That is the intended cost: the alternative is a version guard that
+accepts anything it has not seen, which is not a guard.
+
+Bump `MANIFEST_SCHEMA_VERSION` in `Scripts/bridge-install.mjs` when a field's
+MEANING changes. Adding a field nothing reads does not need a bump.
+
+The version cases are asserted in `Scripts/fresh-install-acceptance.mjs`, case 10,
+against a manifest it wrote itself.
+
 The gate's own acceptance is `Scripts/bridge-install-acceptance.mjs`. It clones a
 passing install and breaks one thing per case, because a gate that has only been
 run against a correct install has not been shown to reject anything:
@@ -166,7 +198,25 @@ run against a correct install has not been shown to reject anything:
 node Scripts/bridge-install-acceptance.mjs --from "D:\Unreal Projects\BridgeInstallTest"
 ```
 
+That one needs a target that is already installed and compiled. The install
+itself, from a project directory that contains nothing but a `.uproject`, is
+proved separately and needs no editor, no UBT and no target project:
+
+```bash
+npm run test:fresh-install
+```
+
+It creates a throwaway project, runs `Scripts/install-mcp-bridge.ps1` against it,
+and reads back the plugin copy, the `[MCPPuerTSBridge]` pipe section, the
+generated `.mcp.json` (which it then launches), the `.codex/config.toml` and the
+`.uproject` plugin list. It stops at the compiler and says so: the last case
+requires that the only thing `install:check` still objects to is the missing DLL.
+
 ## Running two editors at once
+
+Two editors on two DIFFERENT projects. Two editors on the SAME project is a
+different case, is not supported, and currently lets the second editor unpublish
+the first: see `docs/LIVENESS_AND_MULTI_EDITOR_DESIGN.md`.
 
 Supported and tested as of 2026-08-02. Each editor is addressed by session, and a
 client that cannot tell which editor it is addressing refuses rather than picking
