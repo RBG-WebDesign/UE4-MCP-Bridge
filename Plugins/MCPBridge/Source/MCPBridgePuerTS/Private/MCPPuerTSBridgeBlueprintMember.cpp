@@ -13,7 +13,6 @@
 #include "EdGraph/EdGraph.h"
 #include "Json.h"
 #include "Misc/PackageName.h"
-#include "ScopedTransaction.h"
 #include "UObject/UnrealType.h"
 
 namespace
