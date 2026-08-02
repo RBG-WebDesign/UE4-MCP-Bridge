@@ -42,7 +42,7 @@ prove completion, and the report must say plainly what was not verified.
 |---|---|---|---|
 | A | `lane/a-graph-patch` @ `d72f848` | **Merged as `implemented`, NOT `live_verified`** | The lane claimed a compile and nothing more, which is exactly what its evidence supported. It said so itself: "proven to compile. It is not proven to work." Merged on that basis and verified live by the integrator, not by the lane. |
 | B | `lane/b-project-intelligence` @ `e6fc7c7` | **Accepted** | Ten editor-free tests over a real project: 339 files, 841 symbols, a second run that re-indexes nothing, a touched file that re-indexes exactly itself with the reason recorded. |
-| C | `lane/c-cpp-authoring` | running | |
+| C | `lane/c-cpp-authoring` @ `99f1250` | **Accepted** | 56 editor-free tests. Parser proven against a captured UBT transcript carrying the real diagnostic forms this session hit. Reuses the existing cmd.exe UBT invocation rather than adding a second one. |
 
 **Lane A, live acceptance run by the integrator.** The deferred-selector fix
 works: the batch applies, and the added node, moved node, removed node and
@@ -68,6 +68,17 @@ material graph structure and asset reference edges - that have NO native command
 recording them as platform gaps to close rather than deriving them badly. A lane
 that names the gap instead of papering over it is doing the capability-first rule
 without being told.
+
+**Central conflict resolution.** Lanes B and C each appended a suite to the
+`test` chain in `mcp-server/package.json`, both flagged it loudly as instructed,
+and both predicted the resolution would be "keep both". It was. That is the
+one-writer-per-worktree rule earning its keep: the conflict was trivial, expected
+and resolved in one place instead of two lanes racing over the same line.
+
+**Lane C's honest seam.** `runUbt` and the diagnostic parser have never been
+joined, because the lane was forbidden from building. Argument quoting through
+cmd.exe for paths with spaces is the specific thing only a real run settles, and
+generated code has never been compiled. Recorded as unverified, not claimed.
 
 ### Integrator work accepted into `bridge/native-consolidation-2026-07-31`
 
