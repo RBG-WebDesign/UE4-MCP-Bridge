@@ -19,6 +19,8 @@ public class MCPBridgePuerTS : ModuleRules
         // reports whether a file is opened for add or checked out, so a caller
         // can see that a failure performed no source-control operation. It
         // never adds, checks out, or reverts.
-        PrivateDependencyModuleNames.AddRange(new string[] { "AIModule", "AssetRegistry", "GameplayTasks", "Json", "JsonUtilities", "JsEnv", "MCPBridgeGraphBuilder", "Projects", "SourceControl", "UMG", "UMGEditor", "UnrealEd" });
+        // BlueprintGraph is for UK2Node_Variable only: remove_unlisted has to find
+        // the graph nodes that read or write a variable before it may remove it.
+        PrivateDependencyModuleNames.AddRange(new string[] { "AIModule", "AssetRegistry", "BlueprintGraph", "GameplayTasks", "Json", "JsonUtilities", "JsEnv", "MCPBridgeGraphBuilder", "Projects", "SourceControl", "UMG", "UMGEditor", "UnrealEd" });
     }
 }

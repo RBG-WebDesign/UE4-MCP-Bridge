@@ -321,6 +321,35 @@ const specs = [
       clear_existing_graph: z.boolean().optional().describe(
         "Default true: the event graph is replaced by the spec rather than appended to.",
       ),
+      remove_unlisted: z.object({
+        variables: z.boolean().optional(),
+        components: z.boolean().optional(),
+        functions: z.boolean().optional(),
+        macros: z.boolean().optional(),
+        graph_nodes: z.boolean().optional(),
+        interfaces: z.boolean().optional(),
+      }).strict().optional().describe(
+        "Opt-in downward convergence, off by default: nothing is ever removed unless a scope "
+        + "is set true. Only 'variables' is implemented; any other scope set true is REJECTED "
+        + "with an unsupported_scope error rather than ignored, so a caller is never told a "
+        + "prune happened when it did not. Variable removal only ever considers variables this "
+        + "builder previously declared (stamped MCPManaged): inherited variables, native C++ "
+        + "UPROPERTYs, engine-generated variables and anything a human added carry no stamp and "
+        + "are reported as protected_variables instead. A variable referenced by graph nodes is "
+        + "blocked unless force_remove_referenced is also set.",
+      ),
+      plan_only: z.boolean().optional().describe(
+        "Default false. Return the convergence plan and change nothing: current_variables, "
+        + "desired_variables, variables_to_add/update/remove, protected_variables, "
+        + "referenced_variables, blocked_removals and expected_change_count. Read-only - it "
+        + "returns before the mutation section, so no asset is created and no package is "
+        + "dirtied even when the asset does not exist yet.",
+      ),
+      force_remove_referenced: z.boolean().optional().describe(
+        "Default false. Allow removal of a managed variable that graph nodes reference, "
+        + "deleting those nodes with it. Every deleted node is reported in "
+        + "convergence.removed_reference_nodes.",
+      ),
     }).strict()],
   ["puerts_widget_build", "widget_build",
     "Create or replace a compiled UMG Widget Blueprint from one JSON widget tree. The tree "

@@ -1,0 +1,68 @@
+{
+  "final_variables": [
+    "KeptA",
+    "KeptB",
+    "KeptC"
+  ],
+  "plan": {
+    "asset_path": "/Game/MCPGenerated/BP_ConvergeProbe",
+    "plan_only": true,
+    "asset_exists": true,
+    "remove_unlisted_variables": true,
+    "current_variables": [
+      "DropAlsoPlain",
+      "DropPlain",
+      "DropReferenced",
+      "KeptA",
+      "KeptB",
+      "KeptC"
+    ],
+    "desired_variables": [
+      "KeptA",
+      "KeptB",
+      "KeptC"
+    ],
+    "variables_to_add": [],
+    "variables_to_update": [
+      "KeptA",
+      "KeptB",
+      "KeptC"
+    ],
+    "variables_to_remove": [
+      "DropAlsoPlain",
+      "DropPlain"
+    ],
+    "protected_variables": [],
+    "referenced_variables": {
+      "DropReferenced": [
+        "EventGraph.K2Node_VariableGet_6"
+      ]
+    },
+    "blocked_removals": [
+      "DropReferenced: referenced by 1 graph node(s); pass force_remove_referenced to delete them with it"
+    ],
+    "expected_change_count": 5
+  },
+  "forced": {
+    "added_variables": [],
+    "updated_variables": [
+      "KeptA",
+      "KeptB",
+      "KeptC"
+    ],
+    "removed_variables": [
+      "DropReferenced"
+    ],
+    "skipped_variables": [],
+    "removed_reference_nodes": [
+      "EventGraph.K2Node_VariableGet_8"
+    ],
+    "managed_variables_after": [
+      "KeptA",
+      "KeptB",
+      "KeptC"
+    ],
+    "compile_status": "UpToDate",
+    "converged": true
+  }
+}

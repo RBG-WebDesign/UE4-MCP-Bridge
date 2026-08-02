@@ -6211,7 +6211,10 @@
           "graph": "object?",
           "compile": "boolean?",
           "save": "boolean?",
-          "clear_existing_graph": "boolean?"
+          "clear_existing_graph": "boolean?",
+          "remove_unlisted": "object?",
+          "plan_only": "boolean?",
+          "force_remove_referenced": "boolean?"
         }
       },
       "annotations": {

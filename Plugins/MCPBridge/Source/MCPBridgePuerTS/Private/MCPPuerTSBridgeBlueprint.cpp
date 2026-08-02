@@ -12,6 +12,9 @@
 #include "GameFramework/Actor.h"
 #include "Json.h"
 #include "JsonObjectConverter.h"
+#include "EdGraph/EdGraph.h"
+#include "EdGraph/EdGraphNode.h"
+#include "K2Node_Variable.h"
 #include "Kismet2/BlueprintEditorUtils.h"
 #include "Kismet2/KismetEditorUtilities.h"
 #include "MCPBridgeAssetRollback.h"
@@ -321,6 +324,95 @@ namespace
         Returns false with the first error when the pass rejected the spec, so
         the caller can fail the whole request with a reason the caller can find
         in its own spec. OutApplied collects the per-variable results. */
+    // ---------------------------------------------------------------------
+    // Managed-variable ownership.
+    //
+    // remove_unlisted deletes work, so the question "may this be removed?" has
+    // to have a conservative answer that does not depend on getting a list of
+    // exclusions right. The answer is an explicit mark: blueprint_build stamps
+    // MCPManaged=1 on every variable it declares, and removal only ever
+    // considers variables carrying that stamp.
+    //
+    // That satisfies the whole protection list by construction rather than by
+    // enumeration. An inherited variable, a native C++ UPROPERTY, an
+    // engine-generated variable and a variable a human added in the editor all
+    // share one property: this builder never declared them, so none of them
+    // carries the mark. A Blueprint authored before this change has no marked
+    // variables at all, so remove_unlisted removes nothing from it until a
+    // build declares its managed set - which is the correct default for an
+    // asset whose history the bridge does not know.
+    const TCHAR* ManagedVariableMetaKey = TEXT("MCPManaged");
+
+    bool IsManagedVariable(const UBlueprint* Blueprint, const FName& VarName)
+    {
+        FString Value;
+        return FBlueprintEditorUtils::GetBlueprintVariableMetaData(
+                   Blueprint, VarName, nullptr, FName(ManagedVariableMetaKey), Value)
+            && Value == TEXT("1");
+    }
+
+    void MarkVariableManaged(UBlueprint* Blueprint, const FName& VarName)
+    {
+        FBlueprintEditorUtils::SetBlueprintVariableMetaData(
+            Blueprint, VarName, nullptr, FName(ManagedVariableMetaKey), TEXT("1"));
+    }
+
+    /** Every graph node that reads or writes this variable, as
+        "GraphName.NodeName". Reported before a removal rather than after, so a
+        caller sees what a removal would break while it is still preventable. */
+    TArray<FString> FindVariableReferences(const UBlueprint* Blueprint, const FName& VarName)
+    {
+        TArray<FString> Locations;
+        TArray<UEdGraph*> Graphs;
+        Blueprint->GetAllGraphs(Graphs);
+        for (const UEdGraph* Graph : Graphs)
+        {
+            if (Graph == nullptr) { continue; }
+            for (const UEdGraphNode* Node : Graph->Nodes)
+            {
+                const UK2Node_Variable* VariableNode = Cast<UK2Node_Variable>(Node);
+                if (VariableNode == nullptr) { continue; }
+                if (VariableNode->VariableReference.GetMemberName() == VarName)
+                {
+                    Locations.Add(FString::Printf(TEXT("%s.%s"),
+                        *Graph->GetName(), *Node->GetName()));
+                }
+            }
+        }
+        Locations.Sort();
+        return Locations;
+    }
+
+    /** The graph nodes that reference a variable, for deletion under force. */
+    TArray<UEdGraphNode*> CollectVariableReferenceNodes(UBlueprint* Blueprint, const FName& VarName)
+    {
+        TArray<UEdGraphNode*> Nodes;
+        TArray<UEdGraph*> Graphs;
+        Blueprint->GetAllGraphs(Graphs);
+        for (UEdGraph* Graph : Graphs)
+        {
+            if (Graph == nullptr) { continue; }
+            for (UEdGraphNode* Node : Graph->Nodes)
+            {
+                UK2Node_Variable* VariableNode = Cast<UK2Node_Variable>(Node);
+                if (VariableNode != nullptr
+                    && VariableNode->VariableReference.GetMemberName() == VarName)
+                {
+                    Nodes.Add(Node);
+                }
+            }
+        }
+        return Nodes;
+    }
+
+    TArray<TSharedPtr<FJsonValue>> StringsToJson(const TArray<FString>& Values)
+    {
+        TArray<TSharedPtr<FJsonValue>> Out;
+        Out.Reserve(Values.Num());
+        for (const FString& Value : Values) { Out.Add(MakeShared<FJsonValueString>(Value)); }
+        return Out;
+    }
+
     bool RunVariablePass(
         UBlueprint* Blueprint,
         const FString& VariablesJson,
@@ -708,6 +800,180 @@ bool UMCPPuerTSBridgeService::BuildBlueprintJson(
         }
     }
 
+    // --- Convergence scopes: remove_unlisted, plan_only, force. ---
+    //
+    // Nothing is ever removed by default. remove_unlisted is opt-in per scope,
+    // and a scope this session does not implement is REJECTED rather than
+    // ignored: silently accepting "functions": true would read as a promise to
+    // prune functions and quietly not do it, which is worse than refusing.
+    bool bRemoveUnlistedVariables = false;
+    {
+        const TSharedPtr<FJsonObject>* RemoveUnlisted = nullptr;
+        if (Spec->TryGetObjectField(TEXT("remove_unlisted"), RemoveUnlisted)
+            && RemoveUnlisted != nullptr)
+        {
+            static const TCHAR* SupportedScopes[] = { TEXT("variables") };
+            static const TCHAR* KnownScopes[] = {
+                TEXT("variables"), TEXT("components"), TEXT("functions"),
+                TEXT("macros"), TEXT("graph_nodes"), TEXT("interfaces") };
+            for (const auto& Pair : (*RemoveUnlisted)->Values)
+            {
+                bool bKnown = false;
+                for (const TCHAR* Scope : KnownScopes)
+                {
+                    if (Pair.Key.Equals(Scope, ESearchCase::IgnoreCase)) { bKnown = true; break; }
+                }
+                if (!bKnown)
+                {
+                    OutError = FString::Printf(
+                        TEXT("unsupported_scope: '%s' is not a remove_unlisted scope. Known scopes: ")
+                        TEXT("variables, components, functions, macros, graph_nodes, interfaces."),
+                        *Pair.Key);
+                    return false;
+                }
+                bool bRequested = false;
+                if (!Pair.Value->TryGetBool(bRequested))
+                {
+                    OutError = FString::Printf(
+                        TEXT("unsupported_scope: remove_unlisted.%s must be a boolean."), *Pair.Key);
+                    return false;
+                }
+                if (!bRequested) { continue; }
+                bool bSupported = false;
+                for (const TCHAR* Scope : SupportedScopes)
+                {
+                    if (Pair.Key.Equals(Scope, ESearchCase::IgnoreCase)) { bSupported = true; break; }
+                }
+                if (!bSupported)
+                {
+                    OutError = FString::Printf(
+                        TEXT("unsupported_scope: remove_unlisted.%s is not implemented yet. Only ")
+                        TEXT("'variables' converges downward today; the other scopes are rejected ")
+                        TEXT("rather than ignored so a caller is never told a prune happened when ")
+                        TEXT("it did not."),
+                        *Pair.Key);
+                    return false;
+                }
+                bRemoveUnlistedVariables = true;
+            }
+        }
+    }
+    const bool bPlanOnly = Spec->HasTypedField<EJson::Boolean>(TEXT("plan_only"))
+        && Spec->GetBoolField(TEXT("plan_only"));
+    const bool bForceRemoveReferenced =
+        Spec->HasTypedField<EJson::Boolean>(TEXT("force_remove_referenced"))
+        && Spec->GetBoolField(TEXT("force_remove_referenced"));
+
+    // The desired managed set, by name, from the spec.
+    TSet<FName> DesiredVariables;
+    {
+        const TArray<TSharedPtr<FJsonValue>>* SpecVariables = nullptr;
+        if (Spec->TryGetArrayField(TEXT("variables"), SpecVariables))
+        {
+            for (const TSharedPtr<FJsonValue>& Value : *SpecVariables)
+            {
+                const TSharedPtr<FJsonObject>* Entry = nullptr;
+                FString Name;
+                if (Value->TryGetObject(Entry) && (*Entry)->TryGetStringField(TEXT("name"), Name))
+                {
+                    DesiredVariables.Add(FName(*Name));
+                }
+            }
+        }
+    }
+
+    // The plan, computed against the asset as it stands. Shared by plan_only
+    // and by the apply path, so what a caller previews is what runs.
+    TArray<FString> PlanToAdd, PlanToUpdate, PlanToRemove, PlanProtected, PlanBlocked;
+    TSharedPtr<FJsonObject> ReferencedVariables = MakeShared<FJsonObject>();
+    if (Blueprint != nullptr)
+    {
+        for (const FBPVariableDescription& Existing : Blueprint->NewVariables)
+        {
+            const bool bManaged = IsManagedVariable(Blueprint, Existing.VarName);
+            const bool bDesired = DesiredVariables.Contains(Existing.VarName);
+            if (bDesired) { PlanToUpdate.Add(Existing.VarName.ToString()); continue; }
+            if (!bManaged)
+            {
+                // Not ours: inherited, native, engine-generated, or authored by
+                // a human. Reported so the caller can see it was considered.
+                PlanProtected.Add(Existing.VarName.ToString());
+                continue;
+            }
+            const TArray<FString> References = FindVariableReferences(Blueprint, Existing.VarName);
+            if (References.Num() > 0)
+            {
+                ReferencedVariables->SetArrayField(
+                    Existing.VarName.ToString(), StringsToJson(References));
+                if (!bForceRemoveReferenced)
+                {
+                    PlanBlocked.Add(FString::Printf(
+                        TEXT("%s: referenced by %d graph node(s); pass force_remove_referenced to "
+                             "delete them with it"),
+                        *Existing.VarName.ToString(), References.Num()));
+                    continue;
+                }
+            }
+            PlanToRemove.Add(Existing.VarName.ToString());
+        }
+        for (const FName& Desired : DesiredVariables)
+        {
+            const bool bExists = Blueprint->NewVariables.ContainsByPredicate(
+                [&](const FBPVariableDescription& D) { return D.VarName == Desired; });
+            if (!bExists) { PlanToAdd.Add(Desired.ToString()); }
+        }
+    }
+    else
+    {
+        for (const FName& Desired : DesiredVariables) { PlanToAdd.Add(Desired.ToString()); }
+    }
+    PlanToAdd.Sort(); PlanToUpdate.Sort(); PlanToRemove.Sort();
+    PlanProtected.Sort(); PlanBlocked.Sort();
+
+    if (bPlanOnly)
+    {
+        // Read-only by construction: this returns before the mutation section,
+        // so no package is created, nothing is dirtied and the transaction the
+        // service opened is cancelled rather than committed.
+        if (ActiveTransaction != nullptr) { ActiveTransaction->Cancel(); }
+
+        TArray<FString> CurrentVariables;
+        if (Blueprint != nullptr)
+        {
+            for (const FBPVariableDescription& Existing : Blueprint->NewVariables)
+            {
+                CurrentVariables.Add(Existing.VarName.ToString());
+            }
+            CurrentVariables.Sort();
+        }
+        TArray<FString> DesiredNames;
+        for (const FName& Desired : DesiredVariables) { DesiredNames.Add(Desired.ToString()); }
+        DesiredNames.Sort();
+
+        TSharedPtr<FJsonObject> Plan = MakeShared<FJsonObject>();
+        Plan->SetStringField(TEXT("asset_path"), AssetPath);
+        Plan->SetBoolField(TEXT("plan_only"), true);
+        Plan->SetBoolField(TEXT("asset_exists"), Blueprint != nullptr);
+        Plan->SetBoolField(TEXT("remove_unlisted_variables"), bRemoveUnlistedVariables);
+        Plan->SetArrayField(TEXT("current_variables"), StringsToJson(CurrentVariables));
+        Plan->SetArrayField(TEXT("desired_variables"), StringsToJson(DesiredNames));
+        Plan->SetArrayField(TEXT("variables_to_add"), StringsToJson(PlanToAdd));
+        Plan->SetArrayField(TEXT("variables_to_update"), StringsToJson(PlanToUpdate));
+        Plan->SetArrayField(TEXT("variables_to_remove"),
+            StringsToJson(bRemoveUnlistedVariables ? PlanToRemove : TArray<FString>()));
+        Plan->SetArrayField(TEXT("protected_variables"), StringsToJson(PlanProtected));
+        Plan->SetObjectField(TEXT("referenced_variables"), ReferencedVariables);
+        Plan->SetArrayField(TEXT("blocked_removals"),
+            StringsToJson(bRemoveUnlistedVariables ? PlanBlocked : TArray<FString>()));
+        Plan->SetNumberField(TEXT("expected_change_count"),
+            PlanToAdd.Num() + PlanToUpdate.Num()
+            + (bRemoveUnlistedVariables ? PlanToRemove.Num() : 0));
+        Plan->SetArrayField(TEXT("errors"), TArray<TSharedPtr<FJsonValue>>());
+        Plan->SetArrayField(TEXT("warnings"), TArray<TSharedPtr<FJsonValue>>());
+        OutResultJson = SerializeJson(Plan);
+        return true;
+    }
+
     // --- Mutation starts here. ---
     //
     // Everything below is inside the same rollback boundary the Behavior Tree
@@ -846,6 +1112,9 @@ bool UMCPPuerTSBridgeService::BuildBlueprintJson(
     // carries the property. AddMemberVariable recompiles the skeleton, so by
     // the time the graph pass runs the variables are resolvable.
     TArray<TSharedPtr<FJsonValue>> VariableResults;
+    TArray<FString> RemovedVariables;
+    TArray<FString> SkippedVariables;
+    TArray<FString> RemovedReferenceNodes;
     if (bHasVariables)
     {
         FString VariableError;
@@ -853,6 +1122,53 @@ bool UMCPPuerTSBridgeService::BuildBlueprintJson(
         {
             Errors.Add(MakeShared<FJsonValueString>(VariableError));
         }
+    }
+
+    // Claim ownership of every variable this spec declares. Idempotent, and it
+    // is what makes a later remove_unlisted able to tell its own work from
+    // everything else on the asset.
+    if (Errors.Num() == 0)
+    {
+        for (const FName& Desired : DesiredVariables)
+        {
+            const bool bExists = Blueprint->NewVariables.ContainsByPredicate(
+                [&](const FBPVariableDescription& D) { return D.VarName == Desired; });
+            if (bExists) { MarkVariableManaged(Blueprint, Desired); }
+        }
+    }
+
+    // Downward convergence. Runs inside the transaction the service opened, so
+    // a compile failure below rolls the removals back with everything else.
+    if (bRemoveUnlistedVariables && Errors.Num() == 0)
+    {
+        SkippedVariables = PlanProtected;
+        for (const FString& Blocked : PlanBlocked)
+        {
+            SkippedVariables.Add(Blocked);
+        }
+        for (const FString& Name : PlanToRemove)
+        {
+            const FName VarName(*Name);
+            if (bForceRemoveReferenced)
+            {
+                // Delete the nodes that read or write it first: removing the
+                // member while nodes still reference it leaves the graph with
+                // unresolved pins that only surface at compile time.
+                for (UEdGraphNode* Node : CollectVariableReferenceNodes(Blueprint, VarName))
+                {
+                    if (Node == nullptr) { continue; }
+                    RemovedReferenceNodes.Add(FString::Printf(TEXT("%s.%s"),
+                        *Node->GetGraph()->GetName(), *Node->GetName()));
+                    Node->GetGraph()->Modify();
+                    Node->Modify();
+                    Node->GetGraph()->RemoveNode(Node);
+                }
+            }
+            FBlueprintEditorUtils::RemoveMemberVariable(Blueprint, VarName);
+            RemovedVariables.Add(Name);
+        }
+        RemovedReferenceNodes.Sort();
+        SkippedVariables.Sort();
     }
 
     // A dropped connection used to be a log line: the graph came out with a
@@ -1007,6 +1323,36 @@ bool UMCPPuerTSBridgeService::BuildBlueprintJson(
     Result->SetBoolField(TEXT("saved"), bSaved);
     Result->SetArrayField(TEXT("errors"), Errors);
     Result->SetArrayField(TEXT("warnings"), Warnings);
+
+    // Convergence report. converged is measured off the asset after the work,
+    // not inferred from the plan: the managed set must equal the desired set.
+    {
+        TArray<FString> ManagedAfter;
+        for (const FBPVariableDescription& Existing : Blueprint->NewVariables)
+        {
+            if (IsManagedVariable(Blueprint, Existing.VarName))
+            {
+                ManagedAfter.Add(Existing.VarName.ToString());
+            }
+        }
+        ManagedAfter.Sort();
+        TArray<FString> DesiredNames;
+        for (const FName& Desired : DesiredVariables) { DesiredNames.Add(Desired.ToString()); }
+        DesiredNames.Sort();
+        const bool bConverged = !bRemoveUnlistedVariables || ManagedAfter == DesiredNames;
+
+        TSharedPtr<FJsonObject> Convergence = MakeShared<FJsonObject>();
+        Convergence->SetArrayField(TEXT("added_variables"), StringsToJson(PlanToAdd));
+        Convergence->SetArrayField(TEXT("updated_variables"), StringsToJson(PlanToUpdate));
+        Convergence->SetArrayField(TEXT("removed_variables"), StringsToJson(RemovedVariables));
+        Convergence->SetArrayField(TEXT("skipped_variables"), StringsToJson(SkippedVariables));
+        Convergence->SetArrayField(TEXT("removed_reference_nodes"), StringsToJson(RemovedReferenceNodes));
+        Convergence->SetArrayField(TEXT("managed_variables_after"), StringsToJson(ManagedAfter));
+        Convergence->SetStringField(TEXT("compile_status"), CompileStatus);
+        Convergence->SetBoolField(TEXT("converged"), bConverged);
+        Result->SetObjectField(TEXT("convergence"), Convergence);
+    }
+
     // Always present, so a caller never has to distinguish "clean" from
     // "this build predates the rollback boundary".
     Result->SetObjectField(TEXT("cleanup"),

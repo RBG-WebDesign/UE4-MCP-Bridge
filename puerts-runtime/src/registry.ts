@@ -287,7 +287,15 @@ async function buildBlueprint(context: ToolContext, input: JsonObject): Promise<
     compile: optionalBoolean(input, "compile", true),
     save: optionalBoolean(input, "save", true),
     clear_existing_graph: optionalBoolean(input, "clear_existing_graph", true),
+    plan_only: optionalBoolean(input, "plan_only", false),
+    force_remove_referenced: optionalBoolean(input, "force_remove_referenced", false),
   };
+  // Opt-in downward convergence. Passed through untouched so the native side
+  // owns which scopes are supported and rejects the rest by name.
+  const removeUnlisted = optionalObject(input, "remove_unlisted");
+  if (removeUnlisted !== undefined) {
+    spec.remove_unlisted = removeUnlisted;
+  }
   const graph = optionalObject(input, "graph");
   if (graph !== undefined) {
     spec.graph = graph;
@@ -635,7 +643,7 @@ export const toolDefinitions: readonly ToolDefinition[] = [
   { name: "spawn_actor", inputSchema: schema({ class_path: { type: "string" }, location: { type: "object" }, rotation: { type: "object" } }, ["class_path"]), outputSchema, permissions: ["actors.spawn"], executionTimeoutMs: 3000, execute: spawnActor },
   { name: "delete_actor", inputSchema: schema({ actor: { type: "string" }, confirm: { type: "boolean" } }, ["actor", "confirm"]), outputSchema, permissions: ["actors.delete"], executionTimeoutMs: 2000, execute: deleteActor },
   { name: "sky_shader_create", inputSchema: schema({ asset_path: { type: "string" }, sky_actor: { type: "string" } }), outputSchema, permissions: ["assets.write", "reflection.write"], executionTimeoutMs: 10000, execute: createSkyShader },
-  { name: "blueprint_build", inputSchema: schema({ asset_path: { type: "string" }, parent_class: { type: "string" }, components: { type: "array", items: { type: "object" } }, variables: { type: "array", items: { type: "object" } }, graph: { type: "object" }, compile: { type: "boolean" }, save: { type: "boolean" }, clear_existing_graph: { type: "boolean" } }, ["asset_path"]), outputSchema, permissions: ["assets.write"], executionTimeoutMs: 30000, execute: buildBlueprint },
+  { name: "blueprint_build", inputSchema: schema({ asset_path: { type: "string" }, parent_class: { type: "string" }, components: { type: "array", items: { type: "object" } }, variables: { type: "array", items: { type: "object" } }, graph: { type: "object" }, compile: { type: "boolean" }, save: { type: "boolean" }, clear_existing_graph: { type: "boolean" }, remove_unlisted: { type: "object" }, plan_only: { type: "boolean" }, force_remove_referenced: { type: "boolean" } }, ["asset_path"]), outputSchema, permissions: ["assets.write"], executionTimeoutMs: 30000, execute: buildBlueprint },
   { name: "widget_build", inputSchema: schema({ asset_path: { type: "string" }, tree: { type: "object" }, save: { type: "boolean" } }, ["asset_path", "tree"]), outputSchema, permissions: ["assets.write"], executionTimeoutMs: 30000, execute: buildWidget },
   { name: "graph_inspect", inputSchema: schema({ asset_path: { type: "string" }, graph_name: { type: "string" }, include_pins: { type: "boolean" } }, ["asset_path"]), outputSchema, permissions: ["assets.read"], executionTimeoutMs: 15000, execute: inspectGraph },
   { name: "behavior_tree_build", inputSchema: schema({ asset_path: { type: "string" }, blackboard_path: { type: "string" }, keys: { type: "array", items: { type: "object" } }, root: { type: "object" }, save: { type: "boolean" } }, ["asset_path", "root"]), outputSchema, permissions: ["assets.write"], executionTimeoutMs: 30000, execute: buildBehaviorTree },
