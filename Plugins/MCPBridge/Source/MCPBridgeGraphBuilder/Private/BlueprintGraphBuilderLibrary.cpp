@@ -2932,6 +2932,12 @@ bool UBlueprintGraphBuilderLibrary::PatchBlueprintGraphFromJSON(
     TArray<TSharedPtr<FJsonValue>> NodesToAdd, NodesToUpdate, NodesToRemove;
     TArray<TSharedPtr<FJsonValue>> PinDefaultsToChange, LinksToAdd, LinksToRemove;
     TMap<FString, UEdGraphNode*> PlannedNewNodes;
+    // Link state as the batch will leave it, not as the graph holds it now.
+    // Two operations in one batch can name the same pair - a disconnect then a
+    // reconnect is the ordinary way to reseat a link - and a plan that tested
+    // every one of them against the pre-batch graph called the second one
+    // "already linked" and predicted one change where there are two.
+    TMap<TPair<UEdGraphPin*, UEdGraphPin*>, bool> PlannedLinkState;
 
     int32 Index = 0;
     for (const TSharedPtr<FJsonValue>& OpValue : *Operations)
@@ -3091,20 +3097,23 @@ bool UBlueprintGraphBuilderLibrary::PatchBlueprintGraphFromJSON(
                 }
                 else
                 {
-                    const bool bLinked = FromPin->LinkedTo.Contains(ToPin);
+                    const TPair<UEdGraphPin*, UEdGraphPin*> LinkKey(FromPin, ToPin);
+                    const bool* PlannedState = PlannedLinkState.Find(LinkKey);
+                    const bool bLinked = PlannedState != nullptr
+                        ? *PlannedState : FromPin->LinkedTo.Contains(ToPin);
+                    const bool bWantLinked = Op == TEXT("connect_pins");
                     const FString Line = FString::Printf(TEXT("%s.%s -> %s.%s"),
                         *DescribeNodeForSelector(FromTarget.Node), *FromPinRole,
                         *DescribeNodeForSelector(ToTarget.Node), *ToPinRole);
-                    if (Op == TEXT("connect_pins"))
+                    if (bLinked == bWantLinked)
                     {
-                        if (bLinked) { R.bUnchanged = true; R.UnchangedReason = TEXT("already linked"); }
-                        else { LinksToAdd.Add(MakeShared<FJsonValueString>(Line)); }
+                        R.bUnchanged = true;
+                        R.UnchangedReason = bWantLinked
+                            ? TEXT("already linked") : TEXT("already not linked");
                     }
-                    else
-                    {
-                        if (!bLinked) { R.bUnchanged = true; R.UnchangedReason = TEXT("already not linked"); }
-                        else { LinksToRemove.Add(MakeShared<FJsonValueString>(Line)); }
-                    }
+                    else if (bWantLinked) { LinksToAdd.Add(MakeShared<FJsonValueString>(Line)); }
+                    else { LinksToRemove.Add(MakeShared<FJsonValueString>(Line)); }
+                    PlannedLinkState.Add(LinkKey, bWantLinked);
                 }
             }
             else if (bFromPlanned || bToPlanned)
@@ -3241,7 +3250,14 @@ bool UBlueprintGraphBuilderLibrary::PatchBlueprintGraphFromJSON(
 
     for (FResolvedOp& R : Resolved)
     {
-        if (R.bUnchanged)
+        // A link operation's "nothing to do" is decided below, against the graph
+        // as this batch has left it, never against the plan. Carrying the plan's
+        // verdict here skipped the reconnect half of a disconnect-then-reconnect
+        // pair - the plan saw the link still present - and left the link broken.
+        // set_pin_default and move_node keep the plan-time short-circuit: no
+        // other operation in a batch can change the answer for them, because
+        // both are addressed by a resolved node that only they write.
+        if (R.bUnchanged && R.Op != TEXT("connect_pins") && R.Op != TEXT("disconnect_pins"))
         {
             UnchangedOperations.Add(MakeShared<FJsonValueString>(FString::Printf(
                 TEXT("operation %d (%s): %s"), R.Index, *R.Op, *R.UnchangedReason)));
@@ -3356,19 +3372,25 @@ bool UBlueprintGraphBuilderLibrary::PatchBlueprintGraphFromJSON(
                     R.Index, *R.Op, *FromPinRole, *ToPinRole)));
                 continue;
             }
+            // Asked here, of the live graph, because an earlier operation in this
+            // same batch may have just changed the answer.
+            const bool bWantLinked = R.Op == TEXT("connect_pins");
+            if (FromPin->LinkedTo.Contains(ToPin) == bWantLinked)
+            {
+                UnchangedOperations.Add(MakeShared<FJsonValueString>(FString::Printf(
+                    TEXT("operation %d (%s): %s"), R.Index, *R.Op,
+                    bWantLinked ? TEXT("already linked") : TEXT("already not linked"))));
+                continue;
+            }
             const FString Line = FString::Printf(TEXT("%s.%s -> %s.%s"),
                 *DescribeNodeForSelector(FromNode), *FromPinRole,
                 *DescribeNodeForSelector(ToNode), *ToPinRole);
+            // Nothing is marked dirty until the operation is known to be real,
+            // so a converged rerun leaves the package as clean as it found it.
             FromNode->Modify();
             ToNode->Modify();
-            if (R.Op == TEXT("connect_pins"))
+            if (bWantLinked)
             {
-                if (FromPin->LinkedTo.Contains(ToPin))
-                {
-                    UnchangedOperations.Add(MakeShared<FJsonValueString>(FString::Printf(
-                        TEXT("operation %d (connect_pins): already linked"), R.Index)));
-                    continue;
-                }
                 FromPin->MakeLinkTo(ToPin);
                 CreatedLinks.Add(MakeShared<FJsonValueString>(Line));
             }
