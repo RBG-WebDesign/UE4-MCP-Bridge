@@ -1528,18 +1528,60 @@ bool UMCPPuerTSBridgeService::BuildBlueprintJson(
         // rebuilt from the spec on every build, so a node the caller still
         // declares comes back with the rebuild. One that the caller stopped
         // declaring is reported rather than silently absent.
+        // Compare by STRUCTURAL identity, never by UObject name. A recreated
+        // node is a new object and gets a new name - the first version of this
+        // compared names and reported "K2Node_VariableGet_6 was not restored"
+        // while K2Node_VariableGet_7, the same node by every property that
+        // matters, was sitting in the graph. A false negative in a rollback
+        // report is not harmless: it is what makes a working restore look like
+        // data loss.
+        //
+        // The identity is graph name, node class, referenced variable and
+        // position, which is what the ledger captured and what the caller
+        // authored. Object names are deliberately absent from it.
+        auto StructuralId = [](const FString& GraphName, const UClass* NodeClass,
+                               const FName& VarName, int32 X, int32 Y)
+        {
+            return FString::Printf(TEXT("%s|%s|%s|%d,%d"),
+                *GraphName,
+                NodeClass != nullptr ? *NodeClass->GetName() : TEXT("?"),
+                *VarName.ToString(), X, Y);
+        };
+        TSet<FString> PresentIdentities;
+        {
+            TArray<UEdGraph*> AllGraphs;
+            Blueprint->GetAllGraphs(AllGraphs);
+            for (const UEdGraph* Candidate : AllGraphs)
+            {
+                if (Candidate == nullptr) { continue; }
+                for (const UEdGraphNode* Node : Candidate->Nodes)
+                {
+                    const UK2Node_Variable* VariableNode = Cast<UK2Node_Variable>(Node);
+                    if (VariableNode == nullptr) { continue; }
+                    PresentIdentities.Add(StructuralId(
+                        Candidate->GetName(), Node->GetClass(),
+                        VariableNode->VariableReference.GetMemberName(),
+                        Node->NodePosX, Node->NodePosY));
+                }
+            }
+        }
         TArray<FString> ReferenceNodesRestored;
         for (const FRemovalLedgerEntry& Entry : RemovalLedger)
         {
-            const TArray<FString> Now = FindVariableReferences(Blueprint, Entry.Description.VarName);
-            for (const FString& Location : Now) { ReferenceNodesRestored.Add(Location); }
-            for (const FString& Was : Entry.ReferenceLocations)
+            for (const FCapturedNode& Captured : Entry.CapturedNodes)
             {
-                if (!Now.Contains(Was))
+                const FString Identity = StructuralId(
+                    Captured.GraphName, Captured.NodeClass,
+                    Captured.VariableName, Captured.PosX, Captured.PosY);
+                if (PresentIdentities.Contains(Identity))
+                {
+                    ReferenceNodesRestored.Add(Identity);
+                }
+                else
                 {
                     RestorationMismatches.Add(FString::Printf(
                         TEXT("%s: reference node %s was not restored"),
-                        *Entry.Description.VarName.ToString(), *Was));
+                        *Entry.Description.VarName.ToString(), *Identity));
                 }
             }
         }

@@ -82,8 +82,48 @@ maintains this file; Phase L consumes it.
 
 ## Defects and limitations (Phase L queue)
 
-0j. **Reference-node restoration is captured and attempted but does not land in
-   the live graph** (2026-08-02). The removal ledger now captures each deleted
+0j. **RESOLVED 2026-08-02, and every hypothesis about it was wrong.** The node
+   was landing in the live graph the whole time. The diagnostic that settled it
+   was the ledger's own output: `reference_nodes_removed
+   ["EventGraph.K2Node_VariableGet_6"]` against `reference_nodes_restored
+   ["EventGraph.K2Node_VariableGet_7"]`. Graph lookup, insertion, pin
+   allocation and compile all worked; the recreated node is a NEW UObject and
+   gets a new name, and the verification compared **object names**. The
+   restore was correct and the report called it a failure.
+
+   A false negative in a rollback report is not harmless: it makes a working
+   restore look like data loss, which is the same class of error as the false
+   positive 0g was fixed to remove, pointing the other way.
+
+   Comparison is now by structural identity - graph name, node class,
+   referenced variable, node position - with object names deliberately absent
+   from it. `rollback_succeeded` is true only after that comparison passes, and
+   the sabotage direction still works: a node that genuinely fails to return
+   produces a mismatch and a false flag.
+
+   Worth keeping: none of the eight hypotheses in the session goal (stale graph
+   pointer, EventGraph reconstruction, node not added to Graph->Nodes, wrong
+   outer, ordering, recompile removing it, missing AllocateDefaultPins) was
+   the cause. Reading the evidence that already existed beat testing any of
+   them.
+
+0k. **A failing build's graph rebuild is not undone by the removal rollback**
+   (2026-08-02, scoped out of 0j). `clear_existing_graph` defaults true, so a
+   failing request replaces the whole event graph from its own spec before the
+   failure is detected. Nodes that the ledger never captured - because their
+   variables were not being removed - are dropped by that rebuild and not
+   restored. Measured: a pre-request graph with `getA` (reading `KeptA`, which
+   survives) and `getVictim` (reading the removed variable) comes back from
+   rollback with `getVictim` only.
+
+   This is the failing build replacing the graph, not the removal rollback
+   losing it, and the two should not be conflated. Restoring the exact
+   pre-request graph needs either a whole-graph snapshot before the build or,
+   better and in line with the removal fix, deferring the destructive graph
+   replacement until the build has succeeded. Not attempted here.
+
+0j-original. **Reference-node restoration is captured and attempted but does not land in
+   the live graph** (2026-08-02, superseded above). The removal ledger now captures each deleted
    reference node whole - class, name, position, comment, graph, variable
    reference, pin defaults and every pin link - and recreates it on the failure
    path from the ledger rather than from the incoming spec, which is the right
