@@ -90,9 +90,39 @@ generated code has never been compiled. Recorded as unverified, not claimed.
 | `5edf2e7` | Two-editor workflow runbook | Documentation only; describes behaviour proven in `2fa0bca` |
 | `1b75267` | Canonical structural hash on Blueprint graph inspect | Live: present, stable across two reads, different for a different graph |
 
+### Wave two, salvage
+
+All three wave-two lanes stopped with their work **uncommitted** in their
+worktrees. Nothing was lost and nothing was rewritten: each lane's work was
+committed to its own branch as-is, WIP labelled as WIP, before anything else
+happened.
+
+| Lane | Salvaged at | State found |
+|---|---|---|
+| D | `519d732` | Complete and green. Benchmark harness, order-statistic reducer, results schema, 20 editor-free checks passing. |
+| E | `92c81ae` | Partial. Shared member snapshot and the `graph_inspect` refactor onto it exist; `blueprint_member_patch` referenced in its own comments does not exist yet, and nothing was compiled. |
+| F | `c3c8220` | Partial. Manifest schema versioning landed, with no test for any of its three refusal paths. |
+
+Salvaging before relaunching is the point. A lane that is resumed from its own
+committed state cannot silently lose the half it already got right, and the
+commit messages carry the WIP boundary so no later reader mistakes a partial
+lane for a finished one.
+
 ### Rejected claims
 
-None yet. The one claim that would have been rejected was caught before it was
+| Claim | Source | Verdict |
+|---|---|---|
+| `engine_source_search` and `engine_source_read` are `live_verified` | `docs/TOOL_CAPABILITY_METADATA.json` | **Was unsupported.** Both carried `verification: live_verified` with an EMPTY `live_evidence` array, and only `search` was reachable from any script. Resolved by producing the evidence rather than lowering the claim (`516abba`): both now run in `mcp-smoke.mjs` against the real 4.27 install, 11 passed / 0 failed / 1 skipped. |
+| "Only BridgeInstallTest and Tests/UE427PuerTSMCP are installed targets" | `PROJECT_FINISH_SCOREBOARD.json` blocker `shared_test_project_and_editor_cap` | **False.** `Tests/UE427PuerTSMCP` does not exist on disk at all. There is exactly ONE installed target, `BridgeInstallTest`, and `install:check` reports it current from `ad75398`. Every live proof this wave serialises through that one project. |
+
+The `engine_source_*` case is the same failure the program was set up to catch,
+found on the inside rather than in a lane report. The first version of its new
+path-traversal check was itself a false green: with no `UE_ENGINE_ROOT` the
+reader refuses because it cannot find the engine, and that refusal arrives
+whether or not the guard exists, so the check passed while proving nothing. It
+now passes only on the guard's own refusal and SKIPs otherwise.
+
+The one claim that would have been rejected in wave one was caught before it was
 made: `puerts_blueprint_graph_patch` compiles, wires end to end and passes
-`npm run verify`, and none of that is evidence the command works. It is recorded
-as `implemented` with an empty `live_evidence` array.
+`npm run verify`, and none of that is evidence the command works. It was
+recorded as `implemented` with an empty `live_evidence` array.
