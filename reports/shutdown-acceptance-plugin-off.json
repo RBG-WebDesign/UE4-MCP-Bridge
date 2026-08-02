@@ -1,0 +1,41 @@
+﻿{
+    "case":  "plugin-off",
+    "iteration":  1,
+    "build_before_ok":  true,
+    "build_before_seconds":  3.3,
+    "cleared_before_build":  [
+                                 "UE4Editor-BridgeInstallTest.dll",
+                                 "UE4Editor-MCPBridgeClothOptimizer.dll",
+                                 "UE4Editor-MCPBridgeEditorPanel.dll",
+                                 "UE4Editor-MCPBridgeGraphBuilder.dll",
+                                 "UE4Editor-MCPBridgePIEAgent.dll",
+                                 "UE4Editor-MCPBridgePuerTS.dll"
+                             ],
+    "startup_complete_seconds":  24.2,
+    "bridge_initialised":  false,
+    "client_connected":  false,
+    "client_detail":  "no client for this case",
+    "bt_smoke_ok":  null,
+    "shutdown_start":  "2026-08-01T18:33:24.1482347-07:00",
+    "save_prompt_dismissed":  false,
+    "shutdown_callbacks":  [
+
+                           ],
+    "subsystem_cleanup":  "[2026.08.02-01.33.26:946][ 47]LogExit: Exiting.",
+    "close_seconds":  4.1,
+    "process_exited":  true,
+    "pipe_remaining":  [
+                           "",
+                           "",
+                           "",
+                           ""
+                       ],
+    "advertisement_remaining":  false,
+    "locked_binaries":  {
+
+                        },
+    "build_after_ok":  true,
+    "build_after_seconds":  0.7,
+    "build_after_tail":  "",
+    "log_path":  "D:\\Unreal Projects\\BridgeInstallTest\\Saved\\Logs\\BridgeInstallTest_8.log"
+}

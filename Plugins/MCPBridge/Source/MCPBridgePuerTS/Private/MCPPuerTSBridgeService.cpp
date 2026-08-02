@@ -28,6 +28,12 @@ namespace
 {
 const TCHAR* BridgeConfigSection = TEXT("MCPPuerTSBridge");
 
+/** Where Initialize advertises the live pipe name and where Shutdown retracts it. */
+FString GetPipeAdvertisePath()
+{
+    return FPaths::ProjectSavedDir() / TEXT("MCPPuerTSBridge") / TEXT("pipe.txt");
+}
+
 TArray<TSharedPtr<FJsonValue>> ToJsonArray(const TArray<FString>& Values)
 {
     TArray<TSharedPtr<FJsonValue>> Result;
@@ -176,8 +182,7 @@ bool UMCPPuerTSBridgeService::Initialize(FString& OutError)
     // Advertise the active pipe name beside the token so a client can discover
     // it from the project root alone, whatever [MCPPuerTSBridge] renamed it to.
     // Best effort: the MCP_PUERTS_PIPE override still works without this file.
-    const FString PipeAdvertisePath =
-        FPaths::ProjectSavedDir() / TEXT("MCPPuerTSBridge") / TEXT("pipe.txt");
+    const FString PipeAdvertisePath = GetPipeAdvertisePath();
     if (!FFileHelper::SaveStringToFile(PipeName, *PipeAdvertisePath, FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM))
     {
         UE_LOG(LogMCPPuerTSBridge, Warning,
@@ -197,7 +202,22 @@ void UMCPPuerTSBridgeService::Shutdown()
 {
     bRuntimeReady = false;
     RuntimeToolCount = 0;
+    const bool bHadActiveCommand = !ActiveCommandId.IsEmpty();
     EndActiveCommand();
+
+    // Retract the advertisement Initialize wrote. Without this the file outlives the
+    // editor, and the next client to read the project root is handed the pipe name of
+    // a session that no longer exists.
+    const FString PipeAdvertisePath = GetPipeAdvertisePath();
+    const bool bWasAdvertised = IFileManager::Get().FileExists(*PipeAdvertisePath);
+    const bool bRetracted =
+        bWasAdvertised && IFileManager::Get().Delete(*PipeAdvertisePath, false, false, true);
+
+    UE_LOG(LogMCPPuerTSBridge, Display,
+        TEXT("MCPBridge lifecycle: service shutdown, pending command %s, pipe advertisement %s."),
+        bHadActiveCommand ? TEXT("cancelled") : TEXT("none"),
+        bWasAdvertised ? (bRetracted ? TEXT("retracted") : TEXT("COULD NOT BE DELETED")) : TEXT("already absent"));
+
     if (GLog != nullptr && LogCapture != nullptr)
     {
         GLog->RemoveOutputDevice(LogCapture.Get());

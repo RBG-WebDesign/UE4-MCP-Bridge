@@ -1,0 +1,43 @@
+﻿{
+    "case":  "bt-smoke",
+    "iteration":  1,
+    "build_before_ok":  true,
+    "build_before_seconds":  0.6,
+    "cleared_before_build":  {
+
+                             },
+    "startup_complete_seconds":  24.2,
+    "bridge_initialised":  true,
+    "client_connected":  true,
+    "client_detail":  "Native PuerTS diagnostic complete.",
+    "bt_smoke_ok":  true,
+    "shutdown_start":  "2026-08-01T18:53:43.3924824-07:00",
+    "save_prompt_dismissed":  false,
+    "shutdown_callbacks":  [
+                               "[2026.08.02-01.53.43:640][691]LogMCPPuerTSBridgeModule: Display: MCPBridge lifecycle: shutdown begin (trigger: OnEnginePreExit).",
+                               "[2026.08.02-01.53.43:641][691]LogMCPPuerTSBridgeModule: Display: MCPBridge lifecycle: releasing the PuerTS script environment.",
+                               "[2026.08.02-01.53.43:643][691]LogMCPPuerTSBridgeModule: Display: MCPBridge lifecycle: PuerTS script environment released after 0.003 s.",
+                               "[2026.08.02-01.53.43:644][691]LogMCPPuerTSBridge: Display: MCPBridge lifecycle: service shutdown, pending command none, pipe advertisement retracted.",
+                               "[2026.08.02-01.53.43:644][691]LogMCPPuerTSBridgeModule: Display: MCPBridge lifecycle: bridge service released.",
+                               "[2026.08.02-01.53.43:644][691]LogMCPPuerTSBridgeModule: Display: MCPBridge lifecycle: shutdown complete in 0.003 s.",
+                               "[2026.08.02-01.53.43:644][691]LogMCPBridgePIEAgentModule: Display: MCPBridge lifecycle: PIE agent shutdown begin (trigger: OnEnginePreExit).",
+                               "[2026.08.02-01.53.43:644][691]LogMCPBridgePIEAgentModule: Display: MCPBridge lifecycle: PIE agent runtime released, ticker and log sink unregistered."
+                           ],
+    "subsystem_cleanup":  "[2026.08.02-01.53.45:640][691]LogExit: Exiting.",
+    "close_seconds":  4.1,
+    "process_exited":  true,
+    "pipe_remaining":  [
+                           "",
+                           "",
+                           "",
+                           ""
+                       ],
+    "advertisement_remaining":  false,
+    "locked_binaries":  {
+
+                        },
+    "build_after_ok":  true,
+    "build_after_seconds":  0.7,
+    "build_after_tail":  "",
+    "log_path":  "D:\\Unreal Projects\\BridgeInstallTest\\Saved\\Logs\\BridgeInstallTest_4.log"
+}

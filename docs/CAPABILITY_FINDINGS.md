@@ -1,4 +1,4 @@
-# Capability findings
+﻿# Capability findings
 
 Live probe results against the UE427PuerTSMCP editor. Each entry states what
 was observed, with the reproduction. Phase P of docs/MASTERY_PLAN_2026-07-31.md
@@ -123,15 +123,120 @@ maintains this file; Phase L consumes it.
    Builder-side work; the tool description now documents the real key names
    and points at the inspector for verification.
 
-0f. **Editor teardown hang is not (only) the source-control modal**
-   (2026-08-01 evening). A clean editor with no dirty packages, in a project
-   OUTSIDE the p4 workspace (BridgeInstallTest), hung on graceful close
-   exactly like the 0c cases and was equally unkillable. Every hung editor
-   has run the bridge plugin; the embedded PuerTS/Node runtime or the named
-   pipe server thread failing to release at teardown is now the leading
-   suspect for the hang itself, with the 0c save/p4 flow explaining what gets
-   PERSISTED during the hang, not the hang. Reproduction is cheap (close any
-   bridge editor); the pipe-suffix-bump recovery works every time.
+0f. **FIXED 2026-08-01. Editor teardown hang: MCPBridgePIEAgent cleaned up too
+   late.** Kept in full, including the wrong first answer, because the earlier
+   entries in this file blamed the wrong component for three sessions.
+
+   **Symptom.** A graceful editor close destroys the window and sets the
+   process exit code, and then the process never finishes exiting. It keeps
+   its named pipe listening, keeps `Saved/Logs/<Project>.log` open (which is
+   why a later editor writes `<Project>_2.log`), and keeps every
+   `Plugins/MCPBridge/Binaries/Win64/*.dll` locked, so the project cannot be
+   rebuilt. `taskkill /PID <id> /F /T` answers `There is no running instance
+   of the task` and `Stop-Process -Force` silently does nothing. Only a
+   reboot clears it.
+
+   **Where it stopped.** Every graceful-close log, across both projects, ends
+   on exactly the same line:
+
+   ```
+   LogExit: Object subsystem successfully closed.
+   ```
+
+   That is `StaticExit` (`Obj.cpp:4588`), bound to `FCoreDelegates::OnExit`
+   and broadcast from `AppPreExit` (`LaunchEngineLoop.cpp:5805`). Everything
+   after it is log-silent, which is why the window went unexamined for so
+   long. The one log that ever reached `Log file closed` got there through
+   `FPlatformMisc::RequestExit(1)` after an assert, which skips
+   `FEngineLoop::Exit()` entirely.
+
+   **Root cause.** `FMCPBridgePIEAgentModule::StartupModule` creates a
+   `UPIEAgentRuntime`, roots it, and calls `Initialize`, which registers two
+   things that outlive the object unless explicitly removed
+   (`PIEAgentRuntime.cpp:97-106`):
+
+   - a core ticker bound to it with `FTickerDelegate::CreateUObject`
+   - an `FOutputDevice` (`FPIEAgentLogSink`) handed to `GLog`, whose backing
+     memory that same UObject owns through a `TUniquePtr`
+
+   Both were removed only in `ShutdownModule`, which UE4.27 calls from
+   `FModuleManager::UnloadModulesAtShutdown` (`LaunchEngineLoop.cpp:4294`) -
+   **after** `StaticExit` has destroyed every UObject. So from `StaticExit`
+   onward, `GLog` holds a freed log sink whose `Owner` is a destroyed
+   `UPIEAgentRuntime`, and the core ticker holds a delegate to the same dead
+   object. The editor stops on the very line `StaticExit` emits.
+
+   **The measurement that found it.** `Scripts/editor-shutdown-acceptance.ps1`
+   builds, launches, optionally exercises the bridge, closes the window
+   normally, waits for the process to disappear, and builds again. Before the
+   fix:
+
+   | Case | MCPBridge | Puerts | FJsEnv created | Close |
+   |---|---|---|---|---|
+   | `bare` | off | off | no | 4.1 s |
+   | `plugin-off` | off | **on** | no | 4.1 s |
+   | `puerts-idle` | on, inert via `-MCPPuerTSBridgeDisabled` | on | **no** | never exits |
+   | `bridge-idle` | on | on | yes | never exits |
+
+   Puerts alone is innocent, and `FJsEnv` is irrelevant: `puerts-idle` never
+   creates one and still hangs. Removing only `MCPBridgePIEAgent` from
+   `MCPBridge.uplugin`, with the whole rest of the bridge running and its pipe
+   up, closed in 4.1 s. That is the isolation.
+
+   **A wrong answer worth recording.** The first fix moved the *PuerTS*
+   teardown to `OnEnginePreExit`, on the theory that
+   `FJsEnvImpl::~FJsEnvImpl` was blocking - `StopPolling` waits on a task it
+   dispatched to the game thread (`JsEnvImpl.cpp:187`, `:322`), and
+   `node::FreeEnvironment` must pump libuv until the `net.createServer` pipe
+   handle that `bootstrap.ts` never closes goes away. The lifecycle logging
+   added at the same time disproved it in one run: **the script environment
+   released in 0.003 s** and the editor hung anyway. The evidence that had
+   pointed at PuerTS - three exited editors whose pipes still accepted
+   connections - was a consequence of the hang, not its cause. A process that
+   never finishes exiting keeps every handle it owns, pipes included.
+
+   Two measurement mistakes are recorded here because both produced confident
+   wrong answers. First, the harness treated "a window titled Unreal Editor
+   exists" and the bridge's own module-startup line as readiness; both fire
+   during startup, so three early runs closed editors mid-initialisation and
+   one of them made a bridge-free editor look like it hung. Readiness is now
+   `LogLoad: (Engine Initialization) Total time:` plus a settle. Second, those
+   mid-startup closes were ignored rather than obeyed, leaving fully loaded
+   editors running that then owned the configured pipe name, so a later
+   read-only probe connected to the wrong editor and blocked forever. The
+   probe now has a bounded read.
+
+   **Fix.** Release from `FCoreDelegates::OnEnginePreExit`, broadcast at the
+   top of `UEngine::PreExit` (`UnrealEngine.cpp:1878`), reached from
+   `FEngineLoop::Exit` line 4208 - while the object system is up and the
+   ticker and `GLog` are still valid. `ShutdownModule` keeps the same
+   idempotent release as a fallback for a module unloaded on its own (hot
+   reload, plugin disable), where `OnEnginePreExit` never fires. Applied to
+   `MCPBridgePIEAgent`, which is the one that hung, and to `MCPBridgePuerTS`,
+   which was releasing `FJsEnv` and calling `Service->RemoveFromRoot()` after
+   `StaticExit` had closed the object subsystem - latent rather than fatal,
+   but wrong for the same reason. `UMCPPuerTSBridgeService::Shutdown` now also
+   deletes `Saved/MCPPuerTSBridge/pipe.txt`, so a closed editor stops
+   advertising its pipe to the next client.
+
+   **Result, 2026-08-01, BridgeInstallTest.** Five consecutive
+   `bridge-idle` iterations: close 4.1 s each, `process_exited` true, zero
+   locked plugin DLLs, no surviving advertisement, build ok after every one.
+   `read-only` (a `diagnostic` command completed over the pipe) and `bt-smoke`
+   (`npm run smoke:bt` passed) both closed in 4.1 s. `puerts-idle`, the
+   smallest case that used to reproduce, now closes in 4.1 s.
+
+   The four pipes still listed on this machine belong to editors that hung
+   *before* the fix; they survive until reboot. No editor running the fix has
+   left one, which is checked per iteration.
+
+   Recovery for an editor already in this state: reboot, or bump
+   `[MCPPuerTSBridge] PipeName` and relaunch, since pipe.txt discovery routes
+   clients to the new editor automatically. A machine already carrying such
+   processes can still build without rebooting: Windows refuses to overwrite
+   their locked DLLs but does allow them to be RENAMED, which frees the path
+   for the linker. The harness does this before its own build, never before
+   the build it measures.
 
 0b. **MultiGate ignores num_outputs** (found 2026-08-01 by the same
    acceptance). `{"type": "MultiGate", "params": {"num_outputs": 4}}` builds a

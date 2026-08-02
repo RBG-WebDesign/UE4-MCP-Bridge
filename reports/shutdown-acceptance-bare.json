@@ -1,0 +1,31 @@
+﻿{
+    "case":  "bare",
+    "iteration":  1,
+    "build_before_ok":  true,
+    "build_before_seconds":  6.9,
+    "cleared_before_build":  {
+
+                             },
+    "startup_complete_seconds":  24.2,
+    "bridge_initialised":  false,
+    "client_connected":  false,
+    "client_detail":  "no client for this case",
+    "bt_smoke_ok":  null,
+    "shutdown_start":  "2026-08-01T18:59:50.5959543-07:00",
+    "save_prompt_dismissed":  false,
+    "shutdown_callbacks":  [
+
+                           ],
+    "subsystem_cleanup":  "[2026.08.02-01.59.54:395][ 47]LogExit: Exiting.",
+    "close_seconds":  4.1,
+    "process_exited":  true,
+    "pipe_remaining":  "UE427PuerTSMCP_UE427PuerTSMCP_81d778e7_skyshader5, UE427PuerTSMCP_UE427PuerTSMCP_81d778e7_skyshader6, UE427PuerTSMCP_BridgeInstallTest_eb10ef4f, UE427PuerTSMCP_BridgeInstallTest_eb10ef4f_bt2",
+    "pipe_remaining_count":  4,
+    "advertisement_remaining":  false,
+    "locked_binaries":  "",
+    "locked_binary_count":  0,
+    "build_after_ok":  true,
+    "build_after_seconds":  0.6,
+    "build_after_tail":  "",
+    "log_path":  "D:\\Unreal Projects\\BridgeInstallTest\\Saved\\Logs\\BridgeInstallTest_4.log"
+}
