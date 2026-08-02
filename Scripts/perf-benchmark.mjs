@@ -18,6 +18,13 @@
  *   --baseline <file>    an earlier results file to compare against
  *   --include-save       add the save scenario (writes to disk)
  *   --include-screenshot add the screenshot scenario (writes a PNG)
+ *   --include-compile    add the compile pair and the authoring workflow. Runs
+ *                        puerts_blueprint_build against --blueprint, which
+ *                        CREATES that asset if it does not exist.
+ *   --include-pie        add the Play In Editor cycle. AGENTS.md requires the
+ *                        user to ask for PIE, so this is never on by default.
+ *   --blueprint <path>   the Blueprint the compile and authoring scenarios use,
+ *                        default /Game/MCPGenerated/BP_BridgePerfFixture
  *   --no-write           print the report, do not write a file
  *
  * Exit codes: 0 measured and written, 2 refused (no editor addressed, or the
@@ -34,7 +41,10 @@ import { hostname, cpus, platform, totalmem } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { requireCurrentInstall } from "./bridge-install.mjs";
-import { buildRunReport, compareRuns, describeRefusal, runScenario, validateRunReport } from "./perf-stats.mjs";
+import {
+  buildRunReport, compareRuns, deriveEditorStartupScenario, describeRefusal,
+  runPieCycleScenario, runScenario, runWorkflowScenario, validateRunReport,
+} from "./perf-stats.mjs";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const serverPath = join(root, "mcp-server", "dist", "index.js");
@@ -50,6 +60,9 @@ const iterations = Number(flag("--runs", 20));
 const warmup = Number(flag("--warmup", 3));
 const includeSave = argv.includes("--include-save");
 const includeScreenshot = argv.includes("--include-screenshot");
+const includeCompile = argv.includes("--include-compile");
+const includePie = argv.includes("--include-pie");
+const fixtureBlueprint = String(flag("--blueprint", "/Game/MCPGenerated/BP_BridgePerfFixture"));
 const writeFile = !argv.includes("--no-write");
 if (!Number.isInteger(iterations) || iterations < 1) throw new Error("--runs must be a positive integer");
 if (!Number.isInteger(warmup) || warmup < 0) throw new Error("--warmup must be zero or a positive integer");
@@ -147,6 +160,28 @@ try {
     else mutationSkip = `bHidden is not readable on ${actorName}: ${(read.result.errors ?? []).join("; ")}`;
   }
 
+  // A Blueprint to inspect. Discovery rather than a hardcoded fixture, because
+  // graph_inspect is read-only and any project Blueprint measures the same path;
+  // requiring a fixture would skip this scenario on every project that has not
+  // run the acceptance scripts.
+  const blueprints = await call("puerts_find_assets", { path: "/Game", type: "Blueprint", recursive: true, limit: 1 });
+  const firstBlueprint = String(blueprints.result.data?.assets?.[0]?.path ?? "");
+  const inspectSkip = firstBlueprint ? "" : "no Blueprint under /Game to inspect";
+
+  // The compile and authoring scenarios write. blueprint_build is convergent, so
+  // re-running the same spec against an existing asset changes nothing, but the
+  // first run CREATES the fixture. That is a mutation, so it is opt-in.
+  const compileSkip = includeCompile
+    ? ""
+    : `not requested; pass --include-compile (it runs puerts_blueprint_build against ${fixtureBlueprint} and creates it if absent)`;
+  const fixtureSpec = (compile) => ({
+    asset_path: fixtureBlueprint,
+    parent_class: "Actor",
+    compile,
+    save: false,
+    clear_existing_graph: false,
+  });
+
   const specs = [
     {
       name: "diagnostic",
@@ -187,6 +222,45 @@ try {
       skip: mutationSkip || undefined,
     },
     {
+      name: "graph_inspect",
+      tool: "puerts_graph_inspect",
+      args: { asset_path: firstBlueprint, include_pins: false },
+      layer: "client_round_trip",
+      targetBasis: "the read half of the authoring loop. Every desired-state build is verified with this, "
+        + "so its cost is paid on every authoring job, not only on reads",
+      skip: inspectSkip || undefined,
+    },
+    {
+      name: "graph_inspect_with_pins",
+      tool: "puerts_graph_inspect",
+      args: { asset_path: firstBlueprint, include_pins: true },
+      layer: "serialization",
+      targetBasis: "the same query with pin data. The difference against graph_inspect is what pin "
+        + "serialization costs, which is the largest payload the inspectors produce",
+      skip: inspectSkip || undefined,
+    },
+    // The compile pair. Neither number means much alone; the difference between
+    // them is the Blueprint compile, which is otherwise buried inside the build
+    // command's total and is the single largest cost in an authoring job.
+    {
+      name: "blueprint_build_no_compile",
+      tool: "puerts_blueprint_build",
+      args: fixtureSpec(false),
+      layer: "client_round_trip",
+      targetBasis: "convergent no-op build with compile off. The control for blueprint_build_compile",
+      skip: compileSkip || undefined,
+    },
+    {
+      name: "blueprint_build_compile",
+      tool: "puerts_blueprint_build",
+      args: fixtureSpec(true),
+      layer: "compile",
+      targetBasis: "the same no-op build with compile on. blueprint_build_compile minus "
+        + "blueprint_build_no_compile is FKismetEditorUtilities::CompileBlueprint "
+        + "(BlueprintGraphBuilderLibrary.cpp:1950), which the bridge cannot time separately today",
+      skip: compileSkip || undefined,
+    },
+    {
       name: "save_level",
       tool: "puerts_save",
       args: {},
@@ -204,15 +278,79 @@ try {
     },
   ];
 
+  // Workflows. The number that matters here is round_trips_per_iteration, not
+  // the milliseconds: AGENTS.md's product goal is the fewest editor round trips,
+  // and a change that halves per-call latency while doubling the call count is a
+  // regression that only this count can see.
+  const workflowSpecs = [
+    {
+      name: "workflow_survey_project",
+      targetBasis: "what it costs an agent to orient itself in a project it has not seen: which editor, "
+        + "what is in the level, what Blueprints exist, and what one of them contains. Four round trips",
+      skip: inspectSkip || undefined,
+      steps: [
+        { name: "identify_editor", tool: "puerts_diagnostic", args: { actor_limit: 1 } },
+        { name: "list_actors", tool: "puerts_find_actors", args: { limit: 500 } },
+        { name: "list_blueprints", tool: "puerts_find_assets", args: { path: "/Game", type: "Blueprint", recursive: true, limit: 100 } },
+        { name: "read_one_graph", tool: "puerts_graph_inspect", args: { asset_path: firstBlueprint, include_pins: false } },
+      ],
+    },
+    {
+      name: "workflow_author_and_verify",
+      targetBasis: "the fast path AGENTS.md describes: state the desired Blueprint, compile it, and read it "
+        + "back with an independent inspector. Three round trips. The slow path it replaces is "
+        + "create-node, inspect, connect-pin, inspect, set-property, inspect",
+      skip: compileSkip || undefined,
+      steps: [
+        { name: "plan", tool: "puerts_blueprint_build", args: { ...fixtureSpec(false), plan_only: true } },
+        { name: "apply_and_compile", tool: "puerts_blueprint_build", args: fixtureSpec(true) },
+        { name: "verify", tool: "puerts_graph_inspect", args: { asset_path: fixtureBlueprint, include_pins: true } },
+      ],
+    },
+  ];
+
   const scenarios = [];
-  for (const spec of specs) {
-    process.stderr.write(`  running ${spec.name}...`);
-    const scenario = await runScenario(spec, { call, iterations, warmup });
+  const record = (scenario) => {
     scenarios.push(scenario);
     process.stderr.write(scenario.status === "measured"
       ? ` p50 ${scenario.client_round_trip_ms.p50.toFixed(2)} ms, p95 ${scenario.client_round_trip_ms.p95.toFixed(2)} ms\n`
       : ` skipped (${scenario.skip_reason})\n`);
+  };
+
+  for (const spec of specs) {
+    process.stderr.write(`  running ${spec.name}...`);
+    record(await runScenario(spec, { call, iterations, warmup }));
   }
+  for (const spec of workflowSpecs) {
+    process.stderr.write(`  running ${spec.name}...`);
+    record(await runWorkflowScenario(spec, { call, iterations, warmup }));
+  }
+
+  // Read from the manifest the editor already publishes rather than restarting
+  // anything: this harness is not allowed to launch an editor, and the manifest
+  // carries the process creation time and the moment the bridge went live.
+  process.stderr.write("  deriving editor_startup_to_bridge_ready...");
+  let session = {};
+  try {
+    session = JSON.parse(readFileSync(join(projectRoot, "Saved", "MCPPuerTSBridge", "session.json"), "utf-8"));
+  } catch (error) {
+    session = { unreadable: String(error) };
+  }
+  record(deriveEditorStartupScenario(session));
+
+  // Last, because it changes what world the editor is in and everything above
+  // is editor-only. AGENTS.md requires the user to ask before PIE starts.
+  process.stderr.write("  running pie_cycle...");
+  record(await runPieCycleScenario(
+    {
+      name: "pie_cycle",
+      targetBasis: "start request, time until a PIE world really exists, stop request, time until the "
+        + "editor world is back. The request round trips alone would be meaningless: RequestPlaySession "
+        + "only queues, so pie_start returns in the time it takes to set a flag",
+      skip: includePie ? undefined : "not requested; pass --include-pie, and AGENTS.md requires the user to ask for PIE first",
+    },
+    { call, sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)) },
+  ));
 
   const finishedAt = new Date();
   const report = buildRunReport({
@@ -223,7 +361,7 @@ try {
       finished_at: finishedAt.toISOString(),
       iterations,
       warmup,
-      notes: "One machine, one editor session. Not a baseline until docs/PERFORMANCE.md's baseline conditions are met.",
+      notes: "One machine, one editor session. Not a baseline until docs/PERF_AND_LONG_JOBS.md's baseline conditions are met.",
     },
     environment: {
       host: hostname(),
@@ -270,8 +408,12 @@ try {
     if (scenario.status !== "measured") { console.log(`  SKIP  ${scenario.name}: ${scenario.skip_reason}`); continue; }
     const s = scenario.client_round_trip_ms;
     const verdict = scenario.target_met === null ? "" : (scenario.target_met ? "  TARGET MET" : "  TARGET MISSED");
+    const trips = scenario.round_trips_per_iteration === 1 ? "" : `  ${scenario.round_trips_per_iteration} round trips`;
     console.log(`  ${scenario.name}: p50 ${s.p50.toFixed(2)}  p95 ${s.p95.toFixed(2)}  max ${s.max.toFixed(2)} ms`
-      + `  (n=${s.count})${verdict}`);
+      + `  (n=${s.count})${trips}${verdict}`);
+    for (const step of scenario.steps ?? []) {
+      console.log(`      ${step.name}: p50 ${step.client_round_trip_ms.p50.toFixed(2)} ms`);
+    }
   }
   console.log(`\n  round trips: ${report.totals.round_trips}, wall ${report.totals.wall_ms.toFixed(0)} ms`);
 

@@ -4,14 +4,20 @@ How the bridge is measured, what a benchmark run consists of, how runs are
 compared, what the targets are, and what would have to change before a job that
 outlives a command timeout can report progress or be cancelled.
 
-Two things this document is careful about:
+Three things this document is careful about:
 
 - The numbers in `docs/UE427_PUERST_MCP_HANDOFF_2026-07-31.md` section 9 are
-  **observations**, not baselines. Section "Observations are not baselines"
-  below says exactly what would make them baselines.
-- Progress and cancellation for long jobs **do not exist**, and cannot be built
-  inside the current command model. The last section says why, with the code
-  that makes it true, and specifies the change that would be required.
+  **observations**, not baselines. Section 5 says exactly what would make them
+  baselines.
+- A scenario that cannot run is recorded as skipped with its reason. Nothing in
+  the harness reports a zero for work that did not happen.
+- Progress and cancellation for long jobs **do not exist today**. Section 6
+  answers whether they are possible at all, with a file and line for every
+  claim about how the command queue behaves, and ships no API, because an API
+  that cannot report progress is worse than none.
+
+The runbook for producing a results file against a live editor is
+`docs/evidence/PERF_RUNBOOK.md`.
 
 ## 1. The layers, and what each one can be measured at
 
@@ -72,37 +78,92 @@ that dominates max.
 
 ### Scenarios
 
-| Scenario | Tool | Layer under test | Target |
+Per-command scenarios. One round trip per iteration, `--runs` iterations each.
+
+| Scenario | Tool | Layer under test | Target / gate |
 |---|---|---|---|
 | `diagnostic` | `puerts_diagnostic` | round-trip floor with a near-empty payload | none |
 | `find_actors_500` | `puerts_find_actors` limit 500 | level query | p95 < 50 ms |
 | `find_assets_blueprints` | `puerts_find_assets` | asset registry scan | none, recorded for regressions |
 | `read_property_bHidden` | `puerts_read_property` | reflected read | none |
 | `set_property_bHidden` | `puerts_set_property` | transacted mutation | p95 < 100 ms |
-| `save_level` | `puerts_save` | package write | none; `--include-save` |
-| `viewport_screenshot` | `puerts_viewport_screenshot` | render thread capture | none; `--include-screenshot` |
+| `graph_inspect` | `puerts_graph_inspect` | Blueprint read, no pins | none |
+| `graph_inspect_with_pins` | `puerts_graph_inspect` | the same read with pin serialization | none |
+| `blueprint_build_no_compile` | `puerts_blueprint_build` | convergent no-op build, compile off | `--include-compile` |
+| `blueprint_build_compile` | `puerts_blueprint_build` | the same build with compile on | `--include-compile` |
+| `save_level` | `puerts_save` | package write | `--include-save` |
+| `viewport_screenshot` | `puerts_viewport_screenshot` | render thread capture | `--include-screenshot` |
 
-`set_property_bHidden` writes `bHidden` back to the value it already holds.
-`Actor.bHidden` is on the native writable allowlist, so this exercises the full
-mutation path (transaction open, `Modify`, `PostEditChangeProperty`,
-`MarkPackageDirty`, transaction close) without changing what the level looks
-like. **It does dirty the level package.** The default run does not save; the
-save scenario is opt-in because it writes to disk.
+Composed scenarios. One iteration is a whole sequence, and the headline number
+is the round-trip count.
 
-Scenarios that need a live actor are skipped, with the reason recorded, when
-the level has none.
+| Scenario | Shape | Round trips | Gate |
+|---|---|---|---|
+| `workflow_survey_project` | diagnostic, find_actors, find_assets, graph_inspect | 4 | needs one Blueprint under `/Game` |
+| `workflow_author_and_verify` | build plan_only, build with compile, graph_inspect | 3 | `--include-compile` |
+| `pie_cycle` | start, poll to a PIE world, stop, poll back to the editor world | variable, counted | `--include-pie` |
+| `editor_startup_to_bridge_ready` | derived from the session manifest | 0 | always |
+
+Notes that change how the numbers should be read:
+
+- `set_property_bHidden` writes `bHidden` back to the value it already holds.
+  `Actor.bHidden` is on the native writable allowlist, so this exercises the
+  full mutation path (transaction open, `Modify`, `PostEditChangeProperty`,
+  `MarkPackageDirty`, transaction close) without changing what the level looks
+  like. **It does dirty the level package.** The default run does not save.
+- **The compile cost is a difference, not a measurement.**
+  `blueprint_build_compile` minus `blueprint_build_no_compile` is
+  `FKismetEditorUtilities::CompileBlueprint`
+  (`BlueprintGraphBuilderLibrary.cpp:1950`). The bridge cannot time the compile
+  separately today because nothing instruments inside the build command, so the
+  difference between two otherwise identical runs is the only honest way to get
+  it. Both are convergent no-op builds against the same fixture, so the only
+  thing that differs is the compile.
+- `--include-compile` **creates** `/Game/MCPGenerated/BP_BridgePerfFixture` if it
+  is absent. That is a mutation, which is why it is opt-in and why the fixture
+  path is overridable with `--blueprint`.
+- `pie_cycle` polls `puerts_physics_observe`, one of the three tools
+  `AcceptCommand` permits during play (`MCPPuerTSBridgeService.cpp:495-499`),
+  and waits for its `world` field (`MCPBridgePuerTSPhysics.cpp:298`) to flip.
+  Timing the `pie_start` round trip alone would be meaningless:
+  `RequestPlaySession` only queues (`MCPPuerTSBridgeService.cpp:1177`), and a
+  stop sent immediately after cancels the queued request rather than ending a
+  session (`:1193-1195`), so the pair would report a PIE session that never
+  happened. Every poll counts as a round trip.
+- `editor_startup_to_bridge_ready` is `created_at` minus `process_start_time`
+  from `Saved/MCPPuerTSBridge/session.json`: OS process creation
+  (`MCPPuerTSBridgeService.cpp:62-76`) to the moment the bridge first published
+  a session (`:290-292`). It measures an editor restart without performing one,
+  which matters because the harness is not permitted to launch editors. It is
+  one sample per editor session and cannot be repeated within a run.
+
+### Skipped is not zero
+
+A scenario that cannot run records `status: "skipped"` with a `skip_reason`, and
+carries no statistics at all. There is no path that writes a zero or an empty
+distribution for work that did not happen, because a zero sorts as the fastest
+result and a missing scenario is not a fast one.
+
+The reasons a scenario skips, all recorded verbatim: it was not requested, the
+level has no actor, the project has no Blueprint, a warm-up call failed, a
+measured iteration failed, a workflow step failed (named, with its index), PIE
+never became playable within the timeout, the editor was already playing, or the
+session manifest has no usable timestamp pair. A failure part way through a
+scenario skips the **whole** scenario rather than reporting a distribution over
+whichever iterations happened to succeed.
 
 ### Round trips
 
 The results file records `totals.round_trips`: every `tools/call` the run made,
-including probes and warm-ups. Round-trip count is the number the product goal
-in `AGENTS.md` is actually about. A change that halves per-call latency but
-doubles the number of calls has made the bridge slower, and only this number
-shows it.
+including probes, warm-ups and PIE readiness polls. Round-trip count is the
+number the product goal in AGENTS.md is actually about. A change that halves
+per-call latency but doubles the number of calls has made the bridge slower, and
+only this number shows it.
 
-Per-scenario `round_trips_per_iteration` is 1 for every scenario shipped here.
-It exists so a composed workflow scenario, added later, can honestly declare
-that one iteration cost five round trips.
+Per-scenario `round_trips_per_iteration` is 1 for the per-command scenarios, the
+step count for a workflow, and the real poll-inclusive count for `pie_cycle`.
+Workflows also carry a `steps[]` breakdown, so a workflow that got slower names
+the step that did it without another editor session.
 
 ## 3. Results file format
 
@@ -159,11 +220,17 @@ From handoff section 9, restated here as what the harness checks:
 information, and a harness that fails a build on it would be turned off. The
 integrator decides when a target becomes a gate.
 
-Native command timeouts are clamped between 100 ms and 30 s
-(`MCPPuerTSBridgeService.cpp`, `RequestTimeoutMilliseconds` clamp). The client's
-default round-trip budget is 7 s, raised per tool to 15 s for the inspectors and
-30 s for the builders. Anything that cannot finish inside 30 s cannot be a
-single native command at all; that is the subject of section 6.
+Timeouts, stated precisely because they are easy to misread as work deadlines:
+
+| Number | Where | What it actually bounds |
+|---|---|---|
+| 100 ms to 30 s clamp | `MCPPuerTSBridgeService.cpp:224` | the socket idle budget handed to `bootstrap.ts:71`. Not a work deadline. |
+| 7 s / 15 s / 30 s per tool | `mcp-server/src/tools/puerts.ts:615-626` | how long the **client** waits. The editor keeps working past it. |
+| `executionTimeoutMs` | `registry.ts:757-766` | nothing today. See section 6.1 F4. |
+
+Nothing aborts a running native command. Anything that cannot finish inside the
+client's budget is not a bounded operation, it is an unbounded one whose caller
+gave up; that is the subject of section 6.
 
 ## 5. Observations are not baselines
 
@@ -203,66 +270,188 @@ the section 9 numbers alone.
 
 ## 6. Long jobs: progress, cancellation and status
 
-**Answer: not achievable within the current command model. Progress and
-cancellation require a change to the command queue. This section specifies it
-and deliberately ships no API, because an API that reports no progress is worse
-than no API.**
+**Answer, in one line: progress is reachable with a change that does not touch
+the command queue; cancellation is not reachable at all for the operations that
+need it most, and no amount of client-side work changes either.**
 
-### The constraint, from the code
+The long form is below, with a file and line for every claim about how the queue
+behaves. Nothing here ships an API. An API that cannot report progress is worse
+than no API, because a caller that polls it learns nothing and concludes the job
+is stuck.
 
-Three facts, each read from the source rather than assumed:
+Reproduce the citations:
 
-1. **One command at a time, enforced natively.**
-   `UMCPPuerTSBridgeService::AcceptCommand` opens with:
+```bash
+git grep -n "ActiveCommandId.IsEmpty" Plugins/MCPBridge/Source/MCPBridgePuerTS
+git grep -n "commandQueue\|AcceptCommand\|setTimeout" puerts-runtime/src/bootstrap.ts
+git grep -cn "await " puerts-runtime/src/registry.ts        # expect 1
+```
 
-   ```cpp
-   if (!ActiveCommandId.IsEmpty())
-   {
-       ... BuildErrorResponse(TEXT("Bridge is busy."),
-           TEXT("Commands are serialized on the Unreal game thread."));
-   }
-   ```
+### 6.1 The model, from the source
 
-   Any second command while one is active is refused. A `job_status` call is a
-   second command.
+Six facts. Each was read out of the file named, not inferred from behaviour.
 
-2. **The runtime is single-threaded and pumped from the game thread.**
-   `JsEnv.Build.cs` declares `NOT_THREAD_SAFE`. `FJsEnvImpl::UvRunOnce` runs
-   `uv_run(&NodeUVLoop, UV_RUN_NOWAIT)` and is dispatched with
-   `ENamedThreads::GameThread` (`JsEnvImpl.cpp:188`). The Node event loop
-   therefore only turns when the game thread is free to turn it.
+**F1. One command at a time, refused in C++.**
+`UMCPPuerTSBridgeService::AcceptCommand` opens with a busy check
+(`MCPPuerTSBridgeService.cpp:415-421`):
 
-   This is the fact that kills naive progress. `puerts-runtime/src/bootstrap.ts`
-   uses `net.createServer`, so a second pipe connection is accepted at the
-   socket layer, and `commandQueue` chains the work. But while a long native
-   call is executing, the game thread is inside that call, `uv_run` is not
-   being reached, and the second socket's `data` event never fires. The status
-   query is not merely refused; it is not even read off the pipe until the work
-   it wants to report on has finished.
+```cpp
+if (!ActiveCommandId.IsEmpty())
+{
+    ... BuildErrorResponse(TEXT("Bridge is busy."),
+        TEXT("Commands are serialized on the Unreal game thread."));
+}
+```
 
-3. **The transaction is scoped to the command.**
-   `AcceptCommand` constructs `ActiveTransaction` as an `FScopedTransaction`;
-   `CompleteCommand` calls `EndActiveCommand`, which does
-   `ActiveTransaction.Reset()`. A command that returns early to free the pipe
-   also closes its transaction. Whatever the job does afterwards is outside it,
-   and outside the rollback and undo guarantees `AGENTS.md` requires of every
-   mutating tool.
+`ActiveCommandId` is set at `MCPPuerTSBridgeService.cpp:516` and cleared by
+`EndActiveCommand` at `1419-1430`, called from `CompleteCommand` at `597`. A
+`job_status` call is a second command, so this check alone refuses it.
 
-Together: **a long job cannot report progress or accept a cancel while it holds
-the game thread, no matter what is added on the client side.** Nothing in the
-MCP server or the TypeScript runtime can work around a blocked game thread.
+**F2. The script layer serializes before the C++ check is even reached.**
+`puerts-runtime/src/bootstrap.ts:44` holds `commandQueue: Promise<void>`, and
+`:86` chains every incoming line onto it. `AcceptCommand` is called from inside
+`executeLine` at `:49`. So a second request waits in the JavaScript chain and
+never reaches the busy check while the first is running. Two independent
+serialization points, one in each language.
 
-### What a client-side timeout does today, and why that is not cancellation
+**F3. The Node event loop turns on the game thread, and only when it is free.**
+`JsEnv.Build.cs:42,64` sets `ThreadSafe = false` and defines `NOT_THREAD_SAFE`.
+`FJsEnvImpl::StartPolling` dispatches `UvRunOnce` with
+`ENamedThreads::GameThread` (`JsEnvImpl.cpp:187-188`), and `UvRunOnce` calls
+`uv_run(&NodeUVLoop, UV_RUN_NOWAIT)` (`JsEnvImpl.cpp:233`). Both files live in
+the PuerTS bundle, which is gitignored; `Plugins/Puerts.lock.json` pins its
+contents, so these line numbers are stable for the pinned revision.
 
-`PuerTSClient.call` has a per-tool budget (7 s default, 30 s for builders). When
-it elapses, the client stops waiting. The editor does not stop working: the
+This is the fact that kills naive progress. `bootstrap.ts` uses
+`net.createServer`, so a second pipe connection is accepted by the OS. But while
+a long native call runs, the game thread is inside that call, `uv_run` is never
+reached, and the second socket's `data` event never fires. A status query is not
+merely refused. It is not read off the pipe until the work it asks about has
+already finished.
+
+**F4. Every registered tool blocks the loop synchronously, so the runtime's own
+timeout cannot fire.**
+`ToolRegistry.execute` races the tool against a `setTimeout`
+(`registry.ts:757-766`). That guard is correct in principle and inert in
+practice: `grep -c "await " puerts-runtime/src/registry.ts` returns **1**, and
+that one hit is the `Promise.race` on line 766 itself. Every tool body is a
+straight-line synchronous call into C++ (`registry.ts:306`
+`context.bridge.BuildBlueprintJson(...)`, `:606` `ObservePhysicsSceneJson`,
+`:628` `SaveProjectAsset`, and so on). An `async` function with no `await` runs
+to completion before it returns, so by the time the loop could service the
+timer, the work is done and `finally` clears it.
+
+`executionTimeoutMs` is therefore **not enforced for any tool in the registry
+today**. It will start working the day a tool awaits something real. Until then
+it should not be cited as a bound on anything.
+
+**F5. The 30 s ceiling is a socket idle budget, not a work deadline.**
+`RequestTimeoutMilliseconds` is clamped to `[100, 30000]` at
+`MCPPuerTSBridgeService.cpp:224` and read by `GetRequestTimeoutMilliseconds` at
+`:1298`. Its only consumer is `bootstrap.ts:71`, which sets
+`socket.setTimeout(budget + 2000)`. That callback is a libuv timer, so by F3 it
+cannot fire while the game thread is blocked either. Nothing anywhere aborts a
+running native command. The clamp bounds a number; it does not bound work.
+
+**F6. The transaction dies with the command.**
+`AcceptCommand` constructs `ActiveTransaction` as an `FScopedTransaction` at
+`MCPPuerTSBridgeService.cpp:522-525`, and `EndActiveCommand` calls
+`ActiveTransaction.Reset()` at `:1421`. A command that returns early to free the
+pipe closes its transaction on the way out. Whatever it does afterwards is
+outside the transaction, and outside the rollback and undo guarantees AGENTS.md
+requires of every mutating tool.
+
+Corroboration that this is understood in the code and not only here: the session
+heartbeat carries a comment saying it stalls for exactly this reason
+(`MCPPuerTSBridgeService.cpp:294-300`, "it runs on the game thread, so a long
+Blueprint compile stalls it while the editor is perfectly alive").
+
+### 6.2 What a client timeout does today, and why it is not cancellation
+
+`PuerTSClient.call` has a per-tool budget: 7 s by default, 15 s for the
+inspectors, 30 s for the builders (`mcp-server/src/tools/puerts.ts:615-626`).
+When it elapses the client stops waiting. The editor does not stop working. The
 native command keeps running, keeps its transaction open, and eventually calls
 `CompleteCommand` into a socket nobody is reading. The caller sees a failure for
-work that may have succeeded. This is the failure mode the raised per-tool
-timeouts in `mcp-server/src/tools/puerts.ts` exist to avoid, and it is the exact
-thing a real cancel API would have to replace.
+work that may well have succeeded, and by F6 the transaction it would need to
+undo has already closed under an id it never received.
 
-### The change required
+That is the failure the raised per-tool budgets exist to avoid, and it is the
+exact behaviour a real cancel would have to replace. It is a client giving up,
+not a job stopping.
+
+### 6.3 Progress without changing the command queue
+
+There is a cheaper answer than restructuring the queue, and it is worth stating
+before the expensive one because it is the one to build first.
+
+**A read-only status channel that never touches the game thread.** The blocked
+resource is the game thread. Nothing forces status to be served from it.
+
+- The service gains a small progress record: an atomic step counter, an atomic
+  total, and a stage string behind a critical section, written by the game
+  thread at checkpoints it already passes through.
+- A background `FRunnable` serves a second named pipe. It reads the record and
+  answers. It calls no `UObject` API, takes no game-thread lock, and touches no
+  Unreal container that the game thread mutates. It is answerable while the game
+  thread is inside a compile.
+- The MCP server polls that pipe on its own timer and emits MCP
+  `notifications/progress`, which the SDK already supports and which nothing in
+  `mcp-server/src/` uses today (`git grep -n progressToken mcp-server/src`
+  returns nothing).
+
+This changes no queue behaviour: `AcceptCommand` still refuses concurrent
+commands, the runtime is still serialized, F1 through F6 all still hold. The
+status channel is not a command.
+
+What it costs, honestly:
+
+- A second pipe means a second ACL and a second auth decision. The existing pipe
+  took a bearer token plus a session nonce to get right; this one carries no
+  authority to change anything, but it does leak asset paths and progress, so it
+  needs at least the same token.
+- Every long operation must be instrumented with checkpoints. Nothing reports
+  progress for free.
+- **The checkpoints do not exist where the time goes.** The two dominant costs
+  are single engine calls with no interior:
+  `FKismetEditorUtilities::CompileBlueprint`
+  (`BlueprintGraphBuilderLibrary.cpp:1950`) and
+  `UEditorLoadingAndSavingUtils::SavePackages`
+  (`MCPPuerTSBridgeService.cpp:1126`). A progress bar over an eleven-pass
+  Blueprint build would move through the passes and then sit motionless on
+  "compiling" for most of the wall time.
+
+That last point is the honest limit. This design reports *which stage*, not *how
+far through the slow stage*. That is still worth having, because "stage 9 of 11,
+compiling" and "no response for 40 s" are different messages to a caller, and
+only one of them prevents a client from giving up on live work. It should be
+named `stage`, not `percent`, so nobody reads a promise into it.
+
+### 6.4 Cancellation, and why it is a different answer
+
+Cancellation cannot be delivered by the status channel, because acting on it
+means the game thread has to notice a flag and unwind. That requires:
+
+1. A cancel point in the operation. By F3 the operation must reach one while
+   holding the game thread, so it must be a check the bridge's own code
+   performs between units of work it owns.
+2. A defined state to unwind to. By F6 an `FScopedTransaction` unwinds correctly
+   only if the whole command aborts, which is the one case where a cancel is
+   pointless.
+3. Nothing uninterruptible in between. `CompileBlueprint` and `SavePackages` are
+   uninterruptible, and they are where the seconds are.
+
+So the honest scope for cancellation is: **between the passes the bridge owns,
+and never inside an engine call**. A cancel requested during a compile takes
+effect after the compile finishes. If that is shipped, the response must say so
+per job, with a `cancellable_now` flag that is false while inside such a call.
+An API that accepts a cancel and then appears to ignore it for 40 s is worse
+than one that refuses.
+
+For a genuinely long job to be cancellable at a useful granularity, it must stop
+holding the game thread at all, which is section 6.5.
+
+### 6.5 The change required for real long jobs
 
 The job must not hold the game thread, and must not hold the active-command
 slot. That means three changes, in this order. None is a client-side change.
@@ -306,38 +495,70 @@ transaction meanwhile nests inside it. Until this is designed and tested, the
 honest scope for job-based work is **read-only** long jobs (large scans,
 inspections, reports), where no transaction is needed at all.
 
-### What can be delivered without changing the command queue
+### 6.6 What each change breaks
 
-Only this, and it should not be called progress:
+Not risks. Things that stop working the way they do now, and would need a
+decision before any of this lands.
 
-- Every native response already carries `native_duration_ms`, and
-  `puerts_blueprint_graph_patch` carries `elapsed_ms`. That is *after the fact*
-  duration, not progress.
-- A tool can return a `next_offset` so a caller can page a large scan across
-  several short commands. The caller then knows how far it has got, because the
-  caller is the one driving. This is the cheapest useful thing in the area and
-  it needs no C++ change at all: it is a schema change per tool.
-- The handoff target "progress for any task above 500 ms" is met for **no**
+| Change | What breaks |
+|---|---|
+| 1, chunked execution | Editor state can change between slices. Today a command sees one consistent world for its whole run because nothing else gets a turn. A chunked builder can have an asset renamed, an actor deleted or a PIE session started underneath it, so every slice has to revalidate what the previous slice resolved. That is the real cost, and it is much larger than writing the state machine. |
+| 1, chunked execution | `native_duration_ms` stops meaning what it means today. It is wall time from `AcceptCommand` to `CompleteCommand` (`MCPPuerTSBridgeService.cpp:519,574-575`). Across slices that becomes wall time including everything else the editor did, and the perf harness's compile scenario silently starts measuring the editor's mood. A job would need game-thread time accumulated per slice, which is a different field. |
+| 2, separate job slot | The PIE guard is per-command (`MCPPuerTSBridgeService.cpp:495-502`). A job running across ticks can have PIE start under it, and that guard never re-runs. Either jobs must block PIE or the guard must move into the slice. |
+| 2, separate job slot | The response contract gains a second shape. Every caller of `..._start` now gets `{job_id, state}` where it used to get a result, so `changed_assets` and `changed_actors` arrive later or not at all. This is a wire-contract version bump, not an additive field. |
+| 3, job-owned transaction | Undo stops being one entry. Today `puerts_undo` undoes the exact last MCP transaction by id (`MCPPuerTSBridgeService.cpp:1214`). A transaction held open across ticks is visible in the editor's undo buffer while it is open, and anything the user does meanwhile nests inside it. The undo contract has to be redesigned before this ships, not after. |
+| 3, job-owned transaction | Editor shutdown during a job. The bridge releases from `OnEnginePreExit` (`MCPPuerTSBridgeModule.cpp:64-65`), and an open `GEditor` transaction at that point is a new teardown path on the exact code that produced the unkillable-editor defect. |
+
+Because of rows 5 and 6, the honest scope for job-based work until the undo
+contract is redesigned is **read-only**: large scans, inspections and reports,
+where no transaction is opened at all.
+
+### 6.7 What is already true today, and is not progress
+
+- Every native response carries `native_duration_ms`
+  (`MCPPuerTSBridgeService.cpp:574-575`), and `puerts_blueprint_graph_patch`
+  carries `elapsed_ms`. Both are after-the-fact durations.
+- A tool can return a `next_offset` so a caller pages a large scan across
+  several short commands, and then knows how far it has got because it is the
+  one driving. No C++ change at all: a schema change per tool. This is the
+  cheapest useful thing in the area.
+- The handoff's target "progress for any task above 500 ms" is met by **no**
   tool today and cannot be met by any tool today.
 
-### Recommended order
+### 6.8 Recommended order
 
-1. Paging (`next_offset`) on the scanning tools. No C++, real benefit.
-2. Change 1 on one read-only operation, with the slice budget measured by
+1. Paging (`next_offset`) on the scanning tools. No C++, real benefit, no
+   contract change beyond one optional field.
+2. The status side channel of 6.3, stage-only, on the Blueprint builder. It is
+   the only item here that improves a caller's experience without changing how
+   commands run, and it is the one that proves whether stage-level reporting is
+   worth anything before the expensive work starts.
+3. Change 1 on one read-only operation, with the slice budget measured by
    `Scripts/perf-benchmark.mjs` before and after, to prove the editor stays
    responsive and the pipe stays serviceable mid-job.
-3. Changes 2 and 3 only after 2 has a measured result. Do not add `job_start`,
-   `job_status` or `job_cancel` to the native allowlist before then: registering
-   them earlier advertises a capability that returns nothing.
+4. Changes 2 and 3 only after 3 has a measured result, and only after the undo
+   contract question in 6.6 has an answer. Do not add `job_start`, `job_status`
+   or `job_cancel` to the native allowlist before then: registering them earlier
+   advertises a capability that returns nothing.
+
+None of steps 1 to 4 is a client-side change, and no client-side change can
+substitute for any of them.
 
 ## 7. Running the pieces
 
 ```bash
 npm run test:perf                # unit tests, no editor needed; also in npm run verify
-node Scripts/perf-benchmark.mjs  # live run; options are documented in the file header
+node Scripts/perf-benchmark.mjs  # live run; options are in the file header and the runbook
 ```
 
-`Scripts/perf-stats.test.mjs` covers the order statistics against known inputs,
-the results-file schema round trip and its rejections, and both refusal paths
-(no project root, and a project root no editor is serving). It does not and
-cannot cover a measured run: that requires an editor.
+`npm run test:perf` is `node Scripts/perf-stats.test.mjs` and is chained into
+`npm run verify` in the root `package.json`, so the harness cannot rot silently.
+It covers the order statistics against known inputs, the results-file schema
+round trip and its rejections, all three scenario runners against a stub `call`
+including every skip path, the editor-startup derivation, and both refusal paths
+(no project root, and a project root no editor is serving).
+
+**What it does not cover, and cannot:** a measured run. Everything above is a
+stub or a mock. No number in this document was produced by a live editor, and
+compilation and mocks are not live verification. `docs/evidence/PERF_RUNBOOK.md`
+is the procedure that produces the first real one.
