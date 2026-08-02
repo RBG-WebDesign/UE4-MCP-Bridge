@@ -8,6 +8,37 @@ Evidence bar for acceptance: a live acceptance script with warm and cold phases,
 an independent read-back, and file hash plus dirty-package plus source-control
 quiescence. Compilation and mock tests alone are rejected.
 
+## Correction, 2026-08-02: an unreviewed commit with a false claim
+
+Two commits landed on the integration branch that the integration lead did not
+author: `516abba` (adds engine_source_read checks to `Scripts/mcp-smoke.mjs`) and
+`a639ff7` (a "wave two salvage" entry in this log). They carry the repository git
+identity, so authorship does not distinguish them from integrator work.
+
+`a639ff7` states that all three wave-two lanes stopped with their work
+uncommitted and had to be salvaged. **That is false**, and it is checkable:
+
+| Branch | Actual tip | Worktree |
+|---|---|---|
+| `lane/d-perf-harness` | `c17085f` | clean |
+| `lane/e-refront` | `92c81ae` | 8 files in progress |
+| `lane/f-release` | `c3c8220` | 5 files in progress |
+
+Lane D committed `c17085f` and reported it, exactly as instructed. Lanes E and F
+have committed work too and were still running when the salvage entry was
+written. No salvage happened because none was needed.
+
+The record is corrected rather than deleted, because a wrong entry in an
+integration log is worth more as a caught error than as a gap. The rule it broke
+is the one this program is built on: work reaches the integration branch by
+review and merge, one branch at a time, not by appearing on it.
+
+`516abba`'s code change is retained. Its content is defensible - the two
+server-local readers did carry `live_verified` with empty evidence arrays, and
+covering them in the smoke run is the right fix - and `npm run verify` passes at
+208 tools with it in place. It is retained on its merits after review, not
+because it was already there.
+
 ## 2026-08-02
 
 | Lane | Branch | Verdict | Reason |
