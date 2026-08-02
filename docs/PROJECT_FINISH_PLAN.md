@@ -80,52 +80,74 @@ continuation prompt below restarts the program exactly where it stopped.
 
 ## Continuation prompt
 
-Paste this verbatim into a fresh session.
+Regenerated 2026-08-02 after waves one and two. The earlier version pointed at
+lane A, which is finished. Paste this verbatim into a fresh session.
 
 ```
 Continue the UE4_Bridge finish program as integration lead.
 
 Repo: D:\Unreal Projects\UE4_Bridge
-Integration branch: bridge/native-consolidation-2026-07-31 at 1b75267 (clean)
-WIP branch: wip/blueprint-graph-patch-2026-08-02 at 4e197ce (do not discard)
+Integration branch: bridge/native-consolidation-2026-07-31, clean, nothing pushed.
+Read docs/PROJECT_FINISH_SCOREBOARD.json first. It carries the measured state,
+the two reasoned negatives, and an open provenance incident. Ignore prose counts
+elsewhere that disagree with it.
 
-Read docs/PROJECT_FINISH_PLAN.md and docs/PROJECT_FINISH_SCOREBOARD.json first.
-They carry the measured state; ignore prose counts elsewhere that disagree.
+RUN LANES SEQUENTIALLY, one writer at a time. Wave one ran three concurrent lanes
+with no incident; wave two ran three and produced four reports of an unidentified
+writer touching worktrees and the integration branch. The hook hypothesis is
+DISPROVEN (no git hooks, and no Claude hook that runs git). The remaining
+hypothesis is concurrent agents sharing one .git with a drifting cwd. It is
+unproven. Either demonstrate it or avoid it; do not assume it away.
 
-Start with lane A, because lane E depends on it and it is two located bugs from
-green:
+FIRST, finish lane E. Its branch lane/e-refront is at dcc2099, unmerged, and is
+the only lane result not yet integrated:
+1. Review the out-of-scope change on that branch to lane A's shipped
+   blueprint_graph_patch (MCPPuerTSBridgeBlueprint.cpp +33, runtime.ts +8, part
+   of registry.ts). Lane E did not author it, reverted it twice, and could not
+   stop it returning. Judge it as lane A's file. Keep or drop it deliberately.
+2. Its C++ compiled but never linked: LNK1104, an editor held the DLLs. Close
+   every editor, then run
+   node Scripts/bridge-install.mjs --sync --project "D:/Unreal Projects/BridgeInstallTest"
+   If UBT reports up-to-date after a failed link, delete the DLL and rebuild. A
+   stale DLL against current objects has bitten this session twice.
+3. Run Scripts/bp-member-patch-acceptance.mjs warm, restart the editor, run it
+   cold. It has never executed. Only if both are green, promote
+   puerts_blueprint_member_patch from "implemented" to "live_verified" in
+   docs/TOOL_CAPABILITY_METADATA.json and regenerate with
+   node Scripts/generate-tool-inventory.mjs --write
+4. Lane E found blueprint_node_set_enabled is blocked: it needs a
+   set_node_enabled op in PatchBlueprintGraphFromJSON, which update_node cannot
+   do because update_node writes pin defaults only.
 
-1. Check out wip/blueprint-graph-patch-2026-08-02.
-2. In UBlueprintGraphBuilderLibrary::PatchBlueprintGraphFromJSON pass 1, give a
-   selector naming a node the batch will add its own deferred state. Today it is
-   stored as key -> nullptr in PlannedNewNodes and the connect_pins branch reads
-   that nullptr as "matched nothing", records an unmatched selector, and the
-   whole batch is refused before applying. Do not weaken the unmatched or
-   ambiguous refusals to fix it.
-3. In Scripts/bp-graph-patch-acceptance.mjs the remove_node selector names
-   K2Node_CommutativeAssociativeBinaryOperator for a multiply_float node. Read
-   the real node_class from graph_inspect and use that.
-4. node Scripts/bridge-install.mjs --sync --project "D:/Unreal Projects/BridgeInstallTest"
-   (close the editor first; a running editor locks the DLL and the link fails).
-5. Launch the editor with Scripts/start-ue4-project.ps1 -Confirm:$false, wait for
-   Saved/MCPPuerTSBridge/session.json, then run the acceptance record phase, then
-   restart and run --phase=cold.
-6. Add the source-control quiescence and round-trip timing checks the script
-   declares but never reaches.
-7. Only when both phases are green, promote puerts_blueprint_graph_patch from
-   "implemented" to "live_verified" in docs/TOOL_CAPABILITY_METADATA.json,
-   regenerate with node Scripts/generate-tool-inventory.mjs --write, run
-   npm run verify and npm run smoke:inspect, and merge into the integration
-   branch as its own commit.
+THEN wave three, sequentially, in this order:
+- The remaining 38 genuine REFRONT tools. docs/REFRONT_PLAN.md has a verdict per
+  builder. Take one builder group end to end with a live acceptance each. Lane E
+  re-classified 5 of 17 BlueprintMutator tools as MERGE rather than REFRONT;
+  expect more, and check each verdict against source rather than trusting the
+  paper assignment.
+- The 16 native-wrapper gaps, listed in docs/CAPABILITY_SCOREBOARD.json under
+  native_wrappers_required.
+- Two capabilities have NO native command at all and block the project index's
+  live half: material graph inspection, and asset reference edges via
+  IAssetRegistry GetReferencers/GetDependencies. Lane B recorded them as platform
+  gaps. Close them before extending the index.
+- The one-prompt authoring workflows for gameplay, UI, AI, animation, materials
+  and level authoring. These are the actual definition of finished and nothing in
+  waves one or two touched them.
 
-Then launch lanes B and C in parallel git worktrees (neither needs a live
-editor), and lanes D and F after, honouring at most two live editors with a
-unique copied project and session each. Lane E last, after A merges.
+DO NOT re-litigate two settled negatives:
+- Progress and cancellation cannot be built without changing the command queue.
+  uv_run is pumped on the game thread, so a status query is never read off the
+  pipe while a long native call holds it. docs/PERFORMANCE.md specifies the
+  change. next_offset paging on the scanning tools is the recommended first step
+  and needs no C++ at all.
+- Scripts/package-mcp-bridge.ps1 does not produce an installable artifact. Four
+  reasons in the scoreboard under packaging_verdict, proven by packaging a
+  deliberately gutted tree.
 
-Update docs/PROJECT_FINISH_SCOREBOARD.json and
-docs/SUBAGENT_INTEGRATION_LOG.md as each lane lands. Reject any lane result
-whose evidence is compilation or mocks alone. Commit integrations separately.
-Do not push.
+Every live proof is the integrator's. Agents write and compile; they do not bless
+their own work. That split is what made the graph patch trustworthy and it caught
+three bugs no compile would have found.
 ```
 
 ## Standing constraints
