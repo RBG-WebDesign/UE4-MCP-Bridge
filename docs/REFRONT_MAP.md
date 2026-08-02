@@ -4,6 +4,13 @@ The 54 legacy tools whose implementation already exists as compiled C++ and
 whose migration is therefore a matter of putting a native command in front of a
 library, not of writing the capability.
 
+This is the readiness audit: per builder, whether it is transactional, whether it
+rolls back, whether an independent inspector exists, whether it converges, and
+therefore whether its tools can ship as writes or only as reads.
+`docs/REFRONT_PLAN.md` is the other cut of the same 54: the per-tool migration
+table, naming each native command and whether it forwards or needs a wrapper.
+Read this to decide what is safe, the plan to decide what to write.
+
 Derived from `docs/TOOL_INVENTORY.json` by filtering `migration_action ==
 "REFRONT"`, not from prose. The count is a fact of that file:
 
@@ -16,6 +23,27 @@ node -e "const j=require('./docs/TOOL_INVENTORY.json');
 `docs/PROJECT_FINISH_SCOREBOARD.json` claims 54 and the inventory agrees. Of the
 208 tools in the inventory the rest split 75 KEEP, 39 PORT, 29 ALIAS, 10 MERGE,
 1 RETIRE.
+
+## Overlap with docs/REFRONT_PLAN.md
+
+`docs/REFRONT_PLAN.md` covers the same 54 tools and was written in the same
+session. Both read the builders directly and both land on the same central
+finding about `BPMutatorHelpers.cpp`. They are not in conflict, and one of them
+should probably be deleted; that is an integration call, not this document's.
+
+Where they differ:
+
+- This map keeps all 54 in the REFRONT bucket, because that is what
+  `migration_action` says in the inventory today. It reports readiness, not
+  reclassification.
+- `REFRONT_PLAN.md` argues that 6 of the 54 are really MERGE (five graph node
+  and pin tools that are already operations inside `blueprint_graph_patch`, and
+  the four widget preset tools over the already-native `widget_build`), leaving
+  38 as genuine REFRONT work. That argument is sound and this map does not
+  contradict it: a tool that is MERGE is a tool that needs no new front at all,
+  which is a stronger version of "ready".
+- Neither document edits `migration_action`. Changing it retires public tool
+  names, which is a compatibility decision.
 
 ## What the four columns mean
 

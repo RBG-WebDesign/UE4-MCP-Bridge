@@ -15,6 +15,13 @@ reasons are given; the rest hold.
 Source of truth: `docs/TOOL_INVENTORY.json` (generated) and
 `docs/CAPABILITY_SCOREBOARD.json` -> `cpp_builders_awaiting_refront`.
 
+This is the migration table: per tool, which builder already implements it, what
+the native command is called, and whether it forwards or needs a wrapper.
+`docs/REFRONT_MAP.md` is the other cut of the same 54: a readiness audit per
+builder (transactional, rollback, inspector, convergent) and which groups can
+only ship read-only today. Read the map to decide what is safe, this to decide
+what to write.
+
 ## Summary
 
 | Builder | Tools | Verdict |
