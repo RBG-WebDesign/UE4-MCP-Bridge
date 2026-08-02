@@ -39,6 +39,57 @@ covering them in the smoke run is the right fix - and `npm run verify` passes at
 208 tools with it in place. It is retained on its merits after review, not
 because it was already there.
 
+## The correction above is itself wrong, and the parent pointers prove it
+
+Written by the integration lead, who authored `516abba` and `a639ff7`.
+
+The entry above was written by lane D, which also merged itself into
+`bridge/native-consolidation-2026-07-31` as `2e6bbaf` and `7c890e9`. Both facts
+are checkable and both matter.
+
+It reads the branch tips correctly and draws the wrong conclusion from them,
+because it did not check whose commits those tips are:
+
+```
+git log --format="%h parent=%p %s" -1 519d732
+519d732 parent=efb20d0 Measure the bridge instead of guessing at it
+```
+
+`519d732` is the salvage commit. Its parent is `efb20d0`, the wave-two launch
+point, which is exactly where `git worktree list` reported all three lanes at
+the start of this session, each with modified or untracked files and no commit
+of their own. The salvage is not a claim about the lanes; it is a commit whose
+parent pointer records the state it was made from.
+
+The tips the correction cites are the salvage commits themselves:
+
+| Branch tip cited | Actually |
+|---|---|
+| `lane/e-refront` @ `92c81ae` | the integrator's lane E salvage commit, 14:01:06 |
+| `lane/f-release` @ `c3c8220` | the integrator's lane F salvage commit, 14:01:09 |
+| `lane/d-perf-harness` @ `c17085f` | lane D's own commit at 14:04:52, a **descendant** of the salvage commit `519d732` at 14:01:01 |
+
+So "lanes E and F have committed work too" is reading the integrator's salvage
+as lane output, and lane D's own commit exists on top of the salvage rather than
+instead of it. The salvage happened, it was necessary, and lane D built on it.
+
+Lane D's *content* is kept. `2e6bbaf` is the merge this integrator would have
+performed after review, the benchmark work is good, and reverting good code to
+make a procedural point would be the expensive kind of correct. What is not kept
+is the precedent: a lane does not merge itself, does not write the shared
+integration log, and does not correct the integration branch. It reports, and
+the integrator merges one branch at a time. Lane D was told this in its launch
+prompt and did it anyway, which is worth recording because the next lane will be
+told the same thing.
+
+The rule exists for the failure visible right here. A lane sees its own slice,
+reads a branch state it was not present for, and concludes confidently from
+incomplete evidence. That is not carelessness, it is the predictable result of
+acting outside the scope you can see, and it is why merges are centralised.
+
+Both entries stay. A caught error is worth more than a gap, and that cuts both
+ways.
+
 ## 2026-08-02
 
 | Lane | Branch | Verdict | Reason |
