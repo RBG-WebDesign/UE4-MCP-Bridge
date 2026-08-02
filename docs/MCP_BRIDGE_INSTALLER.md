@@ -166,6 +166,105 @@ run against a correct install has not been shown to reject anything:
 node Scripts/bridge-install-acceptance.mjs --from "D:\Unreal Projects\BridgeInstallTest"
 ```
 
+## Running two editors at once
+
+Supported and tested as of 2026-08-02. Each editor is addressed by session, and a
+client that cannot tell which editor it is addressing refuses rather than picking
+one. Discovery used to end in a compiled-in default pipe name, so a missing
+advertisement silently routed to whichever editor owned it; with two open that is
+a command authoring assets in the wrong project and reporting success.
+
+Sync both targets first. A live result from either editor means nothing if it is
+running a plugin that is not this checkout:
+
+```bash
+npm run install:check -- --project "D:\Unreal Projects\BridgeInstallTest"
+```
+
+Launch the first editor normally. The launcher refuses a second UE4Editor unless
+a human says so in as many words, which is the point of the flag:
+
+```powershell
+.\Scripts\start-ue4-project.ps1 -Project 'D:\Unreal Projects\BridgeInstallTest\BridgeInstallTest.uproject'
+```
+
+```powershell
+.\Scripts\start-ue4-project.ps1 -Project 'D:\Path\To\Second\Second.uproject' -AllowAdditional
+```
+
+Wait for `Saved/MCPPuerTSBridge/session.json` to appear under each project. Pipes
+are project-hashed, so they do not collide:
+`\\.\pipe\UE427PuerTSMCP_<project>_<hash>`.
+
+### Selecting a target
+
+`MCP_UNREAL_PROJECT_ROOT` selects which editor a client addresses. It is the only
+thing that has to be set, and one client per project is the normal arrangement:
+
+```bash
+MCP_UNREAL_PROJECT_ROOT="D:/Unreal Projects/BridgeInstallTest" npm run smoke:inspect
+```
+
+`MCP_PUERTS_SESSION_ID` pins one exact session. An editor gets a new session id
+on every start, so a pinned id that no longer matches is refused rather than
+silently retargeted. Use it when a restart mid-run would be a problem.
+
+`MCP_PUERTS_PIPE` still overrides the pipe name, because the installer writes one
+into `.mcp.json`, but it no longer decides identity: the session that answers is
+checked against the manifest on every response whatever chose the pipe.
+
+### What the editor advertises
+
+`Saved/MCPPuerTSBridge/session.json`, schema version 1, written by staging a temp
+file and moving it over the target so a reader can never see a partial manifest:
+session id, session nonce, editor PID, OS process creation time, project and
+uproject paths, pipe name, bridge commit, install-manifest hash, creation time, a
+5-second heartbeat, and shutdown state. It is retracted on shutdown, and only
+that editor's own advertisement is touched.
+
+Two checks, in opposite directions, and both are needed:
+
+- The **nonce** goes out with every request; the editor refuses a mismatch before
+  anything runs. It stops a request reaching the wrong editor.
+- The **identity stamp** comes back on every response including rejections; the
+  client refuses a reply from an editor it did not address. It stops an answer
+  arriving from the wrong one.
+
+PID is the liveness test, not the heartbeat. The heartbeat runs on the game
+thread, so a long Blueprint compile stalls it while the editor is perfectly
+alive; it is context for an error message, not evidence of death. Process
+creation time is recorded because Windows reuses process ids.
+
+### When it refuses
+
+Failures carry `session_error_code` on the response, so a caller branches on the
+code instead of matching prose:
+
+| Code | Means |
+|---|---|
+| `session_missing` | no editor is open for that project. Not a reason to try another editor |
+| `session_unreadable` | the manifest is corrupt |
+| `session_schema_unsupported` | a newer manifest than this client understands |
+| `session_shut_down` | the editor recorded its own shutdown |
+| `session_stale` | the manifest names a PID that is not running |
+| `session_not_selected` | `MCP_PUERTS_SESSION_ID` does not match the live session |
+| `session_project_mismatch` | the manifest describes a different project than the root it was found under |
+| `session_identity_absent` | the reply carried no identity |
+| `session_identity_mismatch` | the reply came from an editor other than the one addressed |
+
+### Regression test
+
+```bash
+node Scripts/session-isolation-acceptance.mjs --phase=both
+```
+
+Four phases, run against editor lifecycle rather than inside one process:
+`both` (identity, isolation, refusals), `a-closed` (one editor closed, the other
+still serving and the closed one refused without falling through), `a-restarted`
+(new session id, same project; pass the old id as `MCP_PREVIOUS_SESSION_ID`), and
+`none` (nothing left advertising). Evidence lands in
+`docs/evidence/session-isolation-*.json`.
+
 ## After Install
 
 1. Open the project in UE4.27.
