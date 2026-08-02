@@ -186,6 +186,29 @@ public:
         FString& OutResultJson,
         FString& OutError);
 
+    /** Change a Blueprint's MEMBERS: variables, functions, interfaces, event
+        dispatchers and components. The other half of blueprint_graph_patch,
+        which owns nodes and pins and cannot reach any of these.
+
+        A re-front of UBlueprintMutatorLibrary, which was compiled into
+        MCPBridgeGraphBuilder and reachable only through the legacy Python
+        listener. The mutations are entirely the library's; what this command
+        adds is the boundary the library never had. Every operation is resolved
+        and classified before the first one runs, because each mutator entry
+        point compiles the Blueprint, so a batch that fails halfway has already
+        paid for the damage a rollback then has to undo. An operation whose
+        result is already present is reported unchanged and not repeated, so a
+        rerun dirties nothing.
+
+        On failure the transaction is cancelled, the rollback boundary runs, and
+        whether the members actually came back is decided by reading them again
+        rather than by trusting the undo. */
+    UFUNCTION(BlueprintCallable, Category="MCP PuerTS Bridge")
+    bool PatchBlueprintMembersJson(
+        const FString& SpecJson,
+        FString& OutResultJson,
+        FString& OutError);
+
     /** Create or replace a UMG Widget Blueprint from one JSON widget tree,
         handed to the existing MCPBridgeGraphBuilder widget builder. The tree
         grammar (widget types, child-count rules per category, property names

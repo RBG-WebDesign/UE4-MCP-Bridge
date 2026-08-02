@@ -15,6 +15,21 @@ class MCPBRIDGEGRAPHBUILDER_API UBlueprintMutatorLibrary : public UBlueprintFunc
     GENERATED_BODY()
 
 public:
+    /**
+     * Convert a JSON scalar (json.dumps output) to FProperty::ImportText form.
+     *
+     * Public because two callers need the SAME answer: the mutation that writes
+     * a default, and any caller deciding whether the default is already the one
+     * being asked for. A second copy of this rule would let those two disagree,
+     * and the visible failure is a converged patch that writes anyway.
+     *
+     * ImportText on a numeric, bool or enum property parses a leading quote as
+     * garbage (Atof("\"42.5\"") is 0.0) while still reporting success, so JSON
+     * quoting is stripped unless the property genuinely holds text.
+     */
+    UFUNCTION(BlueprintCallable, Category="BlueprintMutator")
+    static FString JsonDefaultToImportText(const FString& DefaultValueJson, bool bTextLike);
+
     // --- Tier 2: simple mutations (Phase 2) ---
 
     /** Enable or disable a node (by guid) within a named graph. */

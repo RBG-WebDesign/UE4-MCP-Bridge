@@ -195,7 +195,7 @@ bool UMCPPuerTSBridgeService::Initialize(FString& OutError)
             TEXT("call_function"), TEXT("spawn_actor"), TEXT("delete_actor"), TEXT("save"),
             TEXT("pie_start"), TEXT("pie_stop"), TEXT("get_logs"), TEXT("undo"),
             TEXT("physics_build"), TEXT("physics_observe"), TEXT("viewport_screenshot"), TEXT("sky_shader_create"),
-            TEXT("blueprint_build"), TEXT("blueprint_graph_patch"),
+            TEXT("blueprint_build"), TEXT("blueprint_graph_patch"), TEXT("blueprint_member_patch"),
             TEXT("widget_build"), TEXT("behavior_tree_build"),
             // Read only. Deliberately absent from IsToolMutating below, so they
             // open no transaction and return no transaction id.
@@ -1412,6 +1412,7 @@ bool UMCPPuerTSBridgeService::IsToolMutating(const FString& ToolName) const
         || ToolName == TEXT("sky_shader_create")
         || ToolName == TEXT("blueprint_build")
         || ToolName == TEXT("blueprint_graph_patch")
+        || ToolName == TEXT("blueprint_member_patch")
         || ToolName == TEXT("widget_build")
         || ToolName == TEXT("behavior_tree_build");
 }

@@ -92,6 +92,7 @@ declare module "ue" {
     CreateAuroraSkyMaterialJson(assetPath: string, skyActorName: string, outResultJson: $Ref<string>, outError: $Ref<string>): boolean;
     BuildBlueprintJson(specJson: string, outResultJson: $Ref<string>, outError: $Ref<string>): boolean;
     PatchBlueprintGraphJson(specJson: string, outResultJson: $Ref<string>, outError: $Ref<string>): boolean;
+    PatchBlueprintMembersJson(specJson: string, outResultJson: $Ref<string>, outError: $Ref<string>): boolean;
     BuildWidgetJson(specJson: string, outResultJson: $Ref<string>, outError: $Ref<string>): boolean;
     InspectBlueprintJson(requestJson: string, outResultJson: $Ref<string>, outError: $Ref<string>): boolean;
     BuildBehaviorTreeJson(specJson: string, outResultJson: $Ref<string>, outError: $Ref<string>): boolean;

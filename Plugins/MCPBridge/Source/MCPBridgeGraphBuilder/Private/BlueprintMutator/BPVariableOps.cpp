@@ -1,6 +1,7 @@
 // Copyright 2026 RareBird Games. All Rights Reserved.
 
 #include "BPVariableOps.h"
+#include "BlueprintMutatorLibrary.h"
 #include "BPMutatorHelpers.h"
 #include "BPGLogCategories.h"
 #include "../BlueprintInspector/BPTypeDescriptor.h"
@@ -18,23 +19,12 @@ namespace
      *  Syncs the description field back from the CDO so downstream readers (inspector,
      *  editor UI) still see the current default. Matches what
      *  FBlueprintEditorUtils::DuplicateVariableDescription does on BP duplication. */
-    /** Convert a JSON scalar to FProperty::ImportText form. Callers pass
-     *  json.dumps output, so strings arrive wrapped in literal quotes.
-     *  ImportText on a numeric/bool/enum property parses a leading quote as
-     *  garbage (Atof('"42.5"') == 0.0) while still reporting success, so
-     *  strip JSON quoting unless the property genuinely holds text. */
+    /** The JSON-to-ImportText rule now lives on UBlueprintMutatorLibrary, so
+     *  the command layer deciding whether a default is ALREADY the requested
+     *  one applies the identical rule. */
     FString JsonDefaultToImportText(const FString& DefaultValueJson, const bool bIsTextLike)
     {
-        FString Trimmed = DefaultValueJson.TrimStartAndEnd();
-        const bool bQuoted = Trimmed.Len() >= 2 && Trimmed.StartsWith(TEXT("\"")) && Trimmed.EndsWith(TEXT("\""));
-        if (!bQuoted || bIsTextLike)
-        {
-            return Trimmed;
-        }
-        FString Inner = Trimmed.Mid(1, Trimmed.Len() - 2);
-        Inner.ReplaceInline(TEXT("\\\""), TEXT("\""));
-        Inner.ReplaceInline(TEXT("\\\\"), TEXT("\\"));
-        return Inner;
+        return UBlueprintMutatorLibrary::JsonDefaultToImportText(DefaultValueJson, bIsTextLike);
     }
 
     void SyncDefaultValueFromCDO(UBlueprint* Blueprint, const FName& VarFName)

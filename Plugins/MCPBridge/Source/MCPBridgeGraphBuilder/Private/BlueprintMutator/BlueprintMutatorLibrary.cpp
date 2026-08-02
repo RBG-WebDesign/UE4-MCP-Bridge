@@ -18,6 +18,20 @@
 
 #define LOCTEXT_NAMESPACE "BlueprintMutatorLibrary"
 
+FString UBlueprintMutatorLibrary::JsonDefaultToImportText(const FString& DefaultValueJson, bool bTextLike)
+{
+    FString Trimmed = DefaultValueJson.TrimStartAndEnd();
+    const bool bQuoted = Trimmed.Len() >= 2 && Trimmed.StartsWith(TEXT("\"")) && Trimmed.EndsWith(TEXT("\""));
+    if (!bQuoted || bTextLike)
+    {
+        return Trimmed;
+    }
+    FString Inner = Trimmed.Mid(1, Trimmed.Len() - 2);
+    Inner.ReplaceInline(TEXT("\\\""), TEXT("\""));
+    Inner.ReplaceInline(TEXT("\\\\"), TEXT("\\"));
+    return Inner;
+}
+
 bool UBlueprintMutatorLibrary::SetNodeEnabled(UBlueprint* Blueprint, const FString& GraphName, const FString& NodeGuid, bool bEnabled)
 {
     if (!Blueprint)
