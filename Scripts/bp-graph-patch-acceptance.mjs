@@ -10,7 +10,7 @@
 //   --phase=record  build the fixture, patch it, verify, converge
 //   --phase=cold    after a restart, the patched graph is still the patched graph
 
-import { spawn } from "node:child_process";
+import { execSync, spawn } from "node:child_process";
 import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
@@ -59,6 +59,11 @@ const fileSha = (p) => createHash("sha256").update(readFileSync(p)).digest("hex"
 const BP = "/Game/MCPGenerated/BP_PatchProbe";
 const contentFile = (p) =>
   join(projectRoot, "Content", p.replace("/Game/", "").replaceAll("/", "\\") + ".uasset");
+function p4Opened() {
+  try {
+    return execSync("p4 opened", { cwd: join(projectRoot, "Content"), encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] });
+  } catch { return null; }
+}
 
 // Twenty-two nodes. Deliberately more than the patch touches, because the claim
 // is about what does NOT move: a fixture the size of the change proves nothing.
@@ -167,6 +172,7 @@ try {
     evidence.steps.plan = plan.data;
 
     console.log("\n-- 3. one batch: a pin default, a new node with two links, a move, a removal, a relink");
+    const p4Before = p4Opened();
     const patch = await call("puerts_blueprint_graph_patch", {
       asset_path: BP,
       operations: [
@@ -179,7 +185,9 @@ try {
         // 5. move one node
         { op: "move_node", target: { type: "Comment", x: 0, y: -300 }, x: 100, y: -400 },
         // 6. remove one node the builder made
-        { op: "remove_node", target: { type: "Operator", node_class: "K2Node_CommutativeAssociativeBinaryOperator", x: 700, y: 700 } },
+        // The builder spawns every Operator through FGraphNodeCreator<UK2Node_CallFunction>,
+        // so that is the class inspection reports, not a commutative-operator class.
+        { op: "remove_node", target: { type: "Operator", node_class: "K2Node_CallFunction", x: 700, y: 700 } },
         // 7. disconnect and reconnect one link
         { op: "disconnect_pins", from: { target: { type: "BeginPlay" }, pin: "then" }, to: { target: { type: "PrintString", x: 300, y: 0 }, pin: "exec" } },
         { op: "connect_pins", from: { target: { type: "BeginPlay" }, pin: "then" }, to: { target: { type: "PrintString", x: 300, y: 0 }, pin: "exec" } },
@@ -285,10 +293,20 @@ try {
       || partial.data?.cleanup === undefined, "(13) no dirty package remains");
     evidence.steps.partial_batch_refused = true;
 
+    const p4After = p4Opened();
+    if (p4Before !== null && p4After !== null) {
+      assert(p4Before === p4After, "(13) no source-control entry appeared");
+      evidence.steps.source_control_quiescent = true;
+    } else {
+      console.log("  INFO  p4 unavailable; source-control quiescence not measured");
+      evidence.steps.source_control_quiescent = null;
+    }
+
     evidence.post_patch_structure_hash = hashOf(after.data);
     evidence.post_patch_node_count = after.data?.graph?.node_count ?? 0;
-    evidence.mcp_round_trips = roundTrips;
   }
+
+  evidence.mcp_round_trips = roundTrips;
 
   mkdirSync(join(repoRoot, "docs", "evidence"), { recursive: true });
   writeFileSync(join(repoRoot, "docs", "evidence", `bp-graph-patch${phase === "cold" ? "-cold" : ""}.json`),

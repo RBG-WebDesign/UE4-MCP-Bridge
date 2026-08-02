@@ -2644,13 +2644,19 @@ bool UBlueprintGraphBuilderLibrary::ConfigureUserDefinedEnum(
 
 namespace
 {
-/** One resolved selector: the node it names, or why it names no single node. */
+/** One resolved selector: the node it names, or why it names no single node.
+    bDeferred is the third state, and it exists because "no node yet" and "no such
+    node" are not the same answer: a selector naming a node this same batch adds
+    is correct and simply cannot be checked until pass 2. Without it the deferred
+    case arrives at the failure branch with an empty Failure string and the batch
+    is refused for a selector that was always going to resolve. */
 struct FPatchTarget
 {
     UEdGraphNode* Node = nullptr;
     FString Description;
     FString Failure;
     bool bAmbiguous = false;
+    bool bDeferred = false;
 };
 
 /** A node's addressable facts, in the order a selector is allowed to use them.
@@ -2700,6 +2706,15 @@ FPatchTarget ResolveSelector(
     {
         if (UEdGraphNode* const* Found = NewNodesThisBatch.Find(NewId))
         {
+            // In pass 1 the map holds reserved keys with no node behind them yet.
+            // That is a deferred hit, not a miss.
+            if (*Found == nullptr)
+            {
+                Result.bDeferred = true;
+                Result.Description = FString::Printf(
+                    TEXT("<new_id '%s', added by this batch>"), *NewId);
+                return Result;
+            }
             Result.Node = *Found;
             Result.Description = DescribeNodeForSelector(*Found);
             return Result;
@@ -2961,6 +2976,18 @@ bool UBlueprintGraphBuilderLibrary::PatchBlueprintGraphFromJSON(
                 return false;
             }
             const FPatchTarget Target = ResolveSelector(Graph, *SelectorObj, PlannedNewNodes);
+            if (Target.bDeferred)
+            {
+                // Only the link operations can name a node before it exists;
+                // everything else needs the real node during planning.
+                UnmatchedSelectors.Add(MakeShared<FJsonValueString>(FString::Printf(
+                    TEXT("operation %d (%s) %s names a node this batch adds. Only connect_pins and "
+                         "disconnect_pins can address a node before it exists. Set what this "
+                         "operation would set through the add_node params instead, or patch the "
+                         "node in a second call once it is real."),
+                    OpIndex, *Op, Field)));
+                return false;
+            }
             if (Target.Node == nullptr) { RecordFailure(Target, Field); return false; }
             MatchedNodes.Add(MakeShared<FJsonValueString>(FString::Printf(
                 TEXT("operation %d (%s) %s -> %s"), OpIndex, *Op, Field, *Target.Description)));
@@ -3022,13 +3049,19 @@ bool UBlueprintGraphBuilderLibrary::PatchBlueprintGraphFromJSON(
                 ResolveSelector(Graph, FromSel != nullptr ? *FromSel : nullptr, PlannedNewNodes);
             const FPatchTarget ToTarget =
                 ResolveSelector(Graph, ToSel != nullptr ? *ToSel : nullptr, PlannedNewNodes);
-            if (FromTarget.Node == nullptr) { RecordFailure(FromTarget, TEXT("from")); }
+            if (FromTarget.Node == nullptr && !FromTarget.bDeferred)
+            {
+                RecordFailure(FromTarget, TEXT("from"));
+            }
             else
             {
                 MatchedNodes.Add(MakeShared<FJsonValueString>(FString::Printf(
                     TEXT("operation %d (%s) from -> %s"), OpIndex, *Op, *FromTarget.Description)));
             }
-            if (ToTarget.Node == nullptr) { RecordFailure(ToTarget, TEXT("to")); }
+            if (ToTarget.Node == nullptr && !ToTarget.bDeferred)
+            {
+                RecordFailure(ToTarget, TEXT("to"));
+            }
             else
             {
                 MatchedNodes.Add(MakeShared<FJsonValueString>(FString::Printf(
@@ -3038,8 +3071,8 @@ bool UBlueprintGraphBuilderLibrary::PatchBlueprintGraphFromJSON(
             // A node this batch is about to add exists only as a reserved key
             // during planning, so its pins cannot be checked yet. Those ends are
             // validated for real at apply time, where the node is real.
-            const bool bFromPlanned = FromTarget.Node == nullptr && FromTarget.Failure.IsEmpty();
-            const bool bToPlanned = ToTarget.Node == nullptr && ToTarget.Failure.IsEmpty();
+            const bool bFromPlanned = FromTarget.bDeferred;
+            const bool bToPlanned = ToTarget.bDeferred;
             if (FromTarget.Node != nullptr && ToTarget.Node != nullptr)
             {
                 UEdGraphPin* FromPin = ResolvePatchPin(FromTarget.Node, FromPinRole, EGPD_Output);
@@ -3076,7 +3109,9 @@ bool UBlueprintGraphBuilderLibrary::PatchBlueprintGraphFromJSON(
             }
             else if (bFromPlanned || bToPlanned)
             {
-                LinksToAdd.Add(MakeShared<FJsonValueString>(FString::Printf(
+                TArray<TSharedPtr<FJsonValue>>& Bucket =
+                    Op == TEXT("connect_pins") ? LinksToAdd : LinksToRemove;
+                Bucket.Add(MakeShared<FJsonValueString>(FString::Printf(
                     TEXT("operation %d (%s): an end names a node this batch adds; verified at apply"),
                     OpIndex, *Op)));
             }
