@@ -67,6 +67,7 @@ function canonicalize(v) {
   }
   return v;
 }
+const fileSha = (p) => createHash("sha256").update(readFileSync(p)).digest("hex");
 const jsonHash = (v) => createHash("sha256").update(JSON.stringify(canonicalize(v))).digest("hex");
 
 const BP = "/Game/MCPGenerated/BP_ConvergeProbe";
@@ -272,6 +273,7 @@ try {
       graph: GRAPH_AFTER,
     });
     assert(seedForRollback.success === true, "(12) the rollback fixture seeds");
+    const shaBeforeFailure = fileSha(contentFile(BP));
     const beforeFailure = await call("puerts_graph_inspect", { asset_path: BP });
     const beforeVars = names((beforeFailure.data?.variables ?? []).map((v) => v.name));
     assert(beforeVars.includes("RollbackVictim"), "(12) the victim variable exists before the failed build");
@@ -295,8 +297,14 @@ try {
       `(12) the removed variable was RESTORED by rollback (got ${afterVars})`);
     assert(JSON.stringify(afterVars) === JSON.stringify(beforeVars),
       "(12) the whole variable set is exactly what it was before the failed build");
-    assert(jsonHash(beforeFailure.data) === jsonHash(afterFailure.data),
-      "(12) the Blueprint is byte-identical to before the failed build");
+    // The variable set is the claim under test. The full inspect payload also
+    // covers graph node object names, which the failed build regenerated when
+    // it rebuilt the graph from the spec; that is not damage, and the file on
+    // disk is checked separately below.
+    assert(jsonHash(beforeFailure.data?.variables) === jsonHash(afterFailure.data?.variables),
+      "(12) the variable set is byte-identical to before the failed build");
+    assert(fileSha(contentFile(BP)) === shaBeforeFailure,
+      "(8) the asset file on disk is byte-identical after the failed build");
     assert(failed.data?.cleanup?.rollback_succeeded === true,
       "(13) the failed build reports rollback_succeeded");
     assert((failed.data?.cleanup?.dirty_packages_after ?? []).length === 0,

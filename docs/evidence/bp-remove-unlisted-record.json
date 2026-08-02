@@ -108,7 +108,20 @@
         "source_control_after": [
           "source control disabled"
         ],
-        "cleanup_errors": []
+        "cleanup_errors": [],
+        "removal_ledger": {
+          "removal_ledger_count": 1,
+          "variables_removed": [
+            "RollbackVictim"
+          ],
+          "variables_restored": [
+            "RollbackVictim"
+          ],
+          "reference_nodes_removed": [],
+          "reference_nodes_restored": [],
+          "restoration_mismatches": [],
+          "rollback_succeeded": true
+        }
       }
     }
   }

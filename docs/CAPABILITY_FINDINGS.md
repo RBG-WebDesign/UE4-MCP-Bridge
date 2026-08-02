@@ -109,9 +109,42 @@ maintains this file; Phase L consumes it.
 
 
 
-0g. **DATA LOSS: `remove_unlisted` removals are NOT rolled back when the build
-   fails afterwards** (found 2026-08-02 by the rollback proof the previous
-   session left untested). `blueprint_build` with `remove_unlisted.variables`
+0g. **FIXED 2026-08-02 by a removal ledger, and the fix is proven by the same
+   test that exposed the bug.** Kept in full because the false
+   `rollback_succeeded` is the part worth remembering.
+
+   **Fix.** A ledger is captured BEFORE any deletion: the whole
+   `FBPVariableDescription` (which carries name, pin type, default value,
+   category, metadata, replication settings, RepNotify function and VarGuid in
+   one struct), the managed-ownership marker, and the variable's graph
+   reference locations. On the failure path the transaction is cancelled, the
+   ledger is replayed by re-adding each captured description and re-stamping
+   its marker, the Blueprint is marked structurally modified and recompiled,
+   and only THEN does the asset-creation boundary run - so its package
+   dirty-state restore is the final word and the restore's own recompile does
+   not leave the package dirty.
+
+   **`rollback_succeeded` is now earned, not asserted.** It is computed by
+   re-reading the asset and comparing each restored variable's pin type,
+   default value, category and ownership marker against the ledger, plus every
+   reference location; any difference becomes a `restoration_mismatch` and the
+   flag goes false. The asset boundary's own verdict is ANDed with the
+   ledger's, so `cleanup.rollback_succeeded` can no longer be true while a
+   removal survived. The response carries `removal_ledger_count`,
+   `variables_removed`, `variables_restored`, `reference_nodes_removed`,
+   `reference_nodes_restored` and `restoration_mismatches`.
+
+   **Proof.** `Scripts/bp-remove-unlisted-acceptance.mjs` step 8, the test that
+   previously failed: a Blueprint with `KeptA/KeptB/KeptC/RollbackVictim`, a
+   build declaring only the three with `remove_unlisted.variables` and
+   `force_remove_referenced` plus a deliberately unresolvable connection. The
+   build fails, and `RollbackVictim` is **restored** - the variable set is
+   byte-identical to before the failed build, the asset file's SHA-256 is
+   unchanged, no package is dirty, no cleanup errors, and a restart preserves
+   the state. The whole acceptance passes warm and cold, `npm run smoke:inspect`
+   and `npm run verify` pass.
+
+   **Original report, which stood for one commit.** `blueprint_build` with `remove_unlisted.variables`
    removes the variables, then a later failure in the same command - an
    unresolved graph connection, or in principle a compile error - exits through
    `FailRolledBack`, which cancels the transaction and runs the asset rollback

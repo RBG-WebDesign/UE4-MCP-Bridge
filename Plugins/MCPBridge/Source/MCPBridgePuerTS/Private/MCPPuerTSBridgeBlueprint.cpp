@@ -1115,6 +1115,22 @@ bool UMCPPuerTSBridgeService::BuildBlueprintJson(
     TArray<FString> RemovedVariables;
     TArray<FString> SkippedVariables;
     TArray<FString> RemovedReferenceNodes;
+
+    // The removal ledger. Captured BEFORE any deletion, because the whole point
+    // is that the deletion may have to be undone and
+    // FScopedTransaction::Cancel() does not restore
+    // FBlueprintEditorUtils::RemoveMemberVariable - findings 0g, measured, not
+    // assumed. FBPVariableDescription carries the name, pin type, default
+    // value, category, metadata, replication settings, the RepNotify function
+    // and the VarGuid in one struct, so copying it captures the variable whole.
+    struct FRemovalLedgerEntry
+    {
+        FBPVariableDescription Description;
+        bool bWasManaged = false;
+        TArray<FString> ReferenceLocations;
+    };
+    TArray<FRemovalLedgerEntry> RemovalLedger;
+    TSharedPtr<FJsonObject> RollbackLedgerJson;
     if (bHasVariables)
     {
         FString VariableError;
@@ -1149,6 +1165,19 @@ bool UMCPPuerTSBridgeService::BuildBlueprintJson(
         for (const FString& Name : PlanToRemove)
         {
             const FName VarName(*Name);
+            // Ledger first, deletion second. Never the other way round.
+            {
+                const int32 Index = Blueprint->NewVariables.IndexOfByPredicate(
+                    [&](const FBPVariableDescription& D) { return D.VarName == VarName; });
+                if (Index != INDEX_NONE)
+                {
+                    FRemovalLedgerEntry Entry;
+                    Entry.Description = Blueprint->NewVariables[Index];
+                    Entry.bWasManaged = IsManagedVariable(Blueprint, VarName);
+                    Entry.ReferenceLocations = FindVariableReferences(Blueprint, VarName);
+                    RemovalLedger.Add(Entry);
+                }
+            }
             if (bForceRemoveReferenced)
             {
                 // Delete the nodes that read or write it first: removing the
@@ -1251,6 +1280,106 @@ bool UMCPPuerTSBridgeService::BuildBlueprintJson(
         {
             ActiveTransaction->Cancel();
         }
+
+        // Restore from the ledger rather than trusting the cancelled
+        // transaction. Findings 0g: RemoveMemberVariable calls Modify(), which
+        // made it look transactional, and it is not recovered on this path -
+        // a failed build permanently dropped the variables.
+        TArray<FString> RestoredVariables;
+        TArray<FString> RestorationMismatches;
+        for (const FRemovalLedgerEntry& Entry : RemovalLedger)
+        {
+            const bool bPresent = Blueprint->NewVariables.ContainsByPredicate(
+                [&](const FBPVariableDescription& D) { return D.VarName == Entry.Description.VarName; });
+            if (!bPresent)
+            {
+                // Re-add the captured struct whole: name, pin type, default
+                // value, category, metadata, replication and VarGuid come back
+                // together because they were never separated.
+                Blueprint->NewVariables.Add(Entry.Description);
+            }
+            if (Entry.bWasManaged)
+            {
+                MarkVariableManaged(Blueprint, Entry.Description.VarName);
+            }
+            RestoredVariables.Add(Entry.Description.VarName.ToString());
+        }
+        if (RemovalLedger.Num() > 0)
+        {
+            FBlueprintEditorUtils::MarkBlueprintAsStructurallyModified(Blueprint);
+            UBlueprintGraphBuilderLibrary::CompileAndReport(Blueprint);
+        }
+
+        // Independent confirmation. rollback_succeeded is NOT allowed to come
+        // from "we ran the restore": it is re-read off the asset, because the
+        // previous version of this reported true while the data was gone.
+        for (const FRemovalLedgerEntry& Entry : RemovalLedger)
+        {
+            const FName VarName = Entry.Description.VarName;
+            const int32 Index = Blueprint->NewVariables.IndexOfByPredicate(
+                [&](const FBPVariableDescription& D) { return D.VarName == VarName; });
+            if (Index == INDEX_NONE)
+            {
+                RestorationMismatches.Add(FString::Printf(
+                    TEXT("%s: not present after rollback"), *VarName.ToString()));
+                continue;
+            }
+            const FBPVariableDescription& Now = Blueprint->NewVariables[Index];
+            if (Now.VarType != Entry.Description.VarType)
+            {
+                RestorationMismatches.Add(FString::Printf(
+                    TEXT("%s: pin type differs after rollback"), *VarName.ToString()));
+            }
+            if (Now.DefaultValue != Entry.Description.DefaultValue)
+            {
+                RestorationMismatches.Add(FString::Printf(
+                    TEXT("%s: default value differs after rollback"), *VarName.ToString()));
+            }
+            if (Now.Category.ToString() != Entry.Description.Category.ToString())
+            {
+                RestorationMismatches.Add(FString::Printf(
+                    TEXT("%s: category differs after rollback"), *VarName.ToString()));
+            }
+            if (Entry.bWasManaged && !IsManagedVariable(Blueprint, VarName))
+            {
+                RestorationMismatches.Add(FString::Printf(
+                    TEXT("%s: managed ownership marker not restored"), *VarName.ToString()));
+            }
+        }
+        // Reference nodes are deleted only under force, and the graph is
+        // rebuilt from the spec on every build, so a node the caller still
+        // declares comes back with the rebuild. One that the caller stopped
+        // declaring is reported rather than silently absent.
+        TArray<FString> ReferenceNodesRestored;
+        for (const FRemovalLedgerEntry& Entry : RemovalLedger)
+        {
+            const TArray<FString> Now = FindVariableReferences(Blueprint, Entry.Description.VarName);
+            for (const FString& Location : Now) { ReferenceNodesRestored.Add(Location); }
+            for (const FString& Was : Entry.ReferenceLocations)
+            {
+                if (!Now.Contains(Was))
+                {
+                    RestorationMismatches.Add(FString::Printf(
+                        TEXT("%s: reference node %s was not restored"),
+                        *Entry.Description.VarName.ToString(), *Was));
+                }
+            }
+        }
+
+        RollbackLedgerJson = MakeShared<FJsonObject>();
+        RollbackLedgerJson->SetNumberField(TEXT("removal_ledger_count"), RemovalLedger.Num());
+        RollbackLedgerJson->SetArrayField(TEXT("variables_removed"), StringsToJson(RemovedVariables));
+        RollbackLedgerJson->SetArrayField(TEXT("variables_restored"), StringsToJson(RestoredVariables));
+        RollbackLedgerJson->SetArrayField(TEXT("reference_nodes_removed"), StringsToJson(RemovedReferenceNodes));
+        RollbackLedgerJson->SetArrayField(TEXT("reference_nodes_restored"), StringsToJson(ReferenceNodesRestored));
+        RollbackLedgerJson->SetArrayField(TEXT("restoration_mismatches"), StringsToJson(RestorationMismatches));
+        RollbackLedgerJson->SetBoolField(TEXT("rollback_succeeded"),
+            RestorationMismatches.Num() == 0);
+
+        // The asset boundary runs LAST, so its package dirty-state restore is
+        // the final word. Restoring variables marks the Blueprint structurally
+        // modified and recompiles it, which dirties the package; running the
+        // boundary afterwards puts the flag back where the request found it.
         Rollback.Rollback();
 
         TSharedPtr<FJsonObject> Failed = MakeShared<FJsonObject>();
@@ -1276,8 +1405,22 @@ bool UMCPPuerTSBridgeService::BuildBlueprintJson(
         Warnings.Add(MakeShared<FJsonValueString>(
             TEXT("The build failed and was rolled back: no asset, package, or file remains.")));
         Failed->SetArrayField(TEXT("warnings"), Warnings);
-        Failed->SetObjectField(TEXT("cleanup"),
-            Rollback.BuildEvidence(DirtyBefore, SourceControlBefore));
+        TSharedPtr<FJsonObject> CleanupJson =
+            Rollback.BuildEvidence(DirtyBefore, SourceControlBefore);
+        if (RollbackLedgerJson.IsValid())
+        {
+            // The asset-creation boundary reports on what IT tracked. The
+            // removal ledger is the destructive half, and its verdict is
+            // authoritative: cleanup.rollback_succeeded may not stay true while
+            // a removal survived, which is exactly how 0g hid.
+            CleanupJson->SetObjectField(TEXT("removal_ledger"), RollbackLedgerJson);
+            bool bLedgerOk = false;
+            RollbackLedgerJson->TryGetBoolField(TEXT("rollback_succeeded"), bLedgerOk);
+            bool bAssetOk = false;
+            CleanupJson->TryGetBoolField(TEXT("rollback_succeeded"), bAssetOk);
+            CleanupJson->SetBoolField(TEXT("rollback_succeeded"), bAssetOk && bLedgerOk);
+        }
+        Failed->SetObjectField(TEXT("cleanup"), CleanupJson);
         OutResultJson = SerializeJson(Failed);
         return true;
     };
