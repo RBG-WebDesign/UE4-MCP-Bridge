@@ -136,8 +136,8 @@
     },
     "failed_build_graph": {
       "graph_strategy": "deferred replacement: the live graph is never cleared until the replacement is whole",
-      "pre_graph_hash": "462728ae8744e0ce71a10fdc2644fe01609276ce060839bb928f7edd9ab4fd9b",
-      "post_failure_graph_hash": "e189702204fe43289e3f59c27708a79b2321119ad8c3086ca96a3145cf3d6f7e",
+      "pre_graph_hash": "a6d4461a65afb37e757f55143a2f70239d8993a31c91577db4c0044ee9cc668c",
+      "post_failure_graph_hash": "92dfa305afd81db8286c5d87b727105cda9c7f5e3c51171ed145f3d8e6500bdf",
       "nodes_before": 4,
       "nodes_after": 4,
       "nodes_byte_identical": 3,
@@ -147,7 +147,7 @@
     },
     "failed_additive_build": {
       "success": false,
-      "post_failure_graph_hash": "e189702204fe43289e3f59c27708a79b2321119ad8c3086ca96a3145cf3d6f7e",
+      "post_failure_graph_hash": "92dfa305afd81db8286c5d87b727105cda9c7f5e3c51171ed145f3d8e6500bdf",
       "original_graph_preserved": true
     }
   }

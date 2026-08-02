@@ -26,7 +26,22 @@
         "source_control_after": [
           "source control disabled"
         ],
-        "cleanup_errors": []
+        "cleanup_errors": [],
+        "removal_ledger": {
+          "removal_ledger_count": 0,
+          "variables_removed": [],
+          "variables_restored": [],
+          "reference_nodes_removed": [],
+          "reference_nodes_restored": [],
+          "reference_nodes_captured": 0,
+          "reference_nodes_recreated": 0,
+          "pin_defaults_restored": 0,
+          "links_captured": 0,
+          "links_restored": 0,
+          "graph_restoration_mismatches": [],
+          "restoration_mismatches": [],
+          "rollback_succeeded": true
+        }
       }
     },
     {
@@ -54,7 +69,22 @@
         "source_control_after": [
           "source control disabled"
         ],
-        "cleanup_errors": []
+        "cleanup_errors": [],
+        "removal_ledger": {
+          "removal_ledger_count": 0,
+          "variables_removed": [],
+          "variables_restored": [],
+          "reference_nodes_removed": [],
+          "reference_nodes_restored": [],
+          "reference_nodes_captured": 0,
+          "reference_nodes_recreated": 0,
+          "pin_defaults_restored": 0,
+          "links_captured": 0,
+          "links_restored": 0,
+          "graph_restoration_mismatches": [],
+          "restoration_mismatches": [],
+          "rollback_succeeded": true
+        }
       }
     },
     {
@@ -82,7 +112,22 @@
         "source_control_after": [
           "source control disabled"
         ],
-        "cleanup_errors": []
+        "cleanup_errors": [],
+        "removal_ledger": {
+          "removal_ledger_count": 0,
+          "variables_removed": [],
+          "variables_restored": [],
+          "reference_nodes_removed": [],
+          "reference_nodes_restored": [],
+          "reference_nodes_captured": 0,
+          "reference_nodes_recreated": 0,
+          "pin_defaults_restored": 0,
+          "links_captured": 0,
+          "links_restored": 0,
+          "graph_restoration_mismatches": [],
+          "restoration_mismatches": [],
+          "rollback_succeeded": true
+        }
       }
     }
   ],
@@ -96,9 +141,7 @@
       "cleanup": {
         "rollback_attempted": false,
         "rollback_succeeded": false,
-        "created_assets": [
-          "/Game/MCPGenerated/BP_AtomicityGood.BP_AtomicityGood"
-        ],
+        "created_assets": [],
         "removed_assets": [],
         "dirty_packages_before": [],
         "dirty_packages_after": [],

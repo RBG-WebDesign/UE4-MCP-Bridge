@@ -221,6 +221,17 @@
       "lane E: an out-of-scope change to lane A's file was restored and committed twice after lane E reverted it"
     ],
     "impact": "The one-writer-per-worktree rule was not held. Content so far appears intact and npm run verify passes, but provenance is no longer trustworthy by inspection alone.",
-    "required_before_next_wave": "identify the writer (a hook is the likeliest candidate) and stop it. Until then no lane result can be attributed with confidence."
+    "required_before_next_wave": "identify the writer (a hook is the likeliest candidate) and stop it. Until then no lane result can be attributed with confidence.",
+    "hook_hypothesis": {
+      "verdict": "DISPROVEN",
+      "evidence": "core.hooksPath is empty; .git/hooks contains only .sample files; .githooks is empty; .claude/settings.json configures exactly three hooks (SessionStart banner, guard-legacy-http and guard-destructive, both PreToolUse) and none of them run git.",
+      "note": "Recorded because it was my stated blocker and it was wrong. Guessing at a cause and then halting on the guess is worse than not guessing."
+    },
+    "remaining_hypothesis": {
+      "statement": "Concurrent subagents sharing one .git. Git worktrees share a single object store and HEAD-per-worktree; a lane whose shell cwd resolved to the main tree rather than its own worktree would commit to the integration branch under the repository identity, which matches every symptom.",
+      "status": "UNPROVEN. Consistent with all four witnesses but not demonstrated.",
+      "practical_mitigation": "Run lanes SEQUENTIALLY, one live agent at a time, until it is demonstrated. Wave one ran three concurrent lanes and produced no such report; wave two ran three concurrent lanes and produced four. That correlation is suggestive, not proof."
+    },
+    "blocker_status": "DOWNGRADED. Content is verified intact and npm run verify passes at 208 tools. The risk is misattribution, not corruption, and sequential lanes mitigate it."
   }
 }
