@@ -1192,6 +1192,313 @@ FString UBlueprintGraphBuilderLibrary::ConfigureVariablesFromJSON(
     return Finish();
 }
 
+/** The node-creation primitive, lifted out of the build loop so that patching
+    can spawn a node without rebuilding a graph around it.
+
+    It was inline in BuildBlueprintFromJSONWithReport, which meant the only way
+    to create one node the way the builder creates them was to run the builder,
+    and the only way to run the builder was to hand it a whole graph. Moving it
+    here is what lets add_node in a patch produce a node identical to one
+    blueprint_build would have produced, inside the caller's own transaction,
+    compile and verification boundary rather than a second one.
+
+    Returns the node, or nullptr with the reason appended to OutFailedNodes in
+    the same wording the build report already used. Nothing else changed: the
+    dispatch, the routing keys, the unknown-parameter refusal and the position
+    override are the original code, and the `continue` statements that skipped a
+    node in the loop are now the `return nullptr` that reports one. */
+static UEdGraphNode* SpawnNodeFromSpec(
+    UEdGraph* Graph,
+    const TSharedPtr<FJsonObject>& NodeObjRef,
+    const FString& NodeId,
+    const FString& NodeType,
+    TArray<FString>& OutFailedNodes)
+{
+    // Named so the moved body reads exactly as it did inside the loop, where
+    // NodeObj was a pointer into the parsed spec array.
+    const TSharedPtr<FJsonObject>* NodeObj = &NodeObjRef;
+
+    UEdGraphNode* SpawnedNode = nullptr;
+
+    TSharedPtr<FJsonObject> Params;
+    {
+        const TSharedPtr<FJsonObject>* ParamsObj = nullptr;
+        if ((*NodeObj)->TryGetObjectField(TEXT("params"), ParamsObj))
+        {
+            Params = *ParamsObj;
+        }
+    }
+    // Params consumed by the dispatch itself rather than as pin defaults.
+    TSet<FString> RoutingKeys;
+
+    if (NodeType == TEXT("BeginPlay"))
+    {
+        SpawnedNode = SpawnOverrideEvent(*Graph, TEXT("ReceiveBeginPlay"), 0, 0);
+    }
+    else if (NodeType == TEXT("Tick"))
+    {
+        SpawnedNode = SpawnOverrideEvent(*Graph, TEXT("ReceiveTick"), 0, 600);
+    }
+    else if (NodeType == TEXT("ActorBeginOverlap"))
+    {
+        SpawnedNode = SpawnOverrideEvent(*Graph, TEXT("ReceiveActorBeginOverlap"), 0, 200);
+    }
+    else if (NodeType == TEXT("ActorEndOverlap"))
+    {
+        SpawnedNode = SpawnOverrideEvent(*Graph, TEXT("ReceiveActorEndOverlap"), 0, 400);
+    }
+    else if (NodeType == TEXT("PrintString") || NodeType == TEXT("Delay")
+        || NodeType == TEXT("CallFunction") || NodeType == TEXT("Operator"))
+    {
+        UClass* TargetClass = nullptr;
+        FString FuncName;
+        if (NodeType == TEXT("PrintString"))
+        {
+            TargetClass = UKismetSystemLibrary::StaticClass();
+            FuncName = TEXT("PrintString");
+        }
+        else if (NodeType == TEXT("Delay"))
+        {
+            TargetClass = UKismetSystemLibrary::StaticClass();
+            FuncName = TEXT("Delay");
+        }
+        else if (NodeType == TEXT("Operator"))
+        {
+            FString Op;
+            if (Params.IsValid())
+            {
+                Params->TryGetStringField(TEXT("op"), Op);
+            }
+            RoutingKeys.Add(TEXT("op"));
+            const FOperatorEntry* Entry = FindOperator(Op);
+            if (Entry == nullptr)
+            {
+                UE_LOG(LogTemp, Error,
+                    TEXT("BuildBlueprintFromJSON: node '%s' names no known operator ('%s')"),
+                    *NodeId, *Op);
+                return nullptr;
+            }
+            TargetClass = ResolveGraphClass(Entry->ClassName);
+            FuncName = Entry->FunctionName;
+        }
+        else
+        {
+            FString ClassName;
+            if (Params.IsValid())
+            {
+                Params->TryGetStringField(TEXT("class"), ClassName);
+                Params->TryGetStringField(TEXT("function"), FuncName);
+            }
+            RoutingKeys.Add(TEXT("class"));
+            RoutingKeys.Add(TEXT("function"));
+            TargetClass = ResolveGraphClass(ClassName);
+            if (TargetClass == nullptr)
+            {
+                UE_LOG(LogTemp, Error,
+                    TEXT("BuildBlueprintFromJSON: node '%s' class '%s' not found for CallFunction"),
+                    *NodeId, *ClassName);
+                return nullptr;
+            }
+        }
+
+        UFunction* Func = TargetClass != nullptr ? TargetClass->FindFunctionByName(*FuncName) : nullptr;
+        if (Func == nullptr)
+        {
+            UE_LOG(LogTemp, Error,
+                TEXT("BuildBlueprintFromJSON: node '%s' function '%s' not found on '%s'"),
+                *NodeId, *FuncName,
+                TargetClass != nullptr ? *TargetClass->GetName() : TEXT("<null class>"));
+            return nullptr;
+        }
+
+        FGraphNodeCreator<UK2Node_CallFunction> Creator(*Graph);
+        UK2Node_CallFunction* CallNode = Creator.CreateNode();
+        CallNode->SetFromFunction(Func);
+        CallNode->NodePosX = 300;
+        CallNode->NodePosY = 200;
+        Creator.Finalize();
+        SpawnedNode = CallNode;
+    }
+    else if (NodeType == TEXT("Branch"))
+    {
+        FGraphNodeCreator<UK2Node_IfThenElse> Creator(*Graph);
+        UK2Node_IfThenElse* Node = Creator.CreateNode();
+        Creator.Finalize();
+        SpawnedNode = Node;
+    }
+    else if (NodeType == TEXT("Sequence"))
+    {
+        FGraphNodeCreator<UK2Node_ExecutionSequence> Creator(*Graph);
+        UK2Node_ExecutionSequence* Node = Creator.CreateNode();
+        Creator.Finalize();
+        int32 NumOutputs = 2;
+        if (Params.IsValid())
+        {
+            Params->TryGetNumberField(TEXT("num_outputs"), NumOutputs);
+        }
+        RoutingKeys.Add(TEXT("num_outputs"));
+        auto CountExecOutputs = [](UK2Node_ExecutionSequence* N)
+        {
+            int32 Count = 0;
+            for (UEdGraphPin* P : N->Pins)
+            {
+                if (P && P->Direction == EGPD_Output && P->PinType.PinCategory == UEdGraphSchema_K2::PC_Exec)
+                {
+                    Count++;
+                }
+            }
+            return Count;
+        };
+        while (CountExecOutputs(Node) < NumOutputs)
+        {
+            Node->AddInputPin();
+        }
+        SpawnedNode = Node;
+    }
+    else if (NodeType == TEXT("Comment"))
+    {
+        FGraphNodeCreator<UEdGraphNode_Comment> Creator(*Graph);
+        UEdGraphNode_Comment* Node = Creator.CreateNode();
+        Creator.Finalize();
+        if (Params.IsValid())
+        {
+            FString Text;
+            if (Params->TryGetStringField(TEXT("text"), Text))
+            {
+                Node->NodeComment = Text;
+            }
+            int32 W = 400, H = 200;
+            Params->TryGetNumberField(TEXT("width"), W);
+            Params->TryGetNumberField(TEXT("height"), H);
+            Node->NodeWidth = W;
+            Node->NodeHeight = H;
+        }
+        RoutingKeys.Append({ TEXT("text"), TEXT("width"), TEXT("height") });
+        SpawnedNode = Node;
+    }
+    else if (FBPNodeRegistry::FFactory Factory = FBPNodeRegistry::Find(NodeType))
+    {
+        // The mutator's factory table. Its config keys are routing, not pin
+        // defaults, so every key the factory reads is skipped afterwards.
+        SpawnedNode = Factory(Graph, FVector2D(600.0f, 200.0f), RegistryConfigJson(Params));
+        if (SpawnedNode == nullptr)
+        {
+            UE_LOG(LogTemp, Error,
+                TEXT("BuildBlueprintFromJSON: node '%s' of type '%s' was refused by its factory; see the LogBlueprintMutator line above for the reason"),
+                *NodeId, *NodeType);
+            // This used to `continue` silently, which is what let a refused
+            // node stay in the reported count. The supplied keys are named
+            // because the usual cause is a key the factory does not read:
+            // VariableGet takes varName, and a spec written with "variable"
+            // produces exactly this, with no other symptom.
+            TArray<FString> SuppliedKeys;
+            if (Params.IsValid())
+            {
+                for (const auto& Pair : Params->Values) { SuppliedKeys.Add(Pair.Key); }
+                SuppliedKeys.Sort();
+            }
+            OutFailedNodes.Add(FString::Printf(
+                TEXT("%s: %s: factory_refused: the node factory created nothing. Supplied "
+                     "parameters: [%s]. A parameter this node type does not read is ignored, "
+                     "and a missing required one makes the factory refuse."),
+                *NodeId, *NodeType,
+                SuppliedKeys.Num() > 0 ? *FString::Join(SuppliedKeys, TEXT(", ")) : TEXT("none")));
+            return nullptr;
+        }
+        RoutingKeys.Append({
+            TEXT("var_name"), TEXT("scope"), TEXT("target_class"), TEXT("function_name"),
+            TEXT("event_name"), TEXT("parent_class"), TEXT("parameters"), TEXT("purity"),
+            TEXT("actor_class"), TEXT("widget_class"), TEXT("struct_type"),
+            TEXT("num_outputs"), TEXT("num_inputs"), TEXT("start_index"), TEXT("num_cases"),
+            TEXT("has_default"), TEXT("case_values"), TEXT("is_case_sensitive"),
+            TEXT("is_random"), TEXT("loop"), TEXT("start_index_from_zero"),
+            TEXT("text"), TEXT("width"), TEXT("height"), TEXT("color"),
+            TEXT("fkey_name"), TEXT("consume_input"), TEXT("execute_when_paused"),
+            TEXT("override_parent"),
+        });
+        // A variable set node names its value pin after the variable, which
+        // a caller writing a spec should not have to repeat.
+        if (NodeType == TEXT("VariableSet") && Params.IsValid() && Params->HasField(TEXT("value")))
+        {
+            FString VarName;
+            Params->TryGetStringField(TEXT("var_name"), VarName);
+            FString Error;
+            if (!ApplyPinDefaultAndNotify(SpawnedNode, SpawnedNode->FindPin(FName(*VarName)),
+                    Params->TryGetField(TEXT("value")), Error))
+            {
+                UE_LOG(LogTemp, Warning,
+                    TEXT("BuildBlueprintFromJSON: node '%s' value for variable '%s' %s"),
+                    *NodeId, *VarName, *Error);
+            }
+            RoutingKeys.Add(TEXT("value"));
+        }
+    }
+    else
+    {
+        // Reached only when GetSupportedNodeTypes names a type that has
+        // neither a case above nor a registry factory, which is the drift
+        // case that list exists to make visible.
+        UE_LOG(LogTemp, Error,
+            TEXT("BuildBlueprintFromJSON: Node type '%s' is advertised by GetSupportedNodeTypes but has no dispatch case"),
+            *NodeType);
+        return nullptr;
+    }
+
+    // An unknown authoring key is refused, not ignored. It is almost always
+    // a misspelling of a real one, and applying the rest of the spec around
+    // it produces a node that looks authored and is not - which is how the
+    // VariableGet "variable" case cost nothing and stayed invisible.
+    // Matching is normalised (underscores and case folded) so the
+    // snake_case routing vocabulary and the camelCase factory config are
+    // one accepted-name set; see NormalizeParamKey.
+    TArray<FString> UnknownParams;
+    ApplyParamsAsPinDefaults(SpawnedNode, Params, RoutingKeys, NodeId, UnknownParams);
+    if (UnknownParams.Num() > 0 && SpawnedNode != nullptr)
+    {
+        UnknownParams.Sort();
+        OutFailedNodes.Add(FString::Printf(
+            TEXT("%s: %s: unknown_parameter: [%s] is not accepted by this node type. "
+                 "Accepted parameters: [%s]."),
+            *NodeId, *NodeType,
+            *FString::Join(UnknownParams, TEXT(", ")),
+            *DescribeAcceptedParams(SpawnedNode, RoutingKeys)));
+        SpawnedNode->GetGraph()->RemoveNode(SpawnedNode);
+        return nullptr;
+    }
+
+    // Per-node position override (top-level "x" / "y" on the node spec)
+    if (SpawnedNode)
+    {
+        int32 PosX, PosY;
+        if ((*NodeObj)->TryGetNumberField(TEXT("x"), PosX)) SpawnedNode->NodePosX = PosX;
+        if ((*NodeObj)->TryGetNumberField(TEXT("y"), PosY)) SpawnedNode->NodePosY = PosY;
+    }
+
+    // A null return means the factory refused the spec: an unknown config
+    // key, a missing required parameter, a class that would not resolve.
+    // Recording it as a created node is what produced phantom counts, so
+    // the id is reported as a failure and kept out of the map. A node that
+    // landed in a different graph is treated the same way: it is not the
+    // graph the caller asked to author.
+    if (SpawnedNode == nullptr)
+    {
+        OutFailedNodes.Add(FString::Printf(
+            TEXT("%s: %s: the node factory created nothing. Check the parameter names for "
+                 "this node type: a key the factory does not read is ignored, and a missing "
+                 "required key makes it refuse."),
+            *NodeId, *NodeType));
+        return nullptr;
+    }
+    if (SpawnedNode->GetGraph() != Graph)
+    {
+        OutFailedNodes.Add(FString::Printf(
+            TEXT("%s: %s: the node was created in a different graph than the one requested."),
+            *NodeId, *NodeType));
+        return nullptr;
+    }
+    return SpawnedNode;
+}
+
 void UBlueprintGraphBuilderLibrary::BuildBlueprintFromJSON(
     UBlueprint* Blueprint,
     const FString& JsonString,
@@ -1305,282 +1612,10 @@ void UBlueprintGraphBuilderLibrary::BuildBlueprintFromJSONWithReport(
             continue;
         }
 
-        UEdGraphNode* SpawnedNode = nullptr;
-
-        TSharedPtr<FJsonObject> Params;
-        {
-            const TSharedPtr<FJsonObject>* ParamsObj = nullptr;
-            if ((*NodeObj)->TryGetObjectField(TEXT("params"), ParamsObj))
-            {
-                Params = *ParamsObj;
-            }
-        }
-        // Params consumed by the dispatch itself rather than as pin defaults.
-        TSet<FString> RoutingKeys;
-
-        if (NodeType == TEXT("BeginPlay"))
-        {
-            SpawnedNode = SpawnOverrideEvent(*Graph, TEXT("ReceiveBeginPlay"), 0, 0);
-        }
-        else if (NodeType == TEXT("Tick"))
-        {
-            SpawnedNode = SpawnOverrideEvent(*Graph, TEXT("ReceiveTick"), 0, 600);
-        }
-        else if (NodeType == TEXT("ActorBeginOverlap"))
-        {
-            SpawnedNode = SpawnOverrideEvent(*Graph, TEXT("ReceiveActorBeginOverlap"), 0, 200);
-        }
-        else if (NodeType == TEXT("ActorEndOverlap"))
-        {
-            SpawnedNode = SpawnOverrideEvent(*Graph, TEXT("ReceiveActorEndOverlap"), 0, 400);
-        }
-        else if (NodeType == TEXT("PrintString") || NodeType == TEXT("Delay")
-            || NodeType == TEXT("CallFunction") || NodeType == TEXT("Operator"))
-        {
-            UClass* TargetClass = nullptr;
-            FString FuncName;
-            if (NodeType == TEXT("PrintString"))
-            {
-                TargetClass = UKismetSystemLibrary::StaticClass();
-                FuncName = TEXT("PrintString");
-            }
-            else if (NodeType == TEXT("Delay"))
-            {
-                TargetClass = UKismetSystemLibrary::StaticClass();
-                FuncName = TEXT("Delay");
-            }
-            else if (NodeType == TEXT("Operator"))
-            {
-                FString Op;
-                if (Params.IsValid())
-                {
-                    Params->TryGetStringField(TEXT("op"), Op);
-                }
-                RoutingKeys.Add(TEXT("op"));
-                const FOperatorEntry* Entry = FindOperator(Op);
-                if (Entry == nullptr)
-                {
-                    UE_LOG(LogTemp, Error,
-                        TEXT("BuildBlueprintFromJSON: node '%s' names no known operator ('%s')"),
-                        *NodeId, *Op);
-                    continue;
-                }
-                TargetClass = ResolveGraphClass(Entry->ClassName);
-                FuncName = Entry->FunctionName;
-            }
-            else
-            {
-                FString ClassName;
-                if (Params.IsValid())
-                {
-                    Params->TryGetStringField(TEXT("class"), ClassName);
-                    Params->TryGetStringField(TEXT("function"), FuncName);
-                }
-                RoutingKeys.Add(TEXT("class"));
-                RoutingKeys.Add(TEXT("function"));
-                TargetClass = ResolveGraphClass(ClassName);
-                if (TargetClass == nullptr)
-                {
-                    UE_LOG(LogTemp, Error,
-                        TEXT("BuildBlueprintFromJSON: node '%s' class '%s' not found for CallFunction"),
-                        *NodeId, *ClassName);
-                    continue;
-                }
-            }
-
-            UFunction* Func = TargetClass != nullptr ? TargetClass->FindFunctionByName(*FuncName) : nullptr;
-            if (Func == nullptr)
-            {
-                UE_LOG(LogTemp, Error,
-                    TEXT("BuildBlueprintFromJSON: node '%s' function '%s' not found on '%s'"),
-                    *NodeId, *FuncName,
-                    TargetClass != nullptr ? *TargetClass->GetName() : TEXT("<null class>"));
-                continue;
-            }
-
-            FGraphNodeCreator<UK2Node_CallFunction> Creator(*Graph);
-            UK2Node_CallFunction* CallNode = Creator.CreateNode();
-            CallNode->SetFromFunction(Func);
-            CallNode->NodePosX = 300;
-            CallNode->NodePosY = 200;
-            Creator.Finalize();
-            SpawnedNode = CallNode;
-        }
-        else if (NodeType == TEXT("Branch"))
-        {
-            FGraphNodeCreator<UK2Node_IfThenElse> Creator(*Graph);
-            UK2Node_IfThenElse* Node = Creator.CreateNode();
-            Creator.Finalize();
-            SpawnedNode = Node;
-        }
-        else if (NodeType == TEXT("Sequence"))
-        {
-            FGraphNodeCreator<UK2Node_ExecutionSequence> Creator(*Graph);
-            UK2Node_ExecutionSequence* Node = Creator.CreateNode();
-            Creator.Finalize();
-            int32 NumOutputs = 2;
-            if (Params.IsValid())
-            {
-                Params->TryGetNumberField(TEXT("num_outputs"), NumOutputs);
-            }
-            RoutingKeys.Add(TEXT("num_outputs"));
-            auto CountExecOutputs = [](UK2Node_ExecutionSequence* N)
-            {
-                int32 Count = 0;
-                for (UEdGraphPin* P : N->Pins)
-                {
-                    if (P && P->Direction == EGPD_Output && P->PinType.PinCategory == UEdGraphSchema_K2::PC_Exec)
-                    {
-                        Count++;
-                    }
-                }
-                return Count;
-            };
-            while (CountExecOutputs(Node) < NumOutputs)
-            {
-                Node->AddInputPin();
-            }
-            SpawnedNode = Node;
-        }
-        else if (NodeType == TEXT("Comment"))
-        {
-            FGraphNodeCreator<UEdGraphNode_Comment> Creator(*Graph);
-            UEdGraphNode_Comment* Node = Creator.CreateNode();
-            Creator.Finalize();
-            if (Params.IsValid())
-            {
-                FString Text;
-                if (Params->TryGetStringField(TEXT("text"), Text))
-                {
-                    Node->NodeComment = Text;
-                }
-                int32 W = 400, H = 200;
-                Params->TryGetNumberField(TEXT("width"), W);
-                Params->TryGetNumberField(TEXT("height"), H);
-                Node->NodeWidth = W;
-                Node->NodeHeight = H;
-            }
-            RoutingKeys.Append({ TEXT("text"), TEXT("width"), TEXT("height") });
-            SpawnedNode = Node;
-        }
-        else if (FBPNodeRegistry::FFactory Factory = FBPNodeRegistry::Find(NodeType))
-        {
-            // The mutator's factory table. Its config keys are routing, not pin
-            // defaults, so every key the factory reads is skipped afterwards.
-            SpawnedNode = Factory(Graph, FVector2D(600.0f, 200.0f), RegistryConfigJson(Params));
-            if (SpawnedNode == nullptr)
-            {
-                UE_LOG(LogTemp, Error,
-                    TEXT("BuildBlueprintFromJSON: node '%s' of type '%s' was refused by its factory; see the LogBlueprintMutator line above for the reason"),
-                    *NodeId, *NodeType);
-                // This used to `continue` silently, which is what let a refused
-                // node stay in the reported count. The supplied keys are named
-                // because the usual cause is a key the factory does not read:
-                // VariableGet takes varName, and a spec written with "variable"
-                // produces exactly this, with no other symptom.
-                TArray<FString> SuppliedKeys;
-                if (Params.IsValid())
-                {
-                    for (const auto& Pair : Params->Values) { SuppliedKeys.Add(Pair.Key); }
-                    SuppliedKeys.Sort();
-                }
-                OutFailedNodes.Add(FString::Printf(
-                    TEXT("%s: %s: factory_refused: the node factory created nothing. Supplied "
-                         "parameters: [%s]. A parameter this node type does not read is ignored, "
-                         "and a missing required one makes the factory refuse."),
-                    *NodeId, *NodeType,
-                    SuppliedKeys.Num() > 0 ? *FString::Join(SuppliedKeys, TEXT(", ")) : TEXT("none")));
-                continue;
-            }
-            RoutingKeys.Append({
-                TEXT("var_name"), TEXT("scope"), TEXT("target_class"), TEXT("function_name"),
-                TEXT("event_name"), TEXT("parent_class"), TEXT("parameters"), TEXT("purity"),
-                TEXT("actor_class"), TEXT("widget_class"), TEXT("struct_type"),
-                TEXT("num_outputs"), TEXT("num_inputs"), TEXT("start_index"), TEXT("num_cases"),
-                TEXT("has_default"), TEXT("case_values"), TEXT("is_case_sensitive"),
-                TEXT("is_random"), TEXT("loop"), TEXT("start_index_from_zero"),
-                TEXT("text"), TEXT("width"), TEXT("height"), TEXT("color"),
-                TEXT("fkey_name"), TEXT("consume_input"), TEXT("execute_when_paused"),
-                TEXT("override_parent"),
-            });
-            // A variable set node names its value pin after the variable, which
-            // a caller writing a spec should not have to repeat.
-            if (NodeType == TEXT("VariableSet") && Params.IsValid() && Params->HasField(TEXT("value")))
-            {
-                FString VarName;
-                Params->TryGetStringField(TEXT("var_name"), VarName);
-                FString Error;
-                if (!ApplyPinDefaultAndNotify(SpawnedNode, SpawnedNode->FindPin(FName(*VarName)),
-                        Params->TryGetField(TEXT("value")), Error))
-                {
-                    UE_LOG(LogTemp, Warning,
-                        TEXT("BuildBlueprintFromJSON: node '%s' value for variable '%s' %s"),
-                        *NodeId, *VarName, *Error);
-                }
-                RoutingKeys.Add(TEXT("value"));
-            }
-        }
-        else
-        {
-            // Reached only when GetSupportedNodeTypes names a type that has
-            // neither a case above nor a registry factory, which is the drift
-            // case that list exists to make visible.
-            UE_LOG(LogTemp, Error,
-                TEXT("BuildBlueprintFromJSON: Node type '%s' is advertised by GetSupportedNodeTypes but has no dispatch case"),
-                *NodeType);
-            continue;
-        }
-
-        // An unknown authoring key is refused, not ignored. It is almost always
-        // a misspelling of a real one, and applying the rest of the spec around
-        // it produces a node that looks authored and is not - which is how the
-        // VariableGet "variable" case cost nothing and stayed invisible.
-        // Matching is normalised (underscores and case folded) so the
-        // snake_case routing vocabulary and the camelCase factory config are
-        // one accepted-name set; see NormalizeParamKey.
-        TArray<FString> UnknownParams;
-        ApplyParamsAsPinDefaults(SpawnedNode, Params, RoutingKeys, NodeId, UnknownParams);
-        if (UnknownParams.Num() > 0 && SpawnedNode != nullptr)
-        {
-            UnknownParams.Sort();
-            OutFailedNodes.Add(FString::Printf(
-                TEXT("%s: %s: unknown_parameter: [%s] is not accepted by this node type. "
-                     "Accepted parameters: [%s]."),
-                *NodeId, *NodeType,
-                *FString::Join(UnknownParams, TEXT(", ")),
-                *DescribeAcceptedParams(SpawnedNode, RoutingKeys)));
-            SpawnedNode->GetGraph()->RemoveNode(SpawnedNode);
-            continue;
-        }
-
-        // Per-node position override (top-level "x" / "y" on the node spec)
-        if (SpawnedNode)
-        {
-            int32 PosX, PosY;
-            if ((*NodeObj)->TryGetNumberField(TEXT("x"), PosX)) SpawnedNode->NodePosX = PosX;
-            if ((*NodeObj)->TryGetNumberField(TEXT("y"), PosY)) SpawnedNode->NodePosY = PosY;
-        }
-
-        // A null return means the factory refused the spec: an unknown config
-        // key, a missing required parameter, a class that would not resolve.
-        // Recording it as a created node is what produced phantom counts, so
-        // the id is reported as a failure and kept out of the map. A node that
-        // landed in a different graph is treated the same way: it is not the
-        // graph the caller asked to author.
+        UEdGraphNode* SpawnedNode =
+            SpawnNodeFromSpec(Graph, *NodeObj, NodeId, NodeType, OutFailedNodes);
         if (SpawnedNode == nullptr)
         {
-            OutFailedNodes.Add(FString::Printf(
-                TEXT("%s: %s: the node factory created nothing. Check the parameter names for "
-                     "this node type: a key the factory does not read is ignored, and a missing "
-                     "required key makes it refuse."),
-                *NodeId, *NodeType));
-            continue;
-        }
-        if (SpawnedNode->GetGraph() != Graph)
-        {
-            OutFailedNodes.Add(FString::Printf(
-                TEXT("%s: %s: the node was created in a different graph than the one requested."),
-                *NodeId, *NodeType));
             continue;
         }
         NodeMap.Add(NodeId, SpawnedNode);
@@ -2601,4 +2636,738 @@ bool UBlueprintGraphBuilderLibrary::ConfigureUserDefinedEnum(
     FEnumEditorUtils::EnsureAllDisplayNamesExist(Enum);
     Enum->MarkPackageDirty();
     return true;
+}
+
+// ---------------------------------------------------------------------------
+// Incremental graph patching
+// ---------------------------------------------------------------------------
+
+namespace
+{
+/** One resolved selector: the node it names, or why it names no single node. */
+struct FPatchTarget
+{
+    UEdGraphNode* Node = nullptr;
+    FString Description;
+    FString Failure;
+    bool bAmbiguous = false;
+};
+
+/** A node's addressable facts, in the order a selector is allowed to use them.
+    Deliberately does NOT include the UObject name on its own: that name changes
+    whenever a node is recreated, and a patch that targets by it edits whatever
+    happens to hold the name afterwards (findings 0j). It is accepted only as a
+    disambiguator ALONGSIDE a structural field. */
+FString DescribeNodeForSelector(UEdGraphNode* Node)
+{
+    if (Node == nullptr) { return TEXT("<null>"); }
+    FString VarOrFunc;
+    if (const UK2Node_Variable* Var = Cast<UK2Node_Variable>(Node))
+    {
+        VarOrFunc = FString::Printf(TEXT(" var=%s"), *Var->GetVarName().ToString());
+    }
+    else if (const UK2Node_CallFunction* Call = Cast<UK2Node_CallFunction>(Node))
+    {
+        VarOrFunc = FString::Printf(TEXT(" fn=%s"), *Call->GetFunctionName().ToString());
+    }
+    return FString::Printf(TEXT("%s [%s%s] at %d,%d (guid %s, object %s)"),
+        *UBlueprintGraphBuilderLibrary::GetNodeTypeForNode(Node),
+        *Node->GetClass()->GetName(), *VarOrFunc,
+        Node->NodePosX, Node->NodePosY,
+        *Node->NodeGuid.ToString(), *Node->GetName());
+}
+
+/** Resolve one selector against a graph. Every supplied field must match, and
+    exactly one node must survive. */
+FPatchTarget ResolveSelector(
+    UEdGraph* Graph,
+    const TSharedPtr<FJsonObject>& Selector,
+    const TMap<FString, UEdGraphNode*>& NewNodesThisBatch)
+{
+    FPatchTarget Result;
+    if (!Selector.IsValid())
+    {
+        Result.Failure = TEXT("the selector is missing or is not an object");
+        return Result;
+    }
+
+    // A node created earlier in this same batch. Needed because a caller adding
+    // a node and then wiring it has no guid to name it by yet, and the alternative
+    // - a second round trip to discover it - is the round trip this command exists
+    // to remove.
+    FString NewId;
+    if (Selector->TryGetStringField(TEXT("new_id"), NewId) && !NewId.IsEmpty())
+    {
+        if (UEdGraphNode* const* Found = NewNodesThisBatch.Find(NewId))
+        {
+            Result.Node = *Found;
+            Result.Description = DescribeNodeForSelector(*Found);
+            return Result;
+        }
+        Result.Failure = FString::Printf(
+            TEXT("new_id '%s' names no node added earlier in this batch"), *NewId);
+        return Result;
+    }
+
+    FString NodeGuid, NodeClass, NodeType, VarName, FunctionName, ObjectId;
+    Selector->TryGetStringField(TEXT("node_guid"), NodeGuid);
+    Selector->TryGetStringField(TEXT("node_class"), NodeClass);
+    Selector->TryGetStringField(TEXT("type"), NodeType);
+    Selector->TryGetStringField(TEXT("var_name"), VarName);
+    Selector->TryGetStringField(TEXT("function"), FunctionName);
+    Selector->TryGetStringField(TEXT("id"), ObjectId);
+    double X = 0.0, Y = 0.0;
+    const bool bHasX = Selector->TryGetNumberField(TEXT("x"), X);
+    const bool bHasY = Selector->TryGetNumberField(TEXT("y"), Y);
+
+    const bool bHasStructural = !NodeGuid.IsEmpty() || !NodeClass.IsEmpty() || !NodeType.IsEmpty()
+        || !VarName.IsEmpty() || !FunctionName.IsEmpty();
+    if (!bHasStructural)
+    {
+        Result.Failure = ObjectId.IsEmpty()
+            ? TEXT("the selector names no node: supply node_guid, or type/node_class with "
+                   "var_name, function, id or position")
+            : FString::Printf(
+                TEXT("the selector names only the object id '%s'. A UObject name is not stable - "
+                     "it changes whenever a node is recreated - so it is accepted only together "
+                     "with a structural field such as type, node_class, var_name or function."),
+                *ObjectId);
+        return Result;
+    }
+
+    TArray<UEdGraphNode*> Matches;
+    for (UEdGraphNode* Node : Graph->Nodes)
+    {
+        if (Node == nullptr) { continue; }
+        if (!NodeGuid.IsEmpty() && Node->NodeGuid.ToString() != NodeGuid) { continue; }
+        if (!NodeClass.IsEmpty() && Node->GetClass()->GetName() != NodeClass) { continue; }
+        if (!NodeType.IsEmpty()
+            && UBlueprintGraphBuilderLibrary::GetNodeTypeForNode(Node) != NodeType) { continue; }
+        if (!ObjectId.IsEmpty() && Node->GetName() != ObjectId) { continue; }
+        if (!VarName.IsEmpty())
+        {
+            const UK2Node_Variable* Var = Cast<UK2Node_Variable>(Node);
+            if (Var == nullptr || Var->GetVarName().ToString() != VarName) { continue; }
+        }
+        if (!FunctionName.IsEmpty())
+        {
+            const UK2Node_CallFunction* Call = Cast<UK2Node_CallFunction>(Node);
+            if (Call == nullptr || Call->GetFunctionName().ToString() != FunctionName) { continue; }
+        }
+        if (bHasX && Node->NodePosX != static_cast<int32>(X)) { continue; }
+        if (bHasY && Node->NodePosY != static_cast<int32>(Y)) { continue; }
+        Matches.Add(Node);
+    }
+
+    if (Matches.Num() == 1)
+    {
+        Result.Node = Matches[0];
+        Result.Description = DescribeNodeForSelector(Matches[0]);
+        return Result;
+    }
+    if (Matches.Num() == 0)
+    {
+        Result.Failure = TEXT("the selector matched no node in this graph");
+        return Result;
+    }
+
+    // Ambiguity is refused rather than resolved by picking the first. Position
+    // is offered as the way out because it is the one field that separates
+    // otherwise identical nodes, which is exactly when this fires.
+    Result.bAmbiguous = true;
+    TArray<FString> Descriptions;
+    for (UEdGraphNode* Node : Matches) { Descriptions.Add(DescribeNodeForSelector(Node)); }
+    Descriptions.Sort();
+    Result.Failure = FString::Printf(
+        TEXT("the selector matched %d nodes and a patch will not choose between them. "
+             "Add x and y to disambiguate, or address one by node_guid. Matches: %s"),
+        Matches.Num(), *FString::Join(Descriptions, TEXT("; ")));
+    return Result;
+}
+
+/** Pin lookup by the same role vocabulary the builder's connections use, so a
+    patch and a build address the same pin by the same word. */
+UEdGraphPin* ResolvePatchPin(UEdGraphNode* Node, const FString& Role, EEdGraphPinDirection Direction)
+{
+    if (Node == nullptr) { return nullptr; }
+    if (Role == TEXT("exec"))
+    {
+        return Node->FindPin(Direction == EGPD_Output
+            ? UEdGraphSchema_K2::PN_Then : UEdGraphSchema_K2::PN_Execute);
+    }
+    if (Role == TEXT("then")) { return Node->FindPin(UEdGraphSchema_K2::PN_Then); }
+    if (Role == TEXT("AsResult"))
+    {
+        if (UK2Node_DynamicCast* CastNode = Cast<UK2Node_DynamicCast>(Node))
+        {
+            return CastNode->GetCastResultPin();
+        }
+    }
+    return Node->FindPin(FName(*Role));
+}
+
+/** "nodeId.pinRole" as a patch writes it, split into its two halves. */
+bool SplitEndpoint(const FString& Endpoint, FString& OutNode, FString& OutPin)
+{
+    int32 Dot = INDEX_NONE;
+    if (!Endpoint.FindLastChar(TEXT('.'), Dot) || Dot <= 0 || Dot >= Endpoint.Len() - 1)
+    {
+        return false;
+    }
+    OutNode = Endpoint.Left(Dot);
+    OutPin = Endpoint.Mid(Dot + 1);
+    return true;
+}
+}
+
+bool UBlueprintGraphBuilderLibrary::PatchBlueprintGraphFromJSON(
+    UBlueprint* Blueprint,
+    const FString& PatchJson,
+    bool bPlanOnly,
+    FString& OutReportJson)
+{
+    TSharedPtr<FJsonObject> Report = MakeShared<FJsonObject>();
+    TArray<TSharedPtr<FJsonValue>> Errors;
+    auto Finish = [&](bool bOk) -> bool
+    {
+        Report->SetArrayField(TEXT("errors"), Errors);
+        Report->SetBoolField(TEXT("ok"), bOk);
+        FString Text;
+        TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&Text);
+        FJsonSerializer::Serialize(Report.ToSharedRef(), Writer);
+        OutReportJson = Text;
+        return bOk;
+    };
+    auto Fail = [&](const FString& Message) -> bool
+    {
+        Errors.Add(MakeShared<FJsonValueString>(Message));
+        return Finish(false);
+    };
+
+    if (Blueprint == nullptr) { return Fail(TEXT("Blueprint is null.")); }
+
+    TSharedPtr<FJsonObject> Root;
+    TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(PatchJson);
+    if (!FJsonSerializer::Deserialize(Reader, Root) || !Root.IsValid())
+    {
+        return Fail(TEXT("The patch must be a JSON object."));
+    }
+
+    FString GraphName;
+    Root->TryGetStringField(TEXT("graph"), GraphName);
+    UEdGraph* Graph = nullptr;
+    if (GraphName.IsEmpty())
+    {
+        Graph = FBlueprintEditorUtils::FindEventGraph(Blueprint);
+        if (Graph == nullptr && Blueprint->UbergraphPages.Num() > 0)
+        {
+            Graph = Blueprint->UbergraphPages[0];
+        }
+    }
+    else
+    {
+        for (UEdGraph* Candidate : Blueprint->UbergraphPages)
+        {
+            if (Candidate != nullptr && Candidate->GetName() == GraphName) { Graph = Candidate; }
+        }
+        for (UEdGraph* Candidate : Blueprint->FunctionGraphs)
+        {
+            if (Candidate != nullptr && Candidate->GetName() == GraphName) { Graph = Candidate; }
+        }
+    }
+    if (Graph == nullptr)
+    {
+        return Fail(FString::Printf(TEXT("No graph named '%s' on this Blueprint."),
+            GraphName.IsEmpty() ? TEXT("<event graph>") : *GraphName));
+    }
+    Report->SetStringField(TEXT("graph"), Graph->GetName());
+
+    const TArray<TSharedPtr<FJsonValue>>* Operations = nullptr;
+    if (!Root->TryGetArrayField(TEXT("operations"), Operations) || Operations == nullptr)
+    {
+        return Fail(TEXT("operations must be an array."));
+    }
+
+    static const TSet<FString> SupportedOps = {
+        TEXT("add_node"), TEXT("update_node"), TEXT("remove_node"), TEXT("set_pin_default"),
+        TEXT("connect_pins"), TEXT("disconnect_pins"), TEXT("move_node"),
+    };
+
+    // --- Pass 1: resolve and validate the whole batch, mutating nothing ---
+    //
+    // Every selector resolves before the first change. A batch that half-applies
+    // and then meets an unresolvable target has already done the damage the
+    // transaction then has to undo, and findings 0k is the record of what that
+    // costs. Refusing up front is the same insight one level down: do not start
+    // changing until the thing that might fail has succeeded.
+    struct FResolvedOp
+    {
+        FString Op;
+        int32 Index = 0;
+        const TSharedPtr<FJsonObject>* Spec = nullptr;
+        UEdGraphNode* Target = nullptr;
+        UEdGraphPin* TargetPin = nullptr;
+        FString NewId;
+        bool bUnchanged = false;
+        FString UnchangedReason;
+    };
+
+    TArray<FResolvedOp> Resolved;
+    TArray<TSharedPtr<FJsonValue>> MatchedNodes, UnmatchedSelectors, AmbiguousSelectors;
+    TArray<TSharedPtr<FJsonValue>> NodesToAdd, NodesToUpdate, NodesToRemove;
+    TArray<TSharedPtr<FJsonValue>> PinDefaultsToChange, LinksToAdd, LinksToRemove;
+    TMap<FString, UEdGraphNode*> PlannedNewNodes;
+
+    int32 Index = 0;
+    for (const TSharedPtr<FJsonValue>& OpValue : *Operations)
+    {
+        const TSharedPtr<FJsonObject>* OpObj = nullptr;
+        const int32 OpIndex = Index++;
+        if (!OpValue->TryGetObject(OpObj))
+        {
+            return Fail(FString::Printf(TEXT("operation %d is not an object."), OpIndex));
+        }
+        FString Op;
+        (*OpObj)->TryGetStringField(TEXT("op"), Op);
+        if (!SupportedOps.Contains(Op))
+        {
+            TArray<FString> Names = SupportedOps.Array();
+            Names.Sort();
+            return Fail(FString::Printf(
+                TEXT("operation %d names an unsupported op '%s'. Supported: %s."),
+                OpIndex, *Op, *FString::Join(Names, TEXT(", "))));
+        }
+
+        FResolvedOp R;
+        R.Op = Op;
+        R.Index = OpIndex;
+        R.Spec = OpObj;
+
+        auto RecordFailure = [&](const FPatchTarget& Target, const TCHAR* Field)
+        {
+            const FString Line = FString::Printf(TEXT("operation %d (%s) %s: %s"),
+                OpIndex, *Op, Field, *Target.Failure);
+            if (Target.bAmbiguous) { AmbiguousSelectors.Add(MakeShared<FJsonValueString>(Line)); }
+            else { UnmatchedSelectors.Add(MakeShared<FJsonValueString>(Line)); }
+        };
+
+        auto ResolveNamed = [&](const TCHAR* Field, UEdGraphNode*& OutNode) -> bool
+        {
+            const TSharedPtr<FJsonObject>* SelectorObj = nullptr;
+            if (!(*OpObj)->TryGetObjectField(Field, SelectorObj))
+            {
+                UnmatchedSelectors.Add(MakeShared<FJsonValueString>(FString::Printf(
+                    TEXT("operation %d (%s): %s is missing"), OpIndex, *Op, Field)));
+                return false;
+            }
+            const FPatchTarget Target = ResolveSelector(Graph, *SelectorObj, PlannedNewNodes);
+            if (Target.Node == nullptr) { RecordFailure(Target, Field); return false; }
+            MatchedNodes.Add(MakeShared<FJsonValueString>(FString::Printf(
+                TEXT("operation %d (%s) %s -> %s"), OpIndex, *Op, Field, *Target.Description)));
+            OutNode = Target.Node;
+            return true;
+        };
+
+        if (Op == TEXT("add_node"))
+        {
+            const TSharedPtr<FJsonObject>* NodeSpec = nullptr;
+            if (!(*OpObj)->TryGetObjectField(TEXT("node"), NodeSpec))
+            {
+                return Fail(FString::Printf(TEXT("operation %d (add_node) has no node object."), OpIndex));
+            }
+            FString NewId, NodeType;
+            (*OpObj)->TryGetStringField(TEXT("new_id"), NewId);
+            (*NodeSpec)->TryGetStringField(TEXT("type"), NodeType);
+            if (NewId.IsEmpty()) { (*NodeSpec)->TryGetStringField(TEXT("id"), NewId); }
+            if (NewId.IsEmpty())
+            {
+                return Fail(FString::Printf(
+                    TEXT("operation %d (add_node) needs new_id so later operations can address it."), OpIndex));
+            }
+            if (!GetSupportedNodeTypes().Contains(NodeType))
+            {
+                return Fail(FString::Printf(
+                    TEXT("operation %d (add_node) names node type '%s', which this builder does not "
+                         "support. Patching adds no node types of its own."), OpIndex, *NodeType));
+            }
+            R.NewId = NewId;
+            PlannedNewNodes.Add(NewId, nullptr);
+            NodesToAdd.Add(MakeShared<FJsonValueString>(FString::Printf(TEXT("%s: %s"), *NewId, *NodeType)));
+        }
+        else if (Op == TEXT("connect_pins") || Op == TEXT("disconnect_pins"))
+        {
+            const TSharedPtr<FJsonObject>* FromObj = nullptr;
+            const TSharedPtr<FJsonObject>* ToObj = nullptr;
+            if (!(*OpObj)->TryGetObjectField(TEXT("from"), FromObj)
+                || !(*OpObj)->TryGetObjectField(TEXT("to"), ToObj))
+            {
+                return Fail(FString::Printf(
+                    TEXT("operation %d (%s) needs from and to objects, each with a target selector "
+                         "and a pin."), OpIndex, *Op));
+            }
+            const TSharedPtr<FJsonObject>* FromSel = nullptr;
+            const TSharedPtr<FJsonObject>* ToSel = nullptr;
+            (*FromObj)->TryGetObjectField(TEXT("target"), FromSel);
+            (*ToObj)->TryGetObjectField(TEXT("target"), ToSel);
+            FString FromPinRole, ToPinRole;
+            (*FromObj)->TryGetStringField(TEXT("pin"), FromPinRole);
+            (*ToObj)->TryGetStringField(TEXT("pin"), ToPinRole);
+            if (FromPinRole.IsEmpty() || ToPinRole.IsEmpty())
+            {
+                return Fail(FString::Printf(
+                    TEXT("operation %d (%s) needs a pin role on both ends."), OpIndex, *Op));
+            }
+
+            const FPatchTarget FromTarget =
+                ResolveSelector(Graph, FromSel != nullptr ? *FromSel : nullptr, PlannedNewNodes);
+            const FPatchTarget ToTarget =
+                ResolveSelector(Graph, ToSel != nullptr ? *ToSel : nullptr, PlannedNewNodes);
+            if (FromTarget.Node == nullptr) { RecordFailure(FromTarget, TEXT("from")); }
+            else
+            {
+                MatchedNodes.Add(MakeShared<FJsonValueString>(FString::Printf(
+                    TEXT("operation %d (%s) from -> %s"), OpIndex, *Op, *FromTarget.Description)));
+            }
+            if (ToTarget.Node == nullptr) { RecordFailure(ToTarget, TEXT("to")); }
+            else
+            {
+                MatchedNodes.Add(MakeShared<FJsonValueString>(FString::Printf(
+                    TEXT("operation %d (%s) to -> %s"), OpIndex, *Op, *ToTarget.Description)));
+            }
+
+            // A node this batch is about to add exists only as a reserved key
+            // during planning, so its pins cannot be checked yet. Those ends are
+            // validated for real at apply time, where the node is real.
+            const bool bFromPlanned = FromTarget.Node == nullptr && FromTarget.Failure.IsEmpty();
+            const bool bToPlanned = ToTarget.Node == nullptr && ToTarget.Failure.IsEmpty();
+            if (FromTarget.Node != nullptr && ToTarget.Node != nullptr)
+            {
+                UEdGraphPin* FromPin = ResolvePatchPin(FromTarget.Node, FromPinRole, EGPD_Output);
+                UEdGraphPin* ToPin = ResolvePatchPin(ToTarget.Node, ToPinRole, EGPD_Input);
+                if (FromPin == nullptr)
+                {
+                    UnmatchedSelectors.Add(MakeShared<FJsonValueString>(FString::Printf(
+                        TEXT("operation %d (%s): no output pin '%s' on %s"),
+                        OpIndex, *Op, *FromPinRole, *DescribeNodeForSelector(FromTarget.Node))));
+                }
+                else if (ToPin == nullptr)
+                {
+                    UnmatchedSelectors.Add(MakeShared<FJsonValueString>(FString::Printf(
+                        TEXT("operation %d (%s): no input pin '%s' on %s"),
+                        OpIndex, *Op, *ToPinRole, *DescribeNodeForSelector(ToTarget.Node))));
+                }
+                else
+                {
+                    const bool bLinked = FromPin->LinkedTo.Contains(ToPin);
+                    const FString Line = FString::Printf(TEXT("%s.%s -> %s.%s"),
+                        *DescribeNodeForSelector(FromTarget.Node), *FromPinRole,
+                        *DescribeNodeForSelector(ToTarget.Node), *ToPinRole);
+                    if (Op == TEXT("connect_pins"))
+                    {
+                        if (bLinked) { R.bUnchanged = true; R.UnchangedReason = TEXT("already linked"); }
+                        else { LinksToAdd.Add(MakeShared<FJsonValueString>(Line)); }
+                    }
+                    else
+                    {
+                        if (!bLinked) { R.bUnchanged = true; R.UnchangedReason = TEXT("already not linked"); }
+                        else { LinksToRemove.Add(MakeShared<FJsonValueString>(Line)); }
+                    }
+                }
+            }
+            else if (bFromPlanned || bToPlanned)
+            {
+                LinksToAdd.Add(MakeShared<FJsonValueString>(FString::Printf(
+                    TEXT("operation %d (%s): an end names a node this batch adds; verified at apply"),
+                    OpIndex, *Op)));
+            }
+        }
+        else if (ResolveNamed(TEXT("target"), R.Target))
+        {
+            if (Op == TEXT("remove_node"))
+            {
+                NodesToRemove.Add(MakeShared<FJsonValueString>(DescribeNodeForSelector(R.Target)));
+            }
+            else if (Op == TEXT("move_node"))
+            {
+                double NewX = R.Target->NodePosX, NewY = R.Target->NodePosY;
+                (*OpObj)->TryGetNumberField(TEXT("x"), NewX);
+                (*OpObj)->TryGetNumberField(TEXT("y"), NewY);
+                if (static_cast<int32>(NewX) == R.Target->NodePosX
+                    && static_cast<int32>(NewY) == R.Target->NodePosY)
+                {
+                    R.bUnchanged = true;
+                    R.UnchangedReason = TEXT("already at that position");
+                }
+                else
+                {
+                    NodesToUpdate.Add(MakeShared<FJsonValueString>(FString::Printf(
+                        TEXT("move %s to %d,%d"), *DescribeNodeForSelector(R.Target),
+                        static_cast<int32>(NewX), static_cast<int32>(NewY))));
+                }
+            }
+            else if (Op == TEXT("set_pin_default"))
+            {
+                FString PinRole;
+                (*OpObj)->TryGetStringField(TEXT("pin"), PinRole);
+                UEdGraphPin* Pin = ResolvePatchPin(R.Target, PinRole, EGPD_Input);
+                if (Pin == nullptr)
+                {
+                    UnmatchedSelectors.Add(MakeShared<FJsonValueString>(FString::Printf(
+                        TEXT("operation %d (set_pin_default): no input pin '%s' on %s"),
+                        OpIndex, *PinRole, *DescribeNodeForSelector(R.Target))));
+                }
+                else
+                {
+                    R.TargetPin = Pin;
+                    // Compared against what the pin already holds, so rerunning
+                    // the same patch reports zero changes rather than rewriting
+                    // an identical value and dirtying the package for nothing.
+                    // Only a string value can be compared without applying it;
+                    // anything else is treated as a change, which is the safe
+                    // direction to be wrong in.
+                    const TSharedPtr<FJsonValue> Value = (*OpObj)->TryGetField(TEXT("value"));
+                    FString AsString;
+                    // Equals with an explicit case sensitivity, NOT ==.
+                    // FString::operator== folds case, so a pin holding "two"
+                    // compared equal to "TWO" and the change was classified as
+                    // a no-op: the patch reported converged and wrote nothing.
+                    if (Value.IsValid() && Value->Type == EJson::String
+                        && Value->TryGetString(AsString)
+                        && Pin->DefaultValue.Equals(AsString, ESearchCase::CaseSensitive))
+                    {
+                        R.bUnchanged = true;
+                        R.UnchangedReason = TEXT("pin already holds that value");
+                    }
+                    else
+                    {
+                        PinDefaultsToChange.Add(MakeShared<FJsonValueString>(FString::Printf(
+                            TEXT("%s.%s: currently '%s'"),
+                            *DescribeNodeForSelector(R.Target), *PinRole, *Pin->DefaultValue)));
+                    }
+                }
+            }
+            else if (Op == TEXT("update_node"))
+            {
+                NodesToUpdate.Add(MakeShared<FJsonValueString>(FString::Printf(
+                    TEXT("update %s"), *DescribeNodeForSelector(R.Target))));
+            }
+        }
+        Resolved.Add(R);
+    }
+
+    Report->SetArrayField(TEXT("matched_nodes"), MatchedNodes);
+    Report->SetArrayField(TEXT("unmatched_selectors"), UnmatchedSelectors);
+    Report->SetArrayField(TEXT("ambiguous_selectors"), AmbiguousSelectors);
+    Report->SetArrayField(TEXT("nodes_to_add"), NodesToAdd);
+    Report->SetArrayField(TEXT("nodes_to_update"), NodesToUpdate);
+    Report->SetArrayField(TEXT("nodes_to_remove"), NodesToRemove);
+    Report->SetArrayField(TEXT("pin_defaults_to_change"), PinDefaultsToChange);
+    Report->SetArrayField(TEXT("links_to_add"), LinksToAdd);
+    Report->SetArrayField(TEXT("links_to_remove"), LinksToRemove);
+    const int32 ExpectedChanges = NodesToAdd.Num() + NodesToUpdate.Num() + NodesToRemove.Num()
+        + PinDefaultsToChange.Num() + LinksToAdd.Num() + LinksToRemove.Num();
+    Report->SetNumberField(TEXT("expected_change_count"), ExpectedChanges);
+    Report->SetNumberField(TEXT("requested_operation_count"), Resolved.Num());
+
+    // A prediction is offered only where it is genuinely deterministic. A batch
+    // that changes nothing leaves the graph it found, so the hash is known
+    // exactly. Anything else depends on pin sets Unreal only materialises once
+    // the node exists, and a guessed hash a caller then compares against is
+    // worse than admitting there is none.
+    Report->SetBoolField(TEXT("predicted_structure_hash_is_current"), ExpectedChanges == 0);
+    if (ExpectedChanges != 0)
+    {
+        Report->SetStringField(TEXT("prediction_unavailable_reason"),
+            TEXT("the batch changes the graph, and a node's structural key includes pin defaults "
+                 "that Unreal only materialises once the node exists. A predicted hash is offered "
+                 "only for a no-op batch, where it is the current hash by definition."));
+    }
+
+    if (UnmatchedSelectors.Num() > 0 || AmbiguousSelectors.Num() > 0)
+    {
+        return Fail(FString::Printf(
+            TEXT("%d selector(s) matched no node and %d matched more than one. Nothing was changed: "
+                 "a patch resolves its whole batch before it mutates anything."),
+            UnmatchedSelectors.Num(), AmbiguousSelectors.Num()));
+    }
+
+    if (bPlanOnly)
+    {
+        Report->SetBoolField(TEXT("plan_only"), true);
+        return Finish(true);
+    }
+
+    // --- Pass 2: apply ---
+    TArray<TSharedPtr<FJsonValue>> CreatedNodes, UpdatedNodes, RemovedNodes;
+    TArray<TSharedPtr<FJsonValue>> ChangedPinDefaults, CreatedLinks, RemovedLinks;
+    TArray<TSharedPtr<FJsonValue>> FailedOperations, UnchangedOperations;
+    TMap<FString, UEdGraphNode*> AddedThisBatch;
+    int32 Applied = 0;
+
+    for (FResolvedOp& R : Resolved)
+    {
+        if (R.bUnchanged)
+        {
+            UnchangedOperations.Add(MakeShared<FJsonValueString>(FString::Printf(
+                TEXT("operation %d (%s): %s"), R.Index, *R.Op, *R.UnchangedReason)));
+            continue;
+        }
+
+        if (R.Op == TEXT("add_node"))
+        {
+            const TSharedPtr<FJsonObject>* NodeSpec = nullptr;
+            (*R.Spec)->TryGetObjectField(TEXT("node"), NodeSpec);
+            FString NodeType;
+            (*NodeSpec)->TryGetStringField(TEXT("type"), NodeType);
+            TArray<FString> Failures;
+            UEdGraphNode* Node = SpawnNodeFromSpec(Graph, *NodeSpec, R.NewId, NodeType, Failures);
+            if (Node == nullptr)
+            {
+                for (const FString& F : Failures) { FailedOperations.Add(MakeShared<FJsonValueString>(F)); }
+                if (Failures.Num() == 0)
+                {
+                    FailedOperations.Add(MakeShared<FJsonValueString>(FString::Printf(
+                        TEXT("operation %d (add_node): the node factory created nothing for '%s'."),
+                        R.Index, *NodeType)));
+                }
+                continue;
+            }
+            AddedThisBatch.Add(R.NewId, Node);
+            CreatedNodes.Add(MakeShared<FJsonValueString>(DescribeNodeForSelector(Node)));
+            Applied++;
+        }
+        else if (R.Op == TEXT("remove_node"))
+        {
+            const FString Described = DescribeNodeForSelector(R.Target);
+            FBlueprintEditorUtils::RemoveNode(Blueprint, R.Target, /*bDontRecompile=*/true);
+            RemovedNodes.Add(MakeShared<FJsonValueString>(Described));
+            Applied++;
+        }
+        else if (R.Op == TEXT("move_node"))
+        {
+            double NewX = R.Target->NodePosX, NewY = R.Target->NodePosY;
+            (*R.Spec)->TryGetNumberField(TEXT("x"), NewX);
+            (*R.Spec)->TryGetNumberField(TEXT("y"), NewY);
+            R.Target->Modify();
+            R.Target->NodePosX = static_cast<int32>(NewX);
+            R.Target->NodePosY = static_cast<int32>(NewY);
+            UpdatedNodes.Add(MakeShared<FJsonValueString>(DescribeNodeForSelector(R.Target)));
+            Applied++;
+        }
+        else if (R.Op == TEXT("set_pin_default"))
+        {
+            FString PinRole;
+            (*R.Spec)->TryGetStringField(TEXT("pin"), PinRole);
+            FString Error;
+            if (!ApplyPinDefaultAndNotify(R.Target, R.TargetPin,
+                    (*R.Spec)->TryGetField(TEXT("value")), Error))
+            {
+                FailedOperations.Add(MakeShared<FJsonValueString>(FString::Printf(
+                    TEXT("operation %d (set_pin_default) on %s.%s: %s"),
+                    R.Index, *DescribeNodeForSelector(R.Target), *PinRole, *Error)));
+                continue;
+            }
+            ChangedPinDefaults.Add(MakeShared<FJsonValueString>(FString::Printf(
+                TEXT("%s.%s = '%s'"), *DescribeNodeForSelector(R.Target), *PinRole,
+                *R.TargetPin->DefaultValue)));
+            Applied++;
+        }
+        else if (R.Op == TEXT("update_node"))
+        {
+            const TSharedPtr<FJsonObject>* Params = nullptr;
+            (*R.Spec)->TryGetObjectField(TEXT("params"), Params);
+            TArray<FString> Unknown;
+            const TSet<FString> NoRoutingKeys;
+            ApplyParamsAsPinDefaults(R.Target, Params != nullptr ? *Params : nullptr,
+                NoRoutingKeys, DescribeNodeForSelector(R.Target), Unknown);
+            if (Unknown.Num() > 0)
+            {
+                Unknown.Sort();
+                FailedOperations.Add(MakeShared<FJsonValueString>(FString::Printf(
+                    TEXT("operation %d (update_node) on %s: unknown_parameter: [%s] is not accepted "
+                         "by this node type. Accepted: [%s]."),
+                    R.Index, *DescribeNodeForSelector(R.Target),
+                    *FString::Join(Unknown, TEXT(", ")),
+                    *DescribeAcceptedParams(R.Target, NoRoutingKeys))));
+                continue;
+            }
+            UpdatedNodes.Add(MakeShared<FJsonValueString>(DescribeNodeForSelector(R.Target)));
+            Applied++;
+        }
+        else if (R.Op == TEXT("connect_pins") || R.Op == TEXT("disconnect_pins"))
+        {
+            // Re-resolved here rather than reused from pass 1, because an end may
+            // name a node this batch has only just created.
+            const TSharedPtr<FJsonObject>* FromObj = nullptr;
+            const TSharedPtr<FJsonObject>* ToObj = nullptr;
+            (*R.Spec)->TryGetObjectField(TEXT("from"), FromObj);
+            (*R.Spec)->TryGetObjectField(TEXT("to"), ToObj);
+            const TSharedPtr<FJsonObject>* FromSel = nullptr;
+            const TSharedPtr<FJsonObject>* ToSel = nullptr;
+            (*FromObj)->TryGetObjectField(TEXT("target"), FromSel);
+            (*ToObj)->TryGetObjectField(TEXT("target"), ToSel);
+            FString FromPinRole, ToPinRole;
+            (*FromObj)->TryGetStringField(TEXT("pin"), FromPinRole);
+            (*ToObj)->TryGetStringField(TEXT("pin"), ToPinRole);
+            UEdGraphNode* FromNode = ResolveSelector(Graph, *FromSel, AddedThisBatch).Node;
+            UEdGraphNode* ToNode = ResolveSelector(Graph, *ToSel, AddedThisBatch).Node;
+            UEdGraphPin* FromPin = ResolvePatchPin(FromNode, FromPinRole, EGPD_Output);
+            UEdGraphPin* ToPin = ResolvePatchPin(ToNode, ToPinRole, EGPD_Input);
+            if (FromNode == nullptr || ToNode == nullptr || FromPin == nullptr || ToPin == nullptr)
+            {
+                FailedOperations.Add(MakeShared<FJsonValueString>(FString::Printf(
+                    TEXT("operation %d (%s): an endpoint could not be resolved at apply time "
+                         "(from pin '%s', to pin '%s')."),
+                    R.Index, *R.Op, *FromPinRole, *ToPinRole)));
+                continue;
+            }
+            const FString Line = FString::Printf(TEXT("%s.%s -> %s.%s"),
+                *DescribeNodeForSelector(FromNode), *FromPinRole,
+                *DescribeNodeForSelector(ToNode), *ToPinRole);
+            FromNode->Modify();
+            ToNode->Modify();
+            if (R.Op == TEXT("connect_pins"))
+            {
+                if (FromPin->LinkedTo.Contains(ToPin))
+                {
+                    UnchangedOperations.Add(MakeShared<FJsonValueString>(FString::Printf(
+                        TEXT("operation %d (connect_pins): already linked"), R.Index)));
+                    continue;
+                }
+                FromPin->MakeLinkTo(ToPin);
+                CreatedLinks.Add(MakeShared<FJsonValueString>(Line));
+            }
+            else
+            {
+                FromPin->BreakLinkTo(ToPin);
+                RemovedLinks.Add(MakeShared<FJsonValueString>(Line));
+            }
+            FromNode->PinConnectionListChanged(FromPin);
+            ToNode->PinConnectionListChanged(ToPin);
+            Applied++;
+        }
+    }
+
+    Report->SetNumberField(TEXT("applied_operation_count"), Applied);
+    Report->SetArrayField(TEXT("failed_operations"), FailedOperations);
+    Report->SetArrayField(TEXT("unchanged_operations"), UnchangedOperations);
+    Report->SetArrayField(TEXT("created_nodes"), CreatedNodes);
+    Report->SetArrayField(TEXT("updated_nodes"), UpdatedNodes);
+    Report->SetArrayField(TEXT("removed_nodes"), RemovedNodes);
+    Report->SetArrayField(TEXT("changed_pin_defaults"), ChangedPinDefaults);
+    Report->SetArrayField(TEXT("created_links"), CreatedLinks);
+    Report->SetArrayField(TEXT("removed_links"), RemovedLinks);
+
+    if (FailedOperations.Num() > 0)
+    {
+        return Fail(FString::Printf(
+            TEXT("%d of %d operation(s) failed during apply. The caller must roll back: this "
+                 "function opens no transaction of its own."),
+            FailedOperations.Num(), Resolved.Num()));
+    }
+    if (Applied > 0)
+    {
+        FBlueprintEditorUtils::MarkBlueprintAsStructurallyModified(Blueprint);
+    }
+    return Finish(true);
 }

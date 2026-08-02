@@ -1767,3 +1767,284 @@ bool UMCPPuerTSBridgeService::BuildBlueprintJson(
     OutResultJson = SerializeJson(Result);
     return true;
 }
+
+bool UMCPPuerTSBridgeService::PatchBlueprintGraphJson(
+    const FString& SpecJson,
+    FString& OutResultJson,
+    FString& OutError)
+{
+    const double StartSeconds = FPlatformTime::Seconds();
+
+    TSharedPtr<FJsonObject> Spec;
+    TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(SpecJson);
+    if (!FJsonSerializer::Deserialize(Reader, Spec) || !Spec.IsValid())
+    {
+        OutError = TEXT("Blueprint patch spec must be a JSON object.");
+        return false;
+    }
+
+    FString AssetPath;
+    if (!Spec->TryGetStringField(TEXT("asset_path"), AssetPath) || AssetPath.IsEmpty())
+    {
+        OutError = TEXT("asset_path is required.");
+        return false;
+    }
+    if (!AssetPath.StartsWith(TEXT("/Game/MCPGenerated/")) || AssetPath.Contains(TEXT("..")))
+    {
+        OutError = TEXT("Blueprint assets are limited to valid paths under /Game/MCPGenerated/.");
+        return false;
+    }
+
+    const bool bPlanOnly = Spec->HasTypedField<EJson::Boolean>(TEXT("plan_only"))
+        && Spec->GetBoolField(TEXT("plan_only"));
+    const bool bCompile = !Spec->HasTypedField<EJson::Boolean>(TEXT("compile"))
+        || Spec->GetBoolField(TEXT("compile"));
+    const bool bSave = !Spec->HasTypedField<EJson::Boolean>(TEXT("save"))
+        || Spec->GetBoolField(TEXT("save"));
+    const bool bVerify = !Spec->HasTypedField<EJson::Boolean>(TEXT("verify"))
+        || Spec->GetBoolField(TEXT("verify"));
+
+    FString GraphName;
+    Spec->TryGetStringField(TEXT("graph"), GraphName);
+
+    // Patching never creates an asset. A patch against something that is not
+    // there is a mistake in the request, and creating an empty Blueprint to
+    // receive it would turn that mistake into an asset nobody asked for.
+    const FString ObjectPath = FString::Printf(TEXT("%s.%s"), *AssetPath, *FPackageName::GetShortName(AssetPath));
+    UBlueprint* Blueprint = LoadObject<UBlueprint>(nullptr, *ObjectPath);
+    if (Blueprint == nullptr)
+    {
+        OutError = FString::Printf(
+            TEXT("No Blueprint at %s. Patching changes an existing graph and never creates one; "
+                 "use blueprint_build to author the asset first."), *AssetPath);
+        return false;
+    }
+
+    auto ReadStructureHash = [&]() -> FString
+    {
+        const FString GraphJson =
+            UBlueprintGraphBuilderLibrary::DescribeBlueprintGraphJSON(Blueprint, GraphName, true);
+        TSharedPtr<FJsonObject> Described;
+        TSharedRef<TJsonReader<>> GraphReader = TJsonReaderFactory<>::Create(GraphJson);
+        FString Hash;
+        if (FJsonSerializer::Deserialize(GraphReader, Described) && Described.IsValid())
+        {
+            const TSharedPtr<FJsonObject>* GraphObject = nullptr;
+            if (Described->TryGetObjectField(TEXT("graph"), GraphObject))
+            {
+                (*GraphObject)->TryGetStringField(TEXT("structure_hash_sha1"), Hash);
+            }
+            else
+            {
+                Described->TryGetStringField(TEXT("structure_hash_sha1"), Hash);
+            }
+        }
+        return Hash;
+    };
+
+    // --- 1. Inspect before anything moves. ---
+    const FString PreHash = ReadStructureHash();
+
+    // Repack the caller's spec into what the builder's patch primitive takes.
+    TSharedPtr<FJsonObject> PatchRequest = MakeShared<FJsonObject>();
+    if (!GraphName.IsEmpty()) { PatchRequest->SetStringField(TEXT("graph"), GraphName); }
+    const TArray<TSharedPtr<FJsonValue>>* Operations = nullptr;
+    if (!Spec->TryGetArrayField(TEXT("operations"), Operations) || Operations == nullptr)
+    {
+        OutError = TEXT("operations must be an array.");
+        return false;
+    }
+    PatchRequest->SetArrayField(TEXT("operations"), *Operations);
+    FString PatchRequestJson;
+    {
+        TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&PatchRequestJson);
+        FJsonSerializer::Serialize(PatchRequest.ToSharedRef(), Writer);
+    }
+
+    auto ParseReport = [](const FString& Json) -> TSharedPtr<FJsonObject>
+    {
+        TSharedPtr<FJsonObject> Parsed;
+        TSharedRef<TJsonReader<>> ReportReader = TJsonReaderFactory<>::Create(Json);
+        FJsonSerializer::Deserialize(ReportReader, Parsed);
+        return Parsed;
+    };
+    auto JoinReportErrors = [](const TSharedPtr<FJsonObject>& Report) -> FString
+    {
+        if (!Report.IsValid()) { return TEXT("the patch primitive returned unreadable JSON"); }
+        const TArray<TSharedPtr<FJsonValue>>* ReportErrors = nullptr;
+        TArray<FString> Lines;
+        if (Report->TryGetArrayField(TEXT("errors"), ReportErrors) && ReportErrors != nullptr)
+        {
+            for (const TSharedPtr<FJsonValue>& Value : *ReportErrors)
+            {
+                FString Line;
+                if (Value->TryGetString(Line)) { Lines.Add(Line); }
+            }
+        }
+        return FString::Join(Lines, TEXT(" "));
+    };
+
+    // --- 2. Plan mode returns here, having changed nothing. ---
+    if (bPlanOnly)
+    {
+        FString PlanJson;
+        const bool bPlanned = UBlueprintGraphBuilderLibrary::PatchBlueprintGraphFromJSON(
+            Blueprint, PatchRequestJson, /*bPlanOnly=*/true, PlanJson);
+        TSharedPtr<FJsonObject> Plan = ParseReport(PlanJson);
+        if (!bPlanned)
+        {
+            OutError = JoinReportErrors(Plan);
+            return false;
+        }
+        Plan->SetBoolField(TEXT("plan_only"), true);
+        Plan->SetStringField(TEXT("pre_structure_hash"), PreHash);
+        // A no-op batch is the one case where the resulting hash is known
+        // without doing the work, so it is the one case a prediction is given.
+        bool bPredictionIsCurrent = false;
+        Plan->TryGetBoolField(TEXT("predicted_structure_hash_is_current"), bPredictionIsCurrent);
+        if (bPredictionIsCurrent)
+        {
+            Plan->SetStringField(TEXT("predicted_structure_hash"), PreHash);
+        }
+        Plan->SetNumberField(TEXT("elapsed_ms"), (FPlatformTime::Seconds() - StartSeconds) * 1000.0);
+        TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&OutResultJson);
+        FJsonSerializer::Serialize(Plan.ToSharedRef(), Writer);
+        return true;
+    }
+
+    if (ActiveTransaction == nullptr)
+    {
+        OutError = TEXT("Blueprint patching requires an active transaction.");
+        return false;
+    }
+
+    // --- 3. One rollback boundary around the whole batch. ---
+    FBridgeAssetRollback Rollback;
+    Rollback.Snapshot(AssetPath);
+    const TArray<FString> DirtyBefore = Rollback.DirtyPackages();
+    const TArray<FString> SourceControlBefore = Rollback.SourceControlState();
+
+    bool bRollbackAttempted = false;
+    bool bRollbackSucceeded = false;
+    auto FailWithRollback = [&](const FString& Error) -> bool
+    {
+        bRollbackAttempted = true;
+        if (ActiveTransaction != nullptr) { ActiveTransaction->Cancel(); }
+        Rollback.Rollback();
+        // Trust the read-back, not the undo. Findings 0g: a cancelled
+        // transaction looked transactional and was not, and the only thing that
+        // settles whether the graph came back is reading it again.
+        bRollbackSucceeded = (ReadStructureHash() == PreHash);
+        OutError = bRollbackSucceeded
+            ? Error
+            : FString::Printf(
+                TEXT("%s The rollback did NOT restore the original graph: structure hash is %s, "
+                     "expected %s. Treat this asset as damaged."),
+                *Error, *ReadStructureHash(), *PreHash);
+        return false;
+    };
+
+    // --- 4. Apply the batch. ---
+    FString ApplyJson;
+    const bool bApplied = UBlueprintGraphBuilderLibrary::PatchBlueprintGraphFromJSON(
+        Blueprint, PatchRequestJson, /*bPlanOnly=*/false, ApplyJson);
+    TSharedPtr<FJsonObject> Result = ParseReport(ApplyJson);
+    if (!bApplied || !Result.IsValid())
+    {
+        return FailWithRollback(JoinReportErrors(Result));
+    }
+
+    // --- 5. Compile. ---
+    FString CompileStatus = TEXT("Skipped");
+    if (bCompile)
+    {
+        const FString ReportJson = UBlueprintGraphBuilderLibrary::CompileAndReport(Blueprint);
+        TSharedPtr<FJsonObject> CompileReport = ParseReport(ReportJson);
+        bool bCompileSucceeded = false;
+        if (CompileReport.IsValid())
+        {
+            CompileReport->TryGetBoolField(TEXT("success"), bCompileSucceeded);
+            CompileReport->TryGetStringField(TEXT("status"), CompileStatus);
+        }
+        if (!bCompileSucceeded)
+        {
+            return FailWithRollback(FString::Printf(
+                TEXT("The patched Blueprint did not compile (status %s). The patch is rolled back "
+                     "rather than saved: a graph that will not compile is not the graph the caller "
+                     "asked for."), *CompileStatus));
+        }
+    }
+    Result->SetStringField(TEXT("compile_status"), CompileStatus);
+
+    // --- 6/7. Read the asset back independently and verify. ---
+    const FString PostHash = ReadStructureHash();
+    Result->SetStringField(TEXT("pre_structure_hash"), PreHash);
+    Result->SetStringField(TEXT("post_structure_hash"), PostHash);
+
+    int32 AppliedCount = 0;
+    Result->TryGetNumberField(TEXT("applied_operation_count"), AppliedCount);
+    const bool bConverged = (AppliedCount == 0) && (PostHash == PreHash);
+    Result->SetBoolField(TEXT("converged"), bConverged);
+
+    TArray<TSharedPtr<FJsonValue>> VerificationMismatches;
+    if (bVerify)
+    {
+        // The independent read is the point. The apply pass reports what it
+        // believes it did; this asks the asset. A change that is only in the
+        // report is the false positive findings 0g was fixed to remove.
+        const FString GraphJson =
+            UBlueprintGraphBuilderLibrary::DescribeBlueprintGraphJSON(Blueprint, GraphName, true);
+        if (AppliedCount > 0 && PostHash == PreHash)
+        {
+            VerificationMismatches.Add(MakeShared<FJsonValueString>(FString::Printf(
+                TEXT("%d operation(s) reported as applied, but the graph structure hash is unchanged "
+                     "at %s. Either nothing actually changed or the change is invisible to the "
+                     "structural comparison; neither is a result to save."),
+                AppliedCount, *PostHash)));
+        }
+        if (AppliedCount == 0 && PostHash != PreHash)
+        {
+            VerificationMismatches.Add(MakeShared<FJsonValueString>(FString::Printf(
+                TEXT("no operation was applied, but the graph structure hash moved from %s to %s."),
+                *PreHash, *PostHash)));
+        }
+        if (GraphJson.IsEmpty())
+        {
+            VerificationMismatches.Add(MakeShared<FJsonValueString>(
+                TEXT("the patched graph could not be read back for verification.")));
+        }
+    }
+    Result->SetArrayField(TEXT("verification_mismatches"), VerificationMismatches);
+
+    if (VerificationMismatches.Num() > 0)
+    {
+        return FailWithRollback(FString::Printf(
+            TEXT("%d verification mismatch(es) after patching, so nothing was saved."),
+            VerificationMismatches.Num()));
+    }
+
+    // --- 8. Save, and only now. ---
+    bool bSaved = false;
+    if (bSave && AppliedCount > 0)
+    {
+        FString SaveError;
+        bSaved = SaveProjectAsset(ObjectPath, SaveError);
+        if (!bSaved)
+        {
+            return FailWithRollback(FString::Printf(TEXT("The patch verified but could not be saved: %s"), *SaveError));
+        }
+    }
+    Result->SetBoolField(TEXT("saved"), bSaved);
+    Result->SetBoolField(TEXT("rollback_attempted"), bRollbackAttempted);
+    Result->SetBoolField(TEXT("rollback_succeeded"), bRollbackSucceeded);
+    Result->SetStringField(TEXT("asset_path"), AssetPath);
+    Result->SetNumberField(TEXT("elapsed_ms"), (FPlatformTime::Seconds() - StartSeconds) * 1000.0);
+
+    // The same cleanup evidence shape the builder returns, from the same
+    // rollback object, so a caller reads one contract across both commands.
+    Result->SetObjectField(TEXT("cleanup"), Rollback.BuildEvidence(DirtyBefore, SourceControlBefore));
+
+    TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&OutResultJson);
+    FJsonSerializer::Serialize(Result.ToSharedRef(), Writer);
+    return true;
+}

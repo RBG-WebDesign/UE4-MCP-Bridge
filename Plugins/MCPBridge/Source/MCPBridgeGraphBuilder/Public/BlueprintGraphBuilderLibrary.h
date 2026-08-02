@@ -298,4 +298,35 @@ public:
         const FString& GraphName,
         bool bIncludePins
     );
+
+    /**
+     * Change selected graph state without rebuilding the graph around it.
+     *
+     * blueprint_build is a desired-state command: it takes a whole graph and
+     * makes the asset match. That is the right shape for authoring and the
+     * wrong shape for changing one pin default on a graph of forty nodes, where
+     * the caller has to restate the entire graph correctly or lose the parts
+     * they did not mention.
+     *
+     * Every node is addressed by a selector that must resolve to exactly one
+     * node. A selector that matches nothing, or more than one node, is a
+     * refusal and not a guess: picking one of two matches is how a patch
+     * silently edits the wrong node. Selectors deliberately cannot be a bare
+     * UObject name, because that name is not stable across a rebuild - the same
+     * mistake findings 0j records.
+     *
+     * @param Blueprint  The asset to patch.
+     * @param PatchJson  { graph, operations: [...] }.
+     * @param bPlanOnly  Resolve, validate and report, changing nothing.
+     * @param OutReportJson  The plan, or the applied result.
+     * @return true when every operation resolved, validated and (unless
+     *         planning) applied. False leaves the caller to roll back; this
+     *         function opens no transaction and saves nothing.
+     */
+    static bool PatchBlueprintGraphFromJSON(
+        UBlueprint* Blueprint,
+        const FString& PatchJson,
+        bool bPlanOnly,
+        FString& OutReportJson
+    );
 };
