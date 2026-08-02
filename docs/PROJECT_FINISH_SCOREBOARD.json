@@ -99,20 +99,21 @@
           "id": "D",
           "title": "Performance and autonomy harness",
           "owner": "subagent lane-d",
-          "state": "launched",
+          "state": "MERGED",
           "depends_on": [],
           "needs_live_editor": true,
           "note": "The long-job API does not exist; the handoff lists it as P2. Command timeouts clamp 100 ms to 30 s today.",
           "risk": "medium.",
           "branch": "lane/d-perf-harness",
           "worktree": "D:/Unreal Projects/_bridge_worktrees/lane-d",
-          "scope_this_wave": "editor-free: measurement design, benchmark harness written for the integrator to run, results schema, and the long-job design against the real constraint (serialized game thread, NOT_THREAD_SAFE, AcceptCommand refuses a concurrent command). Told not to implement a progress API that cannot report progress."
+          "scope_this_wave": "editor-free: measurement design, benchmark harness written for the integrator to run, results schema, and the long-job design against the real constraint (serialized game thread, NOT_THREAD_SAFE, AcceptCommand refuses a concurrent command). Told not to implement a progress API that cannot report progress.",
+          "result": "Merged. Central result is a reasoned NO: progress and cancellation are not achievable without changing the command queue, because FJsEnvImpl::UvRunOnce runs uv_run on the game thread, so a status query is never even read off the pipe while a long native call holds it. Shipped no progress API, specified the change required, recommended next_offset paging as the first real step. Benchmark harness written for the integrator; refusal path proven end to end. 26 editor-free checks."
         },
         {
           "id": "E",
           "title": "Re-front existing C++ builder groups",
           "owner": "subagent lane-e",
-          "state": "launched",
+          "state": "REPORTED, NOT MERGED",
           "depends_on": [
             "A"
           ],
@@ -121,13 +122,15 @@
           "risk": "high. Largest single lane by tool count.",
           "branch": "lane/e-refront",
           "worktree": "D:/Unreal Projects/_bridge_worktrees/lane-e",
-          "scope_this_wave": "the real 54-tool REFRONT table derived from the inventory, plus ONE builder group re-fronted end to end through the documented add-a-tool chain. Depth over breadth. Exclusive build rights this wave."
+          "scope_this_wave": "the real 54-tool REFRONT table derived from the inventory, plus ONE builder group re-fronted end to end through the documented add-a-tool chain. Depth over breadth. Exclusive build rights this wave.",
+          "result": "11 of 17 BlueprintMutatorLibrary tools re-fronted as one batched command. Main finding: 5 of 17 were misclassified as REFRONT and are really MERGE into blueprint_graph_patch; 38 of 54 remain genuine REFRONT. C++ compiled but did NOT link (LNK1104, editor held the DLLs), so the command has never executed.",
+          "held_because": "the branch carries an out-of-scope change to lane A's shipped blueprint_graph_patch that lane E did not author, reverted twice, and could not stop being restored. It must be reviewed as lane A's file before merge, not waved through as lane E's."
         },
         {
           "id": "F",
           "title": "Release engineering",
           "owner": "subagent lane-f",
-          "state": "launched",
+          "state": "MERGED",
           "depends_on": [],
           "needs_live_editor": true,
           "already_landed": [
@@ -139,7 +142,8 @@
           "risk": "medium.",
           "branch": "lane/f-release",
           "worktree": "D:/Unreal Projects/_bridge_worktrees/lane-f",
-          "scope_this_wave": "fresh-project install proof up to the compiler boundary, manifest schema versioning following session.json's precedent, packaging verdict, CI split by what can and cannot run without a live editor, and the four security negative tests. Modal detection and same-project multi-editor are design only."
+          "scope_this_wave": "fresh-project install proof up to the compiler boundary, manifest schema versioning following session.json's precedent, packaging verdict, CI split by what can and cannot run without a live editor, and the four security negative tests. Modal detection and same-project multi-editor are design only.",
+          "result": "Merged. Manifest schema versioning following session.json's precedent, fresh-install acceptance to the compiler boundary, four security negative tests, CI split by what can and cannot run without an editor, packaging verdict. 114 PASS across three editor-free acceptances."
         }
       ],
       "launched_at": "2026-08-02"
@@ -175,7 +179,7 @@
       "mitigation": "Copy a target project per live lane before wave two. A is checkpointed at 4e197ce and running."
     }
   ],
-  "actionable_incomplete_count": 3,
+  "actionable_incomplete_count": 2,
   "finished": false,
   "open_questions": [
     {
@@ -192,5 +196,31 @@
       "F release engineering, needs a copied project"
     ],
     "prerequisite": "copy a target project per live lane before launching D or F; only two installed targets exist and the rule caps live editors at two."
+  },
+  "packaging_verdict": {
+    "installable_artifact": false,
+    "reasons": [
+      "MCPBridge.uplugin declares a Puerts dependency and the zip contains no PuerTS bundle, so UE4 refuses to load it",
+      "the packager neither builds nor checks that anyone did: packaging a tree with Content/JavaScript removed succeeds silently",
+      "no MCPBridgeInstall.json, so anything installed from it is unmanaged",
+      "no binaries; -RunUAT needs an engine and was not run"
+    ],
+    "source": "lane F, proven by packaging a deliberately gutted tree"
+  },
+  "long_job_verdict": {
+    "progress_and_cancellation_possible_without_queue_change": false,
+    "reason": "FJsEnvImpl::UvRunOnce runs uv_run on the game thread. While a long native call holds that thread the pipe is never read, so a job_status query is not merely refused by the active-command guard, it is never received until the work it asks about has finished. No client-side or TypeScript change can work around a blocked game thread.",
+    "source": "lane D, read from JsEnvImpl.cpp:188 and :233"
+  },
+  "INCIDENT": {
+    "summary": "A writer other than the assigned lane modified worktrees and the integration branch during wave two.",
+    "witnesses": [
+      "integrator: two commits on the integration branch it did not author, one making a factually false salvage claim disproven by the branch tips",
+      "lane D: an auto-checkpoint commit appeared in its worktree that it did not author",
+      "lane F: another writer committed its staged changes under different messages and authored files it did not write",
+      "lane E: an out-of-scope change to lane A's file was restored and committed twice after lane E reverted it"
+    ],
+    "impact": "The one-writer-per-worktree rule was not held. Content so far appears intact and npm run verify passes, but provenance is no longer trustworthy by inspection alone.",
+    "required_before_next_wave": "identify the writer (a hook is the likeliest candidate) and stop it. Until then no lane result can be attributed with confidence."
   }
 }
