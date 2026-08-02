@@ -32,7 +32,7 @@
       "protected_variables": [],
       "referenced_variables": {
         "DropReferenced": [
-          "EventGraph.K2Node_VariableGet_6"
+          "EventGraph.K2Node_VariableGet_1"
         ]
       },
       "blocked_removals": [
@@ -76,7 +76,7 @@
       ],
       "skipped_variables": [],
       "removed_reference_nodes": [
-        "EventGraph.K2Node_VariableGet_8"
+        "EventGraph.K2Node_VariableGet_3"
       ],
       "managed_variables_after": [
         "KeptA",
@@ -90,6 +90,26 @@
       "KeptA",
       "KeptB",
       "KeptC"
-    ]
+    ],
+    "failed_build": {
+      "success": false,
+      "cleanup": {
+        "rollback_attempted": true,
+        "rollback_succeeded": true,
+        "created_assets": [],
+        "removed_assets": [],
+        "dirty_packages_before": [],
+        "dirty_packages_after": [],
+        "files_created": [],
+        "files_removed": [],
+        "source_control_before": [
+          "source control disabled"
+        ],
+        "source_control_after": [
+          "source control disabled"
+        ],
+        "cleanup_errors": []
+      }
+    }
   }
 }

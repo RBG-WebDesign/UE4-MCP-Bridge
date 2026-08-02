@@ -251,6 +251,65 @@ try {
     assert(jsonHash(beforeRerun.data?.variables) === jsonHash(afterRerun.data?.variables),
       "(10) the inspected variable set is byte-stable across the rerun");
 
+    // ---- 8. rollback restores removals when the build fails after them ----
+    //
+    // The failure lever is an unresolved connection, not a compile error. A
+    // compile error cannot be reached from the current spec vocabulary: the
+    // validator, the node factories and the connection resolver all catch
+    // first, and probes that tried to force one (a node reading a
+    // just-removed variable, a Cast with nothing wired to its Object pin)
+    // both compiled UpToDate. That is worth knowing on its own.
+    //
+    // It proves the same thing regardless. Removal happens at step 3 of the
+    // command; compile failure and unresolved connections both land in the
+    // same Errors array and both exit through the same FailRolledBack, which
+    // cancels the transaction and then rolls back. Proving the path with the
+    // reachable trigger proves it for the unreachable one.
+    console.log("\n-- 8. a failure after removal rolls the removals back");
+    const seedForRollback = await call("puerts_blueprint_build", {
+      asset_path: BP, parent_class: "Actor",
+      variables: [...DESIRED_THREE, { name: "RollbackVictim", type: "float", default: 9 }],
+      graph: GRAPH_AFTER,
+    });
+    assert(seedForRollback.success === true, "(12) the rollback fixture seeds");
+    const beforeFailure = await call("puerts_graph_inspect", { asset_path: BP });
+    const beforeVars = names((beforeFailure.data?.variables ?? []).map((v) => v.name));
+    assert(beforeVars.includes("RollbackVictim"), "(12) the victim variable exists before the failed build");
+
+    const failed = await call("puerts_blueprint_build", {
+      asset_path: BP, parent_class: "Actor", variables: DESIRED_THREE,
+      remove_unlisted: { variables: true }, force_remove_referenced: true,
+      // begin has no pin called nosuchpin: the connection cannot be resolved,
+      // so the build fails AFTER the removal pass has already run.
+      graph: {
+        nodes: [{ id: "begin", type: "BeginPlay" }, { id: "say", type: "PrintString" }],
+        connections: [{ from: "begin.nosuchpin", to: "say.exec" }],
+      },
+    });
+    evidence.steps.failed_build = { success: failed.success, cleanup: failed.data?.cleanup };
+    assert(failed.success === false, "(12) the build fails after the removal pass");
+
+    const afterFailure = await call("puerts_graph_inspect", { asset_path: BP });
+    const afterVars = names((afterFailure.data?.variables ?? []).map((v) => v.name));
+    assert(afterVars.includes("RollbackVictim"),
+      `(12) the removed variable was RESTORED by rollback (got ${afterVars})`);
+    assert(JSON.stringify(afterVars) === JSON.stringify(beforeVars),
+      "(12) the whole variable set is exactly what it was before the failed build");
+    assert(jsonHash(beforeFailure.data) === jsonHash(afterFailure.data),
+      "(12) the Blueprint is byte-identical to before the failed build");
+    assert(failed.data?.cleanup?.rollback_succeeded === true,
+      "(13) the failed build reports rollback_succeeded");
+    assert((failed.data?.cleanup?.dirty_packages_after ?? []).length === 0,
+      "(13) no dirty package remains after the failed build");
+    assert((failed.data?.cleanup?.cleanup_errors ?? []).length === 0,
+      "(13) no cleanup errors after the failed build");
+
+    // Put the fixture back to the converged three for the cold phase.
+    await call("puerts_blueprint_build", {
+      asset_path: BP, parent_class: "Actor", variables: DESIRED_THREE, graph: GRAPH_AFTER,
+      remove_unlisted: { variables: true }, force_remove_referenced: true,
+    });
+
     const p4After = p4Opened();
     if (p4Before !== null && p4After !== null) {
       assert(p4Before === p4After, "(13) no source-control entry appeared");

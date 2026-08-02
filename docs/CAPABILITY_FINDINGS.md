@@ -80,6 +80,55 @@ maintains this file; Phase L consumes it.
 
 ## Defects and limitations (Phase L queue)
 
+0g. **DATA LOSS: `remove_unlisted` removals are NOT rolled back when the build
+   fails afterwards** (found 2026-08-02 by the rollback proof the previous
+   session left untested). `blueprint_build` with `remove_unlisted.variables`
+   removes the variables, then a later failure in the same command - an
+   unresolved graph connection, or in principle a compile error - exits through
+   `FailRolledBack`, which cancels the transaction and runs the asset rollback
+   boundary. **The removed variables stay removed.** Measured: a Blueprint with
+   `KeptA/KeptB/KeptC/RollbackVictim`, a failing build declaring only the three,
+   `success false` - and `RollbackVictim` gone afterwards, with the asset
+   otherwise unchanged.
+
+   Two independent causes, both mine:
+
+   - `FScopedTransaction::Cancel()` does not restore
+     `FBlueprintEditorUtils::RemoveMemberVariable`. The removal was assumed to
+     be transactional because it calls `Modify()`; it is not recovered by
+     cancelling the scoped transaction in this path.
+   - `cleanup.rollback_succeeded` reports **true** anyway, because
+     `FBridgeAssetRollback` tracks created assets and package dirty state only.
+     It never knew a member was removed, so it correctly reports success for
+     what it tracked while the caller reads it as "nothing was lost". A
+     rollback report that cannot see the destructive half of the operation is
+     worse than no report.
+
+   Deleted reference nodes under `force_remove_referenced` are not restored
+   either, for the same reason.
+
+   **Do not rely on `remove_unlisted` surviving a failed build.** It is safe on
+   success and safe when the build fails BEFORE the removal pass (validation,
+   unsupported scope, blocked removal); the exposure is a failure after
+   removal, which the unresolved-connection lever reaches today.
+
+   Fix, not yet implemented: capture each `FBPVariableDescription` (and the
+   removed nodes) before deletion and re-add them explicitly on the failure
+   path rather than trusting the transaction, then mark the Blueprint
+   structurally modified and recompile so the skeleton carries them again. The
+   rollback boundary should also grow a removal ledger so
+   `rollback_succeeded` cannot be true while a removal survived.
+
+   Related: **a compile failure is not reachable from the current spec
+   vocabulary.** Two probes tried to force one - a node reading a
+   just-removed variable, and a `Cast` with nothing wired to its `Object` pin -
+   and both compiled `UpToDate`. The validator, the node factories and the
+   connection resolver catch everything first. So the compile-specific branch
+   of the failure path cannot be exercised from outside today; the
+   unresolved-connection lever reaches the same `FailRolledBack`.
+
+
+
 0. **Cast with a short target_class silently spawns no node, and the build
    report counts the phantom** (found 2026-08-01 by the graph_inspect
    acceptance). `{"type": "Cast", "params": {"target_class":
