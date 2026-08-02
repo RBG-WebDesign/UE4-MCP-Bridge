@@ -119,13 +119,26 @@ maintains this file; Phase L consumes it.
    This is the failing build replacing the graph, not the removal rollback
    losing it, and the two should not be conflated.
 
-   **A whole-graph snapshot was attempted and REVERTED 2026-08-02.** The shape
-   looked right: clone the live event graph with
+   **A whole-graph snapshot was attempted and REVERTED 2026-08-02. It crashes
+   the editor.** The shape looked right: clone the live event graph with
    `FEdGraphUtilities::CloneGraph` before any removal, and on failure clear the
-   damaged graph and move a fresh clone's nodes back into it. It compiled and
-   it corrupted the asset - after the rollback `graph_inspect` returned no
-   variables at all, so the Blueprint was left in a worse state than the defect
-   being fixed. Reverted to the last good commit rather than shipped. The
+   damaged graph and move a fresh clone's nodes back into it. It compiled, and
+   the first live run took the editor down with an access violation:
+
+   ```
+   Unhandled Exception: EXCEPTION_ACCESS_VIOLATION reading address 0xffffffffffffffff
+   UE4Editor_CoreUObject!StaticDuplicateObjectEx()  UObjectGlobals.cpp:2019
+   UE4Editor_UnrealEd!FEdGraphUtilities::CloneGraph()  EdGraphUtilities.cpp:254
+   UE4Editor_MCPBridgePuerTS!<lambda>::operator()()  MCPPuerTSBridgeBlueprint.cpp:1420
+   UE4Editor_MCPBridgePuerTS!UMCPPuerTSBridgeService::BuildBlueprintJson()
+   ```
+
+   The "asset came back with no variables" symptom recorded first was the same
+   event seen from the client side: the editor was already dead. `CloneGraph`
+   on a live Blueprint event graph, from inside a bridge command on the game
+   thread, is not safe as written - `StaticDuplicateObjectEx` dereferenced a
+   bad pointer duplicating the graph. Reverted to the last good commit rather
+   than shipped. The
    likely reason is that moving cloned nodes into a live `UEdGraph` by
    `Rename` plus `AddNode` bypasses whatever the Blueprint needs to keep its
    ubergraph and skeleton consistent; a correct version probably has to go
