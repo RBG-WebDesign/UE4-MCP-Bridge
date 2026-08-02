@@ -97,14 +97,36 @@ maintains this file; Phase L consumes it.
    hit disk at 16:24:12, seconds after the close request. Every probe asset
    from earlier sessions (`BP_CastWireProbe`, `BP_GateProbe`, ...) shows the
    same saved-plus-opened-for-add pattern, so "unsaved probes vanish on
-   restart" was wrong. The unattended save/add flow on exit is also the
-   leading explanation for the reproducible teardown hangs (window closes,
-   process becomes unkillable even by taskkill, survives until reboot).
-   Recovery without reboot: bump `[MCPPuerTSBridge] PipeName` and relaunch -
-   pipe.txt discovery routes clients to the new editor automatically. Real
-   fixes are builder-side (purge the transient package when a create-path
+   restart" was wrong.
+
+   **`Don't Save` does not stop it** (2026-08-01, clean post-reboot
+   validation). Sharper reproduction: clear
+   `Content/MCPGenerated/BT_AcceptanceBadType(.uasset,_BB)`, run
+   `behavior-tree-acceptance.mjs --phase=cold` so its last step leaves the
+   failed transient in memory, then close the editor normally and answer the
+   `Save Content` prompt `Don't Save`. Both files are on disk again, stamped
+   the same second as the close (observed 20:22:13). The prompt's answer is
+   not what writes them; the unattended save-on-exit flow is. Consequence for
+   the acceptance script: its
+   `the failed build wrote nothing to disk (filesystem check)` assertion fails
+   on any run that follows a close, because the previous close recreated the
+   files. The other twelve cold-phase assertions pass, including
+   `an unknown node type is rejected with no save`, so the build itself is
+   correct and only the exit flow is at fault.
+
+   **This is NOT the teardown hang.** That earlier claim is withdrawn: see
+   defect 0f, where a close with nothing dirty, in a project outside the p4
+   workspace, hung identically, and where answering `Don't Save` still left an
+   unkillable process. The two are independent, and the log tells them apart -
+   a 0c stall has no `LogExit` and no `MCPBridge lifecycle: shutdown begin`
+   line at all, because it is a modal waiting for a human, while an 0f hang
+   has the whole teardown logged and then silence. Post-0f-fix, a 0c stall
+   ends the moment the prompt is answered: measured at 105.9 s parked on the
+   modal, then 3.74 s to exit.
+
+   Real fixes are builder-side (purge the transient package when a create-path
    build fails) and editor-side (suppress source-control modals for
-   unattended runs); both are out of this session's scope and tracked here.
+   unattended runs); both remain out of scope and tracked here.
 
 0d. **BT editor-graph nodes have no NodeGuid** (found 2026-08-01 on reload).
    Loading a built Behavior Tree logs "missing NodeGuid, this can cause
@@ -229,6 +251,35 @@ maintains this file; Phase L consumes it.
    The four pipes still listed on this machine belong to editors that hung
    *before* the fix; they survive until reboot. No editor running the fix has
    left one, which is checked per iteration.
+
+   **Verified on a clean rebooted machine, 2026-08-01.** Full record in
+   `reports/shutdown-clean-validation-2026-08-01.md`. Starting from zero
+   leftover processes, pipes and advertisements, with the 25 `*.zombielocked*`
+   files removed and BridgeInstallTest's `PipeName` restored from the
+   temporary `_fix1` suffix to the canonical `..._eb10ef4f`:
+
+   - BridgeInstallTest built (28.7 s), launched, served a read-only
+     `diagnostic` (`transaction_id ""`, so it did not transact), passed
+     `npm run smoke:bt`, and closed in **4.1 s**.
+   - UE427PuerTSMCP, the main test project and the source of two of the four
+     original unkillable processes, built (21.9 s), launched, and closed in
+     **3.78 s**.
+   - Both logs run past `LogExit: Object subsystem successfully closed.` to
+     `LogExit: Exiting.` and `Log file closed`. That is the whole point: no
+     pre-fix graceful close ever got there.
+   - Zero processes, zero pipes and zero advertisements survived either close.
+   - The relink that used to fail with
+     `LNK1104: cannot open file ...UE4Editor-MCPBridgePuerTS.dll` completed:
+     `[3/4] UE4Editor-MCPBridgePuerTS.dll`, 18.5 s.
+   - `npm run verify` exit 0: 13 suites, PuerTS pin
+     (`Unreal_v1.0.9 @ 838ab762d830`, 1038 files), 206 tools frozen, smoke
+     8/0/2 with the two documented skips.
+
+   The binaries were confirmed to carry the fix by reading the built DLL's
+   string table rather than trusting the build, because both test projects
+   keep their own copy of the plugin and a bridge-repo edit is invisible to
+   them until the installer runs or the files are copied. UE427PuerTSMCP's
+   copy was still pre-fix and had to be synced first.
 
    Recovery for an editor already in this state: reboot, or bump
    `[MCPPuerTSBridge] PipeName` and relaunch, since pipe.txt discovery routes
