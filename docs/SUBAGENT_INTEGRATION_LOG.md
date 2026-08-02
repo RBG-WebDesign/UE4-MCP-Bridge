@@ -208,3 +208,116 @@ The one claim that would have been rejected in wave one was caught before it was
 made: `puerts_blueprint_graph_patch` compiles, wires end to end and passes
 `npm run verify`, and none of that is evidence the command works. It was
 recorded as `implemented` with an empty `live_evidence` array.
+
+## Wave two results, 2026-08-02
+
+Integration branch: `bridge/native-consolidation-2026-07-31`. All three lanes
+merged. Every live run below was performed by the integrator against
+`D:/Unreal Projects/BridgeInstallTest`, with `install:check` green immediately
+before, never by the lane that wrote the code.
+
+| Lane | Branch | Verdict | Basis |
+|---|---|---|---|
+| D | `lane/d-perf-harness` @ `94e4733` | **Accepted** | 35 editor-free checks, wired into `verify`. Shipped no progress API, which is what it was told to do. Live half explicitly unproven and said so. |
+| E | `lane/e-refront` @ `0d765da` | **Accepted as `implemented`, NOT `live_verified`** | REFRONT map derived from the inventory. `blueprint_member_patch` compiles and then FAILS 8 live checks. See below. |
+| F | `lane/f-release` @ `5595f1e` | **Accepted** | 14/14 session refusal checks, 50-check fresh-install acceptance, packaging verdict of NO with a named blocker. |
+
+### Live suites, run against a verified install
+
+Editor PID varied across restarts; bridge commit `0d892a6` unless noted.
+
+| Suite | Result |
+|---|---|
+| `mcp-smoke --require-editor` | 12 passed, 0 failed, 0 skipped |
+| `puerts-live-smoke` | passed |
+| `graph-inspect-acceptance` | passed; largest payload 68976 bytes, 22 nodes, 350 ms |
+| `behavior-tree-acceptance` warm + cold | passed both phases |
+| `bp-graph-patch-acceptance` warm | all checks passed, 11 round trips |
+| `bp-graph-patch-acceptance` cold | passed; structure hash identical across restart |
+| `bp-failure-atomicity` | passed |
+| `bt-failure-atomicity` | passed |
+| `wbp-failure-atomicity` | passed |
+| `bp-remove-unlisted-acceptance` | passed |
+| `bp-truthful-report-acceptance` | passed |
+
+`blueprint_graph_patch` is re-proven at a newer commit than the one that
+promoted it, warm and cold, including the check the command rests on: 0 changed
+among nodes the patch never named.
+
+### The one red result, and why it is the wave's most valuable output
+
+`Scripts/bp-member-patch-acceptance.mjs`, first execution ever, 16 round trips,
+**8 of its checks did not hold**:
+
+```
+(2) exactly one operation would apply
+(2) the operation that is already true is classified unchanged, not applied
+(2) expected_change_count is 1
+(3) the patched Blueprint compiles (UpToDateWithWarnings)
+(11) a default the type cannot hold fails the request
+(11) the members are the ones the batch found
+(11) the valid operation beside it was not applied
+(11) nothing reached disk
+```
+
+Two clusters. The `(2)` group is convergence classification: an operation that
+is already true is being counted as applied. The `(11)` group is worse and is a
+correctness defect, not a reporting one: a default value the variable's type
+cannot hold is **not refused**, the operation beside it **is** applied, and
+something **reached disk**. The command's own validation-time refusal works
+(check 11's fifth assertion passes); what fails is the type check that should
+have fired before any write.
+
+This is the whole program in one result. The command compiles, `npm run verify`
+is green at 209 tools, the TypeScript contract is satisfied, and the C++ links
+clean. None of that was evidence it works, and the live gate found a defect that
+writes bad data to disk. It stays `implemented` with an empty `live_evidence`
+array.
+
+### Lane E's finding, which outranks its command
+
+`BlueprintMutator/BPMutatorHelpers.cpp:27-37` is the shared transaction wrapper
+behind all 19 `UBlueprintMutatorLibrary` entry points. Its failure path returns
+false **without calling `Cancel()`**, so the scope destructs normally and commits
+whatever the body already wrote. That library is transactional and is not
+failure-atomic, at every entry point, from one site.
+
+Repo-wide: 3 of 11 REFRONT builders open a transaction at all, and there is no
+`CancelTransaction` outside `MCPBridgePuerTS`. AGENTS.md states that every tool
+modifying editor state is wrapped in a UE4 transaction. That is not true of this
+C++ layer today. Fixing the one site is a prerequisite for re-fronting group 1,
+which is 18 of the 54 REFRONT tools.
+
+### Concurrency incident: orphan agents from a previous session
+
+Wave two ran with duplicate lane agents alive from an earlier session, one per
+lane, sharing the same worktrees and prompts. Confirmed, not suspected. Observed
+effects, all reported by the lanes themselves:
+
+- Lane D merged itself into the integration branch twice and wrote a false
+  correction into this log, addressed above.
+- Lane E had three edits silently reverted on disk, `docs/REFRONT_MAP.md`
+  deleted outright, and a commit (`dcc2099`) appear on its branch that it did not
+  author.
+- Lane F's `git commit` swept in eight files staged by a concurrent `git add -A`,
+  so `d96f39b`'s message describes one file out of nine.
+- An orphan ran `install:sync` into the shared test project mid-acceptance,
+  installing an uncompiled `blueprint_member_patch` into the registry. The
+  install gate caught it and refused the run.
+
+The install gate is the reason this incident cost time instead of producing a
+false green. Two acceptance runs were refused for the right reason, and the two
+suites that had already run before the drift were re-run rather than trusted.
+
+Not fixed: the orphans could not be stopped from inside this session. They are
+not in its task registry, and killing processes by name could not distinguish
+them from live work. The mitigation used instead was to bound the damage:
+`install:check` immediately before every live run, and re-running anything whose
+install state could not be accounted for.
+
+### Integrator work accepted this wave
+
+| Commit | Change | Evidence |
+|---|---|---|
+| `516abba` | Both server-local readers get the evidence they were already claiming, plus the path-traversal guard | smoke 11 passed / 0 failed / 1 skipped with a real engine root; both SKIP honestly without one |
+| `fa310b5` | Finding 0m: content equality is not build equality | Reproduced twice on live rebuilds |
