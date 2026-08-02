@@ -352,6 +352,36 @@ const specs = [
         + "convergence.removed_reference_nodes.",
       ),
     }).strict()],
+  ["puerts_blueprint_graph_patch", "blueprint_graph_patch",
+    "Change selected existing Blueprint graph state without rebuilding or clearing the graph. "
+    + "blueprint_build is desired-state: it takes a whole graph and makes the asset match, which "
+    + "means changing one pin default on a graph of forty nodes requires restating all forty "
+    + "correctly or losing what was not mentioned. This is the other shape. operations is an "
+    + "ordered batch of add_node, update_node, remove_node, set_pin_default, connect_pins, "
+    + "disconnect_pins and move_node. Every node is addressed by a selector that must resolve to "
+    + "exactly one node: node_guid, or a structural combination of type, node_class, var_name, "
+    + "function and position, or new_id to name a node added earlier in the same batch. A bare "
+    + "object id is REFUSED, because a UObject name changes whenever a node is recreated and a "
+    + "patch that targets by it edits whatever holds the name afterwards. A selector matching "
+    + "nothing, or more than one node, is a refusal and not a guess, and the whole batch resolves "
+    + "before anything mutates. plan_only is read-only and reports matched_nodes, "
+    + "unmatched_selectors, ambiguous_selectors, the per-kind change lists and "
+    + "expected_change_count; predicted_structure_hash is given only for a no-op batch, where it "
+    + "is the current hash by definition, and prediction_unavailable_reason says so otherwise. "
+    + "Applying runs in one transaction, compiles, reads the asset back independently, verifies "
+    + "the change is really present, and saves only after that passes; any failure or mismatch "
+    + "rolls the whole batch back and leaves the graph as it was found. Rerunning the same patch "
+    + "is a no-op that reports converged and does not save. Adds no node types of its own: "
+    + "add_node accepts the same vocabulary blueprint_build does.",
+    z.object({
+      asset_path: z.string(),
+      graph: z.string().optional(),
+      operations: z.array(z.record(z.unknown())).min(1),
+      plan_only: z.boolean().optional(),
+      compile: z.boolean().optional(),
+      save: z.boolean().optional(),
+      verify: z.boolean().optional(),
+    }).strict()],
   ["puerts_widget_build", "widget_build",
     "Create or replace a compiled UMG Widget Blueprint from one JSON widget tree. The tree "
     + "is a hierarchy of typed, named widgets: each carries optional widget-intrinsic "

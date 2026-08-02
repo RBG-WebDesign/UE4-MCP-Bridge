@@ -103,6 +103,11 @@ export const toolAnnotations: Record<string, ToolAnnotations> = {
   // Converges on a rerun, and the spec is the whole widget tree, so a build
   // aimed at an existing Widget Blueprint replaces the hierarchy it had.
   puerts_widget_build: destructiveIdempotent,
+  // Mutating and idempotent, but NOT destructive, and that distinction is the
+  // reason the command exists: it clears nothing, names the nodes it touches,
+  // and leaves everything it was not asked about alone. A rerun of the same
+  // patch applies nothing and does not save.
+  puerts_blueprint_graph_patch: mutatingIdempotent,
   puerts_delete_actor: destructiveIdempotent,
   puerts_save: destructive,
   puerts_undo: destructive,

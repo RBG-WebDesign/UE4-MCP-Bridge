@@ -167,6 +167,25 @@ public:
         FString& OutResultJson,
         FString& OutError);
 
+    /** Change selected existing graph state without rebuilding the graph.
+
+        blueprint_build is desired-state: it takes a whole graph and makes the
+        asset match, which is right for authoring and wrong for changing one pin
+        default on a graph of forty nodes, where the caller has to restate the
+        whole graph correctly or lose what they did not mention.
+
+        This command owns the boundary around the change: one transaction, the
+        compile, an independent read-back, verification that every requested
+        change is actually present, and the save that only happens after that
+        verification passes. The resolution and mutation themselves belong to
+        MCPBridgeGraphBuilder. Nothing is cleared: a patch that fails leaves the
+        graph it found. */
+    UFUNCTION(BlueprintCallable, Category="MCP PuerTS Bridge")
+    bool PatchBlueprintGraphJson(
+        const FString& SpecJson,
+        FString& OutResultJson,
+        FString& OutError);
+
     /** Create or replace a UMG Widget Blueprint from one JSON widget tree,
         handed to the existing MCPBridgeGraphBuilder widget builder. The tree
         grammar (widget types, child-count rules per category, property names

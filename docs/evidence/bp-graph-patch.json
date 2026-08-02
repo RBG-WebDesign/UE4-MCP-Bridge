@@ -1,0 +1,41 @@
+{
+  "phase": "record",
+  "steps": {
+    "fixture": {
+      "node_count": 22,
+      "structure_hash": "ca12eaf79ac8545e80160847393779d484bd3d5d",
+      "file_sha256": "4d415091673989d802e137d0266e8294572bbd2143549b1faef5201c1f71e3ae"
+    },
+    "plan": {
+      "graph": "EventGraph",
+      "matched_nodes": [
+        "operation 0 (set_pin_default) target -> PrintString [K2Node_CallFunction fn=PrintString] at 600,0 (guid A90B3F284A62DC16BCA9EF97253143E6, object K2Node_CallFunction_14)"
+      ],
+      "unmatched_selectors": [],
+      "ambiguous_selectors": [],
+      "nodes_to_add": [],
+      "nodes_to_update": [],
+      "nodes_to_remove": [],
+      "pin_defaults_to_change": [
+        "PrintString [K2Node_CallFunction fn=PrintString] at 600,0 (guid A90B3F284A62DC16BCA9EF97253143E6, object K2Node_CallFunction_14).InString: currently 'two'"
+      ],
+      "links_to_add": [],
+      "links_to_remove": [],
+      "expected_change_count": 1,
+      "requested_operation_count": 1,
+      "predicted_structure_hash_is_current": false,
+      "prediction_unavailable_reason": "the batch changes the graph, and a node's structural key includes pin defaults that Unreal only materialises once the node exists. A predicted hash is offered only for a no-op batch, where it is the current hash by definition.",
+      "plan_only": true,
+      "ok": true,
+      "pre_structure_hash": "ca12eaf79ac8545e80160847393779d484bd3d5d",
+      "elapsed_ms": 6.39979999687057
+    },
+    "patch": {},
+    "untouched_nodes_compared": 19,
+    "rerun": {},
+    "partial_batch_refused": true
+  },
+  "post_patch_structure_hash": "ca12eaf79ac8545e80160847393779d484bd3d5d",
+  "post_patch_node_count": 22,
+  "mcp_round_trips": 11
+}

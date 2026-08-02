@@ -331,6 +331,63 @@ async function buildBlueprint(context: ToolContext, input: JsonObject): Promise<
   return result;
 }
 
+/** Change selected existing graph state without rebuilding the graph.
+
+    blueprint_build is desired-state and takes a whole graph, which is right for
+    authoring and wrong for changing one pin default on a graph of forty nodes:
+    the caller has to restate the entire graph correctly or lose the parts they
+    did not mention. This is the other shape - name the nodes to touch and what
+    to do to them - and it never clears anything.
+
+    The envelope is all this function owns. Selector resolution, validation and
+    mutation are the native builder's; the transaction, compile, independent
+    read-back, verification and save boundary are the native service's. */
+async function patchBlueprintGraph(context: ToolContext, input: JsonObject): Promise<CommandResponse> {
+  const assetPath = requireString(input, "asset_path");
+  if (!assetPath.startsWith("/Game/MCPGenerated/")) {
+    throw new Error("Blueprint patching is limited to /Game/MCPGenerated/");
+  }
+  const spec: JsonObject = { asset_path: assetPath };
+  const graph = optionalString(input, "graph");
+  if (graph !== undefined) { spec.graph = graph; }
+  const operations = objectArray(input, "operations");
+  if (operations.length === 0) {
+    throw new Error("operations must be a non-empty array; a patch with no operations is not a request.");
+  }
+  spec.operations = operations as unknown as JsonValue;
+  // Forwarded only when the caller actually set them, so the native side keeps
+  // its own defaults rather than having this layer restate them in a second
+  // place where the two can drift apart.
+  for (const flag of ["plan_only", "compile", "save", "verify"]) {
+    if (input[flag] !== undefined) { spec[flag] = optionalBoolean(input, flag, false); }
+  }
+
+  const resultJson = puerts.$ref<string>("");
+  const error = puerts.$ref<string>("");
+  if (!context.bridge.PatchBlueprintGraphJson(JSON.stringify(spec), resultJson, error)) {
+    throw new Error(puerts.$unref(error));
+  }
+  const parsed = JSON.parse(puerts.$unref(resultJson)) as JsonObject;
+  const errors = stringArray(parsed, "errors");
+  delete parsed.errors;
+
+  const applied = typeof parsed.applied_operation_count === "number" ? parsed.applied_operation_count : 0;
+  const planOnly = parsed.plan_only === true;
+  const result = response(
+    errors.length === 0,
+    planOnly
+      ? "Blueprint graph patch planned."
+      : applied === 0 ? "Blueprint graph already matches the patch." : "Blueprint graph patched.",
+    parsed,
+  );
+  result.errors.push(...errors);
+  const objectPath = parsed.asset_path;
+  if (!planOnly && applied > 0 && typeof objectPath === "string" && objectPath.length > 0) {
+    result.changed_assets.push(objectPath);
+  }
+  return result;
+}
+
 /** Create or replace a UMG Widget Blueprint from one JSON widget tree. The
     tree grammar belongs to the MCPBridgeGraphBuilder widget builder, reached
     through the native service; this function owns nothing but the envelope,
@@ -644,6 +701,7 @@ export const toolDefinitions: readonly ToolDefinition[] = [
   { name: "delete_actor", inputSchema: schema({ actor: { type: "string" }, confirm: { type: "boolean" } }, ["actor", "confirm"]), outputSchema, permissions: ["actors.delete"], executionTimeoutMs: 2000, execute: deleteActor },
   { name: "sky_shader_create", inputSchema: schema({ asset_path: { type: "string" }, sky_actor: { type: "string" } }), outputSchema, permissions: ["assets.write", "reflection.write"], executionTimeoutMs: 10000, execute: createSkyShader },
   { name: "blueprint_build", inputSchema: schema({ asset_path: { type: "string" }, parent_class: { type: "string" }, components: { type: "array", items: { type: "object" } }, variables: { type: "array", items: { type: "object" } }, graph: { type: "object" }, compile: { type: "boolean" }, save: { type: "boolean" }, clear_existing_graph: { type: "boolean" }, remove_unlisted: { type: "object" }, plan_only: { type: "boolean" }, force_remove_referenced: { type: "boolean" } }, ["asset_path"]), outputSchema, permissions: ["assets.write"], executionTimeoutMs: 30000, execute: buildBlueprint },
+  { name: "blueprint_graph_patch", inputSchema: schema({ asset_path: { type: "string" }, graph: { type: "string" }, operations: { type: "array", items: { type: "object" } }, plan_only: { type: "boolean" }, compile: { type: "boolean" }, save: { type: "boolean" }, verify: { type: "boolean" } }, ["asset_path", "operations"]), outputSchema, permissions: ["assets.write"], executionTimeoutMs: 30000, execute: patchBlueprintGraph },
   { name: "widget_build", inputSchema: schema({ asset_path: { type: "string" }, tree: { type: "object" }, save: { type: "boolean" } }, ["asset_path", "tree"]), outputSchema, permissions: ["assets.write"], executionTimeoutMs: 30000, execute: buildWidget },
   { name: "graph_inspect", inputSchema: schema({ asset_path: { type: "string" }, graph_name: { type: "string" }, include_pins: { type: "boolean" } }, ["asset_path"]), outputSchema, permissions: ["assets.read"], executionTimeoutMs: 15000, execute: inspectGraph },
   { name: "behavior_tree_build", inputSchema: schema({ asset_path: { type: "string" }, blackboard_path: { type: "string" }, keys: { type: "array", items: { type: "object" } }, root: { type: "object" }, save: { type: "boolean" } }, ["asset_path", "root"]), outputSchema, permissions: ["assets.write"], executionTimeoutMs: 30000, execute: buildBehaviorTree },

@@ -23,12 +23,12 @@
     "native_live_partial": "live acceptance passed, but part of the evidence is the builder own report because no independent reader exists yet",
     "legacy_untested": "no live editor proof of any kind; a non-null test_file covers only the mock listener"
   },
-  "tool_count": 207,
+  "tool_count": 208,
   "by_backend": {
     "legacy_http": 170,
     "native_pipe_alias": 12,
     "server_local": 2,
-    "native_pipe": 23
+    "native_pipe": 24
   },
   "tools": [
     {
@@ -6242,6 +6242,49 @@
       "capability_loss_risk": "low",
       "notes": null,
       "verification": "live_verified"
+    },
+    {
+      "name": "puerts_blueprint_graph_patch",
+      "module": "mcp-server/src/tools/puerts.ts",
+      "backend": "native_pipe",
+      "migration_state": "native_pending_live",
+      "target_replacement": null,
+      "description": "[PRIMARY NATIVE IPC] Change selected existing Blueprint graph state without rebuilding or clearing the graph. blueprint_build is desired-state: it takes a whole graph and makes the asset match, which means changing one pin default on a graph of forty nodes requires restating all forty correctly or losing what was not mentioned. This is the other shape. operations is an ordered batch of add_node, update_node, remove_node, set_pin_default, connect_pins, disconnect_pins and move_node. Every node is addressed by a selector that must resolve to exactly one node: node_guid, or a structural combination of type, node_class, var_name, function and position, or new_id to name a node added earlier in the same batch. A bare object id is REFUSED, because a UObject name changes whenever a node is recreated and a patch that targets by it edits whatever holds the name afterwards. A selector matching nothing, or more than one node, is a refusal and not a guess, and the whole batch resolves before anything mutates. plan_only is read-only and reports matched_nodes, unmatched_selectors, ambiguous_selectors, the per-kind change lists and expected_change_count; predicted_structure_hash is given only for a no-op batch, where it is the current hash by definition, and prediction_unavailable_reason says so otherwise. Applying runs in one transaction, compiles, reads the asset back independently, verifies the change is really present, and saves only after that passes; any failure or mismatch rolls the whole batch back and leaves the graph as it was found. Rerunning the same patch is a no-op that reports converged and does not save. Adds no node types of its own: add_node accepts the same vocabulary blueprint_build does.",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "asset_path": "string",
+          "graph": "string?",
+          "operations": "array",
+          "plan_only": "boolean?",
+          "compile": "boolean?",
+          "save": "boolean?",
+          "verify": "boolean?"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": "mcp-server/tests/puerts-tools.test.ts",
+      "capability_category": "blueprint",
+      "canonical_capability": "blueprints.graph_patch",
+      "owner": "MCPBridgePuerTS service",
+      "lifecycle": "active",
+      "migration_action": "KEEP",
+      "replacement_tool": null,
+      "compatibility_alias": false,
+      "cpp_builder": "BlueprintGraphBuilderLibrary",
+      "cpp_entry_point": "PatchBlueprintGraphFromJSON",
+      "python_handler": null,
+      "live_evidence": [],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": "incremental patching: named operations against resolved selectors, no clear_existing_graph. Shares the node-creation primitive with puerts_blueprint_build (SpawnNodeFromSpec) so an added node is identical to a built one. Not yet live_verified: the scripted acceptance is not written, so this stays below puerts_blueprint_build until it is.",
+      "verification": "implemented"
     },
     {
       "name": "puerts_call_function",
