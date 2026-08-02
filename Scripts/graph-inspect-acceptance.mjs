@@ -215,6 +215,32 @@ try {
   const second = await call("puerts_graph_inspect", { asset_path: FIXTURE, include_pins: true });
   assert(hash(first.data) === hash(second.data), "two reads produce the same canonical hash");
 
+  // 6b. The native structure hash. Distinct from the client-side hash above:
+  // that one covers the whole payload including NodeGuids and object names, so
+  // it answers "is this the same read". This one deliberately excludes both, so
+  // it answers "is this the same GRAPH" - the question a convergence check and
+  // a post-rollback comparison actually ask, and the one findings 0j got wrong
+  // by comparing object names.
+  const structureHash = first.data?.graph?.structure_hash_sha1;
+  assert(typeof structureHash === "string" && /^[0-9a-f]{40}$/.test(structureHash),
+    `the graph reports a native structure hash (${String(structureHash)})`);
+  assert(second.data?.graph?.structure_hash_sha1 === structureHash,
+    "the native structure hash is stable across two reads");
+  assert(typeof first.data?.graph?.structure_hash_basis === "string",
+    "the structure hash states what it covers, so a caller is not guessing");
+
+  // A structurally different graph must hash differently, or the hash is
+  // decorative. BP_InspectFixture and BP_ConvergeProbe are both builder-made
+  // and are not the same graph.
+  const otherGraph = await call("puerts_graph_inspect",
+    { asset_path: "/Game/MCPGenerated/BP_ConvergeProbe", include_pins: true });
+  if (otherGraph.success === true) {
+    assert(otherGraph.data?.graph?.structure_hash_sha1 !== structureHash,
+      "a structurally different graph produces a different structure hash");
+  } else {
+    console.log("  INFO  BP_ConvergeProbe absent; cross-graph hash separation not measured");
+  }
+
   // 7. Stress and payload measurement on the largest builder-made Blueprints.
   const assets = await call("puerts_find_assets", { path: "/Game/MCPGenerated", type: "Blueprint", recursive: true, limit: 50 });
   const paths = (assets.data?.assets ?? []).map((a) => a.path ?? a.object_path ?? a.asset_path).filter(Boolean);

@@ -48,6 +48,7 @@
 #include "Engine/Blueprint.h"
 #include "Kismet/KismetMathLibrary.h"
 #include "Kismet/KismetStringLibrary.h"
+#include "Misc/SecureHash.h"
 #include "Serialization/JsonWriter.h"
 #include "UObject/StructOnScope.h"
 #include "UObject/UnrealType.h"
@@ -2479,6 +2480,84 @@ FString UBlueprintGraphBuilderLibrary::DescribeBlueprintGraphJSON(
                 ConnectionCount++;
             }
         }
+    }
+
+    // --- Canonical structure hash ---
+    //
+    // What the graph IS, with nothing in it that a rebuild would change for
+    // free. Object names and NodeGuids are deliberately absent: a node the
+    // removal ledger recreates is a new UObject with a new name and a new guid
+    // while being the same node in every sense a caller cares about, and
+    // findings 0j is the record of what happens when a comparison forgets that.
+    // Positions, comments, enabled state and pin defaults are all present,
+    // because those are the parts a "nothing changed" claim is usually wrong
+    // about.
+    //
+    // Structural, therefore also PREDICTABLE: a caller can compute what this
+    // hash will be after a change it has not made yet, which is what makes it
+    // usable as a convergence check rather than only as an after-the-fact
+    // comparison. Two structurally identical nodes at the same position hash
+    // the same, which is correct - they are interchangeable by construction.
+    {
+        auto StructuralKeyOf = [](const UEdGraphNode* N) -> FString
+        {
+            if (N == nullptr) { return TEXT("<null>"); }
+            TArray<FString> PinParts;
+            for (const UEdGraphPin* P : N->Pins)
+            {
+                if (P == nullptr) { continue; }
+                PinParts.Add(FString::Printf(TEXT("%s:%d:%s:%s"),
+                    *P->PinName.ToString(), static_cast<int32>(P->Direction),
+                    *P->DefaultValue,
+                    P->DefaultObject != nullptr ? *P->DefaultObject->GetPathName() : TEXT("")));
+            }
+            PinParts.Sort();
+            return FString::Printf(TEXT("%s|%s|%d|%d|%s|%d|[%s]"),
+                *GetNodeTypeForNode(const_cast<UEdGraphNode*>(N)),
+                *N->GetClass()->GetName(), N->NodePosX, N->NodePosY,
+                *N->NodeComment, static_cast<int32>(N->GetDesiredEnabledState()),
+                *FString::Join(PinParts, TEXT(",")));
+        };
+
+        TArray<FString> NodeLines;
+        TArray<FString> LinkLines;
+        for (const UEdGraphNode* Node : Graph->Nodes)
+        {
+            if (Node == nullptr) { continue; }
+            const FString FromKey = StructuralKeyOf(Node);
+            NodeLines.Add(FromKey);
+            for (const UEdGraphPin* Pin : Node->Pins)
+            {
+                if (Pin == nullptr || Pin->Direction != EGPD_Output) { continue; }
+                for (const UEdGraphPin* Linked : Pin->LinkedTo)
+                {
+                    const UEdGraphNode* LinkedNode =
+                        Linked != nullptr ? Linked->GetOwningNodeUnchecked() : nullptr;
+                    if (LinkedNode == nullptr) { continue; }
+                    LinkLines.Add(FString::Printf(TEXT("%s#%s->%s#%s"),
+                        *FromKey, *Pin->PinName.ToString(),
+                        *StructuralKeyOf(LinkedNode), *Linked->PinName.ToString()));
+                }
+            }
+        }
+        // Sorted, so the hash describes the graph and not the order Unreal
+        // happens to hold its nodes in.
+        NodeLines.Sort();
+        LinkLines.Sort();
+        const FString Canonical = FString::Printf(TEXT("nodes:\n%s\nlinks:\n%s\n"),
+            *FString::Join(NodeLines, TEXT("\n")), *FString::Join(LinkLines, TEXT("\n")));
+
+        FSHA1 Sha;
+        const FTCHARToUTF8 Utf8(*Canonical);
+        Sha.Update(reinterpret_cast<const uint8*>(Utf8.Get()), Utf8.Length());
+        Sha.Final();
+        uint8 Digest[FSHA1::DigestSize];
+        Sha.GetHash(Digest);
+        Root->SetStringField(TEXT("structure_hash_sha1"),
+            BytesToHex(Digest, FSHA1::DigestSize).ToLower());
+        Root->SetStringField(TEXT("structure_hash_basis"),
+            TEXT("node type, class, position, comment, enabled state and pin defaults, plus links "
+                 "between those structural keys; object names and NodeGuids deliberately excluded"));
     }
 
     Root->SetStringField(TEXT("asset_path"), AssetPath);
