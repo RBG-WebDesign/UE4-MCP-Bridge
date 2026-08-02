@@ -22,6 +22,7 @@ import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { requireCurrentInstall } from "./bridge-install.mjs";
 
 /** Stable key order, so two payloads compare as text. */
 function canonicalize(value) {
@@ -39,8 +40,10 @@ const fileSha = (p) => createHash("sha256").update(readFileSync(p)).digest("hex"
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const serverPath = join(root, "mcp-server", "dist", "index.js");
 if (!existsSync(serverPath)) throw new Error("Run npm run build first");
-const projectRoot = process.env.MCP_UNREAL_PROJECT_ROOT;
-if (!projectRoot) throw new Error("Set MCP_UNREAL_PROJECT_ROOT to the test project root");
+// Refuse to touch the editor unless the plugin in that project is the plugin
+// in this checkout. A live run against a stale install proves nothing about the
+// code under review and looks exactly like a passing run.
+const projectRoot = requireCurrentInstall();
 delete process.env.MCP_PUERTS_PIPE;
 delete process.env.MCP_PUERTS_TOKEN_PATH;
 delete process.env.MCP_PUERTS_TOKEN;

@@ -32,7 +32,7 @@
       "protected_variables": [],
       "referenced_variables": {
         "DropReferenced": [
-          "EventGraph.K2Node_VariableGet_11"
+          "EventGraph.K2Node_VariableGet_2"
         ]
       },
       "blocked_removals": [
@@ -76,7 +76,7 @@
       ],
       "skipped_variables": [],
       "removed_reference_nodes": [
-        "EventGraph.K2Node_VariableGet_13"
+        "EventGraph.K2Node_VariableGet_4"
       ],
       "managed_variables_after": [
         "KeptA",
@@ -118,7 +118,7 @@
             "RollbackVictim"
           ],
           "reference_nodes_removed": [
-            "EventGraph.K2Node_VariableGet_16"
+            "EventGraph.K2Node_VariableGet_7"
           ],
           "reference_nodes_restored": [
             "EventGraph|K2Node_VariableGet|RollbackVictim|600,200"
@@ -136,8 +136,8 @@
     },
     "failed_build_graph": {
       "graph_strategy": "deferred replacement: the live graph is never cleared until the replacement is whole",
-      "pre_graph_hash": "ce9f7f11c7a64cca999115ef4ef291a9617b8b73225f5dda911f13d52e2b8d17",
-      "post_failure_graph_hash": "f151d724aae6f50fe546f7037033fae5886bfc7bbf8a042d3efa92f1b33f1f39",
+      "pre_graph_hash": "7828ab8ba17c6952e27c8f8c362135c49d4417797fe956b7fdfec91e9e357227",
+      "post_failure_graph_hash": "1b0acec154ad313af3b337f31521682c8a1d62b458d2271009dac5688b84b9cc",
       "nodes_before": 4,
       "nodes_after": 4,
       "nodes_byte_identical": 3,
@@ -147,7 +147,7 @@
     },
     "failed_additive_build": {
       "success": false,
-      "post_failure_graph_hash": "f151d724aae6f50fe546f7037033fae5886bfc7bbf8a042d3efa92f1b33f1f39",
+      "post_failure_graph_hash": "1b0acec154ad313af3b337f31521682c8a1d62b458d2271009dac5688b84b9cc",
       "original_graph_preserved": true
     }
   }

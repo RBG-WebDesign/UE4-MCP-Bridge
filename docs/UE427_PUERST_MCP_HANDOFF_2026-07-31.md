@@ -361,8 +361,9 @@ Current risks: global serial command queue, incomplete serializer, broad asset s
 | Panel | Partial | source changes | mixed transport state | refactor health UI |
 | Installer | Partial | copy/config logic | non-atomic, bundle unpinned | fresh install/hash/rollback |
 | `npm run verify` | Passed with skips | build/tests/smoke: 8 pass, 0 fail, 2 skip | no token in bridge root, no UE_ENGINE_ROOT | controlled integration CI |
+| Test-project synchronisation | Gated and verified 2026-08-02 | `Scripts/bridge-install.mjs`, manifest `Plugins/MCPBridge/MCPBridgeInstall.json` in each target, 21-case sabotage acceptance in `Scripts/bridge-install-acceptance.mjs` | The multi-project ambiguity this document recorded was real and worse than "manual test suffix": `Tests\UE427PuerTSMCP` was a day behind `BridgeInstallTest` with nothing reporting it, and UBT answered `Target is up to date` because it compares a project against itself and has no idea a repository exists. Both projects are now synchronised, built and verified | keep both targets on `npm run install:check`; retire one by setting `"status": "deprecated"` in its manifest rather than letting it drift |
 | Packaging | Not ready | source layout exists | ignored PuerTS, untracked JS, editor deps | package/staging test |
-| Multi-project reuse | Partial | project-hash pipe installer | manual test suffix | two-project test |
+| Multi-project reuse | Partial, no longer ambiguous | project-hash pipe installer; both targets carry an install manifest and pass `npm run install:check` as of 2026-08-02 | manual test suffix remains; pipe isolation between two simultaneously running editors is still untested | two-project test with both editors up at once |
 
 The isolated project contains `/Game/MCPGenerated/M_NativeAuroraSky.M_NativeAuroraSky` and `/Game/MCPTests/FullAcceptance.FullAcceptance:PersistentLevel.MCP_NativeAuroraSkybox`. `/Game/MCPTests/FullAcceptance` was saved. The original `SkySphere` remains but is hidden and nearly zero scale. This proves the specialized demo only.
 

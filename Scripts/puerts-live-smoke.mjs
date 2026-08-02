@@ -3,12 +3,19 @@ import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { assertInstallCurrent } from "./bridge-install.mjs";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const serverPath = join(root, "mcp-server", "dist", "index.js");
 const tokenPath = process.env.MCP_PUERTS_TOKEN_PATH;
 if (!existsSync(serverPath)) throw new Error("Run npm run build first");
 if (!tokenPath || !existsSync(tokenPath)) throw new Error("Set MCP_PUERTS_TOKEN_PATH to the test project's token.txt");
+// This script is pointed at a token rather than a project, and the token lives
+// at <project>/Saved/MCPPuerTSBridge/token.txt, so the project is two levels up.
+// Same gate as every other live script: a stale install must not reach Unreal.
+if (process.env.MCP_SKIP_INSTALL_CHECK !== "1") {
+  assertInstallCurrent(process.env.MCP_UNREAL_PROJECT_ROOT || join(dirname(tokenPath), "..", ".."));
+}
 
 const child = spawn(process.execPath, [serverPath], { stdio: ["pipe", "pipe", "inherit"], env: process.env });
 let buffer = "";

@@ -30,6 +30,15 @@ const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
 const serverPath = join(repoRoot, "mcp-server", "dist", "index.js");
 const requireEditor = process.argv.includes("--require-editor");
 
+// --require-editor is the mode that actually talks to Unreal, so it is the mode
+// that has to know which plugin Unreal is running. The default mode skips the
+// editor check entirely and is part of npm run verify, where no test project is
+// configured, so gating it there would fail the offline gate for no reason.
+if (requireEditor && process.env.MCP_UNREAL_PROJECT_ROOT && process.env.MCP_SKIP_INSTALL_CHECK !== "1") {
+  const { assertInstallCurrent } = await import("./bridge-install.mjs");
+  assertInstallCurrent(process.env.MCP_UNREAL_PROJECT_ROOT);
+}
+
 const PROTOCOL_VERSION = "2024-11-05";
 const results = [];
 function record(name, ok, detail) {

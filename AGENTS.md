@@ -58,7 +58,26 @@ npm run smoke        # drive the built server over stdio like a real client
 npm run verify       # build + test + smoke, one command
 ```
 
-`npm run verify` is the gate. Run it before claiming any change works.
+`npm run verify` is the gate for the TypeScript side. Run it before claiming any
+change works.
+
+Anything that touches the editor has a second gate, because `npm run verify`
+knows nothing about which plugin a test project is running:
+
+```bash
+npm run install:check -- --project "D:\Unreal Projects\MyGame"
+npm run install:sync  -- --project "D:\Unreal Projects\MyGame"
+```
+
+The plugin is installed into a target project by copying, and a copy goes stale
+silently. It did: two projects carried an MCPBridge install, one was a day
+behind, and a live run against it would have passed while proving nothing.
+`install:check` compares the target's plugin against this checkout by content
+and refuses on any difference; `install:sync` copies the changed declared files,
+builds the target editor, and regenerates the manifest. `install:check` never
+writes to the target. Every live acceptance script calls it before connecting,
+so this is a gate you notice only when it saves you. Details and the target
+list: `docs/MCP_BRIDGE_INSTALLER.md`.
 
 Other useful entry points:
 
