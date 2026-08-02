@@ -5,13 +5,13 @@
   "integration_head": "see git log; wave one merged",
   "definition_of_finished": "Claude and Codex can inspect, create, patch, compile, run, visually review, repair, profile and verify substantial UE4.27 features from one prompt with minimal editor round trips, and every registered capability carries an accurate evidence state.",
   "measured_state": {
-    "total_registrations": 208,
+    "total_registrations": 209,
     "unique_canonical_capabilities": 164,
     "by_backend": {
       "legacy_http": 170,
       "native_pipe_alias": 12,
       "server_local": 2,
-      "native_pipe": 24
+      "native_pipe": 25
     },
     "by_verification": {
       "untested": 122,
@@ -36,7 +36,7 @@
       "server_local": 2,
       "native_pending_live": 1
     },
-    "registered_by_default": 26,
+    "registered_by_default": 27,
     "registered_by_default_note": "24 native_pipe plus 2 server_local. The 12 aliases route to native commands; the 170 legacy_http tools register only under MCP_ENABLE_LEGACY_HTTP=1."
   },
   "honest_completion_estimate": {
@@ -113,7 +113,7 @@
           "id": "E",
           "title": "Re-front existing C++ builder groups",
           "owner": "subagent lane-e",
-          "state": "REPORTED, NOT MERGED",
+          "state": "MERGED",
           "depends_on": [
             "A"
           ],
@@ -123,8 +123,9 @@
           "branch": "lane/e-refront",
           "worktree": "D:/Unreal Projects/_bridge_worktrees/lane-e",
           "scope_this_wave": "the real 54-tool REFRONT table derived from the inventory, plus ONE builder group re-fronted end to end through the documented add-a-tool chain. Depth over breadth. Exclusive build rights this wave.",
-          "result": "11 of 17 BlueprintMutatorLibrary tools re-fronted as one batched command. Main finding: 5 of 17 were misclassified as REFRONT and are really MERGE into blueprint_graph_patch; 38 of 54 remain genuine REFRONT. C++ compiled but did NOT link (LNK1104, editor held the DLLs), so the command has never executed.",
-          "held_because": "the branch carries an out-of-scope change to lane A's shipped blueprint_graph_patch that lane E did not author, reverted twice, and could not stop being restored. It must be reviewed as lane A's file before merge, not waved through as lane E's."
+          "result": "lane/e-refront is an ancestor of HEAD; puerts_blueprint_member_patch is registered and the catalog is 209 tools. 11 of 17 BlueprintMutatorLibrary tools re-fronted as one batched command, and 5 of 17 re-classified from REFRONT to MERGE into blueprint_graph_patch. 38 of 54 REFRONT remain.",
+          "held_because": "RESOLVED. It was held pending review of an out-of-scope change to lane A's file; there is no such diff between HEAD and lane/e-refront, so the change had already landed via an earlier merge. Nothing to adjudicate.",
+          "verification": "implemented, NOT live_verified. Its C++ compiled but never linked (LNK1104, an editor held the DLLs) and Scripts/bp-member-patch-acceptance.mjs has never executed. Same treatment lane A got before its live proof."
         },
         {
           "id": "F",
@@ -179,7 +180,7 @@
       "mitigation": "Copy a target project per live lane before wave two. A is checkpointed at 4e197ce and running."
     }
   ],
-  "actionable_incomplete_count": 2,
+  "actionable_incomplete_count": 1,
   "finished": false,
   "open_questions": [
     {
@@ -233,5 +234,13 @@
       "practical_mitigation": "Run lanes SEQUENTIALLY, one live agent at a time, until it is demonstrated. Wave one ran three concurrent lanes and produced no such report; wave two ran three concurrent lanes and produced four. That correlation is suggestive, not proof."
     },
     "blocker_status": "DOWNGRADED. Content is verified intact and npm run verify passes at 208 tools. The risk is misattribution, not corruption, and sequential lanes mitigate it."
-  }
+  },
+  "remaining_actionable": [
+    {
+      "id": "live_proof_member_patch",
+      "what": "Run Scripts/bp-member-patch-acceptance.mjs warm and cold against a rebuilt BridgeInstallTest, then promote puerts_blueprint_member_patch to live_verified or fix what it finds.",
+      "why_not_done": "session capacity. The command is merged and registered; only its live proof is outstanding.",
+      "note": "Everything beyond this is wave three and later, which the plan enumerates: 38 REFRONT, 16 wrapper gaps, 39 ports, two missing native commands blocking the index's live half, and the one-prompt authoring workflows."
+    }
+  ]
 }

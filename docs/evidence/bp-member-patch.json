@@ -1,0 +1,69 @@
+{
+  "phase": "record",
+  "steps": {
+    "fixture": {
+      "member_hash": "1fd59e0bb489b82d111c0c548718aaf339d195cc",
+      "variables": [
+        "Alpha",
+        "Beta",
+        "Doomed",
+        "Gamma",
+        "Label"
+      ],
+      "components": [
+        "Body",
+        "Lamp",
+        "Muzzle",
+        "Root"
+      ],
+      "file_sha256": "7b50dbd6c0c23ede78ef702ca867c52c4296d247b2b0c8987306f3abe6fc4d59"
+    },
+    "plan": {
+      "asset_path": "/Game/MCPGenerated/BP_MemberProbe",
+      "requested_operation_count": 2,
+      "operations_to_apply": [
+        "add_variable Delta",
+        "add_variable Alpha"
+      ],
+      "unchanged_operations": [],
+      "expected_change_count": 2,
+      "pre_member_hash": "1fd59e0bb489b82d111c0c548718aaf339d195cc",
+      "plan_only": true,
+      "prediction_unavailable_reason": "the batch changes the Blueprint's members, and a created graph or variable carries engine-generated detail that only exists once it is made. A predicted hash is offered only for a no-op batch, where it is the current hash by definition.",
+      "elapsed_ms": 1.1959000112256035
+    },
+    "patch": {
+      "elapsed_ms": 108.76339999958873,
+      "applied_operation_count": 7,
+      "pre_member_hash": "1fd59e0bb489b82d111c0c548718aaf339d195cc",
+      "post_member_hash": "83710fcf3b33f250a77bea0c90bfc7420092d500"
+    },
+    "untouched_members_compared": 4,
+    "rerun": {
+      "applied": 0,
+      "converged": true
+    },
+    "source_control_quiescent": true
+  },
+  "post_patch_member_hash": "83710fcf3b33f250a77bea0c90bfc7420092d500",
+  "post_patch_variables": [
+    "Alpha",
+    "Beta",
+    "Delta",
+    "Gamma",
+    "Label"
+  ],
+  "post_patch_components": [
+    "Beacon",
+    "Body",
+    "Root"
+  ],
+  "post_patch_functions": [
+    "ProbeStep",
+    "UserConstructionScript"
+  ],
+  "post_patch_dispatchers": [
+    "OnProbed"
+  ],
+  "mcp_round_trips": 16
+}
