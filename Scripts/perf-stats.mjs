@@ -197,6 +197,220 @@ export async function runScenario(spec, { call, iterations, warmup }) {
   return scenario;
 }
 
+/**
+ * Run one workflow: an ordered list of steps that together do a job a caller
+ * would actually ask for. One iteration is the whole list.
+ *
+ * This exists because AGENTS.md's product goal is the fewest editor round
+ * trips, not the fewest milliseconds. A change that halves per-call latency
+ * and doubles the call count is a regression, and only a scenario that counts
+ * steps can see it. `round_trips_per_iteration` is the headline number here;
+ * the milliseconds are secondary.
+ *
+ * Per-step statistics are kept so a workflow that got slower says which step
+ * did it, without a second editor session to find out.
+ */
+export async function runWorkflowScenario(spec, { call, iterations, warmup }) {
+  const steps = spec.steps ?? [];
+  const base = {
+    name: spec.name,
+    tool: "(workflow)",
+    layer: "workflow",
+    iterations: 0,
+    round_trips_per_iteration: steps.length,
+    target_ms: spec.targetMs ?? null,
+    target_met: null,
+  };
+  if (spec.skip) return { ...base, status: "skipped", skip_reason: spec.skip };
+  if (steps.length === 0) {
+    return { ...base, status: "skipped", skip_reason: "the workflow declares no steps" };
+  }
+  if (spec.targetBasis) base.target_basis = spec.targetBasis;
+
+  const why = (result) => (result?.errors ?? []).join("; ") || String(result?.message ?? "no error reported");
+  const totals = [];
+  const perStep = steps.map(() => []);
+
+  for (let i = 0; i < warmup + iterations; i += 1) {
+    const measured = i >= warmup;
+    let total = 0;
+    for (let s = 0; s < steps.length; s += 1) {
+      const { result, clientMs } = await call(steps[s].tool, steps[s].args ?? {});
+      if (result?.success !== true) {
+        return {
+          ...base,
+          status: "skipped",
+          skip_reason: `${measured ? `iteration ${i - warmup}` : "warm-up"} step `
+            + `${s + 1}/${steps.length} (${steps[s].name}) failed: ${why(result)}`,
+        };
+      }
+      total += clientMs;
+      if (measured) perStep[s].push(clientMs);
+    }
+    if (measured) totals.push(total);
+  }
+
+  const client = summarize(totals);
+  const scenario = {
+    ...base,
+    status: "measured",
+    iterations,
+    client_round_trip_ms: client,
+    steps: steps.map((step, index) => ({
+      name: step.name,
+      tool: step.tool,
+      client_round_trip_ms: summarize(perStep[index]),
+    })),
+  };
+  if (typeof spec.targetMs === "number") scenario.target_met = client.p95 <= spec.targetMs;
+  return scenario;
+}
+
+/**
+ * Time a full Play In Editor cycle: request start, wait until a PIE world is
+ * really there, request stop, wait until the editor world is back.
+ *
+ * The request round trips on their own would be a lie. `StartPlayInEditor`
+ * calls `GEditor->RequestPlaySession` (MCPPuerTSBridgeService.cpp:1177), which
+ * queues a request the editor honours on a later tick, so `pie_start` returns
+ * in the time it takes to set a flag. Worse, `StopPlayInEditor` cancels a
+ * still-queued request rather than ending a session
+ * (MCPPuerTSBridgeService.cpp:1193-1195), so a stop sent straight after a start
+ * measures a PIE session that never happened.
+ *
+ * `physics_observe` is one of the three tools AcceptCommand allows during play
+ * (MCPPuerTSBridgeService.cpp:495-499) and it stamps its result with
+ * `world: "pie"` or `"editor"` (MCPBridgePuerTSPhysics.cpp:298). That is the
+ * readiness signal, so it is what this polls. Every poll is a real round trip
+ * and is counted as one.
+ *
+ * One iteration only: a PIE cycle costs seconds, and twenty of them is a
+ * different kind of test.
+ */
+export async function runPieCycleScenario(spec, { call, sleep, pollIntervalMs = 250, timeoutMs = 60000 }) {
+  const base = {
+    name: spec.name,
+    tool: "puerts_pie_start",
+    layer: "pie",
+    iterations: 0,
+    round_trips_per_iteration: 0,
+    target_ms: spec.targetMs ?? null,
+    target_met: null,
+  };
+  if (spec.skip) return { ...base, status: "skipped", skip_reason: spec.skip };
+  if (spec.targetBasis) base.target_basis = spec.targetBasis;
+
+  const why = (result) => (result?.errors ?? []).join("; ") || String(result?.message ?? "no error reported");
+  let roundTrips = 0;
+  const phases = [];
+
+  /** Poll physics_observe until it reports `wanted`, or give up and say so. */
+  const waitForWorld = async (wanted) => {
+    const started = process.hrtime.bigint();
+    for (;;) {
+      const { result } = await call("puerts_physics_observe", {});
+      roundTrips += 1;
+      const elapsed = Number(process.hrtime.bigint() - started) / 1e6;
+      // A refusal during play is expected for other tools, not this one; if
+      // physics_observe itself fails there is nothing left to poll with.
+      if (result?.success !== true) return { ok: false, elapsed, reason: why(result) };
+      if (result.data?.world === wanted) return { ok: true, elapsed };
+      if (elapsed > timeoutMs) {
+        return { ok: false, elapsed, reason: `world stayed "${String(result.data?.world)}" for ${timeoutMs} ms` };
+      }
+      await sleep(pollIntervalMs);
+    }
+  };
+
+  const fail = (reason) => ({ ...base, status: "skipped", skip_reason: reason, round_trips_per_iteration: roundTrips });
+
+  const before = await call("puerts_physics_observe", {});
+  roundTrips += 1;
+  if (before.result?.success !== true) return fail(`physics_observe is unavailable, so PIE readiness cannot be observed: ${why(before.result)}`);
+  if (before.result.data?.world !== "editor") return fail(`the editor is already in world "${String(before.result.data?.world)}"; a PIE cycle must start from the editor world`);
+
+  const start = await call("puerts_pie_start", {});
+  roundTrips += 1;
+  if (start.result?.success !== true) return fail(`pie_start refused: ${why(start.result)}`);
+  phases.push({ name: "pie_start_request", ms: start.clientMs });
+
+  const up = await waitForWorld("pie");
+  if (!up.ok) return fail(`PIE never became playable: ${up.reason}`);
+  phases.push({ name: "start_request_to_pie_world", ms: up.elapsed });
+
+  const stop = await call("puerts_pie_stop", {});
+  roundTrips += 1;
+  if (stop.result?.success !== true) return fail(`pie_stop refused while PIE was running: ${why(stop.result)}`);
+  phases.push({ name: "pie_stop_request", ms: stop.clientMs });
+
+  const down = await waitForWorld("editor");
+  if (!down.ok) return fail(`the editor world never came back: ${down.reason}`);
+  phases.push({ name: "stop_request_to_editor_world", ms: down.elapsed });
+
+  const total = phases.reduce((sum, phase) => sum + phase.ms, 0);
+  return {
+    ...base,
+    status: "measured",
+    iterations: 1,
+    round_trips_per_iteration: roundTrips,
+    client_round_trip_ms: summarize([total]),
+    steps: phases.map((phase) => ({
+      name: phase.name,
+      tool: "puerts_physics_observe",
+      client_round_trip_ms: summarize([phase.ms]),
+    })),
+    target_met: typeof spec.targetMs === "number" ? total <= spec.targetMs : null,
+  };
+}
+
+/**
+ * Editor start to bridge ready, derived from the session manifest rather than
+ * measured by restarting anything.
+ *
+ * `process_start_time` is the OS process creation time
+ * (`GetProcessStartTimeUtc`, MCPPuerTSBridgeService.cpp:62-76) and `created_at`
+ * is stamped in `Initialize` immediately before the manifest is first published
+ * (MCPPuerTSBridgeService.cpp:290-292). The difference is exactly "how long
+ * after launch could a client have addressed this editor", which is the number
+ * an editor-restart benchmark is after. No restart is required to read it, and
+ * a harness that is forbidden from launching editors can still report it.
+ *
+ * The cost of that convenience, stated because it is not obvious: it is one
+ * sample per editor session and it is not repeatable within a run.
+ */
+export function deriveEditorStartupScenario(session) {
+  const base = {
+    name: "editor_startup_to_bridge_ready",
+    tool: "(session manifest)",
+    layer: "editor_startup",
+    iterations: 0,
+    round_trips_per_iteration: 0,
+    target_ms: null,
+    target_met: null,
+    target_basis: "process creation to session.json first published. One sample per editor session, "
+      + "derived from the manifest, not from a restart the harness performed.",
+  };
+  const started = Date.parse(String(session?.process_start_time ?? ""));
+  const ready = Date.parse(String(session?.created_at ?? ""));
+  if (!Number.isFinite(started) || !Number.isFinite(ready)) {
+    return {
+      ...base,
+      status: "skipped",
+      skip_reason: "the session manifest has no parseable process_start_time and created_at pair; "
+        + "GetProcessStartTimeUtc returns an empty string off Windows",
+    };
+  }
+  if (ready < started) {
+    return {
+      ...base,
+      status: "skipped",
+      skip_reason: `created_at ${session.created_at} precedes process_start_time ${session.process_start_time}; `
+        + "the clocks disagree and the difference would not be a duration",
+    };
+  }
+  return { ...base, status: "measured", iterations: 1, client_round_trip_ms: summarize([ready - started]) };
+}
+
 // ---------------------------------------------------------------- refusal
 
 /**

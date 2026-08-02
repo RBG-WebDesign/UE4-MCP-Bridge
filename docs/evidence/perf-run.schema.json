@@ -55,12 +55,25 @@
           "tool": { "type": "string" },
           "status": { "type": "string", "enum": ["measured", "skipped"] },
           "skip_reason": { "type": "string" },
-          "layer": { "type": "string", "enum": ["client_round_trip", "native", "serialization", "compile", "save"] },
+          "layer": { "type": "string", "enum": ["client_round_trip", "native", "serialization", "compile", "save", "workflow", "pie", "editor_startup"] },
           "iterations": { "type": "integer" },
           "round_trips_per_iteration": { "type": "integer" },
           "client_round_trip_ms": { "$ref": "#/definitions/stats" },
           "native_duration_ms": { "$ref": "#/definitions/stats" },
           "response_bytes": { "$ref": "#/definitions/stats" },
+          "steps": {
+            "type": "array",
+            "description": "Per-step breakdown of a workflow or PIE scenario. client_round_trip_ms on the scenario is the whole iteration; these are its parts, kept so a workflow that got slower names the step that did it.",
+            "items": {
+              "type": "object",
+              "required": ["name", "tool", "client_round_trip_ms"],
+              "properties": {
+                "name": { "type": "string" },
+                "tool": { "type": "string" },
+                "client_round_trip_ms": { "$ref": "#/definitions/stats" }
+              }
+            }
+          },
           "target_ms": { "type": ["number", "null"] },
           "target_met": { "type": ["boolean", "null"] },
           "target_basis": { "type": "string" }

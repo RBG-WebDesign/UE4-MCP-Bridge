@@ -13,8 +13,8 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
-  buildRunReport, compareRuns, describeRefusal, percentile,
-  runSchema, runScenario, summarize, validateRunReport,
+  buildRunReport, compareRuns, deriveEditorStartupScenario, describeRefusal, percentile,
+  runPieCycleScenario, runSchema, runScenario, runWorkflowScenario, summarize, validateRunReport,
 } from "./perf-stats.mjs";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
@@ -268,6 +268,175 @@ function stubCall(plan, { nativeMs = 1.5, clientMs = 5 } = {}) {
   );
   assert.equal(scenario.native_duration_ms.p50, 72.3);
   ok("data.elapsed_ms is picked up when native_duration_ms is absent");
+}
+
+// ------------------------------------------------------ workflow runner
+
+{
+  const { call, calls } = stubCall([]);
+  const scenario = await runWorkflowScenario(
+    {
+      name: "workflow_survey_project",
+      steps: [
+        { name: "identify_editor", tool: "puerts_diagnostic", args: { actor_limit: 1 } },
+        { name: "list_actors", tool: "puerts_find_actors", args: { limit: 500 } },
+        { name: "read_one_graph", tool: "puerts_graph_inspect", args: { asset_path: "/Game/BP_A" } },
+      ],
+    },
+    { call, iterations: 2, warmup: 1 },
+  );
+  assert.equal(scenario.status, "measured");
+  assert.equal(scenario.layer, "workflow");
+  // Three steps, one warm-up iteration plus two measured: nine calls.
+  assert.equal(calls.length, 9);
+  assert.equal(scenario.round_trips_per_iteration, 3,
+    "the round-trip count is the number AGENTS.md's product goal is about; it must be the step count");
+  assert.equal(scenario.iterations, 2);
+  assert.equal(scenario.steps.length, 3);
+  assert.deepEqual(scenario.steps.map((s) => s.name), ["identify_editor", "list_actors", "read_one_graph"]);
+  // clientMs is 5+index, so calls 4..9 are the measured ones: 9+10+11 and 12+13+14.
+  assert.deepEqual(scenario.client_round_trip_ms.samples, [30, 39]);
+  assert.deepEqual(scenario.steps.map((s) => s.client_round_trip_ms.samples), [[9, 12], [10, 13], [11, 14]]);
+  assert.deepEqual(validateRunReport({ ...sampleReport(), scenarios: [scenario] }), { ok: true, problems: [] });
+  ok("a workflow measures the whole sequence, declares its round-trip count, and breaks down by step");
+}
+
+{
+  // Fail the fifth call: warm-up is three calls, so this is measured iteration
+  // 0, step 2. The message has to name the step, not just the iteration.
+  const { call } = stubCall([true, true, true, true, false]);
+  const scenario = await runWorkflowScenario(
+    {
+      name: "workflow_author_and_verify",
+      steps: [
+        { name: "plan", tool: "puerts_blueprint_build", args: {} },
+        { name: "apply_and_compile", tool: "puerts_blueprint_build", args: {} },
+        { name: "verify", tool: "puerts_graph_inspect", args: {} },
+      ],
+    },
+    { call, iterations: 3, warmup: 1 },
+  );
+  assert.equal(scenario.status, "skipped");
+  assert.ok(scenario.skip_reason.includes("iteration 0 step 2/3 (apply_and_compile)"), scenario.skip_reason);
+  assert.ok(scenario.skip_reason.includes("Bridge is busy."), "the editor's own error was discarded");
+  assert.equal(scenario.client_round_trip_ms, undefined, "a skipped workflow reported statistics");
+  ok("a workflow that breaks names the failing step and reports no distribution");
+}
+
+{
+  const { call, calls } = stubCall([]);
+  const skipped = await runWorkflowScenario(
+    { name: "workflow_author_and_verify", skip: "not requested; pass --include-compile", steps: [{ name: "a", tool: "t" }] },
+    { call, iterations: 3, warmup: 1 },
+  );
+  assert.equal(skipped.status, "skipped");
+  assert.equal(calls.length, 0);
+  const empty = await runWorkflowScenario({ name: "nothing", steps: [] }, { call, iterations: 1, warmup: 0 });
+  assert.equal(empty.status, "skipped");
+  assert.ok(empty.skip_reason.includes("no steps"));
+  ok("a workflow that is not requested, or declares no steps, is skipped and calls nothing");
+}
+
+// ----------------------------------------------------------- PIE cycle
+
+/** A `call` that walks a scripted list of `physics_observe` worlds. */
+function pieStub(worlds, { startOk = true, stopOk = true } = {}) {
+  const seen = [];
+  let at = 0;
+  const call = async (tool) => {
+    seen.push(tool);
+    if (tool === "puerts_pie_start") return { result: { success: startOk, errors: ["refused"] }, clientMs: 3, bytes: 1 };
+    if (tool === "puerts_pie_stop") return { result: { success: stopOk, errors: ["refused"] }, clientMs: 4, bytes: 1 };
+    const world = worlds[Math.min(at, worlds.length - 1)];
+    at += 1;
+    return { result: { success: true, data: { world } }, clientMs: 2, bytes: 1 };
+  };
+  return { call, seen };
+}
+
+{
+  // editor (precondition), editor, pie (up), pie, editor (down).
+  const { call, seen } = pieStub(["editor", "editor", "pie", "pie", "editor"]);
+  const scenario = await runPieCycleScenario({ name: "pie_cycle" }, { call, sleep: async () => {}, pollIntervalMs: 0 });
+  assert.equal(scenario.status, "measured");
+  assert.equal(scenario.layer, "pie");
+  assert.deepEqual(scenario.steps.map((s) => s.name),
+    ["pie_start_request", "start_request_to_pie_world", "pie_stop_request", "stop_request_to_editor_world"]);
+  assert.equal(scenario.round_trips_per_iteration, seen.length,
+    "every readiness poll is a real round trip and must be counted");
+  assert.ok(seen.includes("puerts_pie_start") && seen.includes("puerts_pie_stop"));
+  assert.deepEqual(validateRunReport({ ...sampleReport(), scenarios: [scenario] }), { ok: true, problems: [] });
+  ok("a PIE cycle polls for a real play world, then for the editor world back, and counts every poll");
+}
+
+{
+  // The editor is already playing. Starting from there would measure nothing.
+  const { call, seen } = pieStub(["pie"]);
+  const scenario = await runPieCycleScenario({ name: "pie_cycle" }, { call, sleep: async () => {} });
+  assert.equal(scenario.status, "skipped");
+  assert.ok(scenario.skip_reason.includes('already in world "pie"'), scenario.skip_reason);
+  assert.equal(seen.filter((t) => t === "puerts_pie_start").length, 0, "PIE was started from a world that was already playing");
+  ok("a PIE cycle refuses to start from a world that is not the editor world");
+}
+
+{
+  // PIE never comes up. This must skip with the timeout stated, not report the
+  // poll loop's own duration as a PIE start time.
+  const { call } = pieStub(["editor"]);
+  const scenario = await runPieCycleScenario(
+    { name: "pie_cycle" },
+    { call, sleep: async () => {}, pollIntervalMs: 0, timeoutMs: 0 },
+  );
+  assert.equal(scenario.status, "skipped");
+  assert.ok(scenario.skip_reason.includes("never became playable"), scenario.skip_reason);
+  assert.equal(scenario.client_round_trip_ms, undefined);
+  assert.ok(scenario.round_trips_per_iteration > 0, "the calls that were made were not counted");
+  ok("PIE that never becomes playable is skipped with the timeout stated, not timed as if it had");
+}
+
+{
+  const { call, seen } = pieStub(["editor"], { startOk: false });
+  const refused = await runPieCycleScenario({ name: "pie_cycle" }, { call, sleep: async () => {} });
+  assert.equal(refused.status, "skipped");
+  assert.ok(refused.skip_reason.includes("pie_start refused"), refused.skip_reason);
+  assert.equal(seen.filter((t) => t === "puerts_pie_stop").length, 0, "a stop was sent for a start that was refused");
+  const notAsked = await runPieCycleScenario(
+    { name: "pie_cycle", skip: "not requested; pass --include-pie" },
+    { call, sleep: async () => {} },
+  );
+  assert.equal(notAsked.status, "skipped");
+  assert.equal(notAsked.skip_reason, "not requested; pass --include-pie");
+  ok("a refused pie_start does not go on to stop, and an unrequested cycle starts nothing");
+}
+
+// ------------------------------------------------- editor startup timing
+
+{
+  const startup = deriveEditorStartupScenario({
+    process_start_time: "2026-08-02T10:00:00.000Z",
+    created_at: "2026-08-02T10:00:42.500Z",
+  });
+  assert.equal(startup.status, "measured");
+  assert.equal(startup.layer, "editor_startup");
+  assert.equal(startup.round_trips_per_iteration, 0, "reading a file the editor already wrote is not a round trip");
+  assert.equal(startup.client_round_trip_ms.p50, 42500);
+  assert.deepEqual(validateRunReport({ ...sampleReport(), scenarios: [startup] }), { ok: true, problems: [] });
+  ok("editor startup is derived from the session manifest timestamps, with no restart and no round trip");
+}
+
+{
+  for (const manifest of [{}, { process_start_time: "", created_at: "2026-08-02T10:00:00.000Z" }, { unreadable: "ENOENT" }]) {
+    const startup = deriveEditorStartupScenario(manifest);
+    assert.equal(startup.status, "skipped");
+    assert.equal(startup.client_round_trip_ms, undefined, "an unmeasurable startup reported a duration");
+  }
+  const backwards = deriveEditorStartupScenario({
+    process_start_time: "2026-08-02T10:00:42.500Z",
+    created_at: "2026-08-02T10:00:00.000Z",
+  });
+  assert.equal(backwards.status, "skipped");
+  assert.ok(backwards.skip_reason.includes("precedes"), backwards.skip_reason);
+  ok("a missing, unparseable or backwards manifest pair skips rather than reporting zero or a negative duration");
 }
 
 // -------------------------------------------------------- refusal path
