@@ -77,6 +77,75 @@ jobs:
           fi
           echo "Plugin tree is clean."
 
-# The UE4.27 C++ compile (AutomationTool BuildPlugin) requires a Windows
-# runner with the engine installed and is validated locally per release;
-# see docs/MCP_BRIDGE_RELEASE_WORKFLOW.md.
+  # Windows, because everything in this job shells out to Windows PowerShell or
+  # exercises a Win64-only code path. The runtime's file-system guard compares
+  # paths with a backslash separator and the installer derives a `\\.\pipe\`
+  # name; both are correct for the only platform UE4.27 editor tooling runs on
+  # here, and both are meaningless on Linux.
+  editor-free-acceptance:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      # build + unit tests + puerts pin + tool inventory + stdio smoke.
+      # check:puerts SKIPS here and that is expected: the pinned 369 MB PuerTS
+      # bundle is excluded by .gitignore, so no clean checkout has one. The pin
+      # is enforced on the machine that installs, by install-mcp-bridge.ps1,
+      # which runs the same script with --strict.
+      - name: npm run verify
+        run: npm run verify
+
+      # The three acceptances that need no editor. Each builds its own fixture
+      # in the temp directory and deletes it again.
+      - name: Security refusals (bad token, path escape, shell, property)
+        run: npm run test:security
+
+      - name: Fresh-project install
+        run: npm run test:fresh-install
+
+      - name: Release package
+        run: npm run test:package
+
+# ---------------------------------------------------------------------------
+# What CI CANNOT run, and why. This list is the useful half: everything above
+# proves the bridge is well-formed, and nothing above proves it drives Unreal.
+#
+# Needs a live UE4.27 editor with the compiled plugin loaded:
+#   Scripts/editor-acceptance.mjs            npm run acceptance:editor
+#   Scripts/puerts-live-smoke.mjs            npm run smoke:puerts, smoke:physics
+#   Scripts/graph-inspect-acceptance.mjs     npm run smoke:inspect
+#   Scripts/behavior-tree-acceptance.mjs     npm run smoke:bt
+#   Scripts/bp-failure-atomicity.mjs, bt-failure-atomicity.mjs,
+#     wbp-failure-atomicity.mjs, bp-graph-patch-acceptance.mjs,
+#     bp-remove-unlisted-acceptance.mjs, bp-truthful-report-acceptance.mjs
+#   npm run smoke:editor, npm run test:integration
+#
+# Needs TWO editors and a scripted open/close/reopen sequence, so it cannot be
+# a single CI step even on a self-hosted runner with an engine:
+#   Scripts/session-isolation-acceptance.mjs --phase=both|a-closed|a-restarted|none
+#   Scripts/editor-shutdown-acceptance.ps1
+#
+# Needs a target project that has been installed AND compiled by UBT:
+#   Scripts/bridge-install-acceptance.mjs    npm run test:install -- --from <project>
+#   The 21 sabotage cases are pure file comparison, but every one of them starts
+#   from a known-good install, and "known-good" includes a built DLL.
+#
+# Needs UE4.27 and AutomationTool:
+#   Scripts/package-mcp-bridge.ps1 -RunUAT   the binary release package
+#   The UE4.27 C++ compile itself. See docs/MCP_BRIDGE_RELEASE_WORKFLOW.md.
+#
+# Partially covered above, and the uncovered half named where it is asserted:
+#   Scripts/security-refusal-acceptance.mjs marks each case EXECUTED or STATIC.
+#   The STATIC ones - the editor's bearer-token comparison and the writable
+#   property allowlist - live in compiled C++ and are checked here only by
+#   requiring the shipped source to still contain them. That catches a deletion
+#   and nothing else. A live editor is the only thing that proves the running
+#   boundary refuses.

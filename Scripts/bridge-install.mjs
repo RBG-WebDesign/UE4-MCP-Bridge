@@ -30,6 +30,15 @@ import { dirname, join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 export const MANIFEST_NAME = 'MCPBridgeInstall.json';
+
+// Schema version of MCPBridgeInstall.json. Same rule as session.json: a manifest
+// whose version this checkout does not recognise is refused, not read
+// optimistically. The manifest decides two things that matter - whether the
+// target is deprecated, and which DLL was built at install time - so reading an
+// unknown shape means silently skipping both while reporting a pass. Bump this
+// whenever a field's MEANING changes; adding a field nothing reads does not
+// need a bump.
+export const MANIFEST_SCHEMA_VERSION = 1;
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), '..');
 const SKIP_DIRS = new Set(['Binaries', 'Intermediate', 'Saved', '.vs']);
 
@@ -245,7 +254,31 @@ export function checkInstall(projectRoot) {
       `${root} has no ${MANIFEST_NAME}: it is an unmanaged plugin copy of unknown provenance. ` +
       'Run npm run install:sync -- --project <path> to make it a verified target, or stop using it for acceptance.');
   }
-  if (manifest?.status === 'deprecated') {
+  // Version before content. Everything below that reads a manifest FIELD is
+  // gated on this, because a field read out of a shape this checkout does not
+  // know is a guess, and the two fields in question (status, dll_hashes) are
+  // both cases where guessing means passing an install that should be refused.
+  const found = manifest?.schema_version;
+  const manifestTrusted = manifest !== null && found === MANIFEST_SCHEMA_VERSION;
+  if (manifest && !manifestTrusted) {
+    if (!Number.isInteger(found)) {
+      problems.push(
+        `manifest_schema: ${MANIFEST_NAME} in ${root} has no integer schema_version, so it was written ` +
+        'before the manifest was versioned. Its fields are not read. Re-run ' +
+        'npm run install:sync -- --project <path> to rewrite it.');
+    } else if (found < MANIFEST_SCHEMA_VERSION) {
+      problems.push(
+        `manifest_schema: ${MANIFEST_NAME} in ${root} is schema version ${found}; this checkout writes ` +
+        `${MANIFEST_SCHEMA_VERSION}. Re-run npm run install:sync -- --project <path>, which rewrites the ` +
+        'manifest at the current version.');
+    } else {
+      problems.push(
+        `manifest_schema: ${MANIFEST_NAME} in ${root} is schema version ${found}, which is NEWER than the ` +
+        `${MANIFEST_SCHEMA_VERSION} this checkout understands. The target was installed from a newer bridge ` +
+        'checkout; syncing from here would move it backwards. Update this checkout instead.');
+    }
+  }
+  if (manifestTrusted && manifest.status === 'deprecated') {
     problems.push(`${root} is marked deprecated in its manifest and is blocked from acceptance: ${manifest.deprecated_reason ?? 'no reason recorded'}`);
   }
 
@@ -281,11 +314,12 @@ export function checkInstall(projectRoot) {
   // the binary is swapped (hash moves off the recorded one) or the sources were
   // synced without rebuilding (sources end up newer than the binary).
   const dlls = dllHashes(pluginDir);
-  report.dll = { installed: dlls, recorded: manifest?.dll_hashes ?? null };
+  const recordedDlls = manifestTrusted ? manifest.dll_hashes : null;
+  report.dll = { installed: dlls, recorded: recordedDlls ?? null };
   if (Object.keys(dlls).length === 0) {
     problems.push('dll: no UE4Editor-MCPBridge*.dll in Binaries/Win64; the target project has never been built');
-  } else if (manifest?.dll_hashes) {
-    for (const [name, hash] of Object.entries(manifest.dll_hashes)) {
+  } else if (recordedDlls) {
+    for (const [name, hash] of Object.entries(recordedDlls)) {
       if (!dlls[name]) problems.push(`dll: ${name} recorded at install is missing`);
       else if (dlls[name] !== hash) problems.push(`dll: ${name} is not the binary built at install time`);
     }
@@ -320,6 +354,7 @@ export function checkInstall(projectRoot) {
 
   report.stale_groups = stale;
   report.manifest = manifest;
+  report.manifest_schema = { found: found ?? null, supported: MANIFEST_SCHEMA_VERSION, trusted: manifestTrusted };
   return { ok: problems.length === 0, problems, report };
 }
 
@@ -338,7 +373,7 @@ function buildTarget(root) {
   return target;
 }
 
-function syncInstall(projectRoot, { build = true } = {}) {
+export function syncInstall(projectRoot, { build = true } = {}) {
   const root = resolveProject(projectRoot);
   const pluginDir = join(root, 'Plugins', 'MCPBridge');
   const sourceDir = join(repoRoot, 'Plugins', 'MCPBridge');
@@ -387,6 +422,7 @@ function syncInstall(projectRoot, { build = true } = {}) {
 
   const git = gitState();
   const manifest = {
+    schema_version: MANIFEST_SCHEMA_VERSION,
     generated_by: 'Scripts/bridge-install.mjs',
     status: 'active',
     installed_at: new Date().toISOString(),

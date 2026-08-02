@@ -63,6 +63,44 @@ Saved/
 DerivedDataCache/
 ```
 
+### What the source zip is, and what it is not
+
+Validate it with:
+
+```bash
+npm run test:package
+```
+
+That runs the packager into a temporary directory, opens the zip, and checks it.
+What it proves: a single `MCPBridge/` root with the descriptor at the top, no
+`Binaries`/`Build`/`Intermediate`/`Saved`/`__pycache__`/`.vs`, every module the
+descriptor declares shipping its `Build.cs`, the generated `Content/JavaScript`
+present, plugin-relative paths inside the 170 character budget, and the version
+in the file name coming from the descriptor.
+
+What it is not: **the zip is not a self-sufficient installable artefact**, and
+the same script records why, as cases that fail if any of it changes.
+
+1. **`MCPBridge.uplugin` requires the `Puerts` plugin and the zip does not
+   contain it.** UE4 refuses to load MCPBridge without it. The recipient has to
+   install the pinned PuerTS Unreal_v1.0.9 bundle separately, and nothing inside
+   the zip tells them so - `TEAM_SETUP.md`, which is in the zip, never mentions
+   PuerTS.
+2. **The packager does not build, and does not check that anyone else did.**
+   `Content/JavaScript` is produced by `npm run build` and is not in Git. Packaging
+   a tree without it produces a zip with no warning, and that release ships a
+   plugin whose PuerTS lane has nothing to execute. **Run `npm run build` before
+   `package-mcp-bridge.ps1`.**
+3. **No `MCPBridgeInstall.json`**, so a project installed from the zip is an
+   unmanaged copy of unknown provenance as far as `npm run install:check` is
+   concerned.
+4. **No binaries.** The target must be a C++ project with UE4.27 and UBT
+   available. `-RunUAT` produces a binary package and needs an engine; nothing
+   in `npm run test:package` exercises it.
+
+Closing 1 and 2 is what would make the zip droppable. Neither is done. The long
+form of this verdict, with what would change it, is in `docs/RELEASE.md`.
+
 ## Fab Notes
 
 For Fab-style distribution, keep the uploaded plugin folder clean:
