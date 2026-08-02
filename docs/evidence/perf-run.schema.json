@@ -1,0 +1,97 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://unreal-bridge/docs/evidence/perf-run.schema.json",
+  "title": "Bridge performance run",
+  "description": "One benchmark run of Scripts/perf-benchmark.mjs against one live editor session. Written to docs/evidence/perf-run-<label>-<date>.json so successive runs are comparable as data rather than prose. Validated by validateRunReport in Scripts/perf-stats.mjs, which reads this file: the schema is the only definition of the format.",
+  "type": "object",
+  "required": ["schema_version", "kind", "run", "environment", "scenarios", "totals"],
+  "properties": {
+    "schema_version": { "type": "integer" },
+    "kind": { "type": "string", "enum": ["bridge-perf-run"] },
+    "run": {
+      "type": "object",
+      "required": ["run_id", "label", "started_at", "finished_at", "iterations", "warmup"],
+      "properties": {
+        "run_id": { "type": "string" },
+        "label": { "type": "string" },
+        "started_at": { "type": "string" },
+        "finished_at": { "type": "string" },
+        "iterations": { "type": "integer" },
+        "warmup": { "type": "integer" },
+        "notes": { "type": "string" }
+      }
+    },
+    "environment": {
+      "type": "object",
+      "required": ["host", "platform", "cpu_model", "cpu_count", "node_version", "bridge_commit", "project_root"],
+      "properties": {
+        "host": { "type": "string" },
+        "platform": { "type": "string" },
+        "cpu_model": { "type": "string" },
+        "cpu_count": { "type": "integer" },
+        "total_memory_bytes": { "type": "number" },
+        "node_version": { "type": "string" },
+        "bridge_commit": { "type": "string" },
+        "project_root": { "type": "string" },
+        "editor": {
+          "type": "object",
+          "required": ["actor_count_total"],
+          "properties": {
+            "session_id": { "type": "string" },
+            "editor_pid": { "type": "number" },
+            "actor_count_total": { "type": "number" },
+            "is_game_thread": { "type": "boolean" }
+          }
+        }
+      }
+    },
+    "scenarios": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name", "tool", "status", "iterations", "round_trips_per_iteration"],
+        "properties": {
+          "name": { "type": "string" },
+          "tool": { "type": "string" },
+          "status": { "type": "string", "enum": ["measured", "skipped"] },
+          "skip_reason": { "type": "string" },
+          "layer": { "type": "string", "enum": ["client_round_trip", "native", "serialization", "compile", "save"] },
+          "iterations": { "type": "integer" },
+          "round_trips_per_iteration": { "type": "integer" },
+          "client_round_trip_ms": { "$ref": "#/definitions/stats" },
+          "native_duration_ms": { "$ref": "#/definitions/stats" },
+          "response_bytes": { "$ref": "#/definitions/stats" },
+          "target_ms": { "type": ["number", "null"] },
+          "target_met": { "type": ["boolean", "null"] },
+          "target_basis": { "type": "string" }
+        }
+      }
+    },
+    "totals": {
+      "type": "object",
+      "required": ["round_trips", "wall_ms"],
+      "properties": {
+        "round_trips": { "type": "integer" },
+        "wall_ms": { "type": "number" },
+        "scenarios_measured": { "type": "integer" },
+        "scenarios_skipped": { "type": "integer" }
+      }
+    }
+  },
+  "definitions": {
+    "stats": {
+      "type": "object",
+      "description": "Nearest-rank order statistics over the per-iteration samples of one scenario. Warm-up iterations are excluded.",
+      "required": ["count", "min", "p50", "p95", "max", "mean"],
+      "properties": {
+        "count": { "type": "integer" },
+        "min": { "type": "number" },
+        "p50": { "type": "number" },
+        "p95": { "type": "number" },
+        "max": { "type": "number" },
+        "mean": { "type": "number" },
+        "samples": { "type": "array", "items": { "type": "number" } }
+      }
+    }
+  }
+}
