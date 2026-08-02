@@ -12,6 +12,8 @@
 #include "BehaviorTree/BTTaskNode.h"
 #include "BehaviorTreeBuilderLibrary.h"
 #include "Json.h"
+#include "MCPBridgeAssetRollback.h"
+#include "ScopedTransaction.h"
 #include "JsonObjectConverter.h"
 #include "MCPBridgeAILibrary.h"
 #include "Misc/PackageName.h"
@@ -134,6 +136,32 @@ bool UMCPPuerTSBridgeService::BuildBehaviorTreeJson(
         || Spec->GetBoolField(TEXT("save"));
 
     // --- Mutation starts here. ---
+    //
+    // Everything below this line is inside a rollback boundary. The engine
+    // validation that decides whether the spec was legal at all can only run
+    // against a real UBehaviorTree, so the assets have to exist before the
+    // answer is known. When the answer is no, Rollback undoes the creation; a
+    // failed build must not leave an asset in the Asset Registry or a dirty
+    // package for the save-on-exit flow to write during close.
+    FBridgeAssetRollback Rollback;
+    Rollback.Snapshot(BlackboardPath);
+    Rollback.Snapshot(AssetPath);
+    const TArray<FString> DirtyBefore = Rollback.DirtyPackages();
+    const TArray<FString> SourceControlBefore = Rollback.SourceControlState();
+
+    // Cancel the transaction first, then undo the creations: the transaction's
+    // undo records reference these objects, and must be replayed while they are
+    // still live.
+    auto FailWithRollback = [&](const FString& Error) -> bool
+    {
+        if (ActiveTransaction != nullptr)
+        {
+            ActiveTransaction->Cancel();
+        }
+        Rollback.Rollback();
+        OutError = Error;
+        return false;
+    };
 
     bool bCreatedBlackboard = false;
     const FString BlackboardObjectPath =
@@ -142,7 +170,11 @@ bool UMCPPuerTSBridgeService::BuildBehaviorTreeJson(
         BlackboardPath, BlackboardObjectPath, bCreatedBlackboard, OutError);
     if (Blackboard == nullptr)
     {
-        return false;
+        return FailWithRollback(OutError);
+    }
+    if (bCreatedBlackboard)
+    {
+        Rollback.TrackCreated(Blackboard);
     }
     Blackboard->Modify();
 
@@ -153,7 +185,11 @@ bool UMCPPuerTSBridgeService::BuildBehaviorTreeJson(
         AssetPath, TreeObjectPath, bCreatedTree, OutError);
     if (Tree == nullptr)
     {
-        return false;
+        return FailWithRollback(OutError);
+    }
+    if (bCreatedTree)
+    {
+        Rollback.TrackCreated(Tree);
     }
     Tree->Modify();
 
@@ -190,29 +226,60 @@ bool UMCPPuerTSBridgeService::BuildBehaviorTreeJson(
         }
     }
 
+    // The failure exit, shared by the build and the save. Previously both
+    // packages were dirtied unconditionally below, which is what put a failed
+    // build in the Save Content prompt and wrote it to disk during close even
+    // when the prompt was answered "Don't Save".
+    auto FailRolledBack = [&]() -> bool
+    {
+        if (ActiveTransaction != nullptr)
+        {
+            ActiveTransaction->Cancel();
+        }
+        Rollback.Rollback();
+
+        TSharedPtr<FJsonObject> Failed = MakeShared<FJsonObject>();
+        Failed->SetStringField(TEXT("asset_path"), AssetPath);
+        Failed->SetStringField(TEXT("blackboard_path"), BlackboardPath);
+        Failed->SetBoolField(TEXT("created"), false);
+        Failed->SetBoolField(TEXT("created_blackboard"), false);
+        Failed->SetBoolField(TEXT("has_root"), false);
+        Failed->SetBoolField(TEXT("saved"), false);
+        Failed->SetArrayField(TEXT("errors"), Errors);
+        Warnings.Add(MakeShared<FJsonValueString>(
+            TEXT("The build failed and was rolled back: no asset, package, or file remains.")));
+        Failed->SetArrayField(TEXT("warnings"), Warnings);
+        Failed->SetObjectField(TEXT("cleanup"),
+            Rollback.BuildEvidence(DirtyBefore, SourceControlBefore));
+        OutResultJson = SerializeJson(Failed);
+        return true;
+    };
+
+    if (Errors.Num() > 0)
+    {
+        return FailRolledBack();
+    }
+
     Tree->MarkPackageDirty();
     Blackboard->MarkPackageDirty();
 
     bool bSaved = false;
     if (bSave)
     {
-        if (Errors.Num() > 0)
+        FString SaveError;
+        bSaved = SaveProjectAsset(TreeObjectPath, SaveError)
+            && SaveProjectAsset(BlackboardObjectPath, SaveError);
+        if (!bSaved)
         {
-            Warnings.Add(MakeShared<FJsonValueString>(
-                TEXT("Save was skipped: the Behavior Tree did not build cleanly.")));
-        }
-        else
-        {
-            FString SaveError;
-            bSaved = SaveProjectAsset(TreeObjectPath, SaveError)
-                && SaveProjectAsset(BlackboardObjectPath, SaveError);
-            if (!bSaved)
-            {
-                Errors.Add(MakeShared<FJsonValueString>(
-                    FString::Printf(TEXT("Asset save failed: %s"), *SaveError)));
-            }
+            // A half-written asset is the same hazard as a half-built one.
+            Errors.Add(MakeShared<FJsonValueString>(
+                FString::Printf(TEXT("Asset save failed: %s"), *SaveError)));
+            return FailRolledBack();
         }
     }
+
+    // Past every failure exit: the request succeeded, so keep what it made.
+    Rollback.Commit();
     if (bCreatedTree || bCreatedBlackboard)
     {
         Warnings.Add(MakeShared<FJsonValueString>(
@@ -245,6 +312,10 @@ bool UMCPPuerTSBridgeService::BuildBehaviorTreeJson(
     Result->SetBoolField(TEXT("saved"), bSaved);
     Result->SetArrayField(TEXT("errors"), Errors);
     Result->SetArrayField(TEXT("warnings"), Warnings);
+    // Always present, so a caller never has to distinguish "clean" from
+    // "this build predates the rollback boundary".
+    Result->SetObjectField(TEXT("cleanup"),
+        Rollback.BuildEvidence(DirtyBefore, SourceControlBefore));
     OutResultJson = SerializeJson(Result);
     return true;
 }

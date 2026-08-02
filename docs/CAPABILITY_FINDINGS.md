@@ -88,9 +88,57 @@ maintains this file; Phase L consumes it.
    assertion now fails loudly on any silent drop. Both fixes are builder-side
    graph mutation work and are deliberately not part of the inspector change.
 
-0c. **Editor exit persists failed-build transients and hangs on the
-   unattended source-control flow** (found 2026-08-01 by the BT live
-   acceptance). A failed `behavior_tree_build` on a fresh path correctly
+0c. **FIXED 2026-08-01 for `behavior_tree_build`. Editor exit persisted
+   failed-build transients.** Kept in full because the reproduction is the
+   template for the other builders.
+
+   **Fix.** `UMCPPuerTSBridgeService::BuildBehaviorTreeJson` now runs inside a
+   rollback boundary (`Private/MCPBridgeAssetRollback.h`). The assets still
+   have to be created before the answer is known - `FBTValidator` can only run
+   against a real `UBehaviorTree` - but any response carrying errors now
+   cancels the transaction and undoes the creation. The two lines that caused
+   the leak were an unconditional `Tree->MarkPackageDirty()` /
+   `Blackboard->MarkPackageDirty()` that ran even when `Errors.Num() > 0`.
+
+   On failure the boundary cancels the `FScopedTransaction` **first** (its undo
+   records reference objects about to be destroyed, so they must be replayed
+   while those are live), then per created asset calls
+   `AssetRegistry.AssetDeleted`, clears `RF_Public | RF_Standalone`, sets
+   `RF_Transient`, renames it into the transient package, and marks it pending
+   kill; restores each package's recorded dirty flag; and deletes any file that
+   appeared and did not exist beforehand. It then re-checks all three and
+   reports anything still dirty, on disk, or in the registry as a
+   `cleanup_error` rather than assuming the cleanup worked. Every response,
+   success or failure, carries a `cleanup` object:
+   `rollback_attempted`, `rollback_succeeded`, `created_assets`,
+   `removed_assets`, `dirty_packages_before`, `dirty_packages_after`,
+   `files_created`, `files_removed`, `source_control_before`,
+   `source_control_after`, `cleanup_errors`. Source control is read with
+   `EStateCacheUsage::Use` only - asking the server would itself be the
+   operation this must not perform.
+
+   A failed save after a successful build takes the same exit: a half-written
+   asset is the same hazard as a half-built one.
+
+   **Verified** by `Scripts/bt-failure-atomicity.mjs` (fixture: the existing
+   invalid-node request) and `docs/evidence/bt-failure-atomicity-*.json`. Three
+   failed builds in one editor session: registry count 0 after each, no file on
+   disk, `dirty_packages_after` empty, no cleanup errors, `p4 opened`
+   unchanged, and the inspector - an independent reader - finds no artifact.
+   The editor then closed with **no Save Content prompt** in 2.72 s and nothing
+   on disk, and a restart confirmed the probe still absent. The BT acceptance's
+   cold phase, whose `the failed build wrote nothing to disk (filesystem
+   check)` assertion had been failing, now passes end to end, and the close
+   after it - whose last step is the invalid-node build - produced no prompt
+   and no file.
+
+   The other two builders (`blueprint_build`, `widget_build`) create assets the
+   same way and have not been converted. The boundary is reusable and that is
+   the next use for it; not done here because this session's scope was one
+   capability.
+
+   **Original report** (2026-08-01, by the BT live acceptance). A failed
+   `behavior_tree_build` on a fresh path correctly
    saves nothing (proven by the acceptance's filesystem check), but the
    in-memory dirty transient survives, and closing the editor auto-saves it
    to disk AND opens it for `p4 add` - `BT_AcceptanceBadType(.uasset,_BB)`

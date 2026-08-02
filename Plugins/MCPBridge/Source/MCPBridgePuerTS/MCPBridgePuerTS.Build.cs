@@ -15,6 +15,10 @@ public class MCPBridgePuerTS : ModuleRules
         // in MCPBridgeGraphBuilder.
         // AIModule and GameplayTasks are for behavior_tree_build only: the
         // UBehaviorTree and UBlackboardData types it creates live there.
-        PrivateDependencyModuleNames.AddRange(new string[] { "AIModule", "AssetRegistry", "GameplayTasks", "Json", "JsonUtilities", "JsEnv", "MCPBridgeGraphBuilder", "Projects", "UMG", "UMGEditor", "UnrealEd" });
+        // SourceControl is read-only here: the failed-build rollback boundary
+        // reports whether a file is opened for add or checked out, so a caller
+        // can see that a failure performed no source-control operation. It
+        // never adds, checks out, or reverts.
+        PrivateDependencyModuleNames.AddRange(new string[] { "AIModule", "AssetRegistry", "GameplayTasks", "Json", "JsonUtilities", "JsEnv", "MCPBridgeGraphBuilder", "Projects", "SourceControl", "UMG", "UMGEditor", "UnrealEd" });
     }
 }
