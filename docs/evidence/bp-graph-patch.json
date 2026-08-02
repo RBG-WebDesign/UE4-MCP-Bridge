@@ -4,12 +4,12 @@
     "fixture": {
       "node_count": 22,
       "structure_hash": "ca12eaf79ac8545e80160847393779d484bd3d5d",
-      "file_sha256": "ec25e1bf7665ff2f7540d355d11dad155ed489fa80ce1a7b70c23a73e9375be6"
+      "file_sha256": "e163147f26e8fdd997887c1bf9b3c9c6a3fcc9a4038bbdf8b365d86132ad5e7c"
     },
     "plan": {
       "graph": "EventGraph",
       "matched_nodes": [
-        "operation 0 (set_pin_default) target -> PrintString [K2Node_CallFunction fn=PrintString] at 600,0 (guid B99F3A4140D8ED39649881B74AE48E4F, object K2Node_CallFunction_13)"
+        "operation 0 (set_pin_default) target -> PrintString [K2Node_CallFunction fn=PrintString] at 600,0 (guid B9ED86C643B9CB46A01C1094B7A96546, object K2Node_CallFunction_1)"
       ],
       "unmatched_selectors": [],
       "ambiguous_selectors": [],
@@ -17,7 +17,7 @@
       "nodes_to_update": [],
       "nodes_to_remove": [],
       "pin_defaults_to_change": [
-        "PrintString [K2Node_CallFunction fn=PrintString] at 600,0 (guid B99F3A4140D8ED39649881B74AE48E4F, object K2Node_CallFunction_13).InString: currently 'two'"
+        "PrintString [K2Node_CallFunction fn=PrintString] at 600,0 (guid B9ED86C643B9CB46A01C1094B7A96546, object K2Node_CallFunction_1).InString: currently 'two'"
       ],
       "links_to_add": [],
       "links_to_remove": [],
@@ -28,10 +28,10 @@
       "plan_only": true,
       "ok": true,
       "pre_structure_hash": "ca12eaf79ac8545e80160847393779d484bd3d5d",
-      "elapsed_ms": 7.6539000001503155
+      "elapsed_ms": 7.051299995509908
     },
     "patch": {
-      "elapsed_ms": 79.87300000240793,
+      "elapsed_ms": 72.34479999897303,
       "applied_operation_count": 8,
       "pre_structure_hash": "ca12eaf79ac8545e80160847393779d484bd3d5d",
       "post_structure_hash": "64ef958352d0d6c41c67756c4d0fb423efa2b278"
