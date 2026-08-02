@@ -117,10 +117,31 @@ maintains this file; Phase L consumes it.
    rollback with `getVictim` only.
 
    This is the failing build replacing the graph, not the removal rollback
-   losing it, and the two should not be conflated. Restoring the exact
-   pre-request graph needs either a whole-graph snapshot before the build or,
-   better and in line with the removal fix, deferring the destructive graph
-   replacement until the build has succeeded. Not attempted here.
+   losing it, and the two should not be conflated.
+
+   **A whole-graph snapshot was attempted and REVERTED 2026-08-02.** The shape
+   looked right: clone the live event graph with
+   `FEdGraphUtilities::CloneGraph` before any removal, and on failure clear the
+   damaged graph and move a fresh clone's nodes back into it. It compiled and
+   it corrupted the asset - after the rollback `graph_inspect` returned no
+   variables at all, so the Blueprint was left in a worse state than the defect
+   being fixed. Reverted to the last good commit rather than shipped. The
+   likely reason is that moving cloned nodes into a live `UEdGraph` by
+   `Rename` plus `AddNode` bypasses whatever the Blueprint needs to keep its
+   ubergraph and skeleton consistent; a correct version probably has to go
+   through `FEdGraphUtilities::CloneAndMergeGraphIn` with a real
+   `FCompilerResultsLog`, or avoid the destruction entirely by deferring
+   `clear_existing_graph` until the build has succeeded.
+
+   Deferral is the better shape and is the same insight that fixed the removal
+   itself: do not destroy until the thing that might fail has succeeded. Not
+   attempted here.
+
+   Until then the boundary is honest and narrow: a failed `remove_unlisted`
+   restores every variable it removed and every reference node it removed, both
+   verified; it does not restore graph nodes the failing build's own
+   `clear_existing_graph` replacement destroyed. `remove_unlisted.variables`
+   therefore stays below live_verified.
 
 0j-original. **Reference-node restoration is captured and attempted but does not land in
    the live graph** (2026-08-02, superseded above). The removal ledger now captures each deleted
