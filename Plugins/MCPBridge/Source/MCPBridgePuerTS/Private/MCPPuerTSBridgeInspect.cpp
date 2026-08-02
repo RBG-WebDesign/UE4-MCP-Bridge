@@ -5,6 +5,7 @@
 #include "AssetRegistryModule.h"
 #include "BlueprintGraphBuilderLibrary.h"
 #include "BlueprintInspectorLibrary.h"
+#include "MCPBridgeBlueprintMembers.h"
 #include "Engine/Blueprint.h"
 #include "GameFramework/Actor.h"
 #include "Json.h"
@@ -27,42 +28,6 @@ namespace
         {
             OutError = TEXT("An inspector reader returned JSON that could not be parsed.");
             return MakeShared<FJsonValueNull>();
-        }
-        return Value;
-    }
-
-    /** Sort an array of objects by one of their string fields.
-
-        Canonical order is the whole point of this command: Unreal's own array
-        order for variables, components and graphs is the order they happen to
-        be stored in, and a reader that passes it through would answer
-        differently after an unrelated edit reordered them. Sorting by a field
-        the caller can see makes two reads comparable by hash. */
-    void SortByStringField(TArray<TSharedPtr<FJsonValue>>& Values, const TCHAR* Field)
-    {
-        Values.Sort([Field](const TSharedPtr<FJsonValue>& A, const TSharedPtr<FJsonValue>& B)
-        {
-            const TSharedPtr<FJsonObject>* ObjectA = nullptr;
-            const TSharedPtr<FJsonObject>* ObjectB = nullptr;
-            const FString KeyA = A.IsValid() && A->TryGetObject(ObjectA)
-                ? (*ObjectA)->GetStringField(Field) : FString();
-            const FString KeyB = B.IsValid() && B->TryGetObject(ObjectB)
-                ? (*ObjectB)->GetStringField(Field) : FString();
-            return KeyA < KeyB;
-        });
-    }
-
-    /** Read one of the array-returning readers, sorted. Anything that is not
-        an array (an error object) is passed through untouched. */
-    TSharedPtr<FJsonValue> SortedReaderArray(const FString& Json, const TCHAR* Field, FString& OutError)
-    {
-        TSharedPtr<FJsonValue> Value = ParseReaderJson(Json, OutError);
-        const TArray<TSharedPtr<FJsonValue>>* Array = nullptr;
-        if (Value.IsValid() && Value->TryGetArray(Array))
-        {
-            TArray<TSharedPtr<FJsonValue>> Sorted = *Array;
-            SortByStringField(Sorted, Field);
-            return MakeShared<FJsonValueArray>(Sorted);
         }
         return Value;
     }
@@ -169,16 +134,15 @@ bool UMCPPuerTSBridgeService::InspectBlueprintJson(
     // a caller, exactly as the widget builder was; this command is a front for
     // them plus the one thing they did not have, which is the mapping from a
     // spawned K2 node back to the word blueprint_build would write for it.
-    TSharedPtr<FJsonValue> Components =
-        SortedReaderArray(UBlueprintInspectorLibrary::ListSCSNodes(Blueprint), TEXT("name"), ReaderError);
-    TSharedPtr<FJsonValue> Variables =
-        SortedReaderArray(UBlueprintInspectorLibrary::ListVariables(Blueprint), TEXT("name"), ReaderError);
-    TSharedPtr<FJsonValue> Graphs =
-        SortedReaderArray(UBlueprintInspectorLibrary::ListGraphs(Blueprint), TEXT("name"), ReaderError);
-    TSharedPtr<FJsonValue> Functions =
-        SortedReaderArray(UBlueprintInspectorLibrary::ListFunctions(Blueprint), TEXT("name"), ReaderError);
-    TSharedPtr<FJsonValue> Interfaces =
-        SortedReaderArray(UBlueprintInspectorLibrary::ListInterfaces(Blueprint), TEXT("path"), ReaderError);
+    //
+    // The five member collections and their hash come from the shared snapshot
+    // rather than from a second copy of the same reads, so this command and
+    // blueprint_member_patch cannot disagree about what a Blueprint's members
+    // are or about when they changed.
+    const TSharedPtr<FJsonObject> Members = MCPBridgeBlueprintMembers::BuildSnapshot(Blueprint);
+    const FString MemberHash = MCPBridgeBlueprintMembers::StructureHash(Members);
+    TSharedPtr<FJsonValue> Graphs = MCPBridgeBlueprintMembers::SortedReaderArray(
+        UBlueprintInspectorLibrary::ListGraphs(Blueprint), TEXT("name"));
 
     TSharedPtr<FJsonValue> Graph = ParseReaderJson(
         UBlueprintGraphBuilderLibrary::DescribeBlueprintGraphJSON(Blueprint, GraphName, bIncludePins),
@@ -221,10 +185,15 @@ bool UMCPPuerTSBridgeService::InspectBlueprintJson(
     Result->SetStringField(TEXT("compile_status"), CompileStatusLabel(Blueprint));
     Result->SetBoolField(TEXT("package_dirty_before"), bDirtyBefore);
     Result->SetBoolField(TEXT("package_dirty_after"), bDirtyAfter);
-    Result->SetField(TEXT("components"), Components);
-    Result->SetField(TEXT("variables"), Variables);
-    Result->SetField(TEXT("interfaces"), Interfaces);
-    Result->SetField(TEXT("functions"), Functions);
+    Result->SetField(TEXT("components"), Members->TryGetField(TEXT("components")));
+    Result->SetField(TEXT("variables"), Members->TryGetField(TEXT("variables")));
+    Result->SetField(TEXT("interfaces"), Members->TryGetField(TEXT("interfaces")));
+    Result->SetField(TEXT("functions"), Members->TryGetField(TEXT("functions")));
+    Result->SetField(TEXT("event_dispatchers"), Members->TryGetField(TEXT("event_dispatchers")));
+    // The hash blueprint_member_patch reports before and after a batch, read
+    // here through the same snapshot, so a caller can verify a patch against an
+    // independent read instead of against the patch's own account of itself.
+    Result->SetStringField(TEXT("member_structure_hash_sha1"), MemberHash);
     Result->SetField(TEXT("graphs"), Graphs);
     Result->SetField(TEXT("graph"), Graph);
     Result->SetArrayField(TEXT("warnings"), Warnings);
