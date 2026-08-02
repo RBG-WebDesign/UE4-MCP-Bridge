@@ -108,6 +108,13 @@ export const toolAnnotations: Record<string, ToolAnnotations> = {
   // and leaves everything it was not asked about alone. A rerun of the same
   // patch applies nothing and does not save.
   puerts_blueprint_graph_patch: mutatingIdempotent,
+  // Destructive, unlike the graph patch beside it, and the difference is not
+  // that this command clears more. It is that removing a MEMBER takes things
+  // the caller did not name with it: FBlueprintEditorUtils::RemoveMemberVariable
+  // deletes the graph nodes that referenced the variable, and removing an
+  // interface deletes the function graphs that implemented it. Idempotent
+  // because a rerun applies nothing and does not save.
+  puerts_blueprint_member_patch: destructiveIdempotent,
   puerts_delete_actor: destructiveIdempotent,
   puerts_save: destructive,
   puerts_undo: destructive,

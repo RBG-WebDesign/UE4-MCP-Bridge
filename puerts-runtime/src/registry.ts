@@ -365,6 +365,16 @@ async function patchBlueprintGraph(context: ToolContext, input: JsonObject): Pro
   const resultJson = puerts.$ref<string>("");
   const error = puerts.$ref<string>("");
   if (!context.bridge.PatchBlueprintGraphJson(JSON.stringify(spec), resultJson, error)) {
+    // A refused patch has structure worth keeping: which selectors were
+    // ambiguous and what they matched, which ones matched nothing, and whether
+    // the rollback restored the graph. The native side now answers a failure
+    // with that body as well as the sentence, and throwing here would discard
+    // it. Envelope, message and error text are exactly what a thrown error
+    // already produced; only the previously empty data object is filled.
+    const failureBody = puerts.$unref(resultJson);
+    if (failureBody.length > 0) {
+      return commandFailure(new Error(puerts.$unref(error)), JSON.parse(failureBody) as JsonObject);
+    }
     throw new Error(puerts.$unref(error));
   }
   const parsed = JSON.parse(puerts.$unref(resultJson)) as JsonObject;
@@ -378,6 +388,60 @@ async function patchBlueprintGraph(context: ToolContext, input: JsonObject): Pro
     planOnly
       ? "Blueprint graph patch planned."
       : applied === 0 ? "Blueprint graph already matches the patch." : "Blueprint graph patched.",
+    parsed,
+  );
+  result.errors.push(...errors);
+  const objectPath = parsed.asset_path;
+  if (!planOnly && applied > 0 && typeof objectPath === "string" && objectPath.length > 0) {
+    result.changed_assets.push(objectPath);
+  }
+  return result;
+}
+
+/** Change a Blueprint's members: variables, functions, interfaces, event
+    dispatchers and components.
+
+    blueprint_graph_patch owns nodes and pins and cannot reach any of these, and
+    blueprint_build reaches them only by restating the whole asset. This is the
+    incremental shape for the member half.
+
+    The envelope is all this function owns. The mutations are
+    UBlueprintMutatorLibrary's, and the classification, transaction, compile,
+    independent read-back, verification and save boundary are the native
+    service's, exactly as patchBlueprintGraph splits them. */
+async function patchBlueprintMembers(context: ToolContext, input: JsonObject): Promise<CommandResponse> {
+  const assetPath = requireString(input, "asset_path");
+  if (!assetPath.startsWith("/Game/MCPGenerated/")) {
+    throw new Error("Blueprint member patching is limited to /Game/MCPGenerated/");
+  }
+  const operations = objectArray(input, "operations");
+  if (operations.length === 0) {
+    throw new Error("operations must be a non-empty array; a patch with no operations is not a request.");
+  }
+  const spec: JsonObject = { asset_path: assetPath, operations: operations as unknown as JsonValue };
+  // Forwarded only when the caller actually set them, so the native side keeps
+  // its own defaults rather than having this layer restate them in a second
+  // place where the two can drift apart.
+  for (const flag of ["plan_only", "compile", "save", "verify"]) {
+    if (input[flag] !== undefined) { spec[flag] = optionalBoolean(input, flag, false); }
+  }
+
+  const resultJson = puerts.$ref<string>("");
+  const error = puerts.$ref<string>("");
+  if (!context.bridge.PatchBlueprintMembersJson(JSON.stringify(spec), resultJson, error)) {
+    throw new Error(puerts.$unref(error));
+  }
+  const parsed = JSON.parse(puerts.$unref(resultJson)) as JsonObject;
+  const errors = stringArray(parsed, "errors");
+  delete parsed.errors;
+
+  const applied = typeof parsed.applied_operation_count === "number" ? parsed.applied_operation_count : 0;
+  const planOnly = parsed.plan_only === true;
+  const result = response(
+    errors.length === 0,
+    planOnly
+      ? "Blueprint member patch planned."
+      : applied === 0 ? "Blueprint members already match the patch." : "Blueprint members patched.",
     parsed,
   );
   result.errors.push(...errors);
@@ -702,6 +766,7 @@ export const toolDefinitions: readonly ToolDefinition[] = [
   { name: "sky_shader_create", inputSchema: schema({ asset_path: { type: "string" }, sky_actor: { type: "string" } }), outputSchema, permissions: ["assets.write", "reflection.write"], executionTimeoutMs: 10000, execute: createSkyShader },
   { name: "blueprint_build", inputSchema: schema({ asset_path: { type: "string" }, parent_class: { type: "string" }, components: { type: "array", items: { type: "object" } }, variables: { type: "array", items: { type: "object" } }, graph: { type: "object" }, compile: { type: "boolean" }, save: { type: "boolean" }, clear_existing_graph: { type: "boolean" }, remove_unlisted: { type: "object" }, plan_only: { type: "boolean" }, force_remove_referenced: { type: "boolean" } }, ["asset_path"]), outputSchema, permissions: ["assets.write"], executionTimeoutMs: 30000, execute: buildBlueprint },
   { name: "blueprint_graph_patch", inputSchema: schema({ asset_path: { type: "string" }, graph: { type: "string" }, operations: { type: "array", items: { type: "object" } }, plan_only: { type: "boolean" }, compile: { type: "boolean" }, save: { type: "boolean" }, verify: { type: "boolean" } }, ["asset_path", "operations"]), outputSchema, permissions: ["assets.write"], executionTimeoutMs: 30000, execute: patchBlueprintGraph },
+  { name: "blueprint_member_patch", inputSchema: schema({ asset_path: { type: "string" }, operations: { type: "array", items: { type: "object" } }, plan_only: { type: "boolean" }, compile: { type: "boolean" }, save: { type: "boolean" }, verify: { type: "boolean" } }, ["asset_path", "operations"]), outputSchema, permissions: ["assets.write"], executionTimeoutMs: 60000, execute: patchBlueprintMembers },
   { name: "widget_build", inputSchema: schema({ asset_path: { type: "string" }, tree: { type: "object" }, save: { type: "boolean" } }, ["asset_path", "tree"]), outputSchema, permissions: ["assets.write"], executionTimeoutMs: 30000, execute: buildWidget },
   { name: "graph_inspect", inputSchema: schema({ asset_path: { type: "string" }, graph_name: { type: "string" }, include_pins: { type: "boolean" } }, ["asset_path"]), outputSchema, permissions: ["assets.read"], executionTimeoutMs: 15000, execute: inspectGraph },
   { name: "behavior_tree_build", inputSchema: schema({ asset_path: { type: "string" }, blackboard_path: { type: "string" }, keys: { type: "array", items: { type: "object" } }, root: { type: "object" }, save: { type: "boolean" } }, ["asset_path", "root"]), outputSchema, permissions: ["assets.write"], executionTimeoutMs: 30000, execute: buildBehaviorTree },

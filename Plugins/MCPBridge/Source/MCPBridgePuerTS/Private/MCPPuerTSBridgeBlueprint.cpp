@@ -1926,7 +1926,18 @@ bool UMCPPuerTSBridgeService::PatchBlueprintGraphJson(
 
     bool bRollbackAttempted = false;
     bool bRollbackSucceeded = false;
-    auto FailWithRollback = [&](const FString& Error) -> bool
+    // A failure answers with a body as well as a message.
+    //
+    // The message is byte for byte what it always was, because callers already
+    // read it. What is new is the body: PatchBlueprintGraphFromJSON reports its
+    // refusals as STRUCTURE (ambiguous_selectors names the candidates it found,
+    // unmatched_selectors names the targets it could not resolve), and joining
+    // those arrays into one sentence threw the structure away. A caller that
+    // wanted to repair a selector had to parse prose to learn which selector.
+    // Now the whole report is carried through untouched, plus the rollback
+    // evidence, and the sentence is still exactly where it was.
+    auto FailWithRollback = [&](const FString& Error,
+                                const TSharedPtr<FJsonObject>& Report = nullptr) -> bool
     {
         bRollbackAttempted = true;
         if (ActiveTransaction != nullptr) { ActiveTransaction->Cancel(); }
@@ -1941,6 +1952,18 @@ bool UMCPPuerTSBridgeService::PatchBlueprintGraphJson(
                 TEXT("%s The rollback did NOT restore the original graph: structure hash is %s, "
                      "expected %s. Treat this asset as damaged."),
                 *Error, *ReadStructureHash(), *PreHash);
+
+        const TSharedPtr<FJsonObject> Failure = Report.IsValid()
+            ? MakeShared<FJsonObject>(*Report) : MakeShared<FJsonObject>();
+        Failure->SetStringField(TEXT("asset_path"), AssetPath);
+        Failure->SetStringField(TEXT("pre_structure_hash"), PreHash);
+        Failure->SetBoolField(TEXT("rollback_attempted"), true);
+        Failure->SetBoolField(TEXT("rollback_succeeded"), bRollbackSucceeded);
+        Failure->SetObjectField(TEXT("cleanup"),
+            Rollback.BuildEvidence(DirtyBefore, SourceControlBefore));
+        OutResultJson.Reset();
+        TSharedRef<TJsonWriter<>> FailureWriter = TJsonWriterFactory<>::Create(&OutResultJson);
+        FJsonSerializer::Serialize(Failure.ToSharedRef(), FailureWriter);
         return false;
     };
 
@@ -1951,7 +1974,7 @@ bool UMCPPuerTSBridgeService::PatchBlueprintGraphJson(
     TSharedPtr<FJsonObject> Result = ParseReport(ApplyJson);
     if (!bApplied || !Result.IsValid())
     {
-        return FailWithRollback(JoinReportErrors(Result));
+        return FailWithRollback(JoinReportErrors(Result), Result);
     }
 
     // --- 5. Compile. ---
@@ -1971,7 +1994,7 @@ bool UMCPPuerTSBridgeService::PatchBlueprintGraphJson(
             return FailWithRollback(FString::Printf(
                 TEXT("The patched Blueprint did not compile (status %s). The patch is rolled back "
                      "rather than saved: a graph that will not compile is not the graph the caller "
-                     "asked for."), *CompileStatus));
+                     "asked for."), *CompileStatus), Result);
         }
     }
     Result->SetStringField(TEXT("compile_status"), CompileStatus);
@@ -2020,7 +2043,7 @@ bool UMCPPuerTSBridgeService::PatchBlueprintGraphJson(
     {
         return FailWithRollback(FString::Printf(
             TEXT("%d verification mismatch(es) after patching, so nothing was saved."),
-            VerificationMismatches.Num()));
+            VerificationMismatches.Num()), Result);
     }
 
     // --- 8. Save, and only now. ---
@@ -2031,7 +2054,7 @@ bool UMCPPuerTSBridgeService::PatchBlueprintGraphJson(
         bSaved = SaveProjectAsset(ObjectPath, SaveError);
         if (!bSaved)
         {
-            return FailWithRollback(FString::Printf(TEXT("The patch verified but could not be saved: %s"), *SaveError));
+            return FailWithRollback(FString::Printf(TEXT("The patch verified but could not be saved: %s"), *SaveError), Result);
         }
     }
     Result->SetBoolField(TEXT("saved"), bSaved);

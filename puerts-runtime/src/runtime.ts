@@ -115,9 +115,13 @@ export function stringArray(input: JsonObject, key: string): string[] {
   return value as string[];
 }
 
-export function commandFailure(error: unknown): CommandResponse {
+/** The shape a thrown tool error becomes. `data` is what a caller gets when the
+    failing command has structure to report as well as a sentence: the same
+    envelope, the same message, the same error text, and a body instead of an
+    empty object. */
+export function commandFailure(error: unknown, data: JsonValue = {}): CommandResponse {
   const message = error instanceof Error ? error.message : String(error);
-  const result = response(false, "Command failed.");
+  const result = response(false, "Command failed.", data);
   result.errors.push(message);
   return result;
 }

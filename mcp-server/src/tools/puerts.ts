@@ -382,6 +382,64 @@ const specs = [
       save: z.boolean().optional(),
       verify: z.boolean().optional(),
     }).strict()],
+  ["puerts_blueprint_member_patch", "blueprint_member_patch",
+    "Change a Blueprint's MEMBERS incrementally: variables, functions, interfaces, event "
+    + "dispatchers and components. puerts_blueprint_graph_patch owns nodes and pins and cannot "
+    + "reach any of these; puerts_blueprint_build reaches them only by restating the whole asset. "
+    + "operations is an ordered batch of add_variable, remove_variable, set_variable_default, "
+    + "add_function, remove_function, add_interface, remove_interface, add_event_dispatcher, "
+    + "remove_event_dispatcher, remove_component and rename_component. "
+    + "The whole batch is resolved and classified before the first mutation runs, because each "
+    + "underlying mutator entry point recompiles the Blueprint: an unloadable interface path, a "
+    + "default value the variable's type cannot hold, a rename onto a name already taken, a "
+    + "remove_variable naming an inherited or native property, or two operations on the same "
+    + "member in one batch are all refusals that mutate nothing. There is no change-variable-type "
+    + "primitive, so add_variable against an existing variable of a different type is refused by "
+    + "name rather than silently accepted. "
+    + "An operation whose result is already present is reported in unchanged_operations and not "
+    + "repeated, so a rerun applies nothing, reports converged and leaves no dirty package. "
+    + "plan_only is read-only and returns operations_to_apply, unchanged_operations, "
+    + "expected_change_count and pre_member_hash; predicted_member_hash is given only for a no-op "
+    + "batch, where it is the current hash by definition. "
+    + "Applying runs in one transaction, compiles, re-reads every operation's own condition from "
+    + "the asset rather than trusting the mutator's report, and saves only after that passes; any "
+    + "failure rolls the whole batch back, and whether the rollback actually restored the members "
+    + "is decided by reading them again and reported as rollback_succeeded. "
+    + "pre_member_hash and post_member_hash are the same hash puerts_graph_inspect returns as "
+    + "member_structure_hash_sha1, so a caller can verify a patch against an independent read.",
+    z.object({
+      asset_path: z.string().regex(/^\/Game\/MCPGenerated\/[A-Za-z0-9_]+(\/[A-Za-z0-9_]+)*$/).describe(
+        "Package path under /Game/MCPGenerated/, no asset-name suffix. The Blueprint must "
+        + "already exist: patching never creates one.",
+      ),
+      operations: z.array(z.record(z.unknown())).min(1).describe(
+        "Ordered batch. Each entry is {op, ...}: "
+        + "{op:\"add_variable\", name, type:{category:\"float\"}, default?, category?}, "
+        + "{op:\"remove_variable\", name}, "
+        + "{op:\"set_variable_default\", name, default}, "
+        + "{op:\"add_function\", name, inputs?:[{name,type}], outputs?:[{name,type}]}, "
+        + "{op:\"remove_function\", name}, "
+        + "{op:\"add_interface\", path}, {op:\"remove_interface\", path}, "
+        + "{op:\"add_event_dispatcher\", name, parameters?:[{name,type}]}, "
+        + "{op:\"remove_event_dispatcher\", name}, "
+        + "{op:\"remove_component\", name}, {op:\"rename_component\", from, to}. "
+        + "type is the same Type Descriptor puerts_graph_inspect reports for a variable, and a "
+        + "partial descriptor matches a variable whose reported type agrees on the fields given.",
+      ),
+      plan_only: z.boolean().optional().describe(
+        "Default false. Classify the batch and change nothing.",
+      ),
+      compile: z.boolean().optional().describe(
+        "Default true. A Blueprint that does not compile after the batch is rolled back, never saved.",
+      ),
+      save: z.boolean().optional().describe(
+        "Default true. A batch that applied nothing does not save either way.",
+      ),
+      verify: z.boolean().optional().describe(
+        "Default true. Re-read each operation's condition from the asset after applying. Turning "
+        + "this off removes the only check that distinguishes a change from a report of one.",
+      ),
+    }).strict()],
   ["puerts_widget_build", "widget_build",
     "Create or replace a compiled UMG Widget Blueprint from one JSON widget tree. The tree "
     + "is a hierarchy of typed, named widgets: each carries optional widget-intrinsic "
@@ -616,6 +674,10 @@ const structuredParameters: Readonly<Record<string, readonly string[]>> = {
     the editor is still working reports a failure for work that succeeds. */
 const commandTimeouts: Readonly<Record<string, number>> = {
   puerts_blueprint_build: 30000,
+  // Every mutator entry point recompiles the Blueprint, so a batch costs one
+  // compile per applied operation. 30s is a realistic ceiling for a single
+  // build and too tight for a ten-operation member batch.
+  puerts_blueprint_member_patch: 60000,
   puerts_widget_build: 30000,
   puerts_behavior_tree_build: 30000,
   puerts_behavior_tree_inspect: 15000,
