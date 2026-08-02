@@ -402,7 +402,7 @@ const specs = [
     + "RunBehavior, PlaySound, FinishWithResult, SetTagCooldown. Decorators: Blackboard, "
     + "ForceSuccess, Loop, TimeLimit, Cooldown, CompareBBEntries, IsAtLocation, DoesPathExist, "
     + "TagCooldown, ConditionalLoop, KeepInCone, IsBBEntryOfClass. Services: DefaultFocus, "
-    + "RunEQS. Unknown types are rejected before the asset is touched. params values are "
+    + "RunEQS. Unknown types are rejected before the asset is touched. params keys are snake_case (blackboard_key, wait_time, acceptable_radius, random_deviation); an unknown params key is currently dropped without a warning, so verify with puerts_behavior_tree_inspect. params values are "
     + "strings (\"5.0\", \"TargetActor\"); a params key naming a blackboard key is validated "
     + "against the keys that exist. The response reports the keys actually on the blackboard "
     + "asset, read back rather than echoed.",
@@ -428,6 +428,29 @@ const specs = [
         + "nodes does nothing in PIE.",
       ),
       save: z.boolean().optional().describe("Default true. A tree that did not build cleanly is never saved."),
+    }).strict()],
+  ["puerts_behavior_tree_inspect", "behavior_tree_inspect",
+    "Read an existing UE4.27 BehaviorTree and its Blackboard back as machine-readable JSON. "
+    + "The read half of puerts_behavior_tree_build, and READ ONLY: no transaction is opened, "
+    + "nothing is compiled or saved, and the package dirty flag is reported before and after "
+    + "the read (package_dirty_before / package_dirty_after) so the claim is checkable. "
+    + "Returns the tree class, blackboard path, the root composite as a nested structure "
+    + "(kind: composite/task/decorator/service), child_index order, decorators attached to "
+    + "the child they guard, root_decorators, per-node class_path and name, editor-visible "
+    + "node properties, blackboard keys referenced by nodes (from FBlackboardKeySelector "
+    + "fields), the blackboard's own key names and types, counts per kind, unsupported_fields "
+    + "for anything reflection could not express, and structure_hash_sha1 - a canonical hash "
+    + "of identity/class/name/keys in traversal order, so two reads of an unchanged tree "
+    + "compare by hash. Node identity is DERIVED (identity_kind: \"derived\"): UE4.27 BT "
+    + "nodes carry no GUIDs, so a node is addressed by its traversal path "
+    + "(parent/childIndex:Class:Name); a renamed or reordered node is a different identity "
+    + "on purpose. Unknown node classes are reported with their class_path and properties "
+    + "rather than dropped. Reading is allowed anywhere under /Game and /Engine.",
+    z.object({
+      asset_path: z.string().describe(
+        "The BehaviorTree, as a package path (\"/Game/MCPGenerated/BT_Patrol\") or the "
+        + "object path other tools hand back. Limited to /Game and /Engine.",
+      ),
     }).strict()],
   ["puerts_physics_build", "physics_build", "Build a validated static-mesh rigid-body scene in one transaction.", z.object({ actors: z.array(physicsActor).min(1).max(200) }).strict()],
   ["puerts_physics_observe", "physics_observe", "Read rigid-body transforms and velocities from the editor or PIE world.", z.object({ actors: z.array(z.string()).max(200).optional() }).strict()],
@@ -508,6 +531,7 @@ const commandTimeouts: Readonly<Record<string, number>> = {
   puerts_blueprint_build: 30000,
   puerts_widget_build: 30000,
   puerts_behavior_tree_build: 30000,
+  puerts_behavior_tree_inspect: 15000,
   // Reading is cheaper than building, but a 200-node graph with include_pins
   // is a large serialization on the game thread and the 7 second default is
   // close enough to it to report a failure for work that succeeds.

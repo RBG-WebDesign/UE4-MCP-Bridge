@@ -73,3 +73,61 @@ add, left for human decision).
 [LogBlueprint] "missing NodeGuid ... please resave package" on all 7 synced
 BehaviorTreeGraph editor nodes: FBTEditorGraphSync creates editor-graph nodes
 without NodeGuids.
+  PASS  the catalog is native-only (24 tools, no legacy or HTTP names)
+  PASS  the build phase recorded a structure hash to compare against
+  PASS  cold inspect: inspection succeeded
+  PASS  cold inspect: no transaction started
+  PASS  cold inspect: inspection reported nothing changed
+  PASS  cold inspect: no package became dirty
+  PASS  cold inspect: payload 8513 bytes is within the 1 MiB pipe limit
+  PASS  cold inspect: two inspections produce identical canonical JSON and structure hash
+  PASS  cold inspect: asset file hashes and modification times are unchanged
+  PASS  cold inspect: no source-control operation started (p4 opened unchanged)
+  PASS  root is the requested Selector composite
+  PASS  root has the two requested Sequence children
+  PASS  child ordering matches the saved tree
+  PASS  both children are Sequence composites
+  PASS  the Blackboard decorator is attached to the chase child and references TargetActor
+  PASS  chase sequence holds MoveTo(TargetActor) then Wait(1.0), in order
+  PASS  patrol sequence holds MoveTo(PatrolPoint) then Wait(3.0), in order
+  PASS  node counts match the spec (3 composites, 4 tasks, 1 decorator, 0 services)
+  PASS  referenced blackboard keys are exactly PatrolPoint and TargetActor
+  PASS  blackboard key names and types match the spec independently
+  PASS  the tree reports the expected Blackboard
+  PASS  node identity is labeled derived, not native
+  PASS  every node, known or unknown, reports structured class_path and properties
+file:///D:/Unreal%20Projects/UE4_Bridge/Scripts/behavior-tree-acceptance.mjs:77
+  if (!condition) throw new Error(`FAIL  ${label}`);
+                        ^
+
+Error: FAIL  the cold-loaded tree hashes identically to the pre-restart inspection
+    at assert (file:///D:/Unreal%20Projects/UE4_Bridge/Scripts/behavior-tree-acceptance.mjs:77:25)
+    at file:///D:/Unreal%20Projects/UE4_Bridge/Scripts/behavior-tree-acceptance.mjs:282:5
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+
+Node.js v24.12.0
+
+=== 2026-08-01 evening: independent BT inspection acceptance (BridgeInstallTest project) ===
+Editor A (PID 35500, pipe ..._eb10ef4f): phase=build - 35 PASS.
+  Build, independent inspect, spec comparison (classes, child order, decorator
+  attachment, params landed: Wait 1.0/3.0, keys TargetActor/PatrolPoint),
+  rerun, convergence by structure hash 74D59A509C8D8005C20BF082FA31136043955218.
+  Read-only proofs per inspect: no transaction, dirty unchanged, file sha256 +
+  mtimes unchanged, p4 opened unchanged, payload 6953 B < 1 MiB, double-read
+  hash equality.
+Editor A hung on graceful close DESPITE being clean and OUTSIDE the p4
+  workspace - refines findings 0c: the source-control modal is not the only
+  cause; bridge runtime teardown (embedded Node / pipe thread) is now the
+  leading suspect. Recovered without reboot via pipe suffix bump (_bt2).
+Editor B (fresh, pipe ..._bt2): phase=cold - 27 PASS.
+  Cold-loaded structure hash and counts identical to pre-restart; missing
+  path and wrong-class (the BB asset) fail typed; invalid-node build saves
+  nothing (filesystem proof); no usable failed artifact inspectable; editor
+  log clean.
+Engine behavior discovered: on reload UE4.27 adds the implicit SelfActor
+  blackboard key, so full canonical JSON differs warm-vs-cold while the node
+  structure hash is invariant - the acceptance asserts accordingly.
+Fixture defect the inspector caught on first use: the acceptance spec used
+  CamelCase param keys (BlackboardKey, WaitTime); the builder expects
+  snake_case and silently dropped them, leaving SelfActor keys and WaitTime 5.
+  The builder's own report showed success; only the independent reader saw it.

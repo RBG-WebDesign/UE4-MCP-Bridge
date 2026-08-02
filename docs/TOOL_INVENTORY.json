@@ -23,12 +23,12 @@
     "native_live_partial": "live acceptance passed, but part of the evidence is the builder own report because no independent reader exists yet",
     "legacy_untested": "no live editor proof of any kind; a non-null test_file covers only the mock listener"
   },
-  "tool_count": 205,
+  "tool_count": 206,
   "by_backend": {
     "legacy_http": 170,
     "native_pipe_alias": 12,
     "server_local": 2,
-    "native_pipe": 21
+    "native_pipe": 22
   },
   "tools": [
     {
@@ -6114,9 +6114,9 @@
       "name": "puerts_behavior_tree_build",
       "module": "mcp-server/src/tools/puerts.ts",
       "backend": "native_pipe",
-      "migration_state": "native_live_partial",
+      "migration_state": "native",
       "target_replacement": null,
-      "description": "[PRIMARY NATIVE IPC] Create or update a UE4.27 BehaviorTree asset with its Blackboard from one JSON spec, in one transaction: blackboard keys, blackboard assignment, and the full node graph, then compile-free save (Behavior Trees have no compile step). The graph replaces the tree's root only when every node builds, so a failed spec leaves an existing tree untouched, and a rerun of the same spec converges. Node structure: {id, type, name?, params?, children?, decorators?, services?}. Composites: Selector, Sequence, SimpleParallel. Tasks: MoveTo, Wait, WaitBlackboardTime, RotateToFaceBBEntry, PlayAnimation, MakeNoise, RunBehavior, PlaySound, FinishWithResult, SetTagCooldown. Decorators: Blackboard, ForceSuccess, Loop, TimeLimit, Cooldown, CompareBBEntries, IsAtLocation, DoesPathExist, TagCooldown, ConditionalLoop, KeepInCone, IsBBEntryOfClass. Services: DefaultFocus, RunEQS. Unknown types are rejected before the asset is touched. params values are strings (\"5.0\", \"TargetActor\"); a params key naming a blackboard key is validated against the keys that exist. The response reports the keys actually on the blackboard asset, read back rather than echoed.",
+      "description": "[PRIMARY NATIVE IPC] Create or update a UE4.27 BehaviorTree asset with its Blackboard from one JSON spec, in one transaction: blackboard keys, blackboard assignment, and the full node graph, then compile-free save (Behavior Trees have no compile step). The graph replaces the tree's root only when every node builds, so a failed spec leaves an existing tree untouched, and a rerun of the same spec converges. Node structure: {id, type, name?, params?, children?, decorators?, services?}. Composites: Selector, Sequence, SimpleParallel. Tasks: MoveTo, Wait, WaitBlackboardTime, RotateToFaceBBEntry, PlayAnimation, MakeNoise, RunBehavior, PlaySound, FinishWithResult, SetTagCooldown. Decorators: Blackboard, ForceSuccess, Loop, TimeLimit, Cooldown, CompareBBEntries, IsAtLocation, DoesPathExist, TagCooldown, ConditionalLoop, KeepInCone, IsBBEntryOfClass. Services: DefaultFocus, RunEQS. Unknown types are rejected before the asset is touched. params keys are snake_case (blackboard_key, wait_time, acceptable_radius, random_deviation); an unknown params key is currently dropped without a warning, so verify with puerts_behavior_tree_inspect. params values are strings (\"5.0\", \"TargetActor\"); a params key naming a blackboard key is validated against the keys that exist. The response reports the keys actually on the blackboard asset, read back rather than echoed.",
       "schema": {
         "kind": "object",
         "params": {
@@ -6151,8 +6151,48 @@
       ],
       "migration_risk": "low",
       "capability_loss_risk": "low",
-      "notes": "live acceptance passed 2026-08-01 (22 checks: assets on disk and in registry, keys with types read back, blackboard reference via independent reflection read, rerun convergence, failed build saves nothing, restart reload). live_partial, not live_verified: the node graph is still the builder's own report until a Behavior Tree inspector exists",
-      "verification": "live_partial"
+      "notes": "promoted to live_verified 2026-08-01 evening: puerts_behavior_tree_inspect independently compared the saved graph to the requested spec (classes, child order, decorator attachment, params, keys) and proved rerun convergence by structure hash; full evidence in docs/evidence/behavior-tree-acceptance-2026-08-01.txt",
+      "verification": "live_verified"
+    },
+    {
+      "name": "puerts_behavior_tree_inspect",
+      "module": "mcp-server/src/tools/puerts.ts",
+      "backend": "native_pipe",
+      "migration_state": "native",
+      "target_replacement": null,
+      "description": "[PRIMARY NATIVE IPC] Read an existing UE4.27 BehaviorTree and its Blackboard back as machine-readable JSON. The read half of puerts_behavior_tree_build, and READ ONLY: no transaction is opened, nothing is compiled or saved, and the package dirty flag is reported before and after the read (package_dirty_before / package_dirty_after) so the claim is checkable. Returns the tree class, blackboard path, the root composite as a nested structure (kind: composite/task/decorator/service), child_index order, decorators attached to the child they guard, root_decorators, per-node class_path and name, editor-visible node properties, blackboard keys referenced by nodes (from FBlackboardKeySelector fields), the blackboard's own key names and types, counts per kind, unsupported_fields for anything reflection could not express, and structure_hash_sha1 - a canonical hash of identity/class/name/keys in traversal order, so two reads of an unchanged tree compare by hash. Node identity is DERIVED (identity_kind: \"derived\"): UE4.27 BT nodes carry no GUIDs, so a node is addressed by its traversal path (parent/childIndex:Class:Name); a renamed or reordered node is a different identity on purpose. Unknown node classes are reported with their class_path and properties rather than dropped. Reading is allowed anywhere under /Game and /Engine.",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "asset_path": "string"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": "mcp-server/tests/puerts-tools.test.ts",
+      "capability_category": "ai",
+      "canonical_capability": "ai.behavior_tree_inspect",
+      "owner": "MCPBridgePuerTS service",
+      "lifecycle": "active",
+      "migration_action": "KEEP",
+      "replacement_tool": null,
+      "compatibility_alias": false,
+      "cpp_builder": "MCPPuerTSBridgeService",
+      "cpp_entry_point": "InspectBehaviorTreeJson",
+      "python_handler": null,
+      "live_evidence": [
+        "Scripts/behavior-tree-acceptance.mjs",
+        "docs/evidence/behavior-tree-acceptance-2026-08-01.txt"
+      ],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": "read half of behavior_tree_build; derived node identity (UE4.27 BT nodes have no GUIDs); donor references: ultimateunrealenginemcp@c31ebac MCPAICommands.cpp BuildBTCompositeNodeJson and monolith@e67544c MonolithAIBehaviorTreeActions HandleGetBehaviorTree, design only, MIT",
+      "verification": "live_verified"
     },
     {
       "name": "puerts_blueprint_build",

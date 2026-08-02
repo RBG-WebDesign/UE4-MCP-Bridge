@@ -80,6 +80,9 @@ export const toolAnnotations: Record<string, ToolAnnotations> = {
   // no transaction is opened, and it reports the package's dirty flag before
   // and after the read so the claim is checkable rather than asserted.
   puerts_graph_inspect: readOnly,
+  // The read half of puerts_behavior_tree_build: kept out of IsToolMutating on
+  // the native side, reports the package dirty flag before and after the read.
+  puerts_behavior_tree_inspect: readOnly,
   puerts_viewport_screenshot: mutatingIdempotent,
   puerts_set_property: mutatingIdempotent,
   puerts_call_function: mutating,

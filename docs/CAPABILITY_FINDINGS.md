@@ -113,6 +113,26 @@ maintains this file; Phase L consumes it.
    `FGuid::NewGuid()` during sync, then resave. Cosmetic in the editor,
    real for deterministic cooking.
 
+0e. **The BT builder silently drops unknown param keys** (found 2026-08-01 by
+   the first use of `puerts_behavior_tree_inspect`). Node params use
+   snake_case (`blackboard_key`, `wait_time`, `acceptable_radius`); a spec
+   that writes `BlackboardKey` or `WaitTime` builds "successfully" with every
+   key selector defaulting to SelfActor and every value at its class default.
+   `FBTNodeRegistry::ApplyParams` looks up known keys and ignores the rest
+   with no warning - the K3 soft-warn pattern (monolith) is the known fix.
+   Builder-side work; the tool description now documents the real key names
+   and points at the inspector for verification.
+
+0f. **Editor teardown hang is not (only) the source-control modal**
+   (2026-08-01 evening). A clean editor with no dirty packages, in a project
+   OUTSIDE the p4 workspace (BridgeInstallTest), hung on graceful close
+   exactly like the 0c cases and was equally unkillable. Every hung editor
+   has run the bridge plugin; the embedded PuerTS/Node runtime or the named
+   pipe server thread failing to release at teardown is now the leading
+   suspect for the hang itself, with the 0c save/p4 flow explaining what gets
+   PERSISTED during the hang, not the hang. Reproduction is cheap (close any
+   bridge editor); the pipe-suffix-bump recovery works every time.
+
 0b. **MultiGate ignores num_outputs** (found 2026-08-01 by the same
    acceptance). `{"type": "MultiGate", "params": {"num_outputs": 4}}` builds a
    MultiGate with the default 2 exec outputs and no warning; the identical key
@@ -455,15 +475,14 @@ maintains this file; Phase L consumes it.
 
 ## Pending capabilities (tracked, deliberately not started)
 
-- **Behavior Tree inspection** (tracked 2026-08-01). `puerts_behavior_tree_build`
-  passed its live acceptance on 2026-08-01 (`native_live_partial` in the
-  inventory, evidence in `docs/evidence/`), but the acceptance can only verify
-  the node graph through the builder's own report: there is no BT equivalent
-  of `graph_inspect`. Until a Behavior Tree reader exists the tool stays
-  `native_live_partial`, never `native`. The reader is its own capability,
-  same pattern as Blueprint inspection: re-front the runtime tree (composites,
-  tasks, decorators, services, key bindings) as canonical JSON, read-only, no
-  transaction.
+- **Behavior Tree inspection** - RESOLVED 2026-08-01 evening.
+  `puerts_behavior_tree_inspect` landed (InspectBehaviorTreeJson, donor
+  references recorded in the implementation notes), passed its two-phase live
+  acceptance including an editor restart, and its independent spec comparison
+  promoted `puerts_behavior_tree_build` to live_verified. On its FIRST use the
+  inspector caught a real defect the builder's own report never showed: the
+  acceptance spec's CamelCase param keys were silently dropped (see 0e).
+  Evidence: docs/evidence/behavior-tree-acceptance-2026-08-01.txt.
 
 ## Unknown (tracked, not explained)
 

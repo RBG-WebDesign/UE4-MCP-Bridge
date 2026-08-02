@@ -55,8 +55,9 @@ async function main(): Promise<void> {
     });
     const client = new PuerTSClient();
     const tools = createPuertsTools(client);
-    assert(tools.length === 21, "expected all 21 PuerTS tools");
+    assert(tools.length === 22, "expected all 22 PuerTS tools");
     assert(tools.some((tool) => tool.name === "puerts_behavior_tree_build"), "native Behavior Tree builder tool is missing");
+    assert(tools.some((tool) => tool.name === "puerts_behavior_tree_inspect"), "native Behavior Tree inspector tool is missing");
     assert(tools.some((tool) => tool.name === "puerts_sky_shader_create"), "native sky shader tool is missing");
     assert(tools.some((tool) => tool.name === "puerts_blueprint_build"), "native Blueprint builder tool is missing");
     assert(tools.some((tool) => tool.name === "puerts_widget_build"), "native widget builder tool is missing");
@@ -978,7 +979,7 @@ async function behaviorTreeBuildSuite(): Promise<void> {
       keys: [{ name: "TargetActor", type: "Object", base_class: "/Script/Engine.Actor" }],
       root: {
         id: "root", type: "Selector", children: [
-          { id: "wait", type: "Wait", params: { WaitTime: "2.0" } },
+          { id: "wait", type: "Wait", params: { wait_time: "2.0" } },
         ],
       },
     });
@@ -1015,10 +1016,107 @@ async function behaviorTreeBuildSuite(): Promise<void> {
   }
 }
 
+/** puerts_behavior_tree_inspect is the read half of the BT builder. Same
+    contract promises as graph_inspect: annotated read-only, no transaction id,
+    reads anywhere under /Game and /Engine, and a strict schema that rejects
+    authoring keys so a mutating spec cannot be sent to a read. */
+async function behaviorTreeInspectSuite(): Promise<void> {
+  const { toolAnnotations } = await import("../src/annotations.js");
+  const inspectAnnotations = toolAnnotations.puerts_behavior_tree_inspect;
+  assert(inspectAnnotations !== undefined, "puerts_behavior_tree_inspect has no annotation");
+  assert(inspectAnnotations.readOnlyHint === true, "the BT inspector is not annotated read-only");
+
+  const directory = await mkdtemp(join(tmpdir(), "ue4-puerts-bt-inspect-"));
+  const tokenPath = join(directory, "token.txt");
+  const pipeName = `\\\\.\\pipe\\ue4-puerts-bt-inspect-${process.pid}-${Date.now()}`;
+  await writeFile(tokenPath, "test-token", "utf8");
+  process.env.MCP_PUERTS_TOKEN_PATH = tokenPath;
+  process.env.MCP_PUERTS_PIPE = pipeName;
+
+  const received: Record<string, unknown>[] = [];
+  const server = createServer((socket) => socket.once("data", (data: Buffer) => {
+    const request = JSON.parse(data.toString("utf8")) as {
+      params?: Record<string, unknown>;
+      tool?: string;
+      timeout_ms?: number;
+    };
+    received.push({ ...(request.params ?? {}), __tool: request.tool, __timeout: request.timeout_ms });
+    socket.end(JSON.stringify({
+      success: true,
+      message: "Behavior Tree inspected.",
+      data: {
+        asset_path: "/Game/MCPGenerated/BT_Patrol",
+        blackboard_path: "/Game/MCPGenerated/BT_Patrol_BB.BT_Patrol_BB",
+        package_dirty_before: false,
+        package_dirty_after: false,
+        identity_kind: "derived",
+        structure_hash_sha1: "ABC123",
+        root: { id: "root", kind: "composite", children: [] },
+      },
+      changed_assets: [],
+      changed_actors: [],
+      warnings: [],
+      errors: [],
+      log_output: [],
+      transaction_id: "",
+    }) + "\n");
+  }));
+
+  try {
+    await new Promise<void>((resolve, reject) => {
+      server.once("error", reject);
+      server.listen(pipeName, resolve);
+    });
+    const tool = createPuertsTools(new PuerTSClient())
+      .find((entry) => entry.name === "puerts_behavior_tree_inspect");
+    assert(tool !== undefined, "puerts_behavior_tree_inspect is missing");
+
+    const read = await tool.handler({ asset_path: "/Game/MCPGenerated/BT_Patrol" });
+    const payload = JSON.parse(read.content[0]?.text ?? "null") as Record<string, unknown>;
+    assert(payload.success === true, "a valid inspection request was rejected");
+    assert(payload.transaction_id === "", "a read-only BT inspection returned a transaction id");
+    assert(
+      Array.isArray(payload.changed_assets) && (payload.changed_assets as unknown[]).length === 0,
+      "a BT read reported a changed asset",
+    );
+    const sent = received[0];
+    assert(sent?.__tool === "behavior_tree_inspect", "the runtime command name is wrong");
+    assert(
+      typeof sent?.__timeout === "number" && (sent.__timeout as number) > 5000,
+      "BT inspection did not get its own timeout budget",
+    );
+
+    const engineRead = await tool.handler({ asset_path: "/Engine/Some/BT_Thing" });
+    assert(
+      JSON.parse(engineRead.content[0]?.text ?? "null").success === true,
+      "the BT inspector refused an /Engine path",
+    );
+
+    const missingPath = await tool.handler({});
+    assert(
+      JSON.parse(missingPath.content[0]?.text ?? "null").success === false,
+      "an inspection with no asset_path was accepted",
+    );
+    const authoringKey = await tool.handler({ asset_path: "/Game/X/BT_Y", root: { id: "r" } });
+    assert(
+      JSON.parse(authoringKey.content[0]?.text ?? "null").success === false,
+      "the BT inspector accepted an authoring key",
+    );
+    assert(received.length === 2, "a rejected request still reached the pipe");
+    console.log("  PASS  read-only Behavior Tree inspection contract");
+  } finally {
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+    await rm(directory, { recursive: true, force: true });
+    delete process.env.MCP_PUERTS_TOKEN_PATH;
+    delete process.env.MCP_PUERTS_PIPE;
+  }
+}
+
 main()
   .then(marshalingSuite)
   .then(blueprintBuildSuite)
   .then(behaviorTreeBuildSuite)
+  .then(behaviorTreeInspectSuite)
   .then(widgetBuildSuite)
   .then(connectionContractSuite)
   .then(nonActorParentSuite)

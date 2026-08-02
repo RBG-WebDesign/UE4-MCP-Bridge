@@ -223,6 +223,20 @@ public:
         FString& OutResultJson,
         FString& OutError);
 
+    /** Read a BehaviorTree and its Blackboard back as JSON: root, composites,
+        tasks, decorators (attached to the child they guard), services, child
+        order, referenced blackboard keys, key names and types, editor-visible
+        node properties, and a canonical structure hash. READ ONLY: not in
+        IsToolMutating, nothing calls Modify or MarkPackageDirty, and the
+        package dirty flag is reported before and after the read. UE4.27 BT
+        nodes have no GUIDs, so node identity is DERIVED from the traversal
+        path and labeled identity_kind = "derived". */
+    UFUNCTION(BlueprintCallable, Category="MCP PuerTS Bridge")
+    bool InspectBehaviorTreeJson(
+        const FString& RequestJson,
+        FString& OutResultJson,
+        FString& OutError) const;
+
     UFUNCTION(BlueprintCallable, Category="MCP PuerTS Bridge")
     bool BuildPhysicsSceneJson(
         const FString& SpecJson,

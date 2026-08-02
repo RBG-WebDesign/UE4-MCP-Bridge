@@ -461,6 +461,31 @@ async function buildBehaviorTree(context: ToolContext, input: JsonObject): Promi
   return result;
 }
 
+/** Read a Behavior Tree back as JSON. The read half of buildBehaviorTree,
+    same shape as inspectGraph: no transaction, nothing dirtied, dirty flag
+    reported before and after so the caller can check for itself. */
+async function inspectBehaviorTree(context: ToolContext, input: JsonObject): Promise<CommandResponse> {
+  const assetPath = requireString(input, "asset_path");
+  if (!assetPath.startsWith("/Game/") && !assetPath.startsWith("/Engine/")) {
+    throw new Error("Behavior Tree inspection is limited to /Game and /Engine");
+  }
+  const request: JsonObject = { asset_path: assetPath };
+
+  const resultJson = puerts.$ref<string>("");
+  const error = puerts.$ref<string>("");
+  if (!context.bridge.InspectBehaviorTreeJson(JSON.stringify(request), resultJson, error)) {
+    throw new Error(puerts.$unref(error));
+  }
+  const parsed = JSON.parse(puerts.$unref(resultJson)) as JsonObject;
+  const warnings = stringArray(parsed, "warnings");
+  delete parsed.warnings;
+
+  const result = response(true, "Behavior Tree inspected.", parsed);
+  result.warnings.push(...warnings);
+  // No changed_assets and no changed_actors on purpose: reading changed nothing.
+  return result;
+}
+
 async function buildPhysics(context: ToolContext, input: JsonObject): Promise<CommandResponse> {
   const actors = input.actors;
   if (!Array.isArray(actors) || actors.length === 0 || actors.length > 200) {
@@ -589,6 +614,7 @@ export const toolDefinitions: readonly ToolDefinition[] = [
   { name: "widget_build", inputSchema: schema({ asset_path: { type: "string" }, tree: { type: "object" }, save: { type: "boolean" } }, ["asset_path", "tree"]), outputSchema, permissions: ["assets.write"], executionTimeoutMs: 30000, execute: buildWidget },
   { name: "graph_inspect", inputSchema: schema({ asset_path: { type: "string" }, graph_name: { type: "string" }, include_pins: { type: "boolean" } }, ["asset_path"]), outputSchema, permissions: ["assets.read"], executionTimeoutMs: 15000, execute: inspectGraph },
   { name: "behavior_tree_build", inputSchema: schema({ asset_path: { type: "string" }, blackboard_path: { type: "string" }, keys: { type: "array", items: { type: "object" } }, root: { type: "object" }, save: { type: "boolean" } }, ["asset_path", "root"]), outputSchema, permissions: ["assets.write"], executionTimeoutMs: 30000, execute: buildBehaviorTree },
+  { name: "behavior_tree_inspect", inputSchema: schema({ asset_path: { type: "string" } }, ["asset_path"]), outputSchema, permissions: ["assets.read"], executionTimeoutMs: 15000, execute: inspectBehaviorTree },
   { name: "physics_build", inputSchema: schema({ actors: { type: "array", items: { type: "object" } } }, ["actors"]), outputSchema, permissions: ["actors.spawn"], executionTimeoutMs: 10000, execute: buildPhysics },
   { name: "physics_observe", inputSchema: schema({ actors: { type: "array", items: { type: "string" } } }), outputSchema, permissions: ["actors.read"], executionTimeoutMs: 2000, execute: observePhysics },
   { name: "viewport_screenshot", inputSchema: schema({ actors: { type: "array", items: { type: "string" } }, filename: { type: "string" } }), outputSchema, permissions: ["viewport.capture"], executionTimeoutMs: 2000, execute: captureViewport },
