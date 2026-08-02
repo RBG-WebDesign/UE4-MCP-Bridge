@@ -36,6 +36,39 @@ integrator after merge. A lane cannot mark its own work live-verified.
 Every lane was told the same thing in its own words: compilation and mocks do not
 prove completion, and the report must say plainly what was not verified.
 
+### Wave one results
+
+| Lane | Branch | Verdict | Basis |
+|---|---|---|---|
+| A | `lane/a-graph-patch` @ `d72f848` | **Merged as `implemented`, NOT `live_verified`** | The lane claimed a compile and nothing more, which is exactly what its evidence supported. It said so itself: "proven to compile. It is not proven to work." Merged on that basis and verified live by the integrator, not by the lane. |
+| B | `lane/b-project-intelligence` @ `e6fc7c7` | **Accepted** | Ten editor-free tests over a real project: 339 files, 841 symbols, a second run that re-indexes nothing, a touched file that re-indexes exactly itself with the reason recorded. |
+| C | `lane/c-cpp-authoring` | running | |
+
+**Lane A, live acceptance run by the integrator.** The deferred-selector fix
+works: the batch applies, and the added node, moved node, removed node and
+changed pin default are all present in the asset. Check (9) passes with 0 changed
+among nodes the patch never named, which is the claim the whole command rests on.
+
+11 checks still failed, and they reduce to one real bug. Plan-time `bUnchanged`
+for link operations is decided against the pre-batch graph, but operations inside
+the same batch change that state. A disconnect followed by a reconnect of the
+same link marks the reconnect "already linked" at plan time, the disconnect then
+removes it at apply time, and the reconnect is skipped. The link is left broken,
+`created_links` reads 2 instead of 3, and the later rerun legitimately applies the
+missing connect, which is why convergence fails. One cause, four failing checks.
+A twelfth failure was an assertion bug in the acceptance rather than a product
+defect: the per-selector ambiguity text lives in `data.ambiguous_selectors`, not
+in `errors`. Sent back to lane A with the diagnosis; the command stays at
+`implemented`.
+
+**Why lane B was accepted without live evidence.** Its scope was explicitly the
+editor-free half, and it did not claim the other half. It designed the live half
+against the command that already supplies each fact, and identified two facts -
+material graph structure and asset reference edges - that have NO native command,
+recording them as platform gaps to close rather than deriving them badly. A lane
+that names the gap instead of papering over it is doing the capability-first rule
+without being told.
+
 ### Integrator work accepted into `bridge/native-consolidation-2026-07-31`
 
 | Commit | Change | Evidence |
