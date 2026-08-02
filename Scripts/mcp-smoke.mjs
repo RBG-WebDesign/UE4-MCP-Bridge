@@ -161,6 +161,52 @@ async function main() {
     record("engine_source_search registered", false, "tool not present");
   }
 
+  // 4. engine_source_read - the other server-local reader, and its path guard.
+  // It was marked live_verified carrying an empty evidence array, which is the
+  // accounting this repo exists to stop. The traversal refusal is checked here
+  // rather than in a security suite because it is the same one round trip.
+  if (tools.some((t) => t.name === "engine_source_read")) {
+    const r = await send("tools/call", {
+      name: "engine_source_read",
+      arguments: { file: "Source/Runtime/Core/Public/HAL/Runnable.h", start_line: 1, end_line: 40 },
+    });
+    const payload = unwrap(r);
+    if (payload?.success) {
+      const text = JSON.stringify(payload.data);
+      record("engine_source_read returns real engine source", /FRunnable/.test(text),
+        /FRunnable/.test(text) ? "Runnable.h names FRunnable" : "read succeeded but FRunnable is absent");
+    } else {
+      const err = payload?.error ?? "no payload";
+      const isConfig = /UE_ENGINE_ROOT|locate the UE engine/i.test(err);
+      record("engine_source_read returns real engine source", isConfig ? "skip" : false,
+        isConfig ? "UE_ENGINE_ROOT not set for this process" : err);
+    }
+
+    const escape = unwrap(await send("tools/call", {
+      name: "engine_source_read",
+      arguments: { file: "../../../Windows/System32/drivers/etc/hosts", start_line: 1 },
+    }));
+    // Success here means the reader can be walked out of the engine directory,
+    // which is worse than the tool not existing. But "it refused" is not enough
+    // on its own: with no UE_ENGINE_ROOT it refuses because it cannot find the
+    // engine at all, and that refusal would still arrive with the guard deleted.
+    // Only the guard's own refusal counts as a pass.
+    const escapeErr = escape?.error ?? "";
+    const guardRefused = /resolves outside the engine directory/i.test(escapeErr);
+    const noEngine = /UE_ENGINE_ROOT|locate the UE engine/i.test(escapeErr);
+    record("engine_source_read refuses a path outside the engine directory",
+      escape?.success === true ? false : guardRefused ? true : noEngine ? "skip" : false,
+      escape?.success === true
+        ? "READ SUCCEEDED OUTSIDE THE ENGINE ROOT"
+        : guardRefused
+          ? escapeErr
+          : noEngine
+            ? "UE_ENGINE_ROOT not set; this refusal does not exercise the guard"
+            : `refused, but not by the path guard: ${escapeErr}`);
+  } else {
+    record("engine_source_read registered", false, "tool not present");
+  }
+
   // 5. puerts_diagnostic - the authenticated native named-pipe link
   const diagnostic = await send("tools/call", {
     name: "puerts_diagnostic",
