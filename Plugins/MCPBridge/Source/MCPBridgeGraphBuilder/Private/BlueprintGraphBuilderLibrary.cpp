@@ -1146,8 +1146,11 @@ void UBlueprintGraphBuilderLibrary::BuildBlueprintFromJSON(
     // reporting overload; this one throws the report away, as it always did.
     TArray<FString> UnresolvedConnections;
     int32 ConnectionsMade = 0;
+    TArray<FString> FailedNodes;
+    int32 CreatedNodes = 0;
     BuildBlueprintFromJSONWithReport(
-        Blueprint, JsonString, bClearExistingGraph, UnresolvedConnections, ConnectionsMade);
+        Blueprint, JsonString, bClearExistingGraph, UnresolvedConnections, ConnectionsMade,
+        FailedNodes, CreatedNodes);
 }
 
 void UBlueprintGraphBuilderLibrary::BuildBlueprintFromJSONWithReport(
@@ -1155,10 +1158,14 @@ void UBlueprintGraphBuilderLibrary::BuildBlueprintFromJSONWithReport(
     const FString& JsonString,
     bool bClearExistingGraph,
     TArray<FString>& OutUnresolvedConnections,
-    int32& OutConnectionsMade)
+    int32& OutConnectionsMade,
+    TArray<FString>& OutFailedNodes,
+    int32& OutCreatedNodes)
 {
     OutUnresolvedConnections.Reset();
     OutConnectionsMade = 0;
+    OutFailedNodes.Reset();
+    OutCreatedNodes = 0;
 
     if (!Blueprint)
     {
@@ -1399,6 +1406,23 @@ void UBlueprintGraphBuilderLibrary::BuildBlueprintFromJSONWithReport(
                 UE_LOG(LogTemp, Error,
                     TEXT("BuildBlueprintFromJSON: node '%s' of type '%s' was refused by its factory; see the LogBlueprintMutator line above for the reason"),
                     *NodeId, *NodeType);
+                // This used to `continue` silently, which is what let a refused
+                // node stay in the reported count. The supplied keys are named
+                // because the usual cause is a key the factory does not read:
+                // VariableGet takes varName, and a spec written with "variable"
+                // produces exactly this, with no other symptom.
+                TArray<FString> SuppliedKeys;
+                if (Params.IsValid())
+                {
+                    for (const auto& Pair : Params->Values) { SuppliedKeys.Add(Pair.Key); }
+                    SuppliedKeys.Sort();
+                }
+                OutFailedNodes.Add(FString::Printf(
+                    TEXT("%s: %s: factory_refused: the node factory created nothing. Supplied "
+                         "parameters: [%s]. A parameter this node type does not read is ignored, "
+                         "and a missing required one makes the factory refuse."),
+                    *NodeId, *NodeType,
+                    SuppliedKeys.Num() > 0 ? *FString::Join(SuppliedKeys, TEXT(", ")) : TEXT("none")));
                 continue;
             }
             RoutingKeys.Append({
@@ -1450,7 +1474,30 @@ void UBlueprintGraphBuilderLibrary::BuildBlueprintFromJSONWithReport(
             if ((*NodeObj)->TryGetNumberField(TEXT("y"), PosY)) SpawnedNode->NodePosY = PosY;
         }
 
+        // A null return means the factory refused the spec: an unknown config
+        // key, a missing required parameter, a class that would not resolve.
+        // Recording it as a created node is what produced phantom counts, so
+        // the id is reported as a failure and kept out of the map. A node that
+        // landed in a different graph is treated the same way: it is not the
+        // graph the caller asked to author.
+        if (SpawnedNode == nullptr)
+        {
+            OutFailedNodes.Add(FString::Printf(
+                TEXT("%s: %s: the node factory created nothing. Check the parameter names for "
+                     "this node type: a key the factory does not read is ignored, and a missing "
+                     "required key makes it refuse."),
+                *NodeId, *NodeType));
+            continue;
+        }
+        if (SpawnedNode->GetGraph() != Graph)
+        {
+            OutFailedNodes.Add(FString::Printf(
+                TEXT("%s: %s: the node was created in a different graph than the one requested."),
+                *NodeId, *NodeType));
+            continue;
+        }
         NodeMap.Add(NodeId, SpawnedNode);
+        OutCreatedNodes++;
     }
 
     // --- Step 5: Wire connections ---

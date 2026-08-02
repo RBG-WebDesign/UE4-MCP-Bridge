@@ -78,7 +78,24 @@ maintains this file; Phase L consumes it.
 | Unsupported `remove_unlisted` scopes are rejected, never ignored | `components`, `functions`, `macros`, `graph_nodes` and `interfaces` set `true` each return `unsupported_scope` naming the scope; set `false` they are accepted. Silently accepting them would read as a promise to prune and quietly not do it, which is worse than refusing. An unknown scope key is also rejected (2026-08-02) |
 | Defect 0 reproduced independently, on `VariableGet` | The builder's config key is `varName`; a spec using `params.variable` makes the factory return null while the build still reports `node_count 2` and `node_types ["BeginPlay","VariableGet"]`, and `graph_inspect` sees only `["BeginPlay"]`. Found while writing the `remove_unlisted` fixture: every reference assertion in it passed **vacuously** because the reference nodes did not exist. This is the same phantom-counting defect 0 records for `Cast`, now confirmed on a second node type and caught only by comparing the build's own report against the independent inspector - which is the argument for builder/inspector parity in one line (2026-08-02) |
 
+| Truthful Blueprint build reporting | Defect 0 closed for counting. `node_count` came from `RequestedNodeTypes.Num()` and `NodeMap.Add(NodeId, SpawnedNode)` ran **even when the factory returned null**, so a refused node stayed in the count: a build reported `node_count 2` while `graph_inspect` saw one node. Now the builder reports `OutCreatedNodes`/`OutFailedNodes`, skips null nodes and nodes created in a graph other than the one requested, and the command reports `requested_node_count` / `created_node_count` / `failed_node_count` / `failed_nodes` and the connection triple, on the success **and** failure payloads. A refused node now fails the whole build: partial graph creation is not a success mode. Live: `VariableGet` with `variable` instead of `varName` returns `success false` naming the refused node and its supplied parameters, `created_node_count` excludes it, and the gate `created_node_count == independently inspected node_count` holds on the valid graph (4), the rerun (4) and MultiGate (2). `Cast` with an unresolvable target class behaves the same. No failing case left a dirty package, a file change, a source-control entry or a save prompt. `Scripts/bp-truthful-report-acceptance.mjs`, 27 of 28 checks (2026-08-02) |
+
 ## Defects and limitations (Phase L queue)
+
+0h. **A connection naming an unknown node id fails the build but is not in the
+   structured connection report** (found 2026-08-02 by the truthful-reporting
+   acceptance, case 9). `{"from": "begin.then", "to": "ghost.exec"}` where no
+   node `ghost` exists correctly returns `success false` and saves nothing, but
+   `failed_connection_count` is 0 and `unresolved_connections` is empty: the
+   reason appears only in `errors`. `ConnectionCount` is counted over
+   connections whose endpoints name known node ids, so an unknown id is
+   excluded from the requested total and the shortfall arithmetic cannot see
+   it. Narrow and non-silent - the build does fail - but the structured
+   report is incomplete for that one shape. Fix: count every connection entry
+   as requested, and record an unknown endpoint id as an unresolved
+   connection. Not done in this session.
+
+
 
 0g. **DATA LOSS: `remove_unlisted` removals are NOT rolled back when the build
    fails afterwards** (found 2026-08-02 by the rollback proof the previous

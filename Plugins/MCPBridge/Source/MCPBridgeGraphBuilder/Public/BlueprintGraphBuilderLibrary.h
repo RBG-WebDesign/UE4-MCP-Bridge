@@ -115,12 +115,23 @@ public:
      * one, and limitation 21 is its usual cause: a const BlueprintCallable
      * UFUNCTION is a pure node with no exec pins.
      */
+    /**
+     * OutFailedNodes carries one "<id>: <type>: <reason>" entry per node spec
+     * that produced no UEdGraphNode, and OutCreatedNodes counts the nodes that
+     * actually exist in the graph afterwards. These exist because the report
+     * used to be derived from the SPEC: a factory returning null left the
+     * requested node in the count, so a build could report node_count 2 while
+     * graph_inspect saw one node. A count that comes from the request rather
+     * than from Unreal is not a report, it is an echo.
+     */
     static void BuildBlueprintFromJSONWithReport(
         UBlueprint* Blueprint,
         const FString& JsonString,
         bool bClearExistingGraph,
         TArray<FString>& OutUnresolvedConnections,
-        int32& OutConnectionsMade
+        int32& OutConnectionsMade,
+        TArray<FString>& OutFailedNodes,
+        int32& OutCreatedNodes
     );
 
     /** The node types BuildBlueprintFromJSON can spawn today, in dispatch

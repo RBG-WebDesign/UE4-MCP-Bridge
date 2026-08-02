@@ -1177,13 +1177,27 @@ bool UMCPPuerTSBridgeService::BuildBlueprintJson(
     // which also means the asset is not saved.
     TArray<FString> UnresolvedConnections;
     int32 ConnectionsMade = 0;
+    TArray<FString> FailedNodes;
+    int32 CreatedNodes = 0;
     if (bHasGraph)
     {
         FString GraphJson;
         TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&GraphJson);
         FJsonSerializer::Serialize(GraphObject->ToSharedRef(), Writer);
         UBlueprintGraphBuilderLibrary::BuildBlueprintFromJSONWithReport(
-            Blueprint, GraphJson, bClearExistingGraph, UnresolvedConnections, ConnectionsMade);
+            Blueprint, GraphJson, bClearExistingGraph, UnresolvedConnections, ConnectionsMade,
+            FailedNodes, CreatedNodes);
+        // A node the factory refused is a failed build, not a quiet omission.
+        // This used to be invisible: node_count came from the spec, so a
+        // refused node was still counted and the build reported success.
+        if (FailedNodes.Num() > 0)
+        {
+            Errors.Add(MakeShared<FJsonValueString>(FString::Printf(
+                TEXT("%d of %d requested graph node(s) were not created: %s. The build is failed ")
+                TEXT("rather than saved, because a graph missing a node the caller asked for is ")
+                TEXT("not the graph they specified. Partial graph creation is not a success mode."),
+                FailedNodes.Num(), RequestedNodeTypes.Num(), *JoinStrings(FailedNodes))));
+        }
         if (ConnectionsMade != ConnectionCount)
         {
             Errors.Add(MakeShared<FJsonValueString>(FString::Printf(
@@ -1244,6 +1258,20 @@ bool UMCPPuerTSBridgeService::BuildBlueprintJson(
         Failed->SetBoolField(TEXT("created"), false);
         Failed->SetStringField(TEXT("compile_status"), TEXT("RolledBack"));
         Failed->SetBoolField(TEXT("saved"), false);
+        // The counts belong on the FAILURE payload above all: a caller needs to
+        // see which nodes and connections were refused precisely when the build
+        // did not succeed. Omitting them here was how a failed build still
+        // looked featureless.
+        TSharedPtr<FJsonObject> FailedGraph = MakeShared<FJsonObject>();
+        FailedGraph->SetNumberField(TEXT("requested_node_count"), RequestedNodeTypes.Num());
+        FailedGraph->SetNumberField(TEXT("created_node_count"), CreatedNodes);
+        FailedGraph->SetNumberField(TEXT("failed_node_count"), FailedNodes.Num());
+        FailedGraph->SetArrayField(TEXT("failed_nodes"), StringsToJson(FailedNodes));
+        FailedGraph->SetNumberField(TEXT("requested_connection_count"), ConnectionCount);
+        FailedGraph->SetNumberField(TEXT("created_connection_count"), ConnectionsMade);
+        FailedGraph->SetNumberField(TEXT("failed_connection_count"), ConnectionCount - ConnectionsMade);
+        FailedGraph->SetArrayField(TEXT("unresolved_connections"), StringsToJson(UnresolvedConnections));
+        Failed->SetObjectField(TEXT("graph"), FailedGraph);
         Failed->SetArrayField(TEXT("errors"), Errors);
         Warnings.Add(MakeShared<FJsonValueString>(
             TEXT("The build failed and was rolled back: no asset, package, or file remains.")));
@@ -1299,7 +1327,17 @@ bool UMCPPuerTSBridgeService::BuildBlueprintJson(
     TSharedPtr<FJsonObject> Graph = MakeShared<FJsonObject>();
     Graph->SetBoolField(TEXT("requested"), bHasGraph);
     Graph->SetBoolField(TEXT("cleared_existing"), bHasGraph && bClearExistingGraph);
-    Graph->SetNumberField(TEXT("node_count"), RequestedNodeTypes.Num());
+    // node_count is what Unreal actually holds, not what was asked for. The
+    // requested/created/failed split is reported alongside it so the two can
+    // never be confused again.
+    Graph->SetNumberField(TEXT("node_count"), CreatedNodes);
+    Graph->SetNumberField(TEXT("requested_node_count"), RequestedNodeTypes.Num());
+    Graph->SetNumberField(TEXT("created_node_count"), CreatedNodes);
+    Graph->SetNumberField(TEXT("failed_node_count"), FailedNodes.Num());
+    Graph->SetArrayField(TEXT("failed_nodes"), StringsToJson(FailedNodes));
+    Graph->SetNumberField(TEXT("requested_connection_count"), ConnectionCount);
+    Graph->SetNumberField(TEXT("created_connection_count"), ConnectionsMade);
+    Graph->SetNumberField(TEXT("failed_connection_count"), ConnectionCount - ConnectionsMade);
     // connection_count is the number of links actually made. The number asked
     // for is reported separately; when they differ the build has already
     // failed, and unresolved_connections says which pairs were dropped.

@@ -1,0 +1,125 @@
+{
+  "cases": [
+    {
+      "label": "valid graph",
+      "created": 4,
+      "inspected": 4,
+      "success": true
+    },
+    {
+      "label": "rerun",
+      "created": 4,
+      "inspected": 4,
+      "success": true
+    },
+    {
+      "label": "(1)(2)(3) VariableGet with 'variable' instead of 'varName'",
+      "success": false,
+      "graph": {
+        "requested_node_count": 2,
+        "created_node_count": 1,
+        "failed_node_count": 1,
+        "failed_nodes": [
+          "g: VariableGet: factory_refused: the node factory created nothing. Supplied parameters: [variable]. A parameter this node type does not read is ignored, and a missing required one makes the factory refuse."
+        ],
+        "requested_connection_count": 0,
+        "created_connection_count": 0,
+        "failed_connection_count": 0,
+        "unresolved_connections": []
+      },
+      "cleanup": {
+        "rollback_attempted": true,
+        "rollback_succeeded": true,
+        "created_assets": [],
+        "removed_assets": [],
+        "dirty_packages_before": [],
+        "dirty_packages_after": [],
+        "files_created": [],
+        "files_removed": [],
+        "source_control_before": [
+          "source control disabled"
+        ],
+        "source_control_after": [
+          "source control disabled"
+        ],
+        "cleanup_errors": []
+      }
+    },
+    {
+      "label": "(6) Cast with an unresolvable target class",
+      "success": false,
+      "graph": {
+        "requested_node_count": 2,
+        "created_node_count": 1,
+        "failed_node_count": 1,
+        "failed_nodes": [
+          "c: Cast: factory_refused: the node factory created nothing. Supplied parameters: [target_class]. A parameter this node type does not read is ignored, and a missing required one makes the factory refuse."
+        ],
+        "requested_connection_count": 0,
+        "created_connection_count": 0,
+        "failed_connection_count": 0,
+        "unresolved_connections": []
+      },
+      "cleanup": {
+        "rollback_attempted": true,
+        "rollback_succeeded": true,
+        "created_assets": [],
+        "removed_assets": [],
+        "dirty_packages_before": [],
+        "dirty_packages_after": [],
+        "files_created": [],
+        "files_removed": [],
+        "source_control_before": [
+          "source control disabled"
+        ],
+        "source_control_after": [
+          "source control disabled"
+        ],
+        "cleanup_errors": []
+      }
+    },
+    {
+      "label": "(8) a connection naming a pin role that does not exist",
+      "success": false,
+      "graph": {
+        "requested_node_count": 2,
+        "created_node_count": 2,
+        "failed_node_count": 0,
+        "failed_nodes": [],
+        "requested_connection_count": 1,
+        "created_connection_count": 0,
+        "failed_connection_count": 1,
+        "unresolved_connections": [
+          "begin.nosuchpin -> say.exec (no output pin 'nosuchpin' on begin)"
+        ]
+      },
+      "cleanup": {
+        "rollback_attempted": true,
+        "rollback_succeeded": true,
+        "created_assets": [],
+        "removed_assets": [],
+        "dirty_packages_before": [],
+        "dirty_packages_after": [],
+        "files_created": [],
+        "files_removed": [],
+        "source_control_before": [
+          "source control disabled"
+        ],
+        "source_control_after": [
+          "source control disabled"
+        ],
+        "cleanup_errors": []
+      }
+    },
+    {
+      "label": "(9) a connection referencing an unknown node id",
+      "success": false
+    },
+    {
+      "label": "MultiGate",
+      "created": 2,
+      "inspected": 2,
+      "success": true
+    }
+  ]
+}
