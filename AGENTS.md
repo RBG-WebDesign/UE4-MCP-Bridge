@@ -265,6 +265,50 @@ Before writing a UE C++ call you have not verified in the current conversation,
 look it up. When `unreal-api` reports "not found", fall back to
 `engine_source_search` with a `module` filter to keep the scan fast.
 
+## Product goal: prompt-to-working-Unreal-feature speed
+
+Optimize for the fewest editor round trips, not the fewest lines of code.
+
+Prefer high-level desired-state operations backed by reusable native primitives.
+
+A successful command should be transactional, convergent, independently
+verifiable, and suitable for composition into autonomous workflows.
+
+Do not force the agent to perform hundreds of low-level MCP calls when one batch
+or upsert operation can express the same intent.
+
+Do not use correctness work as an excuse for slow interfaces. Build correctness
+into fast primitives through validation, rollback, inspection, and automatic
+verification.
+
+When a workflow is repeatedly assembled from the same low-level calls, promote
+it into a reusable PuerTS workflow or native batch command.
+
+The target experience is that Claude or Codex can create, compile, run, inspect,
+repair, and verify a substantial UE4.27 feature from one prompt with minimal
+manual editor interaction.
+
+### What this means in practice
+
+The fast path is: plan in TypeScript, send one or a few native batch commands,
+run them in a transaction, read the result back with an independent inspector,
+verify by compile or PIE, return a structured result. The slow path this
+replaces is create-node, inspect, connect-pin, inspect, set-property, inspect.
+
+Every major builder needs an inspector with the same canonical data shape, so
+desired state can be compared against actual state without a human opening the
+editor. `blueprint_build` / `graph_inspect` and `behavior_tree_build` /
+`behavior_tree_inspect` are the pattern; `widget_build` has no inspector yet.
+
+Failures must name the exact location and be recoverable in the same breath: an
+error code, the asset, graph, node and pin, the closest matching names, and the
+rollback result. Not a modal dialog, not dirty residue, not "operation failed".
+
+Use native C++ for asset creation and mutation, graph editing, transactions and
+rollback, compilation, PIE control, viewport capture, package and
+source-control state. Use PuerTS for planning, orchestration, reconciliation,
+retry logic and project recipes.
+
 ## Capability-first development
 
 A reference feature is an acceptance test for the bridge, not the product. It

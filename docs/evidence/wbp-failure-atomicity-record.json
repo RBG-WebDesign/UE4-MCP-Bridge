@@ -1,0 +1,60 @@
+{
+  "phase": "record",
+  "rejected": [
+    {
+      "label": "unsupported property",
+      "success": false,
+      "errors": [
+        "[WidgetBuilder] R.T: Unsupported property 'percent' on TextBlock"
+      ]
+    },
+    {
+      "label": "duplicate widget name",
+      "success": false,
+      "errors": [
+        "[WidgetBuilder] R.Same: Duplicate widget name 'Same'"
+      ]
+    },
+    {
+      "label": "root is not a panel",
+      "success": false,
+      "errors": [
+        "[WidgetBuilder] Root widget must be a Panel type, got 'TextBlock'"
+      ]
+    },
+    {
+      "label": "leaf with children",
+      "success": false,
+      "errors": [
+        "[WidgetBuilder] R.T: Leaf widget 'TextBlock' cannot have children"
+      ]
+    }
+  ],
+  "observations": {
+    "good_build": {
+      "success": true,
+      "compile_status": "UpToDate",
+      "saved": true,
+      "widget_count": 3,
+      "cleanup": {
+        "rollback_attempted": false,
+        "rollback_succeeded": false,
+        "created_assets": [
+          "/Game/MCPGenerated/WBP_AtomicityGood.WBP_AtomicityGood"
+        ],
+        "removed_assets": [],
+        "dirty_packages_before": [],
+        "dirty_packages_after": [],
+        "files_created": [],
+        "files_removed": [],
+        "source_control_before": [
+          "source control disabled"
+        ],
+        "source_control_after": [
+          "source control disabled"
+        ],
+        "cleanup_errors": []
+      }
+    }
+  }
+}

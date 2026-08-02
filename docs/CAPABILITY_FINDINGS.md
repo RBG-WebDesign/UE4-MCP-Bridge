@@ -160,8 +160,40 @@ maintains this file; Phase L consumes it.
    still compiled `UpToDate`, saved, reported `rollback_attempted false`, and
    survived the restart intact, and `npm run smoke:inspect` passes.
 
-   `widget_build` creates assets the same way and is **not** converted. It is
-   the remaining use for this boundary.
+   **`widget_build` converted 2026-08-02, closing the shared pattern.** Widget
+   raises the stakes rather than lowering them: `BuildWidgetFromJSON` creates,
+   compiles **and saves** inside the library, so on the create path the
+   `.uasset` is on disk before the command can judge the compile status. A
+   failure after that point would leave a saved file, not merely a dirty
+   package, which is why the boundary's file deletion is load-bearing here.
+   The create path also gets a `TrackIfOurs` adopter: the command has no
+   pointer to the asset until it loads it back, so a library failure partway
+   through would otherwise leave an untracked, registered asset behind.
+
+   **What this does and does not prove.** Every widget failure reachable from
+   the current spec vocabulary is rejected BEFORE mutation (the eight in
+   "Widget build validate-before-mutate" above), so unlike the Behavior Tree
+   and Blueprint conversions there is **no pre-fix leak to demonstrate**. The
+   boundary here is closing an exposure by construction, not a measured defect.
+   `Scripts/wbp-failure-atomicity.mjs` proves what can be proven: four rejected
+   specs each leave registry count 0 and no file, `p4 opened` is unchanged, a
+   successful build compiles `UpToDate` with three widgets and
+   `rollback_attempted false`, a rerun converges (`created false`, still one
+   asset), the editor closes with no Save Content prompt in 2.75 s, and a
+   restart finds the rejects absent and the good widget intact.
+
+   A test bug worth recording, because it briefly looked like a regression: the
+   first version of that script passed a bare tree instead of `{"root": ...}`.
+   The client schema rejected all six calls before they reached the editor, so
+   the four "rejected" specs passed for the wrong reason and the successful
+   build failed. A cleanliness assertion that never reaches the code under test
+   passes vacuously; the fixture has to be shown to do the thing it claims to
+   reject.
+
+   `widget_build` still has **no inspector**. `blueprint_build` /
+   `graph_inspect` and `behavior_tree_build` / `behavior_tree_inspect` both
+   have one, so widget is the odd one out and its read-back is the builder's
+   own report rather than an independent reader. That is the next gap.
 
    **Original report** (2026-08-01, by the BT live acceptance). A failed
    `behavior_tree_build` on a fresh path correctly
