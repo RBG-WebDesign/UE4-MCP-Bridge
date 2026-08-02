@@ -82,6 +82,23 @@ maintains this file; Phase L consumes it.
 
 ## Defects and limitations (Phase L queue)
 
+0i. **Unknown authoring keys are detected but cannot yet be rejected: the
+   accepted-name set is two vocabularies** (found 2026-08-02 by trying to make
+   rejection fatal). A node type's accepted parameters ought to be its
+   RoutingKeys plus its pin names, and `ApplyParamsAsPinDefaults` now collects
+   every key matching neither and logs it with the accepted list. Making that
+   fatal **regressed valid specs**: RoutingKeys are snake_case (`var_name`,
+   `target_class`, `num_outputs`) while the registry factories read camelCase
+   config (`varName`, `targetClass`), so the valid four-node fixture failed
+   with `varName` reported as unknown. The reverted attempt is recorded because
+   the failure is the useful part: the two vocabularies are converted by
+   `RegistryConfigJson`, so neither set alone is the accepted-name table.
+
+   Fix: one normalised accepted-name table per node type, declared once and
+   used by both the factory and the validator, then rejection becomes safe.
+   Until then an unknown key is a warning in the editor log with the accepted
+   names beside it, not a silent drop and not a false refusal.
+
 0h. **A connection naming an unknown node id fails the build but is not in the
    structured connection report** (found 2026-08-02 by the truthful-reporting
    acceptance, case 9). `{"from": "begin.then", "to": "ghost.exec"}` where no

@@ -508,11 +508,20 @@ namespace
     /** Apply every param that is not a routing key as a pin default. A param
         naming no pin, or a value the pin cannot take, is logged with the node
         id: a silently dropped pin default is the failure mode this replaces. */
+    /**
+     * A node type's accepted parameter names are its RoutingKeys (the config
+     * the factory reads) plus the names of its own pins (which become pin
+     * defaults). A key in neither set is one the builder would silently drop,
+     * which is how a spec can look applied and do nothing - the VariableGet
+     * "variable" case survived precisely because a wrong key costs nothing.
+     * OutUnknownParams collects them so the caller can refuse the node.
+     */
     void ApplyParamsAsPinDefaults(
         UEdGraphNode* Node,
         const TSharedPtr<FJsonObject>& Params,
         const TSet<FString>& RoutingKeys,
-        const FString& NodeId)
+        const FString& NodeId,
+        TArray<FString>& OutUnknownParams)
     {
         if (Node == nullptr || !Params.IsValid())
         {
@@ -525,6 +534,11 @@ namespace
                 continue;
             }
             UEdGraphPin* Pin = Node->FindPin(FName(*Pair.Key));
+            if (Pin == nullptr)
+            {
+                OutUnknownParams.Add(Pair.Key);
+                continue;
+            }
             FString Error;
             if (!ApplyPinDefaultAndNotify(Node, Pin, Pair.Value, Error))
             {
@@ -533,6 +547,22 @@ namespace
                     *NodeId, *Pair.Key, *Error);
             }
         }
+    }
+
+    /** The parameter names a node would have accepted, for an error message
+        that tells the caller what to write instead of only what was wrong. */
+    FString DescribeAcceptedParams(const UEdGraphNode* Node, const TSet<FString>& RoutingKeys)
+    {
+        TArray<FString> Accepted = RoutingKeys.Array();
+        if (Node != nullptr)
+        {
+            for (const UEdGraphPin* Pin : Node->Pins)
+            {
+                if (Pin != nullptr) { Accepted.Add(Pin->PinName.ToString()); }
+            }
+        }
+        Accepted.Sort();
+        return Accepted.Num() > 0 ? FString::Join(Accepted, TEXT(", ")) : TEXT("none");
     }
 
     UEdGraphNode* SpawnOverrideEvent(UEdGraph& Graph, const TCHAR* EventName, int32 PosX, int32 PosY)
@@ -1464,7 +1494,25 @@ void UBlueprintGraphBuilderLibrary::BuildBlueprintFromJSONWithReport(
             continue;
         }
 
-        ApplyParamsAsPinDefaults(SpawnedNode, Params, RoutingKeys, NodeId);
+        // Unknown-parameter detection is collected but NOT fatal, and that is
+        // deliberate. RoutingKeys are snake_case (var_name, target_class) while
+        // the factories read camelCase config (varName, targetClass), so the
+        // accepted-name set is not yet a single normalised table: rejecting on
+        // it refuses legitimate specs. Proven by trying it - the valid
+        // four-node fixture failed because varName was flagged as unknown.
+        // Making this fatal needs one normalised accepted-name table per node
+        // type first; findings 0i.
+        TArray<FString> UnknownParams;
+        ApplyParamsAsPinDefaults(SpawnedNode, Params, RoutingKeys, NodeId, UnknownParams);
+        if (UnknownParams.Num() > 0 && SpawnedNode != nullptr)
+        {
+            UnknownParams.Sort();
+            UE_LOG(LogTemp, Warning,
+                TEXT("BuildBlueprintFromJSON: node '%s' (%s) carried parameter(s) [%s] that matched "
+                     "neither a factory config key nor a pin. Accepted here: [%s]"),
+                *NodeId, *NodeType, *FString::Join(UnknownParams, TEXT(", ")),
+                *DescribeAcceptedParams(SpawnedNode, RoutingKeys));
+        }
 
         // Per-node position override (top-level "x" / "y" on the node spec)
         if (SpawnedNode)
