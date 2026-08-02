@@ -18,7 +18,15 @@
 #include "Misc/Paths.h"
 #include "Misc/PackageName.h"
 #include "Misc/ScopeLock.h"
+#include "Misc/SecureHash.h"
+#include "Containers/Ticker.h"
+#include "Interfaces/IPluginManager.h"
 #include "PlayInEditorDataTypes.h"
+#if PLATFORM_WINDOWS
+#include "Windows/AllowWindowsPlatformTypes.h"
+#include <processthreadsapi.h>
+#include "Windows/HideWindowsPlatformTypes.h"
+#endif
 #include "ScopedTransaction.h"
 #include "UObject/UnrealType.h"
 
@@ -32,6 +40,66 @@ const TCHAR* BridgeConfigSection = TEXT("MCPPuerTSBridge");
 FString GetPipeAdvertisePath()
 {
     return FPaths::ProjectSavedDir() / TEXT("MCPPuerTSBridge") / TEXT("pipe.txt");
+}
+
+/** The session manifest. pipe.txt carried a pipe name and nothing else, which is
+    enough to reach AN editor and not enough to know WHICH. */
+FString GetSessionManifestPath()
+{
+    return FPaths::ProjectSavedDir() / TEXT("MCPPuerTSBridge") / TEXT("session.json");
+}
+
+/** Schema version of session.json. A client that does not recognise the version
+    must refuse rather than guess: reading an unknown manifest optimistically is
+    how a client ends up confidently addressing the wrong editor. */
+constexpr int32 SessionSchemaVersion = 1;
+
+/** This process's real creation time from the OS, not the time the plugin
+    happened to start. It is the half of the identity that PID cannot provide:
+    Windows reuses process ids, so a stale manifest naming a dead editor's PID
+    can match a live unrelated process, and only the creation time separates
+    them. */
+FString GetProcessStartTimeUtc()
+{
+#if PLATFORM_WINDOWS
+    FILETIME Creation, Exit, Kernel, User;
+    if (::GetProcessTimes(::GetCurrentProcess(), &Creation, &Exit, &Kernel, &User))
+    {
+        // FILETIME is 100-nanosecond ticks since 1601-01-01 UTC, which is exactly
+        // what FDateTime counts from, so this is a straight reinterpretation.
+        const uint64 Ticks = (static_cast<uint64>(Creation.dwHighDateTime) << 32)
+            | static_cast<uint64>(Creation.dwLowDateTime);
+        return FDateTime(static_cast<int64>(Ticks)).ToIso8601();
+    }
+#endif
+    return FString();
+}
+
+/** The bridge revision this editor is running, taken from the install manifest
+    the sync gate wrote rather than recomputed here: the editor has no git and
+    the manifest is the record of what was actually installed and built. */
+void ReadInstalledManifest(FString& OutCommit, FString& OutHash)
+{
+    const TSharedPtr<IPlugin> Plugin = IPluginManager::Get().FindPlugin(TEXT("MCPBridge"));
+    if (!Plugin.IsValid()) { return; }
+    const FString ManifestPath = Plugin->GetBaseDir() / TEXT("MCPBridgeInstall.json");
+    FString Text;
+    if (!FFileHelper::LoadFileToString(Text, *ManifestPath)) { return; }
+
+    FSHA1 Sha;
+    const FTCHARToUTF8 Utf8(*Text);
+    Sha.Update(reinterpret_cast<const uint8*>(Utf8.Get()), Utf8.Length());
+    Sha.Final();
+    uint8 Digest[20];
+    Sha.GetHash(Digest);
+    OutHash = BytesToHex(Digest, 20).ToLower();
+
+    TSharedPtr<FJsonObject> Manifest;
+    TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(Text);
+    if (FJsonSerializer::Deserialize(Reader, Manifest) && Manifest.IsValid())
+    {
+        Manifest->TryGetStringField(TEXT("bridge_commit"), OutCommit);
+    }
 }
 
 TArray<TSharedPtr<FJsonValue>> ToJsonArray(const TArray<FString>& Values)
@@ -181,13 +249,17 @@ bool UMCPPuerTSBridgeService::Initialize(FString& OutError)
 
     // Advertise the active pipe name beside the token so a client can discover
     // it from the project root alone, whatever [MCPPuerTSBridge] renamed it to.
-    // Best effort: the MCP_PUERTS_PIPE override still works without this file.
+    // Kept for clients that predate session.json; it is a routing hint only and
+    // is no longer sufficient on its own, because a pipe name says how to reach
+    // an editor and nothing about which editor answered.
     const FString PipeAdvertisePath = GetPipeAdvertisePath();
     if (!FFileHelper::SaveStringToFile(PipeName, *PipeAdvertisePath, FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM))
     {
         UE_LOG(LogMCPPuerTSBridge, Warning,
             TEXT("Could not advertise the pipe name at %s"), *PipeAdvertisePath);
     }
+
+    BeginSession();
 
     LogCapture = MakeShared<FBridgeLogCapture>();
     if (GLog != nullptr)
@@ -198,12 +270,108 @@ bool UMCPPuerTSBridgeService::Initialize(FString& OutError)
     return true;
 }
 
+void UMCPPuerTSBridgeService::BeginSession()
+{
+    SessionId = FGuid::NewGuid().ToString(EGuidFormats::DigitsWithHyphens).ToLower();
+    // Two independent GUIDs of entropy. The nonce is what a request presents to
+    // prove it meant THIS editor, so it must not be derivable from the session
+    // id, which is published in every response and in the manifest.
+    SessionNonce = (FGuid::NewGuid().ToString(EGuidFormats::Digits)
+        + FGuid::NewGuid().ToString(EGuidFormats::Digits)).ToLower();
+    EditorProcessId = FPlatformProcess::GetCurrentProcessId();
+    ProcessStartTimeUtc = GetProcessStartTimeUtc();
+    ProjectPath = FPaths::ConvertRelativePathToFull(FPaths::ProjectDir());
+    ProjectPath.RemoveFromEnd(TEXT("/"));
+    UProjectPath = FPaths::IsProjectFilePathSet()
+        ? FPaths::ConvertRelativePathToFull(FPaths::GetProjectFilePath())
+        : FString();
+    ReadInstalledManifest(BridgeCommit, InstalledManifestHash);
+    SessionCreatedAt = FDateTime::UtcNow().ToIso8601();
+
+    WriteSessionManifest(TEXT("running"));
+
+    // The heartbeat is what lets a client tell "this editor is busy compiling"
+    // from "this editor is gone". It is deliberately NOT the liveness test on
+    // its own: it runs on the game thread, so a long Blueprint compile stalls it
+    // while the editor is perfectly alive. Liveness is the PID; the heartbeat is
+    // context for the error message.
+    HeartbeatHandle = FTicker::GetCoreTicker().AddTicker(
+        FTickerDelegate::CreateUObject(this, &UMCPPuerTSBridgeService::TickHeartbeat), 5.0f);
+
+    UE_LOG(LogMCPPuerTSBridge, Display,
+        TEXT("MCPBridge session %s started: pid %u, project %s, pipe %s"),
+        *SessionId, EditorProcessId, *ProjectPath, *PipeName);
+}
+
+void UMCPPuerTSBridgeService::WriteSessionManifest(const TCHAR* ShutdownState) const
+{
+    TSharedPtr<FJsonObject> Manifest = MakeShared<FJsonObject>();
+    Manifest->SetNumberField(TEXT("schema_version"), SessionSchemaVersion);
+    Manifest->SetStringField(TEXT("session_id"), SessionId);
+    Manifest->SetStringField(TEXT("session_nonce"), SessionNonce);
+    Manifest->SetNumberField(TEXT("editor_pid"), static_cast<double>(EditorProcessId));
+    Manifest->SetStringField(TEXT("process_start_time"), ProcessStartTimeUtc);
+    Manifest->SetStringField(TEXT("project_path"), ProjectPath);
+    Manifest->SetStringField(TEXT("uproject_path"), UProjectPath);
+    Manifest->SetStringField(TEXT("pipe_name"), PipeName);
+    Manifest->SetStringField(TEXT("bridge_commit"), BridgeCommit);
+    Manifest->SetStringField(TEXT("installed_manifest_hash"), InstalledManifestHash);
+    Manifest->SetStringField(TEXT("created_at"), SessionCreatedAt);
+    Manifest->SetStringField(TEXT("last_heartbeat_at"), FDateTime::UtcNow().ToIso8601());
+    Manifest->SetStringField(TEXT("shutdown_state"), ShutdownState);
+
+    const FString Path = GetSessionManifestPath();
+    // Write beside the target and move over it. SaveStringToFile truncates first,
+    // so a client reading during a heartbeat would see an empty or partial file
+    // and, on a lenient parse, could fall through to some other discovery path.
+    // A move is the only step a reader can observe, and it is all-or-nothing.
+    const FString TempPath = FString::Printf(TEXT("%s.%u.tmp"), *Path, EditorProcessId);
+    if (!FFileHelper::SaveStringToFile(SerializeJson(Manifest), *TempPath,
+        FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM))
+    {
+        UE_LOG(LogMCPPuerTSBridge, Warning, TEXT("Could not stage the session manifest at %s"), *TempPath);
+        return;
+    }
+    if (!IFileManager::Get().Move(*Path, *TempPath, /*bReplace=*/true, /*bEvenIfReadOnly=*/true))
+    {
+        UE_LOG(LogMCPPuerTSBridge, Warning, TEXT("Could not publish the session manifest at %s"), *Path);
+        IFileManager::Get().Delete(*TempPath, false, true, true);
+    }
+}
+
+bool UMCPPuerTSBridgeService::TickHeartbeat(float /*DeltaSeconds*/)
+{
+    WriteSessionManifest(TEXT("running"));
+    return true;
+}
+
 void UMCPPuerTSBridgeService::Shutdown()
 {
     bRuntimeReady = false;
     RuntimeToolCount = 0;
     const bool bHadActiveCommand = !ActiveCommandId.IsEmpty();
     EndActiveCommand();
+
+    if (HeartbeatHandle.IsValid())
+    {
+        FTicker::GetCoreTicker().RemoveTicker(HeartbeatHandle);
+        HeartbeatHandle.Reset();
+    }
+    // Mark the session shut down, then remove it. The intermediate write is not
+    // ceremony: if the delete fails (a client holding the file open, a locked
+    // directory) the manifest that survives says "shut_down" rather than
+    // advertising a dead editor as live. Both paths are under this project's own
+    // Saved directory, so retracting touches only this editor's advertisement
+    // and another editor's session is untouched.
+    if (!SessionId.IsEmpty())
+    {
+        WriteSessionManifest(TEXT("shut_down"));
+        const FString SessionPath = GetSessionManifestPath();
+        const bool bDeleted = IFileManager::Get().Delete(*SessionPath, false, false, true);
+        UE_LOG(LogMCPPuerTSBridge, Display,
+            TEXT("MCPBridge session %s ended: manifest %s"),
+            *SessionId, bDeleted ? TEXT("retracted") : TEXT("marked shut_down but NOT deleted"));
+    }
 
     // Retract the advertisement Initialize wrote. Without this the file outlives the
     // editor, and the next client to read the project root is handed the pipe name of
@@ -266,6 +434,7 @@ FString UMCPPuerTSBridgeService::AcceptCommand(const FString& RequestJson)
     FString CommandId;
     FString ToolName;
     FString SuppliedToken;
+    FString SuppliedNonce;
     const TSharedPtr<FJsonObject>* Params = nullptr;
     if (!FJsonSerializer::Deserialize(Reader, Request) || !Request.IsValid())
     {
@@ -286,6 +455,40 @@ FString UMCPPuerTSBridgeService::AcceptCommand(const FString& RequestJson)
     else if (!Request->TryGetStringField(TEXT("auth"), SuppliedToken) || SuppliedToken != BearerToken)
     {
         Error = TEXT("A valid local bearer token is required.");
+    }
+    // Session addressing, checked here and not in the script layer because this
+    // is the safety boundary and because a request that reached the wrong editor
+    // must be refused before anything runs, not after. The token proves the
+    // caller is allowed to talk to an editor; the nonce proves it meant THIS one.
+    // With two editors open, every project has its own token, so the token alone
+    // would already reject a cross-connection - but only by accident of key
+    // material, and a shared or copied token would silently permit it.
+    else if (!Request->TryGetStringField(TEXT("session_nonce"), SuppliedNonce) || SuppliedNonce.IsEmpty())
+    {
+        Error = FString::Printf(
+            TEXT("session_nonce is required. This editor is session %s (pid %u, project %s); ")
+            TEXT("read Saved/MCPPuerTSBridge/session.json in that project and send its session_nonce."),
+            *SessionId, EditorProcessId, *ProjectPath);
+    }
+    else if (SuppliedNonce != SessionNonce)
+    {
+        Error = FString::Printf(
+            TEXT("session_nonce does not match this editor. The request was addressed to a ")
+            TEXT("different or previous session; this editor is session %s (pid %u, project %s). ")
+            TEXT("Re-read Saved/MCPPuerTSBridge/session.json: a nonce is regenerated on every start, ")
+            TEXT("so a stale one means the editor restarted, not that the caller is untrusted."),
+            *SessionId, EditorProcessId, *ProjectPath);
+    }
+    else if (Request->HasField(TEXT("expect_session_id")))
+    {
+        FString ExpectedSessionId;
+        Request->TryGetStringField(TEXT("expect_session_id"), ExpectedSessionId);
+        if (!ExpectedSessionId.IsEmpty() && ExpectedSessionId != SessionId)
+        {
+            Error = FString::Printf(
+                TEXT("expect_session_id %s does not match this editor's session %s (pid %u, project %s)."),
+                *ExpectedSessionId, *SessionId, EditorProcessId, *ProjectPath);
+        }
     }
 
     else if (GEditor != nullptr
@@ -1087,6 +1290,8 @@ FString UMCPPuerTSBridgeService::GetRecentLogs(int32 MaximumLines) const
 
 bool UMCPPuerTSBridgeService::AreShellCommandsAllowed() const { return bAllowShellCommands; }
 FString UMCPPuerTSBridgeService::GetPipeName() const { return PipeName; }
+FString UMCPPuerTSBridgeService::GetSessionId() const { return SessionId; }
+FString UMCPPuerTSBridgeService::GetSessionNonce() const { return SessionNonce; }
 FString UMCPPuerTSBridgeService::GetBearerToken() const { return BearerToken; }
 int32 UMCPPuerTSBridgeService::GetMaximumRequestBytes() const { return MaximumRequestBytes; }
 int32 UMCPPuerTSBridgeService::GetRequestTimeoutMilliseconds() const { return RequestTimeoutMilliseconds; }
@@ -1110,6 +1315,21 @@ TSharedPtr<FJsonObject> UMCPPuerTSBridgeService::BuildBaseResponse(bool bSuccess
     Response->SetBoolField(TEXT("is_game_thread"), IsInGameThread());
     Response->SetNumberField(TEXT("thread_id"), static_cast<double>(FPlatformTLS::GetCurrentThreadId()));
     Response->SetNumberField(TEXT("native_duration_ms"), 0.0);
+
+    // Identity on EVERY response, including rejections. This is the single place
+    // every response passes through, which is the point: a caller must be able to
+    // tell which editor answered without having to have asked nicely, and an
+    // error response is exactly when that question matters most.
+    TSharedPtr<FJsonObject> Session = MakeShared<FJsonObject>();
+    Session->SetStringField(TEXT("session_id"), SessionId);
+    Session->SetNumberField(TEXT("editor_pid"), static_cast<double>(EditorProcessId));
+    Session->SetStringField(TEXT("process_start_time"), ProcessStartTimeUtc);
+    Session->SetStringField(TEXT("project_path"), ProjectPath);
+    Session->SetStringField(TEXT("uproject_path"), UProjectPath);
+    Session->SetStringField(TEXT("pipe_name"), PipeName);
+    // The nonce is deliberately absent: it is a credential the client already
+    // holds, and echoing it would hand it to anything that got a response.
+    Response->SetObjectField(TEXT("session"), Session);
     return Response;
 }
 

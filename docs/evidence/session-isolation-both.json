@@ -1,0 +1,53 @@
+{
+  "phase": "both",
+  "cases": {
+    "advertisements": {
+      "a": {
+        "session_id": "4fec7cae-425e-df99-a232-218fa07cea34",
+        "editor_pid": 35340,
+        "pipe_name": "\\\\.\\pipe\\UE427PuerTSMCP_BridgeInstallTest_eb10ef4f",
+        "project_path": "D:/Unreal Projects/BridgeInstallTest"
+      },
+      "b": {
+        "session_id": "1ad46c50-4702-36fb-6b65-de89c09e4a47",
+        "editor_pid": 38212,
+        "pipe_name": "\\\\.\\pipe\\UE427PuerTSMCP_UE427PuerTSMCP_81d778e7",
+        "project_path": "D:/Unreal Projects/MASTER_PROJECT/SF_Repository/Sinfeld_240301/tests/UE427PuerTSMCP"
+      }
+    },
+    "concurrent_diagnostics": {
+      "a": {
+        "session_id": "4fec7cae-425e-df99-a232-218fa07cea34",
+        "editor_pid": 35340,
+        "process_start_time": "0426-08-02T18:35:53.074Z",
+        "project_path": "D:/Unreal Projects/BridgeInstallTest",
+        "uproject_path": "D:/Unreal Projects/BridgeInstallTest/BridgeInstallTest.uproject",
+        "pipe_name": "\\\\.\\pipe\\UE427PuerTSMCP_BridgeInstallTest_eb10ef4f"
+      },
+      "b": {
+        "session_id": "1ad46c50-4702-36fb-6b65-de89c09e4a47",
+        "editor_pid": 38212,
+        "process_start_time": "0426-08-02T18:36:13.138Z",
+        "project_path": "D:/Unreal Projects/MASTER_PROJECT/SF_Repository/Sinfeld_240301/tests/UE427PuerTSMCP",
+        "uproject_path": "D:/Unreal Projects/MASTER_PROJECT/SF_Repository/Sinfeld_240301/tests/UE427PuerTSMCP/UE427PuerTSMCP.uproject",
+        "pipe_name": "\\\\.\\pipe\\UE427PuerTSMCP_UE427PuerTSMCP_81d778e7"
+      }
+    },
+    "probe_isolation": {
+      "probe_a": "MCPIsolationProbe_A_35340_38212",
+      "probe_b": "MCPIsolationProbe_B_35340_38212",
+      "a_actor_count": 14,
+      "b_actor_count": 14
+    },
+    "forged_nonce": {
+      "refused": true,
+      "client_code": "session_identity_mismatch",
+      "editor_refusal": "session_nonce does not match this editor. The request was addressed to a different or previous session; this editor is session 4fec7cae-425e-df99-a232-218fa07cea34 (pid 35340, project D:/Unreal Projects/BridgeInstallTest). Re-read Saved/MCPPuerTSBridge/session.json: a nonce is regenerated on every start, so a stale one means the editor restarted, not that the caller is untrusted."
+    },
+    "stale_advertisement": {
+      "refused": true,
+      "client_code": "session_stale",
+      "detail": "[\"The session manifest at C:\\\\Users\\\\austi\\\\AppData\\\\Local\\\\Temp\\\\mcp-stale-session-NnqKiC\\\\Saved\\\\MCPPuerTSBridge\\\\session.json names pid 2147483646, which is not running. The editor died without retracting its advertisement. Last heartbeat 2026-08-02T18:37:58.873Z.\"]"
+    }
+  }
+}

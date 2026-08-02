@@ -16,7 +16,18 @@ import {
 import { zodToJsonSchema } from "zod-to-json-schema";
 
 import { UnrealClient } from "./unreal-client.js";
-import { PuerTSClient, resolvePipeName } from "./puerts-client.js";
+import { PuerTSClient, resolveSession, SessionError } from "./puerts-client.js";
+
+/** One line describing which editor this server would address right now. */
+async function describeSession(): Promise<string> {
+  try {
+    const session = await resolveSession();
+    return `${session.session_id} pid ${session.editor_pid} project ${session.project_path} pipe ${session.pipe_name}`;
+  } catch (error: unknown) {
+    if (error instanceof SessionError) return `none (${error.code})`;
+    return `none (${String(error)})`;
+  }
+}
 import { OperationHistory } from "./history.js";
 import { createSystemTools } from "./tools/system.js";
 import { createProjectTools } from "./tools/project.js";
@@ -252,7 +263,13 @@ async function main(): Promise<void> {
   if (legacyClient !== undefined) {
     console.error(`[Unreal MCP Bridge] Legacy listener endpoint: ${legacyClient.endpoint}`);
   }
-  console.error(`[Unreal MCP Bridge] PuerTS pipe: ${await resolvePipeName()}`);
+  // A startup banner, not a precondition. The server has to come up before any
+  // editor does - a client launches it at session start - so "no editor session
+  // advertised" is the normal state here, not a fatal error. The refusal belongs
+  // on the call, where there is a request that would otherwise go somewhere
+  // unintended; refusing to start would just make the bridge unusable until an
+  // editor happens to be open.
+  console.error(`[Unreal MCP Bridge] PuerTS session: ${await describeSession()}`);
   console.error(`[Unreal MCP Bridge] Tools: ${allTools.map((t) => t.name).join(", ")}`);
 }
 

@@ -108,6 +108,71 @@ maintains this file; Phase L consumes it.
    the cause. Reading the evidence that already existed beat testing any of
    them.
 
+0l. **FIXED 2026-08-02. Client discovery ended in a fallback, so "I do not know
+   which editor" and "use whichever editor owns the default pipe" were the same
+   code path.** `resolvePipeName` finished with
+   `return "\\\\.\\pipe\\UE427PuerTSMCP"`. A missing or stale `pipe.txt` did not
+   fail; it silently sent every request to whatever owned the compiled-in
+   default name. With one editor open that reads as a convenience. With two it
+   is a command authoring assets in a project nobody asked it to touch, and
+   reporting success.
+
+   `pipe.txt` could not have fixed it either. It carried a pipe name and
+   nothing else, which is enough to reach AN editor and says nothing about
+   WHICH one answered.
+
+   Replaced by `Saved/MCPPuerTSBridge/session.json`, schema version 1, written
+   by staging a temp file and moving it over the target so a reader can never
+   observe a partial manifest. It carries the session id, a session nonce, the
+   editor PID, the OS process creation time, project and uproject paths, the
+   pipe name, the bridge commit and install-manifest hash, creation time, a
+   5-second heartbeat and a shutdown state.
+
+   The two halves are separate on purpose:
+
+   - The **nonce** travels with every request and `AcceptCommand` refuses a
+     mismatch, at the C++ safety boundary, before anything runs. It is
+     regenerated on every editor start, so a client holding a previous
+     session's manifest is refused rather than silently retargeted.
+   - The **identity stamp** rides on every response, including rejections,
+     from `BuildBaseResponse`. The client compares it to what it addressed and
+     refuses the reply on a mismatch. Both directions are needed: the nonce
+     stops a request reaching the wrong editor, the stamp stops an answer
+     arriving from one.
+
+   PID alone cannot establish liveness, because Windows reuses process ids, so
+   the manifest records the OS process creation time from `GetProcessTimes` and
+   the live editor reports its own. The heartbeat is deliberately NOT the
+   liveness test: it runs on the game thread, so a long Blueprint compile stalls
+   it while the editor is perfectly alive. Liveness is the PID; the heartbeat is
+   context for the error.
+
+   Every refusal is a structured code, surfaced as `session_error_code` on the
+   failure envelope so a caller branches on it instead of matching English:
+   `session_missing`, `session_unreadable`, `session_schema_unsupported`,
+   `session_shut_down`, `session_stale`, `session_not_selected`,
+   `session_project_mismatch`, `session_identity_absent`,
+   `session_identity_mismatch`.
+
+   Proven live with two UE4.27 editors open at once, `BridgeInstallTest` and
+   `Tests\UE427PuerTSMCP`, in `Scripts/session-isolation-acceptance.mjs` across
+   four phases. Distinct ids, pids, pipes, nonces and projects; concurrent
+   diagnostics from different processes; 12 interleaved read-only requests with
+   zero crossed replies; a probe actor spawned in each world absent from the
+   other; a forged nonce refused BY THE EDITOR in its own words while the client
+   independently refused the reply; a stale advertisement naming a dead pid
+   refused before connecting; closing A leaving B serving while A is refused
+   with `session_missing` and specifically NOT falling through to B; a restarted
+   A issuing a new session id for the same project, with a client pinned to the
+   old id refused; and no advertisement surviving either shutdown. `smoke:inspect`
+   and `smoke:bt` were run against explicitly selected targets with both editors
+   up and reached the right one. Evidence:
+   `docs/evidence/session-isolation-{both,a-closed,a-restarted,none}.json`.
+
+   Worth keeping: the acceptance failed twice on its own assertions before it
+   passed, both times because the behaviour was right and the assertion was
+   reading prose instead of a code. That is what produced `session_error_code`.
+
 0k. **FIXED 2026-08-02 by deferral, after the restoration approach was ruled
    out by an editor crash.** The fix is not to undo the destruction, it is not
    to destroy: `BuildBlueprintFromJSONWithReport` no longer clears the existing
@@ -1388,7 +1453,9 @@ causes, one per direction:
 ## Untested
 
 Map/set/FText/FName reads; sky_shader_create rerun behavior; find_assets
-path/name filters; undo stack depth; two-editor pipe isolation. Overlap against
+path/name filters; undo stack depth. Two-editor pipe isolation is no longer on
+this list: it was tested on 2026-08-02 with both editors open and is finding 0l.
+Overlap against
 a player pawn (nothing in the default game mode moves on its own, and there is
 no input-simulation tool in the native catalog, so the only self-propelled
 overlap source proven so far is a JSON-authored physics body).

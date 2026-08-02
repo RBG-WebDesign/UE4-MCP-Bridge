@@ -372,6 +372,16 @@ The server ships this instruction to any project it connects to, via
 ## Architecture rules
 
 - The MCP server never imports Unreal modules. Editor operations use the authenticated named-pipe client.
+- The client addresses one editor, by session, and never falls back. Each editor
+  publishes `Saved/MCPPuerTSBridge/session.json` (session id, nonce, PID, process
+  creation time, project path, pipe name, heartbeat, shutdown state), written by
+  moving a staged file into place. A request carries the nonce and the editor
+  refuses a mismatch; every response carries the editor's identity and the client
+  refuses a reply that came from somewhere else. No advertised session means a
+  structured refusal (`session_error_code`), never a guessed pipe name: with two
+  editors open, guessing means authoring assets in the wrong project and
+  reporting success. `MCP_UNREAL_PROJECT_ROOT` selects the target;
+  `MCP_PUERTS_SESSION_ID` pins one exactly.
 - PuerTS executes approved TypeScript in UE4 and delegates privileged operations to the native C++ safety boundary.
 - Every tool that modifies editor state is wrapped in a UE4 transaction.
 - Every actor manipulation tool supports the `validate` parameter.

@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type { PuerTSClient } from "../puerts-client.js";
+import { SessionError } from "../puerts-client.js";
 import type { ToolDefinition } from "../types.js";
 
 const target = { actor: z.string().optional(), object_path: z.string().optional() };
@@ -646,7 +647,17 @@ export async function executeNativeCommand(
       commandTimeouts[spec.name],
     ) as unknown as Record<string, unknown>;
   } catch (error: unknown) {
-    return nativeFailureEnvelope([error instanceof Error ? error.message : String(error)]);
+    const envelope = nativeFailureEnvelope([error instanceof Error ? error.message : String(error)]);
+    // A refusal to address an editor is not the same kind of failure as a
+    // command that ran and failed, and a caller has to be able to tell them
+    // apart without pattern-matching English. The code says which check
+    // refused; the detail carries the editor's own words when the editor was
+    // the one that refused, which a prose message would otherwise discard.
+    if (error instanceof SessionError) {
+      envelope.session_error_code = error.code;
+      envelope.session_error_detail = error.detail;
+    }
+    return envelope;
   }
 }
 

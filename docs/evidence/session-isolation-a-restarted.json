@@ -1,0 +1,9 @@
+{
+  "phase": "a-restarted",
+  "cases": {
+    "a_restarted": {
+      "previous_session_id": "4fec7cae-425e-df99-a232-218fa07cea34",
+      "new_session_id": "51ee9470-405a-694d-1973-1584b2744511"
+    }
+  }
+}

@@ -10,6 +10,22 @@ import {
   decodeStructuredValue,
 } from "../src/tools/puerts.js";
 
+import {
+  advertiseSession as makeSession,
+  TEST_SESSION_ID,
+  TEST_SESSION_NONCE,
+} from "./session-fixture.js";
+
+/** The identity every mock reply stamps, kept in a module-level binding so each
+    suite's server closure sees the session that suite advertised. */
+let RESPONSE_SESSION: Record<string, unknown> = {};
+
+async function advertiseSession(pipeName: string): Promise<string> {
+  const fixture = await makeSession(pipeName);
+  RESPONSE_SESSION = fixture.responseSession;
+  return fixture.projectRoot;
+}
+
 function assert(condition: boolean, message: string): void {
   if (!condition) throw new Error(message);
 }
@@ -24,6 +40,7 @@ async function main(): Promise<void> {
   await writeFile(tokenPath, "test-token", "utf8");
   process.env.MCP_PUERTS_TOKEN_PATH = tokenPath;
   process.env.MCP_PUERTS_PIPE = pipeName;
+  await advertiseSession(pipeName);
 
   let requestCount = 0;
   const server = createServer((socket) => socket.once("data", (data: Buffer) => {
@@ -36,6 +53,7 @@ async function main(): Promise<void> {
       return;
     }
     socket.end(JSON.stringify({
+      session: RESPONSE_SESSION,
       success: true,
       message: "Actors found.",
       data: { count: 0 },
@@ -136,12 +154,14 @@ async function marshalingSuite(): Promise<void> {
   await writeFile(tokenPath, "test-token", "utf8");
   process.env.MCP_PUERTS_TOKEN_PATH = tokenPath;
   process.env.MCP_PUERTS_PIPE = pipeName;
+  await advertiseSession(pipeName);
 
   const received: Record<string, unknown>[] = [];
   const server = createServer((socket) => socket.once("data", (data: Buffer) => {
     const request = JSON.parse(data.toString("utf8")) as { params?: Record<string, unknown> };
     received.push(request.params ?? {});
     socket.end(JSON.stringify({
+      session: RESPONSE_SESSION,
       success: true,
       message: "Property changed.",
       data: { property: "RelativeLocation", value: { x: 10, y: 20, z: 112 } },
@@ -235,6 +255,7 @@ async function blueprintBuildSuite(): Promise<void> {
   await writeFile(tokenPath, "test-token", "utf8");
   process.env.MCP_PUERTS_TOKEN_PATH = tokenPath;
   process.env.MCP_PUERTS_PIPE = pipeName;
+  await advertiseSession(pipeName);
 
   const received: Record<string, unknown>[] = [];
   const server = createServer((socket) => socket.once("data", (data: Buffer) => {
@@ -245,6 +266,7 @@ async function blueprintBuildSuite(): Promise<void> {
     };
     received.push({ ...(request.params ?? {}), __tool: request.tool, __timeout: request.timeout_ms });
     socket.end(JSON.stringify({
+      session: RESPONSE_SESSION,
       success: true,
       message: "Blueprint created.",
       data: { asset_path: "/Game/MCPGenerated/BP_ProbeDoor", created: true, compile_status: "UpToDate" },
@@ -398,6 +420,7 @@ async function widgetBuildSuite(): Promise<void> {
   await writeFile(tokenPath, "test-token", "utf8");
   process.env.MCP_PUERTS_TOKEN_PATH = tokenPath;
   process.env.MCP_PUERTS_PIPE = pipeName;
+  await advertiseSession(pipeName);
 
   const received: Record<string, unknown>[] = [];
   const server = createServer((socket) => socket.once("data", (data: Buffer) => {
@@ -408,6 +431,7 @@ async function widgetBuildSuite(): Promise<void> {
     };
     received.push({ ...(request.params ?? {}), __tool: request.tool, __timeout: request.timeout_ms });
     socket.end(JSON.stringify({
+      session: RESPONSE_SESSION,
       success: true,
       message: "Widget Blueprint created.",
       data: { asset_path: "/Game/MCPGenerated/WBP_Probe", created: true, compile_status: "UpToDate" },
@@ -545,6 +569,7 @@ async function connectionContractSuite(): Promise<void> {
   await writeFile(tokenPath, "test-token", "utf8");
   process.env.MCP_PUERTS_TOKEN_PATH = tokenPath;
   process.env.MCP_PUERTS_PIPE = pipeName;
+  await advertiseSession(pipeName);
 
   // The shortfall envelope the native command produces: two of the four
   // requested connections were dropped against a pure node, so the build
@@ -555,6 +580,7 @@ async function connectionContractSuite(): Promise<void> {
   ];
   const server = createServer((socket) => socket.once("data", () => {
     socket.end(JSON.stringify({
+      session: RESPONSE_SESSION,
       success: false,
       message: "Blueprint build reported errors.",
       data: {
@@ -665,12 +691,14 @@ async function nonActorParentSuite(): Promise<void> {
   await writeFile(tokenPath, "test-token", "utf8");
   process.env.MCP_PUERTS_TOKEN_PATH = tokenPath;
   process.env.MCP_PUERTS_PIPE = pipeName;
+  await advertiseSession(pipeName);
 
   const received: Record<string, unknown>[] = [];
   const server = createServer((socket) => socket.once("data", (data: Buffer) => {
     const request = JSON.parse(data.toString("utf8")) as { params?: Record<string, unknown> };
     received.push(request.params ?? {});
     socket.end(JSON.stringify({
+      session: RESPONSE_SESSION,
       success: true,
       message: "Blueprint created.",
       data: {
@@ -793,6 +821,7 @@ async function graphInspectSuite(): Promise<void> {
   await writeFile(tokenPath, "test-token", "utf8");
   process.env.MCP_PUERTS_TOKEN_PATH = tokenPath;
   process.env.MCP_PUERTS_PIPE = pipeName;
+  await advertiseSession(pipeName);
 
   const received: Record<string, unknown>[] = [];
   const server = createServer((socket) => socket.once("data", (data: Buffer) => {
@@ -803,6 +832,7 @@ async function graphInspectSuite(): Promise<void> {
     };
     received.push({ ...(request.params ?? {}), __tool: request.tool, __timeout: request.timeout_ms });
     socket.end(JSON.stringify({
+      session: RESPONSE_SESSION,
       success: true,
       message: "Blueprint inspected.",
       data: {
@@ -891,18 +921,48 @@ async function discoverySuite(): Promise<void> {
   await mkdir(bridgeDir, { recursive: true });
   const pipeName = `\\\\.\\pipe\\ue4-puerts-discovery-${process.pid}-${Date.now()}`;
   await writeFile(join(bridgeDir, "token.txt"), "discovered-token", "utf8");
-  // Trailing newline on purpose: the editor writes the name with SaveStringToFile
-  // and the client must trim what it reads.
-  await writeFile(join(bridgeDir, "pipe.txt"), `${pipeName}\n`, "utf8");
+  // pipe.txt is still written by the editor and is deliberately NOT sufficient
+  // any more: it names a pipe without saying which editor owns it. It is seeded
+  // here with the WRONG name on purpose, so this suite fails loudly if the client
+  // ever falls back to it instead of resolving the session manifest.
+  await writeFile(join(bridgeDir, "pipe.txt"), "\\\\.\\pipe\\wrong-editor\n", "utf8");
+  const session = {
+    schema_version: 1,
+    session_id: TEST_SESSION_ID,
+    session_nonce: TEST_SESSION_NONCE,
+    editor_pid: process.pid,
+    process_start_time: "2026-08-02T00:00:00.000Z",
+    project_path: projectRoot,
+    uproject_path: join(projectRoot, "Discovery.uproject"),
+    pipe_name: pipeName,
+    bridge_commit: "0000000",
+    installed_manifest_hash: "0".repeat(40),
+    created_at: "2026-08-02T00:00:00.000Z",
+    last_heartbeat_at: new Date().toISOString(),
+    shutdown_state: "running",
+  };
+  await writeFile(join(bridgeDir, "session.json"), JSON.stringify(session), "utf8");
+  RESPONSE_SESSION = {
+    session_id: TEST_SESSION_ID,
+    editor_pid: process.pid,
+    process_start_time: session.process_start_time,
+    project_path: projectRoot,
+    uproject_path: session.uproject_path,
+    pipe_name: pipeName,
+  };
   delete process.env.MCP_PUERTS_PIPE;
   delete process.env.MCP_PUERTS_TOKEN_PATH;
   delete process.env.MCP_PUERTS_TOKEN;
   process.env.MCP_UNREAL_PROJECT_ROOT = projectRoot;
 
   const server = createServer((socket) => socket.once("data", (data: Buffer) => {
-    const request = JSON.parse(data.toString("utf8")) as { auth?: string };
+    const request = JSON.parse(data.toString("utf8")) as
+      { auth?: string; session_nonce?: string; expect_session_id?: string };
     assert(request.auth === "discovered-token", "the token was not discovered from the project root");
+    assert(request.session_nonce === TEST_SESSION_NONCE, "the session nonce was not sent with the request");
+    assert(request.expect_session_id === TEST_SESSION_ID, "the addressed session id was not sent with the request");
     socket.end(JSON.stringify({
+      session: RESPONSE_SESSION,
       success: true,
       message: "Actors found.",
       data: { count: 0 },
@@ -921,7 +981,7 @@ async function discoverySuite(): Promise<void> {
     });
     const response = await new PuerTSClient().call("find_actors", {});
     assert(response.success, "a call with discovery-resolved pipe and token failed");
-    console.log("  PASS  pipe and token discovery from MCP_UNREAL_PROJECT_ROOT alone");
+    console.log("  PASS  session, pipe and token discovery from MCP_UNREAL_PROJECT_ROOT alone");
   } finally {
     await new Promise<void>((resolve) => server.close(() => resolve()));
     await rm(projectRoot, { recursive: true, force: true });
@@ -938,6 +998,7 @@ async function behaviorTreeBuildSuite(): Promise<void> {
   await writeFile(tokenPath, "test-token", "utf8");
   process.env.MCP_PUERTS_TOKEN_PATH = tokenPath;
   process.env.MCP_PUERTS_PIPE = pipeName;
+  await advertiseSession(pipeName);
 
   const received: Record<string, unknown>[] = [];
   const server = createServer((socket) => socket.once("data", (data: Buffer) => {
@@ -948,6 +1009,7 @@ async function behaviorTreeBuildSuite(): Promise<void> {
     };
     received.push({ ...(request.params ?? {}), __tool: request.tool, __timeout: request.timeout_ms });
     socket.end(JSON.stringify({
+      session: RESPONSE_SESSION,
       success: true,
       message: "Behavior Tree created.",
       data: {
@@ -1033,6 +1095,7 @@ async function behaviorTreeInspectSuite(): Promise<void> {
   await writeFile(tokenPath, "test-token", "utf8");
   process.env.MCP_PUERTS_TOKEN_PATH = tokenPath;
   process.env.MCP_PUERTS_PIPE = pipeName;
+  await advertiseSession(pipeName);
 
   const received: Record<string, unknown>[] = [];
   const server = createServer((socket) => socket.once("data", (data: Buffer) => {
@@ -1043,6 +1106,7 @@ async function behaviorTreeInspectSuite(): Promise<void> {
     };
     received.push({ ...(request.params ?? {}), __tool: request.tool, __timeout: request.timeout_ms });
     socket.end(JSON.stringify({
+      session: RESPONSE_SESSION,
       success: true,
       message: "Behavior Tree inspected.",
       data: {
@@ -1130,6 +1194,7 @@ async function widgetInspectSuite(): Promise<void> {
   await writeFile(tokenPath, "test-token", "utf8");
   process.env.MCP_PUERTS_TOKEN_PATH = tokenPath;
   process.env.MCP_PUERTS_PIPE = pipeName;
+  await advertiseSession(pipeName);
 
   const received: Record<string, unknown>[] = [];
   const server = createServer((socket) => socket.once("data", (data: Buffer) => {
@@ -1138,6 +1203,7 @@ async function widgetInspectSuite(): Promise<void> {
     };
     received.push({ ...request.params, __tool: request.tool, __timeout: request.timeout_ms });
     socket.end(JSON.stringify({
+      session: RESPONSE_SESSION,
       success: true,
       message: "Widget Blueprint inspected.",
       data: {

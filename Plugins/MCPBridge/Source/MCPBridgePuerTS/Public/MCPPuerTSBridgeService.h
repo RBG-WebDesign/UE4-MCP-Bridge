@@ -307,6 +307,16 @@ public:
     UFUNCTION(BlueprintPure, Category="MCP PuerTS Bridge")
     FString GetBearerToken() const;
 
+    /** This editor's session identity. Two editors open at once must never be
+        interchangeable to a client, and the session id plus nonce are what makes
+        them distinguishable: the pipe name alone is a routing detail that a
+        misconfigured or stale client can still get wrong. */
+    UFUNCTION(BlueprintPure, Category="MCP PuerTS Bridge")
+    FString GetSessionId() const;
+
+    UFUNCTION(BlueprintPure, Category="MCP PuerTS Bridge")
+    FString GetSessionNonce() const;
+
     UFUNCTION(BlueprintPure, Category="MCP PuerTS Bridge")
     int32 GetMaximumRequestBytes() const;
 
@@ -327,6 +337,14 @@ private:
     bool IsToolMutating(const FString& ToolName) const;
     void EndActiveCommand();
 
+    /** Establish this editor's identity and write the first session manifest. */
+    void BeginSession();
+    /** Write Saved/MCPPuerTSBridge/session.json atomically: a client that reads
+        it mid-write must never see a half-written manifest, because the failure
+        that produces is a client silently talking to the wrong editor. */
+    void WriteSessionManifest(const TCHAR* ShutdownState) const;
+    bool TickHeartbeat(float DeltaSeconds);
+
     FString PipeName = TEXT("\\\\.\\pipe\\UE427PuerTSMCP");
     FString AllowedScriptRoot = TEXT("../Plugins/MCPBridge/Content/JavaScript");
     FString BootstrapModule = TEXT("bootstrap.js");
@@ -337,6 +355,22 @@ private:
     bool bRuntimeReady = false;
     int32 RuntimeToolCount = 0;
     FString BearerToken;
+
+    // Session identity. SessionNonce is the shared secret that proves a request
+    // was addressed to THIS editor rather than merely arriving at it; it is
+    // regenerated on every start, so a client holding a previous session's
+    // manifest is rejected instead of silently retargeted.
+    FString SessionId;
+    FString SessionNonce;
+    uint32 EditorProcessId = 0;
+    FString ProcessStartTimeUtc;
+    FString ProjectPath;
+    FString UProjectPath;
+    FString BridgeCommit;
+    FString InstalledManifestHash;
+    FString SessionCreatedAt;
+    FDelegateHandle HeartbeatHandle;
+
     TSet<FString> AllowedTools;
     TSet<FString> AllowedWritableProperties;
     TSet<FString> AllowedFunctions;

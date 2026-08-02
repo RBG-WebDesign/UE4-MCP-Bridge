@@ -14,6 +14,7 @@ import { createServer, type Server } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { PuerTSClient } from "../src/puerts-client.js";
+import { advertiseSession } from "./session-fixture.js";
 import {
   compatAliasTargets,
   createCompatTools,
@@ -64,12 +65,16 @@ async function main(): Promise<void> {
   await writeFile(tokenPath, "test-token", "utf8");
   process.env.MCP_PUERTS_TOKEN_PATH = tokenPath;
   process.env.MCP_PUERTS_PIPE = pipeName;
+  // The client resolves and verifies a session on every call, so the alias
+  // routing this suite measures cannot be reached without one.
+  const { responseSession } = await advertiseSession(pipeName);
 
   const seen: PipeRequest[] = [];
   const server: Server = createServer((socket) => socket.once("data", (data: Buffer) => {
     const request = JSON.parse(data.toString("utf8")) as PipeRequest;
     seen.push(request);
     socket.end(JSON.stringify({
+      session: responseSession,
       success: true,
       message: "Native command executed.",
       data: { echoed_command: request.command },
