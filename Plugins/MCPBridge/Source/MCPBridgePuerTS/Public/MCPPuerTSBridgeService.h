@@ -180,6 +180,25 @@ public:
         FString& OutResultJson,
         FString& OutError);
 
+    /** Read a Widget Blueprint back as machine-readable JSON: parent class,
+        the whole widget hierarchy in child order, each widget's class, variable
+        flag, slot (with CanvasPanel anchors, offsets, alignment and z-order)
+        and editable properties, named-slot content, exposed variables,
+        bindings, animations, and a canonical structure hash.
+
+        The independent read half of widget_build, so a desired spec can be
+        compared against saved state without trusting the builder that wrote
+        it. READ ONLY: not in IsToolMutating, so no transaction opens and the
+        response carries no transaction id; nothing here calls Modify or
+        MarkPackageDirty; and the package dirty flag is reported before and
+        after. UE4.27 UMG widgets carry no GUID, so node identity is DERIVED
+        from the traversal path and labeled identity_kind = "derived". */
+    UFUNCTION(BlueprintCallable, Category="MCP PuerTS Bridge")
+    bool InspectWidgetJson(
+        const FString& RequestJson,
+        FString& OutResultJson,
+        FString& OutError) const;
+
     /** Read a Blueprint back as machine-readable JSON: parent class, SCS
         components, member variables, interfaces, functions, the graph list,
         and one graph in the shape blueprint_build writes it.

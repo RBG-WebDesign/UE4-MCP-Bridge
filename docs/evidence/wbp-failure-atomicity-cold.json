@@ -1,5 +1,10 @@
 {
   "phase": "cold",
   "rejected": [],
-  "observations": {}
+  "observations": {
+    "cold_inspection": {
+      "structure_hash_sha1": "4C33675FF120DB53FB2E193B4B161AF3A1AD12A2",
+      "payload_bytes": 7044
+    }
+  }
 }

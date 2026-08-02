@@ -71,6 +71,9 @@ maintains this file; Phase L consumes it.
 | Limitation 32's variable accumulation, measured | The inspector put a number on it without touching anything: `BP_StaminaCharacter` carries **37 member variables** where the current spec declares 23. The extra 14 are the previous session's set, which a rerun cannot remove because the variable pass is additive. Recorded here because it is the first time the drift has been counted rather than described (2026-08-01) |
 | Property validate-before-mutate | Eight rejected specs against the unused path `/Game/MCPGenerated/BP_ProbeProps`, each naming component, property, and reason: unknown property name, unloadable asset path, asset of the wrong class, wrong class inside a material array (`element 0: ... is a StaticMesh, but the property holds a MaterialInterface`), a string where an array belongs, a string where a struct belongs, and an out-of-range or misspelled enumerator (`expects a EComponentMobility enumerator: Static=0, Stationary=1, Movable=2`). `find_assets` for that name returned `count 0` afterwards (2026-08-01) |
 
+| Independent Widget Blueprint inspection | `puerts_widget_inspect` closes the last builder/inspector asymmetry: `blueprint_build`/`graph_inspect` and `behavior_tree_build`/`behavior_tree_inspect` had one, widget did not, so its only read-back was the builder's own report. Against `/Game/MCPGenerated/WBP_AtomicityGood` (CanvasPanel root, TextBlock `Title` at position 40,24 size 320,40, ProgressBar `Bar`): payload **7044 bytes**, structure hash `4C33675FF120DB53FB2E193B4B161AF3A1AD12A2`. Read-only measured rather than asserted: `transaction_id ""`, `package_dirty_before`/`after` both false, `changed_assets` empty, and the asset's SHA-256 and mtime unchanged across the reads. Two reads produced identical canonical JSON and the same structure hash. The independent read agreed with the build's own report on widget count, root name and class, child order (`["Title","Bar"]` with `child_index` matching array order), and slot geometry read off `UCanvasPanelSlot::LayoutData` rather than echoed: offsets left 40, top 24, right 320, bottom 40, plus anchors, alignment and z-order. A rerun of the same spec produced the **same structure hash**, and after an editor restart the cold-loaded asset reproduced that hash, the same widget count, and a byte-identical file (2026-08-02) |
+| Widget inspection rejects cleanly | A missing path, a `/Script/UMG` path outside the two content roots, and a Blueprint asset passed to the widget inspector each return `success false`; the wrong-class case names it (`is a Blueprint, not a WidgetBlueprint`). Identity is `derived` like the BT inspector, because UE4.27 UMG widgets carry no GUID: a widget is addressed by `parent/childIndex:Class:Name`, so a rename or reorder is deliberately a different identity. Named-slot content is walked through `INamedSlotInterface`, which panel-child traversal cannot reach (2026-08-02) |
+
 ## Defects and limitations (Phase L queue)
 
 0. **Cast with a short target_class silently spawns no node, and the build
@@ -190,10 +193,7 @@ maintains this file; Phase L consumes it.
    passes vacuously; the fixture has to be shown to do the thing it claims to
    reject.
 
-   `widget_build` still has **no inspector**. `blueprint_build` /
-   `graph_inspect` and `behavior_tree_build` / `behavior_tree_inspect` both
-   have one, so widget is the odd one out and its read-back is the builder's
-   own report rather than an independent reader. That is the next gap.
+   `widget_build` gained its inspector on 2026-08-02; see the Working row below.
 
    **Original report** (2026-08-01, by the BT live acceptance). A failed
    `behavior_tree_build` on a fresh path correctly

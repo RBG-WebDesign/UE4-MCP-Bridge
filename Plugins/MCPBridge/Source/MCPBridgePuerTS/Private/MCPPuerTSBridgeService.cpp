@@ -130,7 +130,7 @@ bool UMCPPuerTSBridgeService::Initialize(FString& OutError)
             TEXT("blueprint_build"), TEXT("widget_build"), TEXT("behavior_tree_build"),
             // Read only. Deliberately absent from IsToolMutating below, so they
             // open no transaction and return no transaction id.
-            TEXT("graph_inspect"), TEXT("behavior_tree_inspect")
+            TEXT("graph_inspect"), TEXT("behavior_tree_inspect"), TEXT("widget_inspect")
         };
         for (const TCHAR* Value : Defaults) { AllowedTools.Add(Value); }
     }

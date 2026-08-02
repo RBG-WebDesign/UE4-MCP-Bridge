@@ -55,13 +55,14 @@ async function main(): Promise<void> {
     });
     const client = new PuerTSClient();
     const tools = createPuertsTools(client);
-    assert(tools.length === 22, "expected all 22 PuerTS tools");
+    assert(tools.length === 23, "expected all 23 PuerTS tools");
     assert(tools.some((tool) => tool.name === "puerts_behavior_tree_build"), "native Behavior Tree builder tool is missing");
     assert(tools.some((tool) => tool.name === "puerts_behavior_tree_inspect"), "native Behavior Tree inspector tool is missing");
     assert(tools.some((tool) => tool.name === "puerts_sky_shader_create"), "native sky shader tool is missing");
     assert(tools.some((tool) => tool.name === "puerts_blueprint_build"), "native Blueprint builder tool is missing");
     assert(tools.some((tool) => tool.name === "puerts_widget_build"), "native widget builder tool is missing");
     assert(tools.some((tool) => tool.name === "puerts_graph_inspect"), "native Blueprint inspector tool is missing");
+    assert(tools.some((tool) => tool.name === "puerts_widget_inspect"), "native widget inspector tool is missing");
     const response = await client.call("find_actors", {});
     assert(response.success && response.message === "Actors found.", "valid response was rejected");
     const actorTool = tools.find((tool) => tool.name === "puerts_find_actors");
@@ -1112,12 +1113,103 @@ async function behaviorTreeInspectSuite(): Promise<void> {
   }
 }
 
+/** puerts_widget_inspect is the read half of the widget builder. Same contract
+    promises as graph_inspect and behavior_tree_inspect: annotated read-only, no
+    transaction id, reads anywhere under /Game and /Engine, its own timeout
+    budget, and a strict schema that rejects authoring keys so a mutating spec
+    cannot be sent to a read. */
+async function widgetInspectSuite(): Promise<void> {
+  const { toolAnnotations } = await import("../src/annotations.js");
+  const inspectAnnotations = toolAnnotations.puerts_widget_inspect;
+  assert(inspectAnnotations !== undefined, "puerts_widget_inspect has no annotation");
+  assert(inspectAnnotations.readOnlyHint === true, "the widget inspector is not annotated read-only");
+
+  const directory = await mkdtemp(join(tmpdir(), "ue4-puerts-wbp-inspect-"));
+  const tokenPath = join(directory, "token.txt");
+  const pipeName = `\\\\.\\pipe\\ue4-puerts-wbp-inspect-${process.pid}-${Date.now()}`;
+  await writeFile(tokenPath, "test-token", "utf8");
+  process.env.MCP_PUERTS_TOKEN_PATH = tokenPath;
+  process.env.MCP_PUERTS_PIPE = pipeName;
+
+  const received: Record<string, unknown>[] = [];
+  const server = createServer((socket) => socket.once("data", (data: Buffer) => {
+    const request = JSON.parse(data.toString("utf8")) as {
+      tool?: string; params?: Record<string, unknown>; timeout_ms?: number;
+    };
+    received.push({ ...request.params, __tool: request.tool, __timeout: request.timeout_ms });
+    socket.end(JSON.stringify({
+      success: true,
+      message: "Widget Blueprint inspected.",
+      data: {
+        asset_path: "/Game/MCPGenerated/WBP_Probe",
+        identity_kind: "derived",
+        package_dirty_before: false,
+        package_dirty_after: false,
+        widget_count: 3,
+        structure_hash_sha1: "0".repeat(40),
+      },
+      changed_assets: [], changed_actors: [], warnings: [], errors: [],
+      log_output: [], transaction_id: "",
+    }) + "\n");
+  }));
+
+  try {
+    await new Promise<void>((resolve, reject) => {
+      server.once("error", reject);
+      server.listen(pipeName, resolve);
+    });
+    const tool = createPuertsTools(new PuerTSClient())
+      .find((entry) => entry.name === "puerts_widget_inspect");
+    assert(tool !== undefined, "puerts_widget_inspect is missing");
+
+    const read = await tool.handler({ asset_path: "/Game/MCPGenerated/WBP_Probe" });
+    const payload = JSON.parse(read.content[0]?.text ?? "null") as Record<string, unknown>;
+    assert(payload.success === true, "a valid widget inspection request was rejected");
+    assert(payload.transaction_id === "", "a read-only widget inspection returned a transaction id");
+    assert(
+      Array.isArray(payload.changed_assets) && (payload.changed_assets as unknown[]).length === 0,
+      "a widget read reported a changed asset",
+    );
+    const sent = received[0];
+    assert(sent?.__tool === "widget_inspect", "the runtime command name is wrong");
+    assert(
+      typeof sent?.__timeout === "number" && (sent.__timeout as number) > 5000,
+      "widget inspection did not get its own timeout budget",
+    );
+
+    const engineRead = await tool.handler({ asset_path: "/Engine/Some/WBP_Thing" });
+    assert(
+      JSON.parse(engineRead.content[0]?.text ?? "null").success === true,
+      "the widget inspector refused an /Engine path",
+    );
+
+    const missingPath = await tool.handler({});
+    assert(
+      JSON.parse(missingPath.content[0]?.text ?? "null").success === false,
+      "a widget inspection with no asset_path was accepted",
+    );
+    const authoringKey = await tool.handler({ asset_path: "/Game/X/WBP_Y", tree: { root: {} } });
+    assert(
+      JSON.parse(authoringKey.content[0]?.text ?? "null").success === false,
+      "the widget inspector accepted an authoring key",
+    );
+    assert(received.length === 2, "a rejected widget request still reached the pipe");
+    console.log("  PASS  read-only Widget Blueprint inspection contract");
+  } finally {
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+    await rm(directory, { recursive: true, force: true });
+    delete process.env.MCP_PUERTS_TOKEN_PATH;
+    delete process.env.MCP_PUERTS_PIPE;
+  }
+}
+
 main()
   .then(marshalingSuite)
   .then(blueprintBuildSuite)
   .then(behaviorTreeBuildSuite)
   .then(behaviorTreeInspectSuite)
   .then(widgetBuildSuite)
+  .then(widgetInspectSuite)
   .then(connectionContractSuite)
   .then(nonActorParentSuite)
   .then(graphInspectSuite)

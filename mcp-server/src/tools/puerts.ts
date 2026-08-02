@@ -452,6 +452,33 @@ const specs = [
         + "object path other tools hand back. Limited to /Game and /Engine.",
       ),
     }).strict()],
+  ["puerts_widget_inspect", "widget_inspect",
+    "Read an existing UE4.27 Widget Blueprint back as machine-readable JSON. "
+    + "The independent read half of puerts_widget_build, and READ ONLY: no transaction is "
+    + "opened, nothing is compiled or saved, and the package dirty flag is reported before "
+    + "and after the read (package_dirty_before / package_dirty_after) so the claim is "
+    + "checkable. Returns parent_class, generated_class_path, the root widget as a nested "
+    + "hierarchy with child_index order, and per widget: name, class, class_path, "
+    + "is_variable, editable properties (text values, visibility, enabled state and "
+    + "everything else reflection can express), and its slot. A CanvasPanelSlot reports "
+    + "anchors, offsets, alignment, z_order and auto_size, plus the position/size pair "
+    + "puerts_widget_build's own report uses so the two can be compared field for field. "
+    + "named_slots carries content held by INamedSlotInterface hosts, which is NOT "
+    + "reachable through panel children. Also returns exposed variables, bindings, "
+    + "animations, unsupported_fields for anything reflection could not express, and "
+    + "structure_hash_sha1 - a canonical hash of identity/class/name/variable-flag in "
+    + "traversal order, so two reads of an unchanged widget compare by hash and a text "
+    + "edit does not read as a reshape. Widget identity is DERIVED "
+    + "(identity_kind: \"derived\"): UE4.27 UMG widgets carry no GUIDs, so a widget is "
+    + "addressed by its traversal path (parent/childIndex:Class:Name); a renamed or "
+    + "reordered widget is a different identity on purpose. Reading is allowed anywhere "
+    + "under /Game and /Engine.",
+    z.object({
+      asset_path: z.string().describe(
+        "The Widget Blueprint, as a package path (\"/Game/MCPGenerated/WBP_HUD\") or the "
+        + "object path other tools hand back. Limited to /Game and /Engine.",
+      ),
+    }).strict()],
   ["puerts_physics_build", "physics_build", "Build a validated static-mesh rigid-body scene in one transaction.", z.object({ actors: z.array(physicsActor).min(1).max(200) }).strict()],
   ["puerts_physics_observe", "physics_observe", "Read rigid-body transforms and velocities from the editor or PIE world.", z.object({ actors: z.array(z.string()).max(200).optional() }).strict()],
   ["puerts_viewport_screenshot", "viewport_screenshot", "Fit requested actors and save a PNG of the active editor viewport.", z.object({ actors: z.array(z.string()).max(200).optional(), filename: z.string().optional() }).strict()],
@@ -532,6 +559,7 @@ const commandTimeouts: Readonly<Record<string, number>> = {
   puerts_widget_build: 30000,
   puerts_behavior_tree_build: 30000,
   puerts_behavior_tree_inspect: 15000,
+  puerts_widget_inspect: 15000,
   // Reading is cheaper than building, but a 200-node graph with include_pins
   // is a large serialization on the game thread and the 7 second default is
   // close enough to it to report a failure for work that succeeds.

@@ -1,0 +1,10 @@
+{
+  "payload_bytes": 7044,
+  "structure_hash_sha1": "4C33675FF120DB53FB2E193B4B161AF3A1AD12A2",
+  "canonical_json_sha256": "f234fb122e9656cdb86621a9ee0d92b9bf7ca0aae5e2989c9f090a83dd3114ef",
+  "widget_count": 3,
+  "panel_count": 1,
+  "parent_class": "/Script/UMG.UserWidget",
+  "unsupported_fields": [],
+  "file_sha256": "d9de34399da7041dc528e1ed89c58e39569295e292f43ce532bcb13f8c2c03cf"
+}

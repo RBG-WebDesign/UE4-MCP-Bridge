@@ -18,9 +18,23 @@
 //   --phase=record  rejected specs and a successful build in one session
 //   --phase=cold    after a restart, rejects absent and the good widget intact
 import { execSync, spawn } from "node:child_process";
-import { existsSync, mkdirSync, writeFileSync } from "node:fs";
+import { createHash } from "node:crypto";
+import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+
+/** Stable key order, so two payloads compare as text. */
+function canonicalize(value) {
+  if (Array.isArray(value)) return value.map(canonicalize);
+  if (value !== null && typeof value === "object") {
+    const out = {};
+    for (const key of Object.keys(value).sort()) out[key] = canonicalize(value[key]);
+    return out;
+  }
+  return value;
+}
+const jsonHash = (v) => createHash("sha256").update(JSON.stringify(canonicalize(v))).digest("hex");
+const fileSha = (p) => createHash("sha256").update(readFileSync(p)).digest("hex");
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const serverPath = join(root, "mcp-server", "dist", "index.js");
@@ -105,6 +119,23 @@ try {
     const good = await call("puerts_find_assets", { path: "/Game/MCPGenerated", name: "WBP_AtomicityGood", recursive: true, limit: 10 });
     assert((good.data?.assets ?? []).length === 1, "restart: the successful widget survives");
     assert(existsSync(contentFile(GOOD)), "restart: the successful widget file is on disk");
+
+    // (13) Cold inspection must reproduce the warm structural hash exactly.
+    const recorded = JSON.parse(readFileSync(join(root, "docs", "evidence", "widget-inspect-2026-08-02.json"), "utf8"));
+    const cold = await call("puerts_widget_inspect", { asset_path: GOOD });
+    assert(cold.success === true, "restart: the cold-loaded widget inspects");
+    assert(cold.transaction_id === "", "restart: cold inspection opened no transaction");
+    assert(cold.data?.package_dirty_after === false, "restart: cold inspection left the package clean");
+    assert(cold.data.structure_hash_sha1 === recorded.structure_hash_sha1,
+      "(13) cold inspection reproduces the warm structural hash");
+    assert(cold.data.widget_count === recorded.widget_count,
+      "(13) cold inspection reports the same widget count");
+    assert(fileSha(contentFile(GOOD)) === recorded.file_sha256,
+      "(13) the asset file is byte-identical to the warm run");
+    evidence.observations.cold_inspection = {
+      structure_hash_sha1: cold.data.structure_hash_sha1,
+      payload_bytes: JSON.stringify(cold.data).length,
+    };
   } else {
     const p4Before = p4Opened();
     assert(await registryCount("WBP_AtomicityProbe") === 0, "no failed widget in the Asset Registry to begin with");
@@ -152,11 +183,97 @@ try {
       assert((good.data.cleanup.removed_assets ?? []).length === 0, "the successful build removed nothing");
     }
 
-    // Convergence: the same spec twice must not create a second asset.
-    const again = await call("puerts_widget_build", { asset_path: GOOD, tree: { root: { type: "CanvasPanel", name: "Root", children: [{ type: "TextBlock", name: "Title" }, { type: "ProgressBar", name: "Bar" }] } } });
+    // ---- Independent inspection: the read half, never the builder's report ----
+    console.log("\n-- independent inspection");
+    const diskBefore = { sha: fileSha(contentFile(GOOD)), mtime: statSync(contentFile(GOOD)).mtimeMs };
+    const p4BeforeRead = p4Opened();
+
+    const first = await call("puerts_widget_inspect", { asset_path: GOOD });
+    assert(first.success === true, "the inspector reads the widget");
+    assert(first.transaction_id === "", "(1) inspection opened no transaction");
+    assert(first.data?.package_dirty_before === false && first.data?.package_dirty_after === false,
+      "(2) no package became dirty across the read");
+    assert(first.changed_assets.length === 0, "(3) the read reported no changed asset and no save");
+
+    const second = await call("puerts_widget_inspect", { asset_path: GOOD });
+    assert(jsonHash(first.data) === jsonHash(second.data),
+      "(6) two reads produce identical canonical JSON");
+    assert(first.data.structure_hash_sha1 === second.data.structure_hash_sha1,
+      "(6) two reads produce the same structure hash");
+
+    const diskAfter = { sha: fileSha(contentFile(GOOD)), mtime: statSync(contentFile(GOOD)).mtimeMs };
+    assert(diskBefore.sha === diskAfter.sha && diskBefore.mtime === diskAfter.mtime,
+      "(5) file hash and modification time are unchanged by reading");
+    const p4AfterRead = p4Opened();
+    if (p4BeforeRead !== null && p4AfterRead !== null) {
+      assert(p4BeforeRead === p4AfterRead, "(4) reading changed no source-control state");
+    }
+
+    // (7)(8) The build's report and the independent read must agree.
+    const treeRoot = first.data.root;
+    assert(treeRoot?.name === "Root" && treeRoot?.class === "CanvasPanel", "(8) root widget matches the request");
+    assert(first.data.widget_count === good.data.widget_count,
+      "(7) the inspector's widget count matches the build's own report");
+    const childNames = (treeRoot?.children ?? []).map((c) => c.name);
+    assert(JSON.stringify(childNames) === JSON.stringify(["Title", "Bar"]),
+      "(8) hierarchy and child order match the request");
+    assert((treeRoot?.children ?? []).every((c, i) => c.child_index === i),
+      "(8) child_index agrees with array order");
+
+    // (9) Slot properties, independently: the spec asked for position 40,24 and size 320,40.
+    const title = (treeRoot?.children ?? []).find((c) => c.name === "Title");
+    assert(title?.slot?.class === "CanvasPanelSlot", "(9) the child occupies a CanvasPanelSlot");
+    assert(title?.slot?.offsets?.left === 40 && title?.slot?.offsets?.top === 24,
+      "(9) slot offsets match the requested position");
+    assert(title?.slot?.offsets?.right === 320 && title?.slot?.offsets?.bottom === 40,
+      "(9) slot offsets match the requested size");
+    assert(title?.slot?.anchors !== undefined && title?.slot?.alignment !== undefined
+      && typeof title?.slot?.z_order === "number",
+      "(9) anchors, alignment and z-order are reported");
+    assert(typeof title?.properties?.Text === "object" || typeof title?.properties?.Text === "string",
+      "(12) the text value is present in structured output");
+
+    // (11) Structured failures.
+    const missing = await call("puerts_widget_inspect", { asset_path: "/Game/MCPGenerated/WBP_NoSuchThing" });
+    assert(missing.success === false, "(11) a missing asset path fails cleanly");
+    const wrongClass = await call("puerts_widget_inspect", { asset_path: "/Game/MCPGenerated/BP_AtomicityGood" });
+    assert(wrongClass.success === false
+      && JSON.stringify(wrongClass.errors).includes("not a WidgetBlueprint"),
+      "(11) a non-WidgetBlueprint asset fails with a typed error");
+    const outsideRoot = await call("puerts_widget_inspect", { asset_path: "/Script/UMG" });
+    assert(outsideRoot.success === false, "(11) a path outside /Game and /Engine is refused");
+
+    // (14) Payload size.
+    const payloadBytes = JSON.stringify(first.data).length;
+    console.log(`  INFO  inspection payload ${payloadBytes} bytes, structure hash ${first.data.structure_hash_sha1}`);
+
+    // (10) Convergence: the same spec twice must not create a second asset, and
+    // the inspected structure must be identical afterwards.
+    const again = await call("puerts_widget_build", { asset_path: GOOD, tree: { root: { type: "CanvasPanel", name: "Root", children: [{ type: "TextBlock", name: "Title", properties: { Text: "WBP_ATOMICITY" }, slot: { position: { x: 40, y: 24 }, size: { x: 320, y: 40 } } }, { type: "ProgressBar", name: "Bar", properties: { Percent: 0.5 } }] } } });
     assert(again.success === true, "the rerun succeeds");
     assert(again.data?.created === false, "the rerun updates rather than creating a second asset");
     assert(await registryCount("WBP_AtomicityGood") === 1, "still exactly one successful widget asset");
+    const afterRerun = await call("puerts_widget_inspect", { asset_path: GOOD });
+    assert(afterRerun.data.structure_hash_sha1 === first.data.structure_hash_sha1,
+      "(10) rerunning widget_build produces the same inspected structure");
+
+    evidence.observations.inspection = {
+      payload_bytes: payloadBytes,
+      structure_hash_sha1: first.data.structure_hash_sha1,
+      canonical_json_sha256: jsonHash(first.data),
+      widget_count: first.data.widget_count,
+      panel_count: first.data.panel_count,
+      parent_class: first.data.parent_class,
+      unsupported_fields: first.data.unsupported_fields,
+      // Read fresh, AFTER the rerun above: the rerun saves the asset again, so
+      // the hash taken before it would not describe the file the cold phase
+      // opens. Reading-does-not-write is asserted separately as check (5).
+      file_sha256: fileSha(contentFile(GOOD)),
+    };
+    // The cold phase compares against this.
+    mkdirSync(join(root, "docs", "evidence"), { recursive: true });
+    writeFileSync(join(root, "docs", "evidence", "widget-inspect-2026-08-02.json"),
+      JSON.stringify(evidence.observations.inspection, null, 2));
   }
 
   const evidenceDir = join(root, "docs", "evidence");

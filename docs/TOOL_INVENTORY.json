@@ -23,12 +23,12 @@
     "native_live_partial": "live acceptance passed, but part of the evidence is the builder own report because no independent reader exists yet",
     "legacy_untested": "no live editor proof of any kind; a non-null test_file covers only the mock listener"
   },
-  "tool_count": 206,
+  "tool_count": 207,
   "by_backend": {
     "legacy_http": 170,
     "native_pipe_alias": 12,
     "server_local": 2,
-    "native_pipe": 22
+    "native_pipe": 23
   },
   "tools": [
     {
@@ -6999,6 +6999,46 @@
       "migration_risk": "low",
       "capability_loss_risk": "low",
       "notes": "live proof is the stamina HUD session (WBP_StaminaHUD and probes saved in the test project); no scripted acceptance yet",
+      "verification": "live_verified"
+    },
+    {
+      "name": "puerts_widget_inspect",
+      "module": "mcp-server/src/tools/puerts.ts",
+      "backend": "native_pipe",
+      "migration_state": "native",
+      "target_replacement": null,
+      "description": "[PRIMARY NATIVE IPC] Read an existing UE4.27 Widget Blueprint back as machine-readable JSON. The independent read half of puerts_widget_build, and READ ONLY: no transaction is opened, nothing is compiled or saved, and the package dirty flag is reported before and after the read (package_dirty_before / package_dirty_after) so the claim is checkable. Returns parent_class, generated_class_path, the root widget as a nested hierarchy with child_index order, and per widget: name, class, class_path, is_variable, editable properties (text values, visibility, enabled state and everything else reflection can express), and its slot. A CanvasPanelSlot reports anchors, offsets, alignment, z_order and auto_size, plus the position/size pair puerts_widget_build's own report uses so the two can be compared field for field. named_slots carries content held by INamedSlotInterface hosts, which is NOT reachable through panel children. Also returns exposed variables, bindings, animations, unsupported_fields for anything reflection could not express, and structure_hash_sha1 - a canonical hash of identity/class/name/variable-flag in traversal order, so two reads of an unchanged widget compare by hash and a text edit does not read as a reshape. Widget identity is DERIVED (identity_kind: \"derived\"): UE4.27 UMG widgets carry no GUIDs, so a widget is addressed by its traversal path (parent/childIndex:Class:Name); a renamed or reordered widget is a different identity on purpose. Reading is allowed anywhere under /Game and /Engine.",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "asset_path": "string"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": "mcp-server/tests/puerts-tools.test.ts",
+      "capability_category": "ui",
+      "canonical_capability": "ui.widget_inspect",
+      "owner": "MCPBridgePuerTS service",
+      "lifecycle": "active",
+      "migration_action": "KEEP",
+      "replacement_tool": null,
+      "compatibility_alias": false,
+      "cpp_builder": "MCPPuerTSBridgeService",
+      "cpp_entry_point": "InspectWidgetJson",
+      "python_handler": null,
+      "live_evidence": [
+        "Scripts/wbp-failure-atomicity.mjs",
+        "docs/evidence/widget-inspect-2026-08-02.json"
+      ],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": "read half of widget_build; derived widget identity (UE4.27 UMG widgets have no GUIDs); reports CanvasPanelSlot anchors/offsets/alignment/z_order, named-slot content that panel-child traversal cannot reach, exposed variables, bindings and animations; read-only proven by package_dirty_before/after, unchanged file hash and mtime, and identical structure hash across two reads and across a restart",
       "verification": "live_verified"
     },
     {
