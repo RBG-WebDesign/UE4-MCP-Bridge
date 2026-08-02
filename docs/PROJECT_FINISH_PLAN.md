@@ -99,25 +99,33 @@ DISPROVEN (no git hooks, and no Claude hook that runs git). The remaining
 hypothesis is concurrent agents sharing one .git with a drifting cwd. It is
 unproven. Either demonstrate it or avoid it; do not assume it away.
 
-FIRST, finish lane E. Its branch lane/e-refront is at dcc2099, unmerged, and is
-the only lane result not yet integrated:
-1. Review the out-of-scope change on that branch to lane A's shipped
-   blueprint_graph_patch (MCPPuerTSBridgeBlueprint.cpp +33, runtime.ts +8, part
-   of registry.ts). Lane E did not author it, reverted it twice, and could not
-   stop it returning. Judge it as lane A's file. Keep or drop it deliberately.
-2. Its C++ compiled but never linked: LNK1104, an editor held the DLLs. Close
-   every editor, then run
-   node Scripts/bridge-install.mjs --sync --project "D:/Unreal Projects/BridgeInstallTest"
-   If UBT reports up-to-date after a failed link, delete the DLL and rebuild. A
-   stale DLL against current objects has bitten this session twice.
-3. Run Scripts/bp-member-patch-acceptance.mjs warm, restart the editor, run it
-   cold. It has never executed. Only if both are green, promote
-   puerts_blueprint_member_patch from "implemented" to "live_verified" in
-   docs/TOOL_CAPABILITY_METADATA.json and regenerate with
+FIRST, finish the live proof of puerts_blueprint_member_patch. Lane E IS merged
+(lane/e-refront is an ancestor of HEAD, catalog is 209 tools); only its proof is
+outstanding. Two live runs have happened, both red, and each found something
+real. Do not re-run blind - start from these:
+
+1. PRODUCT DEFECT, isolated and unfixed: rename_component is not convergent.
+   After a batch renames Lamp to Beacon, rerunning the same batch fails with
+   "'Beacon' is already taken by a different component". A rename whose source is
+   gone and whose target already exists is ALREADY SATISFIED; the satisfied-check
+   reads the existing target as a collision. This is the same shape as the link
+   bug lane A fixed: the predicate answers the pre-state question, not the
+   post-state one. The tool is annotated destructiveIdempotent, so today the
+   annotation claims something the code does not do. Fix IsOpSatisfied for
+   rename_component in MCPPuerTSBridgeBlueprintMember.cpp.
+2. UNKNOWN, do not guess: acceptance step (3) "the batch applies" still fails
+   after the fixture fix, and the cause was never isolated. It may or may not
+   share a root with the rename defect. Read the actual error from a fresh run
+   before theorising. Assuming a shared cause is the mistake this scoreboard
+   caught three times in one session.
+3. ALREADY FIXED, keep it: the acceptance now normalises before measuring,
+   renaming a leftover Beacon back to Lamp. blueprint_build converges only on
+   what its spec NAMES and remove_unlisted implements only the variables scope,
+   so a component left by an earlier run survives a rebuild and is named by
+   nothing.
+4. Then rerun warm, restart the editor, run cold, and only if both are green
+   promote member_patch to live_verified and regenerate with
    node Scripts/generate-tool-inventory.mjs --write
-4. Lane E found blueprint_node_set_enabled is blocked: it needs a
-   set_node_enabled op in PatchBlueprintGraphFromJSON, which update_node cannot
-   do because update_node writes pin defaults only.
 
 THEN wave three, sequentially, in this order:
 - The remaining 38 genuine REFRONT tools. docs/REFRONT_PLAN.md has a verdict per
