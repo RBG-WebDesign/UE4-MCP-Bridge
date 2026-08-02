@@ -14,7 +14,9 @@
 #include "JsonObjectConverter.h"
 #include "Kismet2/BlueprintEditorUtils.h"
 #include "Kismet2/KismetEditorUtilities.h"
+#include "MCPBridgeAssetRollback.h"
 #include "Misc/PackageName.h"
+#include "ScopedTransaction.h"
 #include "Modules/ModuleManager.h"
 #include "UObject/Package.h"
 #include "UObject/UnrealType.h"
@@ -707,6 +709,32 @@ bool UMCPPuerTSBridgeService::BuildBlueprintJson(
     }
 
     // --- Mutation starts here. ---
+    //
+    // Everything below is inside the same rollback boundary the Behavior Tree
+    // builder uses (MCPBridgeAssetRollback.h). The checks above reject a
+    // malformed spec before anything exists, but the failures that can only be
+    // found by building - a connection whose role names no pin, a component
+    // that will not attach, a compile error - are discovered once the asset is
+    // already real. Without a rollback those leave a registered, dirty
+    // Blueprint that the save-on-exit flow writes to disk during close, even
+    // when the Save Content prompt is answered "Don't Save". Findings 0c.
+    FBridgeAssetRollback Rollback;
+    Rollback.Snapshot(AssetPath);
+    const TArray<FString> DirtyBefore = Rollback.DirtyPackages();
+    const TArray<FString> SourceControlBefore = Rollback.SourceControlState();
+
+    // Cancel the transaction before destroying anything: its undo records
+    // reference these objects and must be replayed while they are still live.
+    auto FailWithRollback = [&](const FString& Error) -> bool
+    {
+        if (ActiveTransaction != nullptr)
+        {
+            ActiveTransaction->Cancel();
+        }
+        Rollback.Rollback();
+        OutError = Error;
+        return false;
+    };
 
     const bool bCreated = Blueprint == nullptr;
     if (bCreated)
@@ -714,8 +742,7 @@ bool UMCPPuerTSBridgeService::BuildBlueprintJson(
         UPackage* Package = CreatePackage(*AssetPath);
         if (Package == nullptr)
         {
-            OutError = TEXT("Unreal could not create the Blueprint package.");
-            return false;
+            return FailWithRollback(TEXT("Unreal could not create the Blueprint package."));
         }
         Blueprint = FKismetEditorUtilities::CreateBlueprint(
             ParentClass,
@@ -727,10 +754,10 @@ bool UMCPPuerTSBridgeService::BuildBlueprintJson(
             FName(TEXT("MCPPuerTSBridge")));
         if (Blueprint == nullptr)
         {
-            OutError = TEXT("Unreal could not create the Blueprint asset.");
-            return false;
+            return FailWithRollback(TEXT("Unreal could not create the Blueprint asset."));
         }
         AssetRegistry.Get().AssetCreated(Blueprint);
+        Rollback.TrackCreated(Blueprint);
     }
 
     Blueprint->Modify();
@@ -885,27 +912,55 @@ bool UMCPPuerTSBridgeService::BuildBlueprintJson(
         }
     }
 
+    // The failure exit, shared by the build and the save. MarkPackageDirty used
+    // to run unconditionally here, which is what left a failed build in the
+    // Save Content prompt and on disk during close.
+    auto FailRolledBack = [&]() -> bool
+    {
+        if (ActiveTransaction != nullptr)
+        {
+            ActiveTransaction->Cancel();
+        }
+        Rollback.Rollback();
+
+        TSharedPtr<FJsonObject> Failed = MakeShared<FJsonObject>();
+        Failed->SetStringField(TEXT("asset_path"), AssetPath);
+        Failed->SetBoolField(TEXT("created"), false);
+        Failed->SetStringField(TEXT("compile_status"), TEXT("RolledBack"));
+        Failed->SetBoolField(TEXT("saved"), false);
+        Failed->SetArrayField(TEXT("errors"), Errors);
+        Warnings.Add(MakeShared<FJsonValueString>(
+            TEXT("The build failed and was rolled back: no asset, package, or file remains.")));
+        Failed->SetArrayField(TEXT("warnings"), Warnings);
+        Failed->SetObjectField(TEXT("cleanup"),
+            Rollback.BuildEvidence(DirtyBefore, SourceControlBefore));
+        OutResultJson = SerializeJson(Failed);
+        return true;
+    };
+
+    if (Errors.Num() > 0)
+    {
+        return FailRolledBack();
+    }
+
     Blueprint->MarkPackageDirty();
 
     bool bSaved = false;
     if (bSave)
     {
-        if (Errors.Num() > 0)
+        FString SaveError;
+        bSaved = SaveProjectAsset(ObjectPath, SaveError);
+        if (!bSaved)
         {
-            Warnings.Add(MakeShared<FJsonValueString>(
-                TEXT("Save was skipped: the Blueprint did not build cleanly.")));
-        }
-        else
-        {
-            FString SaveError;
-            bSaved = SaveProjectAsset(ObjectPath, SaveError);
-            if (!bSaved)
-            {
-                Errors.Add(MakeShared<FJsonValueString>(
-                    FString::Printf(TEXT("Asset save failed: %s"), *SaveError)));
-            }
+            // A half-written asset is the same hazard as a half-built one.
+            Errors.Add(MakeShared<FJsonValueString>(
+                FString::Printf(TEXT("Asset save failed: %s"), *SaveError)));
+            return FailRolledBack();
         }
     }
+
+    // Past every failure exit: the request succeeded, so keep what it made.
+    Rollback.Commit();
 
     if (bCreated)
     {
@@ -952,6 +1007,10 @@ bool UMCPPuerTSBridgeService::BuildBlueprintJson(
     Result->SetBoolField(TEXT("saved"), bSaved);
     Result->SetArrayField(TEXT("errors"), Errors);
     Result->SetArrayField(TEXT("warnings"), Warnings);
+    // Always present, so a caller never has to distinguish "clean" from
+    // "this build predates the rollback boundary".
+    Result->SetObjectField(TEXT("cleanup"),
+        Rollback.BuildEvidence(DirtyBefore, SourceControlBefore));
     OutResultJson = SerializeJson(Result);
     return true;
 }

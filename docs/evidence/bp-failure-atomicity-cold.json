@@ -1,0 +1,8 @@
+{
+  "phase": "cold",
+  "iterations": [],
+  "observations": {
+    "cold_registry_count": 0,
+    "cold_file_on_disk": false
+  }
+}

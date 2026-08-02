@@ -132,10 +132,36 @@ maintains this file; Phase L consumes it.
    after it - whose last step is the invalid-node build - produced no prompt
    and no file.
 
-   The other two builders (`blueprint_build`, `widget_build`) create assets the
-   same way and have not been converted. The boundary is reusable and that is
-   the next use for it; not done here because this session's scope was one
-   capability.
+   **`blueprint_build` converted 2026-08-01, same boundary, no second
+   implementation.** The leak was at the command boundary only: the builder
+   mutates an asset it is handed, while `BuildBlueprintJson` owns the
+   `CreatePackage` / `FKismetEditorUtilities::CreateBlueprint` /
+   `AssetRegistry.AssetCreated` sequence and the unconditional
+   `Blueprint->MarkPackageDirty()`.
+
+   The fixture had to be chosen with care. `blueprint_build` already validates
+   node types, duplicate ids, unknown node ids, component classes and parent
+   classes before it creates anything (see "Blueprint build
+   validate-before-mutate" above), so none of those specs reach the leak. The
+   failures that do are the ones only building can find: an unresolved
+   connection, a component that will not attach, a compile error. The probe is
+   the cheapest of them, a connection endpoint naming a pin role that does not
+   exist on a known node (`begin.nosuchpin`), which is the limitation-20 class
+   of failure.
+
+   Measured before the change, `Scripts/bp-failure-atomicity.mjs --observe`:
+   the request failed and saved nothing, but the Blueprint was in the Asset
+   Registry after each of three attempts and `graph_inspect` found it; on close
+   the Save Content prompt appeared at 0.8 s and `BP_AtomicityProbe.uasset` was
+   on disk afterwards, with "Don't Save" answered. After the change all three
+   attempts leave registry count 0, nothing on disk, `dirty_packages_after`
+   empty and no cleanup errors; the editor closed with **no prompt** in 3.27 s;
+   a restart confirmed the probe absent. In the same session a successful build
+   still compiled `UpToDate`, saved, reported `rollback_attempted false`, and
+   survived the restart intact, and `npm run smoke:inspect` passes.
+
+   `widget_build` creates assets the same way and is **not** converted. It is
+   the remaining use for this boundary.
 
    **Original report** (2026-08-01, by the BT live acceptance). A failed
    `behavior_tree_build` on a fresh path correctly
