@@ -2,60 +2,60 @@
   "phase": "record",
   "steps": {
     "fixture": {
-      "member_hash": "1fd59e0bb489b82d111c0c548718aaf339d195cc",
+      "member_hash": "674e318959708e2a0d50f4ee5b39f99c6d0ecadd",
       "variables": [
         "Alpha",
         "Beta",
+        "Delta",
         "Doomed",
         "Gamma",
-        "Label"
+        "Label",
+        "Zeta"
       ],
       "components": [
+        "Beacon",
         "Body",
         "Lamp",
         "Muzzle",
         "Root"
       ],
-      "file_sha256": "7b50dbd6c0c23ede78ef702ca867c52c4296d247b2b0c8987306f3abe6fc4d59"
+      "file_sha256": "e17034b9118f12c60f8ebff9b00f964d3aebba9630f5a491eb565a6b8b0c0faa"
     },
     "plan": {
       "asset_path": "/Game/MCPGenerated/BP_MemberProbe",
       "requested_operation_count": 2,
       "operations_to_apply": [
-        "add_variable Delta",
         "add_variable Alpha"
       ],
-      "unchanged_operations": [],
-      "expected_change_count": 2,
-      "pre_member_hash": "1fd59e0bb489b82d111c0c548718aaf339d195cc",
+      "unchanged_operations": [
+        "add_variable Delta"
+      ],
+      "expected_change_count": 1,
+      "pre_member_hash": "674e318959708e2a0d50f4ee5b39f99c6d0ecadd",
       "plan_only": true,
       "prediction_unavailable_reason": "the batch changes the Blueprint's members, and a created graph or variable carries engine-generated detail that only exists once it is made. A predicted hash is offered only for a no-op batch, where it is the current hash by definition.",
-      "elapsed_ms": 1.1959000112256035
+      "elapsed_ms": 2.3939000093378127
     },
-    "patch": {
-      "elapsed_ms": 108.76339999958873,
-      "applied_operation_count": 7,
-      "pre_member_hash": "1fd59e0bb489b82d111c0c548718aaf339d195cc",
-      "post_member_hash": "83710fcf3b33f250a77bea0c90bfc7420092d500"
-    },
+    "patch": {},
     "untouched_members_compared": 4,
-    "rerun": {
-      "applied": 0,
-      "converged": true
-    },
+    "rerun": {},
     "source_control_quiescent": true
   },
-  "post_patch_member_hash": "83710fcf3b33f250a77bea0c90bfc7420092d500",
+  "post_patch_member_hash": "674e318959708e2a0d50f4ee5b39f99c6d0ecadd",
   "post_patch_variables": [
     "Alpha",
     "Beta",
     "Delta",
+    "Doomed",
     "Gamma",
-    "Label"
+    "Label",
+    "Zeta"
   ],
   "post_patch_components": [
     "Beacon",
     "Body",
+    "Lamp",
+    "Muzzle",
     "Root"
   ],
   "post_patch_functions": [

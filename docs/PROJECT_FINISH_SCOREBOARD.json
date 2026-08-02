@@ -1,12 +1,12 @@
 {
-  "generated_by": "integration lead, 2026-08-02, from docs/TOOL_INVENTORY.json, docs/CAPABILITY_SCOREBOARD.json, docs/CAPABILITY_FINDINGS.md and the handoff roadmap",
+  "generated_by": "integration lead, 2026-08-02, wave two complete. Counts read from docs/TOOL_INVENTORY.json and docs/TOOL_CAPABILITY_METADATA.json in this session.",
   "not_generated_from": "prose counts. Every number below was read out of a generated file or counted from source in this session.",
   "integration_branch": "bridge/native-consolidation-2026-07-31",
-  "integration_head": "see git log; wave one merged",
+  "integration_head": "bridge/native-consolidation-2026-07-31, lanes D, E and F merged",
   "definition_of_finished": "Claude and Codex can inspect, create, patch, compile, run, visually review, repair, profile and verify substantial UE4.27 features from one prompt with minimal editor round trips, and every registered capability carries an accurate evidence state.",
   "measured_state": {
     "total_registrations": 209,
-    "unique_canonical_capabilities": 164,
+    "unique_canonical_capabilities": 165,
     "by_backend": {
       "legacy_http": 170,
       "native_pipe_alias": 12,
@@ -17,10 +17,11 @@
       "untested": 122,
       "mock_only": 60,
       "live_verified": 18,
-      "live_partial": 8
+      "live_partial": 8,
+      "implemented": 1
     },
     "by_migration_action": {
-      "KEEP": 75,
+      "KEEP": 76,
       "REFRONT": 54,
       "PORT": 39,
       "ALIAS": 29,
@@ -29,7 +30,7 @@
     },
     "by_migration_state": {
       "legacy_untested": 158,
-      "native": 15,
+      "native": 16,
       "hybrid_candidate": 12,
       "wrap": 12,
       "native_live_partial": 8,
@@ -37,13 +38,13 @@
       "native_pending_live": 1
     },
     "registered_by_default": 27,
-    "registered_by_default_note": "24 native_pipe plus 2 server_local. The 12 aliases route to native commands; the 170 legacy_http tools register only under MCP_ENABLE_LEGACY_HTTP=1."
+    "registered_by_default_note": "25 native_pipe plus 2 server_local. blueprint_member_patch is the +1 this wave and is implemented, NOT live_verified: it fails 8 live checks."
   },
   "honest_completion_estimate": {
     "capabilities_with_live_evidence": 18,
-    "capabilities_needing_evidence_or_work": 146,
-    "percent_live_verified_of_unique": 11.0,
-    "caveat": "18/164 after wave one. puerts_blueprint_graph_patch is the +1 and it is earned: warm and cold live acceptance, all 20 checks. Lanes B and C added capability with editor-free evidence but registered no MCP tool, so they move no count here by design."
+    "capabilities_needing_evidence_or_work": 147,
+    "percent_live_verified_of_unique": 10.9,
+    "caveat": "Still 18. Wave two added a registered command and moved the live count by ZERO, on purpose. blueprint_member_patch compiles, links, passes verify at 209 tools and then fails 8 of its live checks, including writing a default the variable type cannot hold. Lanes D and F registered no MCP tool by design."
   },
   "waves": [
     {
@@ -151,14 +152,34 @@
     },
     {
       "wave": 2,
-      "state": "launched",
+      "state": "wave_two_complete",
       "launched_at": "2026-08-02",
       "lanes": [
         "D",
         "E",
         "F"
       ],
-      "note": "Same split that made wave one work: agents write and compile, the integrator runs every live proof. Only lane E has build rights, because three concurrent builds into the one shared test project is exactly the collision that blocked lane A twice."
+      "note": "Same split that made wave one work: agents write and compile, the integrator runs every live proof. Only lane E has build rights, because three concurrent builds into the one shared test project is exactly the collision that blocked lane A twice.",
+      "results": {
+        "D": {
+          "branch": "lane/d-perf-harness",
+          "tip": "94e4733",
+          "verdict": "accepted",
+          "basis": "35 editor-free checks wired into verify. Shipped no progress API. Live half unproven and declared."
+        },
+        "E": {
+          "branch": "lane/e-refront",
+          "tip": "0d765da",
+          "verdict": "accepted as implemented, NOT live_verified",
+          "basis": "REFRONT map derived from inventory. blueprint_member_patch compiles then fails 8 live checks."
+        },
+        "F": {
+          "branch": "lane/f-release",
+          "tip": "5595f1e",
+          "verdict": "accepted",
+          "basis": "14/14 session refusal checks, 50-check fresh-install acceptance, packaging verdict NO."
+        }
+      }
     }
   ],
   "roadmap_rows_open": 19,
@@ -174,10 +195,35 @@
   ],
   "blockers": [
     {
-      "id": "shared_test_project_and_editor_cap",
-      "description": "Lanes D, E and F need a live editor. Only BridgeInstallTest and Tests/UE427PuerTSMCP are installed targets, lane A is building into the first, and the rules cap live editors at two with a unique copied project per live agent.",
-      "impact": "Wave one launched three of six lanes. D and F are launch-ready once a project copy exists; E waits on A.",
-      "mitigation": "Copy a target project per live lane before wave two. A is checkpointed at 4e197ce and running."
+      "id": "packaging_requires_puerts_bundle",
+      "severity": "blocks release candidate",
+      "description": "MCPBridge.uplugin requires the Puerts plugin and MCPBridgePuerTS.Build.cs depends on its JsEnv module. The 369 MB pinned bundle is not in the package and is not mentioned inside it. package-mcp-bridge.ps1 -RunUAT has never been run: no Releases/, no evidence file.",
+      "owner": "lane F, docs/RELEASE.md",
+      "external": true
+    },
+    {
+      "id": "mutator_commits_on_failure",
+      "severity": "blocks REFRONT group 1 (18 of 54)",
+      "description": "BlueprintMutator/BPMutatorHelpers.cpp:27-37 returns false on failure without calling Cancel(), so the FScopedTransaction destructs and commits partial writes. All 19 UBlueprintMutatorLibrary entry points. Repo-wide only 3 of 11 REFRONT builders open a transaction at all.",
+      "external": false
+    },
+    {
+      "id": "member_patch_type_check",
+      "severity": "blocks promotion of blueprint_member_patch",
+      "description": "A default the variable type cannot hold is not refused, the operation beside it is applied, and something reaches disk. Convergence classification also counts an already-true operation as applied.",
+      "external": false
+    },
+    {
+      "id": "orphan_agents",
+      "severity": "process",
+      "description": "Duplicate lane agents from a previous session shared worktrees, reverted edits, committed to branches they did not own and ran install:sync into the shared target mid-acceptance. Not stoppable from inside the session. Mitigated by install:check before every live run.",
+      "external": true
+    },
+    {
+      "id": "single_installed_target",
+      "severity": "serialises live work",
+      "description": "Tests/UE427PuerTSMCP does not exist on disk. BridgeInstallTest is the only installed target, so every live proof serialises through it.",
+      "external": false
     }
   ],
   "actionable_incomplete_count": 1,
@@ -191,12 +237,17 @@
     }
   ],
   "next_wave": {
+    "wave": 3,
     "ready_now": [
-      "E re-front 54 REFRONT tools, unblocked by A",
-      "D performance harness, needs a copied project",
-      "F release engineering, needs a copied project"
+      "G: fix BPMutatorHelpers Cancel() on the failure path, then re-front REFRONT group 1 (18 Blueprint editing tools) onto the now failure-atomic mutator",
+      "H: fix blueprint_member_patch type check and convergence classification, then re-run bp-member-patch-acceptance warm and cold",
+      "I: run the perf harness live and produce the first perf-run evidence file, which no run has ever produced",
+      "J: execute the teammate install proof and the fresh-project install end to end"
     ],
-    "prerequisite": "copy a target project per live lane before launching D or F; only two installed targets exist and the rule caps live editors at two."
+    "blocked": [
+      "packaging vertical slice, until the PuerTS bundle dependency has a distribution answer"
+    ],
+    "prerequisite": "Stop the orphan agents before launching wave three, or they will share worktrees again. This is the one thing wave two could not do from inside itself."
   },
   "packaging_verdict": {
     "installable_artifact": false,
@@ -238,9 +289,43 @@
   "remaining_actionable": [
     {
       "id": "live_proof_member_patch",
-      "what": "Run Scripts/bp-member-patch-acceptance.mjs warm and cold against a rebuilt BridgeInstallTest, then promote puerts_blueprint_member_patch to live_verified or fix what it finds.",
-      "why_not_done": "session capacity. The command is merged and registered; only its live proof is outstanding.",
-      "note": "Everything beyond this is wave three and later, which the plan enumerates: 38 REFRONT, 16 wrapper gaps, 39 ports, two missing native commands blocking the index's live half, and the one-prompt authoring workflows."
+      "state": "FIRST LIVE RUN DONE, acceptance red",
+      "what_the_run_proved": "puerts_blueprint_member_patch EXECUTES. The DLL carries it, the command is reachable, and it returned a precise, correct-looking refusal: \"operation 5 (rename_component Lamp -> Beacon): 'Beacon' is already taken by a different component.\" That is the batch classifier refusing before mutating, which is the safety property the command was built for.",
+      "why_it_is_red": "fixture state, not (yet) a product defect. 17 checks fail and all of them cascade from operation 5. The fixture asset already carries a component named Beacon from an earlier partial run, so the seed does not reset to a known starting state and the rename can never apply. Scripts/bp-member-patch-acceptance.mjs must make its own fixture deterministic, the way Scripts/bp-graph-patch-acceptance.mjs reseeds before each phase.",
+      "not_yet_known": "whether anything beyond operation 5 is wrong. Nothing past it has ever run, because the whole batch is refused before the first mutation. Fix the fixture first, then re-read the failures; do not diagnose the other 16 from this run.",
+      "next": "reseed the fixture deterministically, rerun warm, restart, rerun cold, then promote or fix what it finds."
     }
-  ]
+  ],
+  "live_suites_green_this_wave": [
+    "mcp-smoke --require-editor 12/0/0",
+    "puerts-live-smoke",
+    "graph-inspect-acceptance",
+    "behavior-tree-acceptance warm+cold",
+    "bp-graph-patch-acceptance warm+cold",
+    "bp-failure-atomicity",
+    "bt-failure-atomicity",
+    "wbp-failure-atomicity",
+    "bp-remove-unlisted-acceptance",
+    "bp-truthful-report-acceptance"
+  ],
+  "release_candidate_gate": {
+    "status": "NOT MET",
+    "met": [
+      "npm run verify passes at 209 tools",
+      "eleven live suites green against a verified install",
+      "blueprint_graph_patch re-proven warm and cold at a newer commit",
+      "restart proven: structure hash identical across editor restart",
+      "install gate proven: refused two runs against a drifted install"
+    ],
+    "not_met": [
+      "packaging: verdict is NO, and the blocker is a 369 MB dependency the package does not carry",
+      "fresh-project install: procedure written, never executed end to end",
+      "teammate proof: written, never run by a person",
+      "one-prompt vertical slices for gameplay, UI, AI, animation, materials and level authoring: not attempted",
+      "latency and round trips: harness built, no scenario has ever run against an editor",
+      "147 of 165 capabilities still carry no live evidence",
+      "source control and packaging proofs absent",
+      "Ponytail final audit not run"
+    ]
+  }
 }
