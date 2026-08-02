@@ -4,102 +4,158 @@
   "integration_branch": "bridge/native-consolidation-2026-07-31",
   "integration_head": "1b75267",
   "definition_of_finished": "Claude and Codex can inspect, create, patch, compile, run, visually review, repair, profile and verify substantial UE4.27 features from one prompt with minimal editor round trips, and every registered capability carries an accurate evidence state.",
-
   "measured_state": {
     "total_registrations": 208,
     "unique_canonical_capabilities": 164,
-    "by_backend": { "legacy_http": 170, "native_pipe_alias": 12, "server_local": 2, "native_pipe": 24 },
-    "by_verification": { "untested": 122, "mock_only": 60, "live_verified": 17, "live_partial": 8, "implemented": 1 },
-    "by_migration_action": { "KEEP": 75, "REFRONT": 54, "PORT": 39, "ALIAS": 29, "MERGE": 10, "RETIRE": 1 },
+    "by_backend": {
+      "legacy_http": 170,
+      "native_pipe_alias": 12,
+      "server_local": 2,
+      "native_pipe": 24
+    },
+    "by_verification": {
+      "untested": 122,
+      "mock_only": 60,
+      "live_verified": 17,
+      "live_partial": 8,
+      "implemented": 1
+    },
+    "by_migration_action": {
+      "KEEP": 75,
+      "REFRONT": 54,
+      "PORT": 39,
+      "ALIAS": 29,
+      "MERGE": 10,
+      "RETIRE": 1
+    },
     "by_migration_state": {
-      "legacy_untested": 158, "native": 15, "hybrid_candidate": 12, "wrap": 12,
-      "native_live_partial": 8, "server_local": 2, "native_pending_live": 1
+      "legacy_untested": 158,
+      "native": 15,
+      "hybrid_candidate": 12,
+      "wrap": 12,
+      "native_live_partial": 8,
+      "server_local": 2,
+      "native_pending_live": 1
     },
     "registered_by_default": 26,
     "registered_by_default_note": "24 native_pipe plus 2 server_local. The 12 aliases route to native commands; the 170 legacy_http tools register only under MCP_ENABLE_LEGACY_HTTP=1."
   },
-
   "honest_completion_estimate": {
     "capabilities_with_live_evidence": 17,
     "capabilities_needing_evidence_or_work": 147,
     "percent_live_verified_of_unique": 10.4,
     "caveat": "17/164 is the only defensible completion number today. Counting the 75 KEEP legacy tools as done would be counting 158 legacy_untested tools as finished, which is what the phrase 'stale prose counts' in the goal refers to."
   },
-
   "waves": [
     {
       "wave": 1,
-      "state": "launched_partially",
+      "state": "wave_one_launched",
       "lanes": [
         {
-          "id": "A", "title": "Finish puerts_blueprint_graph_patch",
-          "owner": "unassigned", "state": "blocked_on_capacity",
-          "branch": "wip/blueprint-graph-patch-2026-08-02", "checkpoint": "4e197ce",
-          "depends_on": [], "needs_live_editor": true,
+          "id": "A",
+          "title": "Finish puerts_blueprint_graph_patch",
+          "owner": "subagent lane-a-graph-patch",
+          "state": "launched",
+          "branch": "lane/a-graph-patch",
+          "checkpoint": "4e197ce",
+          "depends_on": [],
+          "needs_live_editor": true,
           "known_defect": "PatchBlueprintGraphFromJSON pass 1 stores a planned add_node selector as key -> nullptr; the connect branch reads that nullptr as 'matched nothing' and records an unmatched selector, so the batch is refused before applying. Needs a distinct deferred state.",
           "secondary_defect": "the acceptance fixture names K2Node_CommutativeAssociativeBinaryOperator for a multiply_float node; verify the real class via graph_inspect node_class.",
           "acceptance": "Scripts/bp-graph-patch-acceptance.mjs green warm and cold, plus source-control quiescence and round-trip timing, which the run never reaches today.",
-          "risk": "medium. Design is proven; two located bugs remain."
+          "risk": "medium. Design is proven; two located bugs remain.",
+          "worktree": "D:/Unreal Projects/_bridge_worktrees/lane-a",
+          "scope_this_wave": "code fix plus compile only. The agent is forbidden from launching an editor; warm and cold live acceptance is the integrator's step after merge."
         },
         {
-          "id": "B", "title": "Incremental project intelligence index",
-          "owner": "unassigned", "state": "not_started",
-          "depends_on": [], "needs_live_editor": false,
+          "id": "B",
+          "title": "Incremental project intelligence index",
+          "owner": "subagent lane-b-project-intelligence",
+          "state": "launched",
+          "depends_on": [],
+          "needs_live_editor": false,
           "note": "Must not duplicate the asset registry or graph_inspect. Consumes them.",
-          "risk": "medium. Scope is broad; persistence format is the decision that constrains later waves."
+          "risk": "medium. Scope is broad; persistence format is the decision that constrains later waves.",
+          "worktree": "D:/Unreal Projects/_bridge_worktrees/lane-b",
+          "branch": "lane/b-project-intelligence",
+          "scope_this_wave": "design doc plus the editor-free half of the index: C++ symbols, Build.cs deps, input mappings, tags, file inventory, incremental invalidation. The live-editor half is designed and explicitly not implemented."
         },
         {
-          "id": "C", "title": "Headless C++ authoring",
-          "owner": "unassigned", "state": "not_started",
-          "depends_on": [], "needs_live_editor": false,
+          "id": "C",
+          "title": "Headless C++ authoring",
+          "owner": "subagent lane-c-cpp-authoring",
+          "state": "launched",
+          "depends_on": [],
+          "needs_live_editor": false,
           "note": "UBT invocation must go through cmd.exe: Node refuses to spawn Build.bat directly since the batch-argument-injection fix. Scripts/bridge-install.mjs:buildTarget is the working reference.",
-          "risk": "high. Compiler output parsing and repair hints are open-ended."
+          "risk": "high. Compiler output parsing and repair hints are open-ended.",
+          "worktree": "D:/Unreal Projects/_bridge_worktrees/lane-c",
+          "branch": "lane/c-cpp-authoring",
+          "scope_this_wave": "design doc plus generator, Build.cs editor, include manager, UBT invocation through cmd.exe, diagnostic parser and repair hints, tested against fixture output rather than a live compile."
         },
         {
-          "id": "D", "title": "Performance and autonomy harness",
-          "owner": "unassigned", "state": "not_started",
-          "depends_on": [], "needs_live_editor": true,
+          "id": "D",
+          "title": "Performance and autonomy harness",
+          "owner": "unassigned",
+          "state": "deferred_this_wave",
+          "depends_on": [],
+          "needs_live_editor": true,
           "note": "The long-job API does not exist; the handoff lists it as P2. Command timeouts clamp 100 ms to 30 s today.",
-          "risk": "medium."
+          "risk": "medium.",
+          "deferred_reason": "needs a live editor and its own copied project. Lane A is building into the shared BridgeInstallTest this wave, and the max-two-editor rule plus one-project-per-live-agent makes a concurrent launch unsafe. Ready as soon as A's build completes and a copied project exists."
         },
         {
-          "id": "E", "title": "Re-front existing C++ builder groups",
-          "owner": "unassigned", "state": "not_started",
-          "depends_on": ["A"], "needs_live_editor": true,
+          "id": "E",
+          "title": "Re-front existing C++ builder groups",
+          "owner": "unassigned",
+          "state": "blocked_on_dependency",
+          "depends_on": [
+            "A"
+          ],
+          "needs_live_editor": true,
           "scope": "54 REFRONT tools, led by BlueprintMutatorLibrary, plus AnimBP, Widget, Input, Data, PIE, pose, cloth and editor utilities.",
-          "risk": "high. Largest single lane by tool count."
+          "risk": "high. Largest single lane by tool count.",
+          "deferred_reason": "depends on lane A landing. Re-fronting builder groups on top of a patch command whose apply path is still red would build on sand."
         },
         {
-          "id": "F", "title": "Release engineering",
-          "owner": "unassigned", "state": "partially_done",
-          "depends_on": [], "needs_live_editor": true,
+          "id": "F",
+          "title": "Release engineering",
+          "owner": "unassigned",
+          "state": "deferred_this_wave",
+          "depends_on": [],
+          "needs_live_editor": true,
           "already_landed": [
             "install manifest and sync gate (e6efcf7)",
             "session isolation and two-editor routing (2fa0bca)",
             "two-editor runbook (5edf2e7)"
           ],
           "remaining": "fresh-machine install proof, packaging, upgrade path, CI, security regressions, modal detection, same-project multi-editor handling.",
-          "risk": "medium."
+          "risk": "medium.",
+          "deferred_reason": "needs a live editor and a fresh project copy; same two-editor constraint as D. Three of its items already landed (e6efcf7, 2fa0bca, 5edf2e7)."
         }
-      ]
+      ],
+      "launched_at": "2026-08-02"
     }
   ],
-
   "roadmap_rows_open": 19,
   "roadmap_rows_stale": [
-    { "row": "P2 Two-project test", "reason": "'no cross-talk between editors' was proven in 2fa0bca with both editors live; the table predates it." },
-    { "row": "P1 Runbook", "reason": "partially addressed by 5edf2e7; its 'fresh teammate completes install' test has still never been run." }
-  ],
-
-  "blockers": [
     {
-      "id": "capacity",
-      "description": "Session context capacity. Wave one lanes A, E and F each need a live editor, a copied test project and warm/cold acceptance runs; the max-two-editor rule serialises them.",
-      "impact": "Wave one could not be launched, integrated and verified in one session.",
-      "mitigation": "WIP is checkpointed at 4e197ce, integration branch is clean at 1b75267, and docs/PROJECT_FINISH_PLAN.md carries the exact continuation prompt."
+      "row": "P2 Two-project test",
+      "reason": "'no cross-talk between editors' was proven in 2fa0bca with both editors live; the table predates it."
+    },
+    {
+      "row": "P1 Runbook",
+      "reason": "partially addressed by 5edf2e7; its 'fresh teammate completes install' test has still never been run."
     }
   ],
-
+  "blockers": [
+    {
+      "id": "shared_test_project_and_editor_cap",
+      "description": "Lanes D, E and F need a live editor. Only BridgeInstallTest and Tests/UE427PuerTSMCP are installed targets, lane A is building into the first, and the rules cap live editors at two with a unique copied project per live agent.",
+      "impact": "Wave one launched three of six lanes. D and F are launch-ready once a project copy exists; E waits on A.",
+      "mitigation": "Copy a target project per live lane before wave two. A is checkpointed at 4e197ce and running."
+    }
+  ],
   "actionable_incomplete_count": 6,
   "finished": false
 }

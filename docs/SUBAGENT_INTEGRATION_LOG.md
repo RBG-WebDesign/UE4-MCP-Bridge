@@ -14,13 +14,27 @@ quiescence. Compilation and mock tests alone are rejected.
 |---|---|---|---|
 | A (integrator, not a subagent) | `wip/blueprint-graph-patch-2026-08-02` @ `4e197ce` | **Checkpointed, not accepted** | Acceptance red: 20 checks failing. Plan mode, ambiguity refusal and batch atomicity are proven live; the apply path refuses batches containing a deferred `add_node` selector. Recorded in metadata as `implemented`, deliberately not `live_verified`. |
 
-No subagent lanes were launched in this session. The reason is recorded in
-`docs/PROJECT_FINISH_SCOREBOARD.json` under `blockers.capacity`: lanes A, E and F
-each need a live editor, a copied test project and warm-plus-cold acceptance
-runs, and the max-two-editor rule serialises them. Launching lanes whose output
-could not be reviewed or integrated in the same session would have produced
-orphaned branches and the appearance of progress, which is the failure mode this
-log exists to prevent.
+### Wave one, launched 2026-08-02
+
+| Lane | Worktree | Branch | State |
+|---|---|---|---|
+| A finish `blueprint_graph_patch` | `_bridge_worktrees/lane-a` | `lane/a-graph-patch` | running |
+| B project intelligence index | `_bridge_worktrees/lane-b` | `lane/b-project-intelligence` | running |
+| C headless C++ authoring | `_bridge_worktrees/lane-c` | `lane/c-cpp-authoring` | running |
+
+Three of six. D, E and F are not held back by capacity but by the rules
+themselves: each needs a live editor and its own copied project, only two
+installed targets exist, lane A is building into one of them, and E cannot start
+until A lands because re-fronting builder groups onto a patch command whose apply
+path is still red would build on sand. They launch in wave two once a project
+copy exists per live lane.
+
+Lane A is deliberately scoped to code and compile only. Its agent is forbidden
+from launching an editor, so warm and cold live acceptance stays with the
+integrator after merge. A lane cannot mark its own work live-verified.
+
+Every lane was told the same thing in its own words: compilation and mocks do not
+prove completion, and the report must say plainly what was not verified.
 
 ### Integrator work accepted into `bridge/native-consolidation-2026-07-31`
 
