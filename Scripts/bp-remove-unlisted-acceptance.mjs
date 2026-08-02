@@ -335,9 +335,21 @@ try {
     // replacing the graph, not the removal rollback losing it; tracked as
     // findings 0k. Asserted here is the ledger's own contract: every node it
     // removed is back, matched by structural identity rather than object name.
-    const nodeCountAfter = (afterFailure.data?.graph?.nodes ?? []).filter((n) => n.type === "VariableGet").length;
-    assert(nodeCountAfter >= 1,
-      `(8) the omitted reference node returned from the ledger (VariableGet present: ${nodeCountAfter})`);
+    // (8)(11) The WHOLE pre-request graph must be back, not only the nodes the
+    // ledger removed. getA reads KeptA, which was never removed and so is in no
+    // ledger; it survives because a failing build no longer destroys the
+    // existing graph at all - the replacement is built alongside it and
+    // discarded when it turns out not to be whole (findings 0k).
+    const varGetAfter = (afterFailure.data?.graph?.nodes ?? []).filter((n) => n.type === "VariableGet").length;
+    const varGetBefore = (beforeFailure.data?.graph?.nodes ?? []).filter((n) => n.type === "VariableGet").length;
+    assert(varGetBefore === 2, `(1) the pre-request graph had two VariableGet nodes (${varGetBefore})`);
+    assert(varGetAfter === varGetBefore,
+      `(8) every VariableGet returned, including the one no ledger saw (${varGetAfter} vs ${varGetBefore})`);
+    const typesOf = (d) => (d?.graph?.nodes ?? []).map((n) => n.type).sort();
+    assert(JSON.stringify(typesOf(afterFailure.data)) === JSON.stringify(typesOf(beforeFailure.data)),
+      "(11) the post-rollback graph node types match the pre-request graph exactly");
+    assert((afterFailure.data?.graph?.node_count ?? -1) === (beforeFailure.data?.graph?.node_count ?? -2),
+      `(8) graph_inspect reports the original node count (${afterFailure.data?.graph?.node_count} vs ${beforeFailure.data?.graph?.node_count})`);
     assert(failed.data?.cleanup?.rollback_succeeded === true,
       "(13) the failed build reports rollback_succeeded");
     assert((failed.data?.cleanup?.dirty_packages_after ?? []).length === 0,

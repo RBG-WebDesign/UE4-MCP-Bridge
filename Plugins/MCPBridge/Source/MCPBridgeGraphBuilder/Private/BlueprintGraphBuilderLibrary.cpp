@@ -1249,14 +1249,25 @@ void UBlueprintGraphBuilderLibrary::BuildBlueprintFromJSONWithReport(
         return;
     }
 
-    // --- Step 3: Clear existing nodes ---
+    // --- Step 3: Defer clearing the existing nodes ---
+    //
+    // The old nodes used to be destroyed here, before a single new one existed.
+    // That made a failing build destructive: an unresolvable connection was
+    // detected further down, by which point the previous graph was already
+    // gone and nothing could put it back. Rolling that back afterwards was
+    // tried and is ruled out - cloning a live event graph crashed the editor
+    // inside StaticDuplicateObjectEx (findings 0k).
+    //
+    // So the old nodes are kept until the replacement is known to be whole.
+    // New nodes are spawned alongside them and connections resolve only
+    // against the new ones, because NodeMap is keyed by spec id and the old
+    // nodes were never in it. At the end, exactly one set is deleted: the old
+    // one on success, the new one on failure. Do not destroy until the thing
+    // that might fail has succeeded.
+    TArray<UEdGraphNode*> DeferredNodesToRemove;
     if (bClearExistingGraph)
     {
-        TArray<UEdGraphNode*> NodesToRemove = Graph->Nodes;
-        for (UEdGraphNode* Node : NodesToRemove)
-        {
-            FBlueprintEditorUtils::RemoveNode(Blueprint, Node, /*bDontRecompile=*/true);
-        }
+        DeferredNodesToRemove = Graph->Nodes;
     }
 
     // --- Step 4: Spawn nodes ---
@@ -1679,6 +1690,45 @@ void UBlueprintGraphBuilderLibrary::BuildBlueprintFromJSONWithReport(
             {
                 (*ToNodePtr)->PinConnectionListChanged(TargetPin);
             }
+        }
+    }
+
+    // --- Step 5b: Commit or abort the deferred replacement ---
+    //
+    // Exactly one set of nodes is deleted here. On success the old graph goes
+    // and the new one stands; on failure the new nodes go and the caller's
+    // graph is left exactly as it was found, which is what makes a failing
+    // build non-destructive instead of something rollback has to repair.
+    {
+        const bool bGraphIsWhole =
+            OutFailedNodes.Num() == 0 && OutUnresolvedConnections.Num() == 0;
+        if (bGraphIsWhole)
+        {
+            for (UEdGraphNode* Node : DeferredNodesToRemove)
+            {
+                if (Node != nullptr)
+                {
+                    FBlueprintEditorUtils::RemoveNode(Blueprint, Node, /*bDontRecompile=*/true);
+                }
+            }
+        }
+        else if (DeferredNodesToRemove.Num() > 0)
+        {
+            for (const TPair<FString, UEdGraphNode*>& Spawned : NodeMap)
+            {
+                if (Spawned.Value != nullptr)
+                {
+                    FBlueprintEditorUtils::RemoveNode(Blueprint, Spawned.Value, /*bDontRecompile=*/true);
+                }
+            }
+            NodeMap.Reset();
+            OutCreatedNodes = 0;
+            OutConnectionsMade = 0;
+            UE_LOG(LogTemp, Warning,
+                TEXT("BuildBlueprintFromJSON: the replacement graph was not whole, so it was "
+                     "discarded and the existing graph left untouched (%d node failure(s), "
+                     "%d unresolved connection(s))"),
+                OutFailedNodes.Num(), OutUnresolvedConnections.Num());
         }
     }
 

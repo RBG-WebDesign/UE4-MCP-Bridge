@@ -17,7 +17,7 @@
       "success": false,
       "graph": {
         "requested_node_count": 2,
-        "created_node_count": 1,
+        "created_node_count": 0,
         "failed_node_count": 1,
         "failed_nodes": [
           "g: VariableGet: factory_refused: the node factory created nothing. Supplied parameters: [variable]. A parameter this node type does not read is ignored, and a missing required one makes the factory refuse."
@@ -42,7 +42,22 @@
         "source_control_after": [
           "source control disabled"
         ],
-        "cleanup_errors": []
+        "cleanup_errors": [],
+        "removal_ledger": {
+          "removal_ledger_count": 0,
+          "variables_removed": [],
+          "variables_restored": [],
+          "reference_nodes_removed": [],
+          "reference_nodes_restored": [],
+          "reference_nodes_captured": 0,
+          "reference_nodes_recreated": 0,
+          "pin_defaults_restored": 0,
+          "links_captured": 0,
+          "links_restored": 0,
+          "graph_restoration_mismatches": [],
+          "restoration_mismatches": [],
+          "rollback_succeeded": true
+        }
       }
     },
     {
@@ -50,7 +65,7 @@
       "success": false,
       "graph": {
         "requested_node_count": 2,
-        "created_node_count": 1,
+        "created_node_count": 0,
         "failed_node_count": 1,
         "failed_nodes": [
           "c: Cast: factory_refused: the node factory created nothing. Supplied parameters: [target_class]. A parameter this node type does not read is ignored, and a missing required one makes the factory refuse."
@@ -75,7 +90,22 @@
         "source_control_after": [
           "source control disabled"
         ],
-        "cleanup_errors": []
+        "cleanup_errors": [],
+        "removal_ledger": {
+          "removal_ledger_count": 0,
+          "variables_removed": [],
+          "variables_restored": [],
+          "reference_nodes_removed": [],
+          "reference_nodes_restored": [],
+          "reference_nodes_captured": 0,
+          "reference_nodes_recreated": 0,
+          "pin_defaults_restored": 0,
+          "links_captured": 0,
+          "links_restored": 0,
+          "graph_restoration_mismatches": [],
+          "restoration_mismatches": [],
+          "rollback_succeeded": true
+        }
       }
     },
     {
@@ -83,7 +113,7 @@
       "success": false,
       "graph": {
         "requested_node_count": 2,
-        "created_node_count": 2,
+        "created_node_count": 0,
         "failed_node_count": 0,
         "failed_nodes": [],
         "requested_connection_count": 1,
@@ -108,7 +138,22 @@
         "source_control_after": [
           "source control disabled"
         ],
-        "cleanup_errors": []
+        "cleanup_errors": [],
+        "removal_ledger": {
+          "removal_ledger_count": 0,
+          "variables_removed": [],
+          "variables_restored": [],
+          "reference_nodes_removed": [],
+          "reference_nodes_restored": [],
+          "reference_nodes_captured": 0,
+          "reference_nodes_recreated": 0,
+          "pin_defaults_restored": 0,
+          "links_captured": 0,
+          "links_restored": 0,
+          "graph_restoration_mismatches": [],
+          "restoration_mismatches": [],
+          "rollback_succeeded": true
+        }
       }
     },
     {

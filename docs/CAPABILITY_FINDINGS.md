@@ -74,6 +74,7 @@ maintains this file; Phase L consumes it.
 | Independent Widget Blueprint inspection | `puerts_widget_inspect` closes the last builder/inspector asymmetry: `blueprint_build`/`graph_inspect` and `behavior_tree_build`/`behavior_tree_inspect` had one, widget did not, so its only read-back was the builder's own report. Against `/Game/MCPGenerated/WBP_AtomicityGood` (CanvasPanel root, TextBlock `Title` at position 40,24 size 320,40, ProgressBar `Bar`): payload **7044 bytes**, structure hash `4C33675FF120DB53FB2E193B4B161AF3A1AD12A2`. Read-only measured rather than asserted: `transaction_id ""`, `package_dirty_before`/`after` both false, `changed_assets` empty, and the asset's SHA-256 and mtime unchanged across the reads. Two reads produced identical canonical JSON and the same structure hash. The independent read agreed with the build's own report on widget count, root name and class, child order (`["Title","Bar"]` with `child_index` matching array order), and slot geometry read off `UCanvasPanelSlot::LayoutData` rather than echoed: offsets left 40, top 24, right 320, bottom 40, plus anchors, alignment and z-order. A rerun of the same spec produced the **same structure hash**, and after an editor restart the cold-loaded asset reproduced that hash, the same widget count, and a byte-identical file (2026-08-02) |
 | Widget inspection rejects cleanly | A missing path, a `/Script/UMG` path outside the two content roots, and a Blueprint asset passed to the widget inspector each return `success false`; the wrong-class case names it (`is a Blueprint, not a WidgetBlueprint`). Identity is `derived` like the BT inspector, because UE4.27 UMG widgets carry no GUID: a widget is addressed by `parent/childIndex:Class:Name`, so a rename or reorder is deliberately a different identity. Named-slot content is walked through `INamedSlotInterface`, which panel-child traversal cannot reach (2026-08-02) |
 
+| `remove_unlisted.variables` verification status | **live_verified as of 2026-08-02.** Promoted only after the full induced-failure proof passed, which took four sessions and two ruled-out approaches. It is a sub-capability of `puerts_blueprint_build` (already live_verified) and has no separate metadata key, so the status is recorded here rather than by inventing an entry `check:inventory` would reject. Evidence: `Scripts/bp-remove-unlisted-acceptance.mjs` warm and cold, `docs/evidence/bp-remove-unlisted-*.json`. Everything the promotion rests on: convergence downward and upward, protection by ownership stamp, blocked referenced removals, forced removal with node deletion reported, plan_only read-only, and a failing build that leaves the Blueprint byte-identical to how it found it - variables, reference nodes, untouched graph nodes, file hash and package dirty state |
 | Blueprint variable downward convergence (`remove_unlisted`) | Opt-in, off by default, variables scope only. Ownership is an explicit stamp, not a heuristic: `blueprint_build` writes `MCPManaged=1` metadata on every variable it declares, and removal only ever considers stamped variables, so inherited, native C++, engine-generated and human-authored variables are protected **by construction** rather than by an exclusion list, and a Blueprint authored before this change has nothing removable until a build declares its managed set. Live on `BP_ConvergeProbe` (six managed variables, graph nodes referencing two): `plan_only` returned `variables_to_remove ["DropAlsoPlain","DropPlain"]`, `blocked_removals` naming `DropReferenced` with its reference locations, and left inspection byte-identical. An unforced apply removed exactly the two unreferenced ones and left the referenced one alive with no node deleted; `force_remove_referenced` then removed it and reported every deleted node. `graph_inspect` independently confirmed the final set is exactly `["KeptA","KeptB","KeptC"]`, that `KeptA`'s reference node survived, and that BeginPlay/PrintString were untouched. Rerun removes nothing and the inspected variable set is byte-stable; after a restart the cold-loaded asset is still converged (2026-08-02) |
 | Unsupported `remove_unlisted` scopes are rejected, never ignored | `components`, `functions`, `macros`, `graph_nodes` and `interfaces` set `true` each return `unsupported_scope` naming the scope; set `false` they are accepted. Silently accepting them would read as a promise to prune and quietly not do it, which is worse than refusing. An unknown scope key is also rejected (2026-08-02) |
 | Defect 0 reproduced independently, on `VariableGet` | The builder's config key is `varName`; a spec using `params.variable` makes the factory return null while the build still reports `node_count 2` and `node_types ["BeginPlay","VariableGet"]`, and `graph_inspect` sees only `["BeginPlay"]`. Found while writing the `remove_unlisted` fixture: every reference assertion in it passed **vacuously** because the reference nodes did not exist. This is the same phantom-counting defect 0 records for `Cast`, now confirmed on a second node type and caught only by comparing the build's own report against the independent inspector - which is the argument for builder/inspector parity in one line (2026-08-02) |
@@ -107,7 +108,30 @@ maintains this file; Phase L consumes it.
    the cause. Reading the evidence that already existed beat testing any of
    them.
 
-0k. **A failing build's graph rebuild is not undone by the removal rollback**
+0k. **FIXED 2026-08-02 by deferral, after the restoration approach was ruled
+   out by an editor crash.** The fix is not to undo the destruction, it is not
+   to destroy: `BuildBlueprintFromJSONWithReport` no longer clears the existing
+   graph before spawning. The replacement is built ALONGSIDE the old nodes -
+   connections resolve only against the new ones, because `NodeMap` is keyed by
+   spec id and the old nodes were never in it - and at the end exactly one set
+   is deleted: the old graph on success, the new nodes on failure. A failing
+   build is therefore non-destructive by construction, and there is nothing for
+   rollback to repair.
+
+   Same insight as the removal ledger, one level up: do not destroy until the
+   thing that might fail has succeeded.
+
+   Proven: the pre-request graph has two `VariableGet` nodes, one reading the
+   removed variable (in the ledger) and one reading a variable that is never
+   removed (`getA`, in no ledger). After a failing forced removal, both return -
+   `graph_inspect` reports 4 nodes against 4, an identical node-type multiset,
+   the variable set byte-identical, the asset file SHA-256 unchanged, no dirty
+   package. The truthful-report acceptance, `smoke:inspect`, `smoke:bt` and
+   `npm run verify` all still pass, so successful convergence is unchanged.
+
+   **Original report, kept for the ruled-out approach.**
+
+0k-original. **A failing build's graph rebuild is not undone by the removal rollback**
    (2026-08-02, scoped out of 0j). `clear_existing_graph` defaults true, so a
    failing request replaces the whole event graph from its own spec before the
    failure is detected. Nodes that the ledger never captured - because their
