@@ -321,3 +321,40 @@ install state could not be accounted for.
 |---|---|---|
 | `516abba` | Both server-local readers get the evidence they were already claiming, plus the path-traversal guard | smoke 11 passed / 0 failed / 1 skipped with a real engine root; both SKIP honestly without one |
 | `fa310b5` | Finding 0m: content equality is not build equality | Reproduced twice on live rebuilds |
+
+## member_patch: two live runs, two different reds, one conclusion
+
+Two executions of `Scripts/bp-member-patch-acceptance.mjs` happened against the
+same install within minutes of each other, one by the integration lead and one by
+an orphan instance. They disagree, and the disagreement is the finding.
+
+| Run | Result | Failing shape |
+|---|---|---|
+| Integrator, first ever execution | 8 checks red, 16 round trips | `(11)` a default the variable type cannot hold is not refused, the operation beside it IS applied, something reached disk. Plus `(2)` convergence counting an already-true operation as applied. |
+| Orphan, immediately after | 17 checks red | All cascade from one refusal at operation 5: `rename_component Lamp -> Beacon` refused because `Beacon` is already taken. |
+
+Neither run is a clean verdict, and the reason is the same in both: **the
+acceptance does not reseed its fixture deterministically.** It is order
+dependent. The orphan's collision is almost certainly downstream of the
+integrator's run, whose `(11)` failure is precisely "something reached disk" that
+should not have. Run A dirtied the asset; run B then could not seed past it.
+
+So the orphan's commit title, "the command works, the fixture does not", is half
+right and states the half it can see. Its own run genuinely was a fixture
+cascade, and its diagnosis of that run is sound. What it cannot conclude from a
+run that stopped at operation 5 is that the command works, and to its credit its
+commit body says exactly that: nothing past operation 5 executed, and the other
+failures must not be diagnosed from it.
+
+The integrator's `(11)` result is not explained away by fixture state, because a
+type check that refuses a bad default must refuse it regardless of what else is
+in the asset. It is recorded as SUSPECTED, not confirmed, because a
+non-deterministic fixture is not a sound basis for confirming anything either.
+
+**Conclusion both runs support, and the only one either can support:**
+`puerts_blueprint_member_patch` is `implemented` with an empty `live_evidence`
+array. It has executed. It has not passed. Executing is not passing.
+
+Wave three's first job on this command is to make the acceptance reseed from a
+known state, then re-run warm and cold. Until the fixture is deterministic,
+neither a red nor a green from that script means anything.
