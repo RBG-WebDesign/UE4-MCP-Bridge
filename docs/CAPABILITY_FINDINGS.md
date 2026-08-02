@@ -1459,3 +1459,56 @@ Overlap against
 a player pawn (nothing in the default game mode moves on its own, and there is
 no input-simulation tool in the native catalog, so the only self-propelled
 overlap source proven so far is a JSON-authored physics body).
+
+## Finding 0m: install:sync leaves stale UHT generated code when a source file goes away
+
+Confirmed 2026-08-02 by the integration lead, on a live rebuild of
+`D:/Unreal Projects/BridgeInstallTest`.
+
+`Scripts/bridge-install.mjs --sync` copies declared files into the target and
+then builds. It deliberately does not delete project files, and says so. What
+it also does not do is invalidate Unreal Header Tool's generated code, and that
+combination has a failure mode with a misleading error.
+
+Sequence that produced it:
+
+1. A source file (`MCPPuerTSBridgeBlueprintMember.cpp`) and a header
+   declaration for `PatchBlueprintMembersJson` were present in the target.
+2. UHT generated `MCPPuerTSBridgeService.gen.cpp` and
+   `MCPPuerTSBridgeService.generated.h` carrying a reflection thunk for that
+   `UFUNCTION`.
+3. `--sync` restored the header from the repository, where the declaration does
+   not exist, and the `.cpp` was removed by hand as the sync output instructs.
+4. UHT did not regenerate, because the restored header is not newer than the
+   generated file. The stale thunk survived.
+5. The build failed with `LNK2019: unresolved external symbol
+   PatchBlueprintMembersJson ... referenced in function
+   execPatchBlueprintMembersJson`, then `LNK1120`.
+
+The error names a symbol that appears in NEITHER the repository header nor the
+target header. Both were checked and both are clean. Grepping
+`Intermediate/Build/Win64/UE4Editor/Inc/` is what actually locates it. Someone
+reading only the linker output would look for a missing implementation of a
+function nobody declared.
+
+Fix that worked: delete the plugin's `Intermediate/` (145 files, all
+regenerable build output) and rebuild. A warm incremental build took 1.7
+seconds; this one is a full plugin rebuild.
+
+Why this is a bridge finding and not a one-off: the whole point of the install
+gate is that a live run proves something about the code under review. This is a
+case where the sources match the repository, `install:check` is satisfied on
+content, and the BINARY still contains a reflection entry for a command that no
+longer exists. Content equality is not build equality.
+
+Open, not yet fixed. Two candidate fixes, neither implemented:
+
+- `--sync` removes `Intermediate/Build/.../Inc/<module>/` for any module whose
+  declared header set changed, which is cheap and targeted.
+- `install:check` compares the installed registry catalog against the built
+  DLL's exported reflection, not just against the source tree. That is the
+  check that would have caught this before the build rather than during it.
+
+Related: the same run surfaced `extra:` files in `native_source` (the two
+orphan-installed files above), which `install:check` DID catch and refuse. The
+content gate works. The build-artifact gate does not exist.
