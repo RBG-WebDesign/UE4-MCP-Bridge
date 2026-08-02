@@ -266,9 +266,11 @@ try {
       operations: [{ op: "set_pin_default", target: { type: "PrintString" }, pin: "InString", value: "AMBIGUOUS" }],
     });
     assert(ambiguous.success === false, "(11) an ambiguous selector fails the request");
-    // errors carries the batch-level summary; the per-selector detail, including
-    // the matches it refused to choose between, is in data.ambiguous_selectors.
-    const ambiguousText = JSON.stringify(ambiguous.data?.ambiguous_selectors ?? []);
+    // errors is the authoritative place to read a refusal. A failed request comes
+    // back through the failure envelope, which carries the error text and an
+    // empty data, so the per-selector detail has to be in the error string
+    // itself; data.ambiguous_selectors survives only on a successful plan.
+    const ambiguousText = JSON.stringify(ambiguous.errors ?? []);
     assert(/matched \d+ nodes and a patch will not choose between them/.test(ambiguousText),
       `(11) the refusal says it will not choose (got: ${ambiguousText.slice(0, 240)})`);
     const afterAmbiguous = await call("puerts_graph_inspect", { asset_path: BP, include_pins: true });

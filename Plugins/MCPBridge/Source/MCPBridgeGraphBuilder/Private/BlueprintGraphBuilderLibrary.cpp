@@ -3229,10 +3229,46 @@ bool UBlueprintGraphBuilderLibrary::PatchBlueprintGraphFromJSON(
 
     if (UnmatchedSelectors.Num() > 0 || AmbiguousSelectors.Num() > 0)
     {
-        return Fail(FString::Printf(
+        // The per-selector detail is carried in the error text, not only in the
+        // report arrays. A refusal travels back through the failure envelope,
+        // which keeps the error string and drops the data, so a caller reading
+        // only "1 selector matched more than one" would be told that something
+        // is ambiguous and never told what it matched or how to disambiguate -
+        // the actionable half, missing on the one path that needs it.
+        auto TakeLines = [](const TArray<TSharedPtr<FJsonValue>>& Lines, int32 Limit,
+                            TArray<FString>& Out)
+        {
+            for (int32 LineIndex = 0; LineIndex < Lines.Num() && LineIndex < Limit; ++LineIndex)
+            {
+                FString Line;
+                if (Lines[LineIndex]->TryGetString(Line)) { Out.Add(Line); }
+            }
+        };
+        // Bounded per array rather than across both, so a batch with many
+        // unmatched selectors cannot crowd out the ambiguous ones or vice versa.
+        // Each line is itself as long as its match list, which is the remaining
+        // ceiling here. plan_only is not the escape hatch: this refusal is
+        // decided before the plan_only branch, so a plan run of the same batch
+        // returns this same string.
+        const int32 PerKindLimit = 3;
+        TArray<FString> Details;
+        TakeLines(UnmatchedSelectors, PerKindLimit, Details);
+        TakeLines(AmbiguousSelectors, PerKindLimit, Details);
+        const int32 Withheld =
+            UnmatchedSelectors.Num() + AmbiguousSelectors.Num() - Details.Num();
+
+        FString Message = FString::Printf(
             TEXT("%d selector(s) matched no node and %d matched more than one. Nothing was changed: "
-                 "a patch resolves its whole batch before it mutates anything."),
-            UnmatchedSelectors.Num(), AmbiguousSelectors.Num()));
+                 "a patch resolves its whole batch before it mutates anything. %s"),
+            UnmatchedSelectors.Num(), AmbiguousSelectors.Num(),
+            *FString::Join(Details, TEXT(" ")));
+        if (Withheld > 0)
+        {
+            Message += FString::Printf(
+                TEXT(" (+%d further selector(s) with the same problem, not listed here. Fix these "
+                     "first; the next run reports the rest.)"), Withheld);
+        }
+        return Fail(Message);
     }
 
     if (bPlanOnly)
