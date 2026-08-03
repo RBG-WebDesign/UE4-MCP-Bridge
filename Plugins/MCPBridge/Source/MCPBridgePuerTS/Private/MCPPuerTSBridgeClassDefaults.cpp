@@ -362,12 +362,23 @@ bool UMCPPuerTSBridgeService::PatchClassDefaultsJson(
         if (Op.bSatisfied) { continue; }
         FString WrittenPath;
         FString WriteError;
-        const FString ValueJson = FString::Printf(
-            TEXT("{\"value\":%s}"), *ClassDefaultValueToJsonText(Op.Desired));
+        // Built as a real JSON object rather than printf'd around a serialized
+        // bare value. FJsonSerializer writing a scalar at the root of a writer
+        // is not the same thing as writing an object field, so the hand-built
+        // string was one whitespace or quoting difference away from a request
+        // the receiving parser rejects, and it rejected it: the failure this
+        // replaces was "value must be valid JSON" on a plain string.
+        TSharedPtr<FJsonObject> ValueWrapper = MakeShared<FJsonObject>();
+        ValueWrapper->SetField(TEXT("value"), Op.Desired);
+        const FString ValueJson = SerializeJson(ValueWrapper);
         if (!SetObjectPropertyJson(CDO, Op.Name, ValueJson, WrittenPath, WriteError))
         {
+            // Name what was sent as well as what came back. A write refusal
+            // that quotes neither the value nor its encoding cannot be acted on
+            // without a debugger.
             return FailWithRollback(FString::Printf(
-                TEXT("could not set '%s' on the class default object: %s"), *Op.Name, *WriteError));
+                TEXT("could not set '%s' on the class default object: %s The value sent was %s."),
+                *Op.Name, *WriteError, *ValueJson.Left(300)));
         }
         Applied.Add(MakeShared<FJsonValueString>(Op.Name));
     }

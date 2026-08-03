@@ -6,9 +6,11 @@
 #include "Engine/World.h"
 #include "GameFramework/WorldSettings.h"
 #include "HAL/IConsoleManager.h"
+#include "HAL/PlatformProcess.h"
 #include "Json.h"
 #include "LightingBuildOptions.h"
 #include "Misc/PackageName.h"
+#include "Misc/Paths.h"
 #include "UObject/Package.h"
 
 namespace
@@ -49,6 +51,49 @@ namespace
         Out->SetStringField(TEXT("unbuilt_counts_unavailable_reason"),
             TEXT("UWorld::NumLightingUnbuiltObjects is compiled out of a shipping build."));
 #endif
+    }
+
+    /**
+     * Whether the thing that actually does the work is there.
+     *
+     * CPU Lightmass does not run inside the editor. The editor exports the
+     * scene and hands it to Swarm Agent, a separate .NET service under the
+     * ENGINE, not under this plugin. When Swarm cannot start, BuildLighting
+     * still returns, IsLightingBuildCurrentlyRunning still says true, and the
+     * build then makes no progress forever: the command reports what it
+     * requested rather than what happened, which is the failure shape this
+     * program exists to remove (finding 0u).
+     *
+     * Reported on every call, including action="status", so a caller can ask
+     * whether a bake is even possible without starting one.
+     */
+    void FillSwarmStatus(const TSharedPtr<FJsonObject>& Out, FString& OutAgentPath, bool& bOutAvailable)
+    {
+        OutAgentPath = FPaths::ConvertRelativePathToFull(
+            FPaths::EngineDir() / TEXT("Binaries/DotNET/SwarmAgent.exe"));
+        const FString LightmassPath = FPaths::ConvertRelativePathToFull(
+            FPaths::EngineDir() / TEXT("Binaries/Win64/UnrealLightmass.exe"));
+        const bool bAgentPresent = FPaths::FileExists(OutAgentPath);
+        const bool bLightmassPresent = FPaths::FileExists(LightmassPath);
+        const bool bAgentRunning = FPlatformProcess::IsApplicationRunning(TEXT("SwarmAgent"));
+
+        Out->SetStringField(TEXT("swarm_agent_path"), OutAgentPath);
+        Out->SetBoolField(TEXT("swarm_agent_present"), bAgentPresent);
+        Out->SetBoolField(TEXT("swarm_agent_running"), bAgentRunning);
+        Out->SetBoolField(TEXT("lightmass_present"), bLightmassPresent);
+
+        bOutAvailable = (bAgentPresent || bAgentRunning) && bLightmassPresent;
+        Out->SetBoolField(TEXT("swarm_available"), bOutAvailable);
+        if (bOutAvailable && !bAgentRunning)
+        {
+            Out->SetStringField(TEXT("swarm_note"),
+                TEXT("Swarm Agent is installed but not running, so the editor will try to start one. "
+                     "That auto-start is the step that fails on a machine with a firewall prompt, a "
+                     "stuck previous agent, or a damaged cache under "
+                     "%LOCALAPPDATA%/UnrealEngine/4.27/Saved/Swarm, and it fails without an error "
+                     "this command can see. Start SwarmAgent.exe by hand first if a build stalls at "
+                     "0%."));
+        }
     }
 }
 
@@ -114,6 +159,10 @@ bool UMCPPuerTSBridgeService::BuildLightingJson(
     Result->SetStringField(TEXT("level_path"), LevelPath);
     Result->SetStringField(TEXT("level_name"), FPackageName::GetShortName(LevelPath));
 
+    FString SwarmAgentPath;
+    bool bSwarmAvailable = false;
+    FillSwarmStatus(Result, SwarmAgentPath, bSwarmAvailable);
+
     auto Answer = [&](bool bSuccess) -> bool
     {
         FillLightingStatus(Result, World);
@@ -146,6 +195,23 @@ bool UMCPPuerTSBridgeService::BuildLightingJson(
     }
 
     // --- start ---
+    //
+    // Refused by name, the way nav_build refuses a level with no bounds volume.
+    // Without this the command starts a build that cannot progress, returns
+    // success, and leaves the caller polling a status that never changes.
+    if (!bSwarmAvailable)
+    {
+        Result->SetBoolField(TEXT("started"), false);
+        Result->SetBoolField(TEXT("waited"), false);
+        OutError = FString::Printf(
+            TEXT("Swarm Agent is not available, so a CPU Lightmass build cannot run. Expected "
+                 "SwarmAgent.exe at %s and UnrealLightmass.exe beside it under the engine. Swarm is "
+                 "part of the ENGINE install, not this plugin: reinstall or repair the engine's "
+                 "Binaries, or start SwarmAgent.exe by hand. Nothing was started."),
+            *SwarmAgentPath);
+        return Answer(false);
+    }
+
     if (GEditor->IsLightingBuildCurrentlyRunning())
     {
         Result->SetBoolField(TEXT("started"), false);

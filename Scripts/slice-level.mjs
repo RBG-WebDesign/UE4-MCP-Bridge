@@ -29,6 +29,12 @@ await runSlice({
   title: "a scene of several actors with lighting and a volume, placed and verified",
   proves: "describe a scene as desired state, place it in one call, read it back independently, and save the level",
 }, async (h) => {
+  // Component properties go in the `components` map, keyed by the component's
+  // own name, and actor properties go in `properties`. The first draft of this
+  // slice put "StaticMeshComponent.StaticMesh" in `properties` and scene_batch
+  // refused it by name, correctly: that dotted form addresses nothing. The
+  // names below are the ones the level actually reports through
+  // puerts_scene_inspect with include_components, not guesses.
   const operations = [
     ...PILLARS.map((p) => ({
       op: "upsert_actor",
@@ -37,12 +43,12 @@ await runSlice({
       location: p.location,
       scale: { x: 1, y: 1, z: 4 },
       folder: "Courtyard/Structure",
-      properties: { "StaticMeshComponent.StaticMesh": "/Engine/BasicShapes/Cube.Cube" },
+      components: { StaticMeshComponent0: { StaticMesh: "/Engine/BasicShapes/Cube.Cube" } },
     })),
     {
       op: "upsert_actor", label: "CourtyardSun", class: "/Script/Engine.DirectionalLight",
       rotation: { pitch: -42, yaw: 25, roll: 0 }, folder: "Courtyard/Lighting",
-      properties: { "LightComponent.Intensity": 6 },
+      components: { LightComponent0: { Intensity: 6 } },
     },
     {
       op: "upsert_actor", label: "CourtyardSky", class: "/Script/Engine.SkyLight",
@@ -51,12 +57,12 @@ await runSlice({
     {
       op: "upsert_actor", label: "CourtyardLamp", class: "/Script/Engine.PointLight",
       location: { x: 0, y: 0, z: 300 }, folder: "Courtyard/Lighting",
-      properties: { "LightComponent.Intensity": 8000 },
+      components: { LightComponent0: { Intensity: 8000 } },
     },
     {
       op: "upsert_actor", label: "CourtyardEntryTrigger", class: "/Script/Engine.TriggerBox",
       location: TRIGGER_LOCATION, folder: "Courtyard/Gameplay",
-      properties: { "CollisionComponent.BoxExtent": TRIGGER_EXTENT },
+      components: { CollisionComp: { BoxExtent: TRIGGER_EXTENT } },
     },
   ];
 
@@ -68,11 +74,12 @@ await runSlice({
   });
   const start = (starts?.data?.actors ?? [])[0];
   if (start) {
-    const where = await h.call("puerts_read_property", {
-      actor: start.name ?? start.label ?? start,
-      property: "ActorLocation",
-    }, { label: "1. read the PlayerStart location" });
-    const p = where?.data?.value ?? where?.data ?? null;
+    // puerts_find_actors already reports a location, so the clearance rule is
+    // checkable with one call. The first draft asked puerts_read_property for
+    // "ActorLocation" and was refused: ActorLocation is not a reflected
+    // property, it is AActor::GetActorLocation() reading the root component's
+    // world transform, and the refusal was right.
+    const p = start.location ?? null;
     if (p && typeof p.x === "number") {
       const d = Math.hypot(p.x - TRIGGER_LOCATION.x, p.y - TRIGGER_LOCATION.y, p.z - TRIGGER_LOCATION.z);
       const clearance = 1.5 * Math.max(TRIGGER_EXTENT.x, TRIGGER_EXTENT.y, TRIGGER_EXTENT.z);
@@ -112,7 +119,7 @@ await runSlice({
       `${placed.data?.applied_operation_count} of ${operations.length}`);
   }
 
-  const read = await h.call("puerts_scene_inspect", { include_components: true }, {
+  const read = await h.call("puerts_scene_inspect", { include_components: true, include_properties: true }, {
     label: "3. read the level back with the independent scene inspector",
     why: "puerts_find_actors returns names and classes only. It reports no transform, no folder, no bounds and no "
       + "structure hash, so there is no way to verify a placement without one",
@@ -156,25 +163,39 @@ await runSlice({
     }
   }
 
-  // Lighting. Nothing in the catalog triggered a build until lane U, so a
-  // screenshot of an authored scene showed the "Lighting needs to be rebuilt"
-  // banner over unlit geometry.
-  const lit = await h.call("puerts_lighting_build", { action: "start", quality: "Preview" }, {
-    label: "4. start a lighting build so the placed lights are baked rather than preview-only",
-    why: "a scene authored with lights and never lit is a screenshot of the banner",
+  // Lighting. This slice does NOT bake, and that is a decision rather than an
+  // omission (finding 0u). A Lightmass run is an external multi-minute
+  // dependency on Swarm Agent, and an earlier version of this step started one:
+  // the call outran the command pipe's timeout, the pipe was left wedged, and
+  // the three steps after it failed with "PuerTS command pipe timed out"
+  // without ever being attempted. What this slice needs proved is that the
+  // lights were PLACED with the properties the prompt asked for, which the
+  // read-back above already does. Baked lighting belongs in the environment
+  // slice, where static lighting is the thing being proven.
+  //
+  // What is asserted here instead is the precondition, because a command that
+  // reports what it requested rather than what happened is the failure this
+  // program exists to remove. lighting_build must be able to say whether a bake
+  // is even possible before one is started.
+  const lit = await h.call("puerts_lighting_build", { action: "status" }, {
+    label: "4. ask lighting_build whether a bake is possible, without starting one",
+    why: "Swarm Agent is an engine service outside this plugin. When it cannot start, a bake never "
+      + "progresses and a command that had already reported success is lying about the level",
   });
   if (lit?.success === true) {
-    h.check(lit.data?.waited === false,
-      "4. the build command says plainly that it did not wait",
-      "a Lightmass build runs for minutes; a command that claimed completion here would be lying");
-    const status = await h.call("puerts_lighting_build", { action: "status" }, {
-      label: "5. poll the build rather than assuming it finished",
-    });
-    h.note("5. lighting build state at the end of this slice",
-      `build_running=${status?.data?.build_running}, `
-      + `lighting_unbuilt_objects=${status?.data?.lighting_unbuilt_objects}. A run that ends with `
-      + "build_running true has a build still going; the level below is saved either way, because "
-      + "the map build data lands when the build completes.");
+    h.check(typeof lit.data?.swarm_available === "boolean",
+      "4. the command reports whether Swarm can run a bake at all",
+      `swarm_available=${lit.data?.swarm_available} agent_present=${lit.data?.swarm_agent_present} `
+      + `agent_running=${lit.data?.swarm_agent_running} lightmass=${lit.data?.lightmass_present}`);
+    h.check(lit.data?.started === false,
+      "4. a status call started nothing", String(lit.data?.started));
+    h.check(typeof lit.data?.lighting_unbuilt_objects === "number",
+      "4. the level says how much of its lighting is unbuilt",
+      String(lit.data?.lighting_unbuilt_objects));
+    h.note("4. this slice deliberately does not bake",
+      "finding 0u: a Lightmass run is a multi-minute external dependency on Swarm Agent, and the "
+      + "level slice needs placed lights and correct transforms, not a bake. The screenshot below "
+      + "therefore shows preview lighting, and that is the intended state for this slice.");
   }
 
   await h.call("puerts_save", {}, {

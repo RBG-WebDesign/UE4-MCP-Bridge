@@ -2775,3 +2775,176 @@ stops it. It is also the one job whose work outlives the editor, so a
 may still be running, and names the output directory as the only handle left.
 
 Not verified live. No editor has compiled this code.
+## Finding 0v: widget_build re-saved an asset it had not changed
+
+Found and fixed 2026-08-03 by lane X, live against BridgeInstallTest. The UI
+slice's one red check: "3. a converged rerun wrote no new bytes to disk".
+
+The structure hash was already unmoved by an identical rebuild, so the tree was
+converging correctly. The FILE was not. UE regenerates a package GUID on every
+save, so re-saving an unchanged asset changes its bytes unconditionally: there
+is no such thing as an idempotent save. A caller told "nothing changed" then
+finds a modified file, a source-control edit and a new checksum.
+
+That makes "do not save when nothing changed" the only available form of
+convergence for any builder in this catalog, not a nicety. It is worth stating
+generally because the same check is written into the gameplay and materials
+slices against different builders.
+
+`RebuildWidgetFromJSON` has no no-op path and cannot get one cheaply: a widget
+tree has no per-widget identity to merge against, so the spec is always the
+whole tree and the rebuild always replaces it. Convergence is therefore measured
+after the fact, in `MCPPuerTSBridgeWidget.cpp`: the canonical `DescribeWidget`
+description of the tree the rebuild FOUND is compared with the one it LEFT.
+Equal means the rebuild reproduced the same tree, so the file on disk is already
+correct, nothing is saved, and the package's dirty flag is put back the way it
+was found. `converged` is reported either way.
+
+Live: `slice-ui` 20 passed, 0 failed, verdict PASS.
+
+## Finding 0w: class_defaults_patch built its request JSON with printf and it did not parse
+
+Found and fixed 2026-08-03 by lane X, live against BridgeInstallTest. The AI
+slice's one red check, and the whole reason the AI domain could not be finished:
+
+```
+could not set 'AIControllerClass' on the class default object: value must be
+valid JSON.
+```
+
+`PatchClassDefaultsJson` validated the value, exported it on a scratch copy of
+the property, decided it was a real change, opened a transaction, snapshotted
+the CDO, and then handed `SetObjectPropertyJson` a request string built as
+`FString::Printf(TEXT("{\"value\":%s}"), *SerializedBareValue)`, where the bare
+value came from `FJsonSerializer::Serialize(Value, TEXT(""), Writer)`.
+
+Serializing a scalar at the ROOT of a writer is not the same operation as
+writing an object field, and the receiving parser rejected the result. Every
+class default write failed, on every property, for every caller. The command's
+own rollback then worked correctly and reported an honest failure, which is why
+this read as a tidy refusal rather than as damage.
+
+Fixed by building a real `FJsonObject` and serializing it with the service's own
+`SerializeJson`, the helper every other command in the file already uses. There
+was no missing capability and no engine subtlety: there was a hand-built JSON
+string next to a function that builds JSON.
+
+The refusal now also quotes the value it sent. A write refusal that names
+neither the value nor its encoding cannot be acted on without a debugger, and
+this one could not: the message named the property and the parser's complaint
+and nothing that would have located the defect.
+
+Live: `slice-ai` 22 passed, 0 failed, verdict PASS, including the independent
+read of `AIControllerClass` off the class default object through
+`puerts_read_property` and a converged rerun that wrote nothing.
+
+## Finding 0x: the graph connection vocabulary could not name a latent node's exec output
+
+Found and fixed 2026-08-03 by lane X, live against BridgeInstallTest. This is
+what took the gameplay slice from 0 of 4 to 16 of 17.
+
+`docs/VERTICAL_SLICES.md` predicted this precisely and asked to be told which
+way it fell: "If exactly that pair appears in `graph.unresolved_connections`,
+the gap is the vocabulary, not the fixture." It did, and it was.
+
+A latent function's output exec pin is `PN_Then` carrying a friendly name of
+`Completed` (`K2Node_CallFunction.cpp:880`). The builder resolved a pin role by
+`FindPin(FName(Role))` on the pin's real name only, so `wait.Completed` matched
+nothing. That is every Delay, every latent async action, and every node in the
+engine whose exec output the editor labels something other than its pin name:
+the one connection those nodes exist to make was unexpressible.
+
+Fixed by one shared `ResolveGraphPinByRole`, used by the builder AND by
+`graph_patch`, which falls back to a direction-filtered match on
+`PinFriendlyName` before giving up. `ResolvePatchPin` was a second copy of the
+same four rules and is now a forward to the shared one, so a build and a patch
+cannot drift on what a pin is called.
+
+Two reporting defects found beside it and fixed in the same place:
+
+- **"12 of 12 graph connection(s) could not be wired"** for ONE bad endpoint.
+  A graph that is not whole is discarded entirely, which zeroes the
+  connections-made count, and the message computed its numerator from that
+  count. It now reports the number of connections that could not be RESOLVED,
+  and only fires when there are any, so a graph discarded because a NODE was
+  refused no longer gets a second error blaming eleven links that were fine.
+- **A dropped connection named the role that failed and not the pins that
+  exist.** It now lists the pins of that direction on that node, with each
+  pin's display name beside its real name, which is exactly the information
+  that turns `wait.Completed` into `wait.then` without opening the editor.
+
+## Finding 0y: viewport_screenshot refused to take a picture unless it was told what to look at
+
+Found and fixed 2026-08-03 by lane X. Three slices failed the same check with
+`No requested actors were found for viewport capture.`
+
+`CaptureViewportJson` gathered actors from the level, and gathered NONE when the
+request named none and nothing in the level carried the `MCPPhysics` tag. It
+then treated an empty gather as an error and returned before capturing
+anything. So the AGENTS.md visual feedback loop, which calls
+`viewport_screenshot` after every spatial operation with no arguments, could
+only work in a level that happened to contain a physics fixture.
+
+Naming actors means "frame these first". Naming none means "capture what the
+viewport is looking at". Only a request that named actors and matched none is an
+error now, and that refusal lists the names it was given and says they are
+matched against both an actor's name and its label.
+
+## Finding 0z: PARTIAL. blueprint_build re-saves an unchanged asset, and the cause was one hidden pin
+
+Diagnosed and fixed 2026-08-03 by lane X; the fix is COMPILED AND UNRUN, and
+this entry says so rather than claiming the check is green.
+
+The red check is the gameplay slice's last one: "a converged rerun wrote no new
+bytes to disk". Finding 0v established the general rule this sits under: UE
+regenerates a package GUID on every save, so re-saving an unchanged asset always
+changes its bytes, and "do not save" is the only form convergence can take.
+
+`blueprint_build` now measures convergence the way `widget_build` does: the
+asset's fingerprint before the build is compared with the one after, read
+through `InspectBlueprintJson`, the same inspector a caller verifies with, as
+`member_structure_hash_sha1 | graph structure_hash_sha1 | compile_status`. Equal
+means the build reproduced what was there, so nothing is saved and the package's
+dirty flag goes back the way it was found. Reported as `asset_unchanged`, with
+both fingerprints.
+
+**That was not enough on its own, and the reason is the finding.** Measured with
+four probes against a live editor:
+
+```
+  inspect before build      bb9ac652...
+  build, save:false         c7a3d997...
+  inspect after build       c7a3d997...   (stable, +4s and +12s identical)
+  puerts_save               ->
+  inspect after save        bb9ac652...
+```
+
+The graph structure hash ALTERNATED across a save, forever. So the pre-build
+fingerprint, read on a saved asset, never equalled the post-build one, no rerun
+could ever be seen as converged, and every rerun saved again.
+
+The whole difference, from a field-by-field diff of the two inspections, is one
+pin on one node:
+
+```
+  after build   "default_value": "LatentInfo"
+  after save    "default_value": "(Linkage=-1,UUID=-1,ExecutionFunction=\"\",CallbackTarget=None)"
+```
+
+The Delay node's hidden `LatentInfo` pin comes out of node creation holding the
+string from the UFUNCTION's own latent metadata, and serialization rewrites it
+to the struct's export text. Both are the same "no value"; neither is authored;
+`autogenerated_default_value` stays `LatentInfo` in both.
+
+Fixed at the hash: `structure_hash_sha1` now excludes HIDDEN pins, and
+`structure_hash_basis` says so and says why. A hidden pin is compiler plumbing
+that no build spec can set and no caller can address, and including it moved the
+hash for a reason no caller caused and none could fix. This also matters beyond
+one command: every slice's cold phase compares this hash across a restart, which
+is exactly the save-and-load boundary that flipped it.
+
+**Status: both changes are compiled into the target and neither has been run.**
+The last measured gameplay result is 16 passed, 1 failed, with the fingerprint
+change in and the hidden-pin change not yet built. The next run of
+`Scripts/slice-gameplay.mjs` is what settles it, and it should be treated as
+unproven until then.

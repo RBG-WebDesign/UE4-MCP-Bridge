@@ -174,6 +174,25 @@ bool UMCPPuerTSBridgeService::BuildWidgetJson(
     UWidgetBlueprint* WidgetBlueprint = LoadObject<UWidgetBlueprint>(nullptr, *ObjectPath);
     const bool bCreated = WidgetBlueprint == nullptr;
 
+    // The tree as it stands BEFORE the rebuild, in the same canonical shape the
+    // response reports. This is what makes convergence observable: see the
+    // no-save-on-converge block below for why it has to be measured rather than
+    // assumed.
+    FString DescriptionBefore;
+    bool bDirtyBefore = false;
+    if (!bCreated)
+    {
+        UPackage* ExistingPackage = WidgetBlueprint->GetOutermost();
+        bDirtyBefore = ExistingPackage != nullptr && ExistingPackage->IsDirty();
+        if (WidgetBlueprint->WidgetTree != nullptr)
+        {
+            int32 CountBefore = 0;
+            const TSharedPtr<FJsonObject> RootBefore =
+                DescribeWidget(WidgetBlueprint->WidgetTree->RootWidget, CountBefore);
+            if (RootBefore.IsValid()) { DescriptionBefore = SerializeJson(RootBefore); }
+        }
+    }
+
     TArray<TSharedPtr<FJsonValue>> Errors;
     TArray<TSharedPtr<FJsonValue>> Warnings;
 
@@ -281,24 +300,6 @@ bool UMCPPuerTSBridgeService::BuildWidgetJson(
         return FailRolledBack();
     }
 
-    bool bSaved = bCreated;
-    if (bSave && !bCreated)
-    {
-        FString SaveError;
-        bSaved = SaveProjectAsset(ObjectPath, SaveError);
-        if (!bSaved)
-        {
-            // A half-written asset is the same hazard as a half-built one.
-            Errors.Add(MakeShared<FJsonValueString>(
-                FString::Printf(TEXT("Asset save failed: %s"), *SaveError)));
-            return FailRolledBack();
-        }
-    }
-    else if (!bSave)
-    {
-        bSaved = false;
-    }
-
     int32 WidgetCount = 0;
     TSharedPtr<FJsonObject> Root;
     if (WidgetBlueprint->WidgetTree != nullptr)
@@ -310,6 +311,51 @@ bool UMCPPuerTSBridgeService::BuildWidgetJson(
         Errors.Add(MakeShared<FJsonValueString>(
             TEXT("The widget Blueprint has no WidgetTree after the build.")));
         return FailRolledBack();
+    }
+
+    // --- No save on converge.
+    //
+    // UE regenerates a package GUID on every save, so re-saving an unchanged
+    // asset changes the bytes on disk. A caller who reruns an identical spec
+    // and is told "nothing changed" then finds a modified file, a source
+    // control edit and a new checksum, which is the opposite of convergent.
+    //
+    // RebuildWidgetFromJSON has no no-op path and cannot get one cheaply: a
+    // widget tree has no per-widget identity to merge against, so the spec is
+    // always the whole tree and the rebuild always replaces it. Convergence is
+    // therefore measured after the fact, by comparing the canonical description
+    // of the tree the rebuild found with the one it left. Equal means the
+    // rebuild produced the same tree, so the file already on disk is correct
+    // and the package's dirty flag is put back the way it was found.
+    const bool bConverged = !bCreated
+        && !DescriptionBefore.IsEmpty()
+        && Root.IsValid()
+        && DescriptionBefore == SerializeJson(Root);
+
+    bool bSaved = bCreated;
+    if (bSave && !bCreated && !bConverged)
+    {
+        FString SaveError;
+        bSaved = SaveProjectAsset(ObjectPath, SaveError);
+        if (!bSaved)
+        {
+            // A half-written asset is the same hazard as a half-built one.
+            Errors.Add(MakeShared<FJsonValueString>(
+                FString::Printf(TEXT("Asset save failed: %s"), *SaveError)));
+            return FailRolledBack();
+        }
+    }
+    else if (!bSave || bConverged)
+    {
+        bSaved = false;
+    }
+
+    if (bConverged)
+    {
+        if (UPackage* Package = WidgetBlueprint->GetOutermost())
+        {
+            Package->SetDirtyFlag(bDirtyBefore);
+        }
     }
 
     // Past every failure exit: the request succeeded, so keep what it made.
@@ -328,6 +374,7 @@ bool UMCPPuerTSBridgeService::BuildWidgetJson(
     Result->SetBoolField(TEXT("compiled"), bCompiled);
     Result->SetStringField(TEXT("compile_status"), CompileStatus);
     Result->SetBoolField(TEXT("saved"), bSaved);
+    Result->SetBoolField(TEXT("converged"), bConverged);
     Result->SetArrayField(TEXT("errors"), Errors);
     Result->SetArrayField(TEXT("warnings"), Warnings);
     // Always present, so a caller never has to distinguish "clean" from

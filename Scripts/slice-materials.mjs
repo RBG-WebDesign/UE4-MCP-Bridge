@@ -24,58 +24,85 @@ await runSlice({
   title: "a master material with parameters, an instance that overrides them, compiled and applied",
   proves: "author a material graph, instance it, read the parameter values back, and see it on a mesh",
 }, async (h) => {
-  // The master material. Nothing anywhere authors a material graph: the legacy
-  // material_create is behind the HTTP opt-in and builds from a fixed template,
-  // puerts_sky_shader_create is one hard-coded HLSL sky, and lane B already
-  // recorded material graph structure as a platform gap with no native command.
-  h.request("puerts_material_build",
-    "author a UMaterial graph: expression nodes, named scalar/vector/texture parameters, and the base-colour, "
-    + "emissive, roughness and normal connections. Without it there is no parent material to instance, so the "
-    + "material slice cannot start from a prompt. Lane I states this will not exist in that lane, and lane B "
-    + "recorded material graph structure as a platform gap. The nearest registered tool, puerts_sky_shader_create, "
-    + "builds one specific hard-coded sky material",
-    {
-      tool: "puerts_material_build",
-      owner: "UNOWNED. Lane I ships the instance and the inspector only",
-      // Deliberately NOT declared as a legacy equivalent. material_create builds
-      // from a fixed template and the inventory's own note on it says a generic
-      // material graph builder is a known gap. Claiming it as a port would
-      // understate this by a whole primitive.
-      nearest_existing: "material_create (legacy_http), which creates a simple opaque surface from a fixed template and authors no graph",
-      params: {
-        asset_path: "/Game/MCPGenerated/...",
-        domain: "Surface | PostProcess | UI",
-        blend_mode: "Opaque | Masked | Translucent",
-        shading_model: "DefaultLit | Unlit",
-        parameters: "[{kind:'scalar'|'vector'|'texture'|'switch', name, default, group?}]",
-        expressions: "[{id, type, params}] and connections: [{from:'id.output', to:'id.input'}], "
-          + "the same node-and-connection shape puerts_blueprint_build already uses",
-        outputs: "{BaseColor:'id.output', EmissiveColor:'id.output', Roughness:..., Normal:...}",
-        save: "boolean",
-      },
-      returns: "{ compile_status, parameters_read_back, structure_hash_sha1 }",
-    });
-
-  // Without an authoring primitive the slice needs an existing parent. It looks
-  // for one rather than assuming, so the evidence says whether the fallback was
-  // even available.
-  let parent = null;
-  const found = await h.call("puerts_find_assets", { type: "Material", limit: 20 }, {
-    label: "1. look for an existing master material to instance instead",
+  // The master material, authored from the prompt. This step used to be a
+  // h.request() for a primitive that did not exist, with a degraded fallback
+  // that instanced whatever material happened to be in the project. That
+  // fallback proved the instance tool and not the prompt: a parent nobody
+  // authored has no guarantee of carrying any parameter to override, and the
+  // 2026-08-03 run failed on exactly that, refused for four parameter names the
+  // accidental parent had never heard of. puerts_material_build is registered
+  // now, so the slice authors its own parent and the refusal becomes a real
+  // measurement of the builder.
+  const master = await h.call("puerts_material_build", {
+    asset_path: MASTER,
+    domain: "Surface",
+    blend_mode: "Opaque",
+    shading_model: "DefaultLit",
+    parameters: [
+      { kind: "vector", name: "BeaconColor", default: { r: 1.0, g: 0.62, b: 0.16, a: 1.0 }, group: "Beacon", x: -600, y: -200 },
+      { kind: "scalar", name: "GlowStrength", default: 5.0, group: "Beacon", x: -600, y: 0 },
+      { kind: "scalar", name: "Roughness", default: 0.5, group: "Beacon", x: -600, y: 200 },
+      { kind: "switch", name: "UseEmissive", default: true, group: "Beacon", x: -200, y: 0 },
+    ],
+    expressions: [
+      { id: "Glow", type: "Multiply", x: -400, y: -100 },
+    ],
+    connections: [
+      { from: "BeaconColor", to: "Glow.A" },
+      { from: "GlowStrength", to: "Glow.B" },
+      { from: "Glow", to: "UseEmissive.A" },
+    ],
+    outputs: {
+      BaseColor: "BeaconColor",
+      EmissiveColor: "UseEmissive",
+      Roughness: "Roughness",
+    },
+    save: true,
+  }, {
+    label: "1. author the amber emissive master material the prompt asked for",
+    why: "the prompt asks for tunable colour and glow strength, which means named parameters on a parent "
+      + "material. Without authoring one there is nothing to instance and nothing to tune",
   });
-  if (found?.success === true) {
-    const list = found.data?.assets ?? [];
-    parent = list[0]?.object_path ?? list[0]?.path ?? list[0]?.asset_path ?? null;
-    h.check(parent !== null,
-      "1. some material exists to act as a parent", `${list.length} found`);
-    h.note("1. this is a degraded path, not the slice",
-      "instancing whatever material happens to exist proves the instance tool, not the prompt. The prompt asked "
-      + "for a material with named parameters, and a parent nobody authored has no guarantee of carrying any.");
+  if (master?.success === true) {
+    h.check(master.data?.compile?.succeeded === true || master.data?.compile_status === "UpToDate",
+      "1. the master material compiled",
+      JSON.stringify(master.data?.compile ?? master.data?.compile_status ?? null).slice(0, 300));
+    h.check(master.data?.saved === true,
+      "1. the master material was saved after its read-back agreed", String(master.data?.saved));
   }
+
+  // The independent read of the PARENT, before anything instances it. A builder
+  // reporting its own success is not evidence that the parameters a designer
+  // will tune are actually published by the material.
+  const masterRead = await h.call("puerts_material_inspect", { asset_path: MASTER }, {
+    label: "1. read the master back with the independent material inspector",
+    why: "an instance can only override parameters the parent publishes, so the parameter list is the "
+      + "contract between the two halves of this slice",
+  });
+  let masterHash = null;
+  if (masterRead?.success === true) {
+    masterHash = masterRead.data?.structure_hash_sha1 ?? null;
+    h.check(masterRead.data?.asset_kind === "material",
+      "1. the inspector identifies the parent as a material", String(masterRead.data?.asset_kind));
+    const names = (bag) => Object.keys(bag ?? {});
+    const published = [
+      ...names(masterRead.data?.scalars), ...names(masterRead.data?.vectors),
+      ...names(masterRead.data?.switches), ...names(masterRead.data?.textures),
+    ];
+    h.check(["BeaconColor", "GlowStrength", "Roughness", "UseEmissive"].every((n) => published.includes(n)),
+      "1. every parameter the prompt asked for is published by the parent",
+      JSON.stringify(published));
+    h.check(typeof masterHash === "string" && masterHash.length >= 8,
+      "1. the inspector reports a structure hash for the master", String(masterHash));
+  }
+
+  // Convergence, the property every builder here is judged on: an identical
+  // rerun must leave the same asset and must not rewrite the file.
+  const masterSha = h.fileSha(MASTER);
 
   const instance = await h.call("puerts_material_instance_build", {
     asset_path: INSTANCE,
-    parent_path: parent ?? MASTER,
+    parent_path: MASTER,
     scalars: { GlowStrength: 12.5, Roughness: 0.35 },
     vectors: { BeaconColor: { r: 1.0, g: 0.62, b: 0.16, a: 1.0 } },
     switches: { UseEmissive: true },
@@ -113,6 +140,50 @@ await runSlice({
     const c = read.data?.vectors?.BeaconColor;
     h.check(c !== undefined && Math.abs((c.r ?? 0) - 1.0) < 1e-3 && Math.abs((c.g ?? 0) - 0.62) < 1e-3,
       "3. the vector override is the colour the prompt asked for", JSON.stringify(c));
+    h.check(String(read.data?.parent_path ?? "").includes("M_SliceBeacon"),
+      "3. the instance names the master this slice authored",
+      String(read.data?.parent_path));
+  }
+
+  // The master, rebuilt from the identical spec. A desired-state builder that
+  // rewrites the file every time it is asked for a state the asset is already
+  // in cannot be composed into a workflow: the caller cannot tell "already
+  // right" from "changed".
+  const masterAgain = await h.call("puerts_material_build", {
+    asset_path: MASTER,
+    domain: "Surface",
+    blend_mode: "Opaque",
+    shading_model: "DefaultLit",
+    parameters: [
+      { kind: "vector", name: "BeaconColor", default: { r: 1.0, g: 0.62, b: 0.16, a: 1.0 }, group: "Beacon", x: -600, y: -200 },
+      { kind: "scalar", name: "GlowStrength", default: 5.0, group: "Beacon", x: -600, y: 0 },
+      { kind: "scalar", name: "Roughness", default: 0.5, group: "Beacon", x: -600, y: 200 },
+      { kind: "switch", name: "UseEmissive", default: true, group: "Beacon", x: -200, y: 0 },
+    ],
+    expressions: [
+      { id: "Glow", type: "Multiply", x: -400, y: -100 },
+    ],
+    connections: [
+      { from: "BeaconColor", to: "Glow.A" },
+      { from: "GlowStrength", to: "Glow.B" },
+      { from: "Glow", to: "UseEmissive.A" },
+    ],
+    outputs: {
+      BaseColor: "BeaconColor",
+      EmissiveColor: "UseEmissive",
+      Roughness: "Roughness",
+    },
+    save: true,
+  }, { label: "3b. rerunning the identical master spec converges" });
+  if (masterAgain?.success === true && masterHash !== null) {
+    const masterReread = await h.call("puerts_material_inspect", { asset_path: MASTER }, {
+      label: "3b. re-read the master after the rerun",
+    });
+    h.check(masterReread?.data?.structure_hash_sha1 === masterHash,
+      "3b. the master's structure hash is unmoved by an identical rebuild",
+      `${masterReread?.data?.structure_hash_sha1} vs ${masterHash}`);
+    h.check(masterSha === null || h.fileSha(MASTER) === masterSha,
+      "3b. a converged rerun of the master wrote no new bytes to disk");
   }
 
   // A texture parameter has nowhere to get a texture from. The 2026-07-29 gap

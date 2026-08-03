@@ -63,13 +63,28 @@ bool UMCPPuerTSBridgeService::CaptureViewportJson(
         const bool bRequested = Requested.Contains(Actor->GetName()) || Requested.Contains(Actor->GetActorLabel());
         if (bDefaultPhysicsActor || bRequested) Actors.Add(Actor);
     }
-    if (Actors.Num() == 0)
+    // Naming actors means "frame these first". Naming none means "capture what
+    // the viewport is looking at", which is what the AGENTS.md feedback loop
+    // asks for after every spatial operation and what this used to refuse: an
+    // empty level, or a level with nothing MCPPhysics-tagged in it, failed the
+    // screenshot rather than taking one. Only a request that named actors and
+    // found none is an error, because that caller was told about actors that
+    // are not there.
+    if (Actors.Num() == 0 && Requested.Num() > 0)
     {
-        OutError = TEXT("No requested actors were found for viewport capture.");
+        TArray<FString> Asked = Requested.Array();
+        Asked.Sort();
+        OutError = FString::Printf(
+            TEXT("No actor in the level matches any of the %d name(s) requested for viewport "
+                 "capture: %s. Names are matched against an actor's name and its label."),
+            Requested.Num(), *FString::Join(Asked, TEXT(", ")));
         return false;
     }
 
-    GEditor->MoveViewportCamerasToActor(Actors, true);
+    if (Actors.Num() > 0)
+    {
+        GEditor->MoveViewportCamerasToActor(Actors, true);
+    }
     const FString Directory = FPaths::ConvertRelativePathToFull(FPaths::ProjectSavedDir() / TEXT("Screenshots/MCPBridge"));
     IFileManager::Get().MakeDirectory(*Directory, true);
     const FString OutputPath = Directory / Filename;

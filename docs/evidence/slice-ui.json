@@ -3,8 +3,8 @@
   "title": "a Widget Blueprint with a layout, a binding and an independent read-back",
   "proves": "author a UMG tree, bind a widget property to data, read the asset back, and get it on screen",
   "phase": "warm",
-  "generated_at": "2026-08-03T15:41:57.423Z",
-  "verdict": "PRESENT_BUT_FAILING",
+  "generated_at": "2026-08-03T18:13:58.673Z",
+  "verdict": "PASS",
   "editor": {
     "available": true,
     "reason": "puerts_diagnostic answered"
@@ -92,7 +92,7 @@
     {
       "n": 13,
       "label": "3. a converged rerun wrote no new bytes to disk",
-      "status": "FAIL"
+      "status": "PASS"
     },
     {
       "n": 14,
@@ -187,8 +187,8 @@
   ],
   "missing_primitives": [],
   "checks": {
-    "passed": 19,
-    "failed": 1
+    "passed": 20,
+    "failed": 0
   },
   "sealed_artifacts": [
     {
@@ -196,10 +196,10 @@
       "inspect_tool": "puerts_widget_inspect",
       "structure_hash": "1BDD80C4B5FF75684E162104B136E60A9B1A6D8F",
       "node_count": null,
-      "file_sha256": "321a1bf911038f5f9a26c5cfe2c389a27f56dc504ccbfd81af09c88b2dc36fd4"
+      "file_sha256": "ce23e5735a495394e75aa3abb3d43a68cd1d8dbc74d7d2998672982325653616"
     }
   ],
   "mcp_round_trips": 10,
-  "elapsed_ms": 2642,
+  "elapsed_ms": 5091,
   "blocks": []
 }

@@ -3,7 +3,7 @@
   "title": "a Blueprint actor with components, variables and a working event graph",
   "proves": "author, compile, read back independently, converge on rerun, place in the level, and observe it run",
   "phase": "warm",
-  "generated_at": "2026-08-03T15:41:53.847Z",
+  "generated_at": "2026-08-03T18:30:42.533Z",
   "verdict": "PRESENT_BUT_FAILING",
   "editor": {
     "available": true,
@@ -28,56 +28,128 @@
       "n": 2,
       "label": "1. build the beacon Blueprint from one spec",
       "tool": "puerts_blueprint_build",
-      "status": "FAIL",
-      "detail": "PRESENT BUT FAILING: [\"12 of 12 graph connection(s) could not be wired and were dropped: wait.Completed -> light.exec (no output pin 'Completed' on wait). A connection endpoint is nodeId.pinRole, and a role that names no pin of that direction is silently discarded by the graph editor, so the build is failed rather than saved. A pure node has no exec pins: a const BlueprintCallable UFUNCTION with a return value is prom"
+      "status": "PASS"
     },
     {
       "n": 3,
+      "label": "1. the Blueprint compiled clean",
+      "status": "PASS",
+      "detail": "UpToDate"
+    },
+    {
+      "n": 4,
+      "label": "1. every connection in the spec resolved to real pins",
+      "status": "PASS",
+      "detail": "[]"
+    },
+    {
+      "n": 5,
+      "label": "1. the response names the generated class a level can spawn",
+      "status": "PASS",
+      "detail": "/Game/MCPGenerated/BP_SliceBeacon.BP_SliceBeacon_C"
+    },
+    {
+      "n": 6,
       "label": "primitive puerts_graph_inspect is registered",
       "tool": "puerts_graph_inspect",
       "status": "PASS"
     },
     {
-      "n": 4,
+      "n": 7,
       "label": "2. read the asset back with the independent inspector",
       "tool": "puerts_graph_inspect",
-      "status": "FAIL",
-      "detail": "PRESENT BUT FAILING: [\"No asset was found at '/Game/MCPGenerated/BP_SliceBeacon.BP_SliceBeacon'.\"]"
+      "status": "PASS"
     },
     {
-      "n": 5,
+      "n": 8,
+      "label": "2. both components are on the asset",
+      "status": "PASS",
+      "detail": "[\"Body\",\"Glow\"]"
+    },
+    {
+      "n": 9,
+      "label": "2. all three member variables are on the asset",
+      "status": "PASS",
+      "detail": "[\"IsLit\",\"LightDelay\",\"Pulses\"]"
+    },
+    {
+      "n": 10,
+      "label": "2. the graph has exactly the nodes the spec asked for",
+      "status": "PASS",
+      "detail": "15 vs 15"
+    },
+    {
+      "n": 11,
+      "label": "2. no node came back outside the builder vocabulary",
+      "status": "PASS"
+    },
+    {
+      "n": 12,
+      "label": "2. inspecting did not dirty the package",
+      "status": "PASS"
+    },
+    {
+      "n": 13,
+      "label": "2. the inspector reports a structure hash",
+      "status": "PASS",
+      "detail": "bb9ac652b58e7333e31445d9209aee73bc671685"
+    },
+    {
+      "n": 14,
       "label": "3. rerunning the identical spec converges",
       "tool": "puerts_blueprint_build",
-      "status": "FAIL",
-      "detail": "PRESENT BUT FAILING: [\"12 of 12 graph connection(s) could not be wired and were dropped: wait.Completed -> light.exec (no output pin 'Completed' on wait). A connection endpoint is nodeId.pinRole, and a role that names no pin of that direction is silently discarded by the graph editor, so the build is failed rather than saved. A pure node has no exec pins: a const BlueprintCallable UFUNCTION with a return value is prom"
+      "status": "PASS"
     },
     {
-      "n": 6,
+      "n": 15,
+      "label": "3. re-read after the rerun",
+      "tool": "puerts_graph_inspect",
+      "status": "PASS"
+    },
+    {
+      "n": 16,
+      "label": "3. the structure hash is unmoved by an identical rebuild",
+      "status": "PASS",
+      "detail": "bb9ac652b58e7333e31445d9209aee73bc671685 vs bb9ac652b58e7333e31445d9209aee73bc671685"
+    },
+    {
+      "n": 17,
+      "label": "3. a converged rerun wrote no new bytes to disk",
+      "status": "FAIL",
+      "detail": "a failure here is a real finding: blueprint_build re-saves an unchanged asset"
+    },
+    {
+      "n": 18,
       "label": "primitive puerts_scene_batch is registered",
       "tool": "puerts_scene_batch",
       "status": "PASS"
     },
     {
-      "n": 7,
+      "n": 19,
+      "label": "4. place the beacon in the level with a stable label",
+      "tool": "puerts_scene_batch",
+      "status": "PASS"
+    },
+    {
+      "n": 20,
       "label": "primitive puerts_viewport_screenshot is registered",
       "tool": "puerts_viewport_screenshot",
       "status": "PASS"
     },
     {
-      "n": 8,
+      "n": 21,
       "label": "5. capture the viewport as the visual half of the feedback loop",
       "tool": "puerts_viewport_screenshot",
-      "status": "FAIL",
-      "detail": "PRESENT BUT FAILING: [\"No requested actors were found for viewport capture.\"]"
+      "status": "PASS"
     },
     {
-      "n": 9,
+      "n": 22,
       "label": "6. observe the graph actually running",
       "status": "NOT_ATTEMPTED_BY_POLICY",
       "detail": "PIE is reserved for the user to request (AGENTS.md testing etiquette). puerts_pie_start exists but is live_partial, and there is no primitive that reads a variable off a running actor: puerts_read_property addresses editor objects. A gameplay slice therefore proves authoring, not behavior."
     },
     {
-      "n": 10,
+      "n": 23,
       "label": "7. source-control quiescence not measured",
       "status": "NOTE",
       "detail": "p4 is unavailable in this environment"
@@ -85,19 +157,19 @@
   ],
   "missing_primitives": [],
   "checks": {
-    "passed": 0,
-    "failed": 4
+    "passed": 16,
+    "failed": 1
   },
   "sealed_artifacts": [
     {
       "asset_path": "/Game/MCPGenerated/BP_SliceBeacon",
       "inspect_tool": "puerts_graph_inspect",
-      "structure_hash": null,
+      "structure_hash": "bb9ac652b58e7333e31445d9209aee73bc671685",
       "node_count": null,
-      "file_sha256": null
+      "file_sha256": "153960e5b0edf83bdaefbf5aadc14156b15d2dd436bac266cdd3ae71ad476922"
     }
   ],
-  "mcp_round_trips": 5,
-  "elapsed_ms": 2530,
+  "mcp_round_trips": 7,
+  "elapsed_ms": 4252,
   "blocks": []
 }

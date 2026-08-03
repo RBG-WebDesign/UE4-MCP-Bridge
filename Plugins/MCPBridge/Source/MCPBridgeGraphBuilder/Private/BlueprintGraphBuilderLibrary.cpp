@@ -1516,6 +1516,65 @@ void UBlueprintGraphBuilderLibrary::BuildBlueprintFromJSON(
         FailedNodes, CreatedNodes);
 }
 
+/**
+ * One pin lookup for the whole connection vocabulary, shared by the builder and
+ * by graph_patch so a build and a patch address the same pin by the same word.
+ *
+ *   "exec"      direction-aware: output side is PN_Then, input side PN_Execute
+ *   "then"      always PN_Then
+ *   "AsResult"  a dynamic cast's result pin, asked for by the node, because it
+ *               is named "As" plus the target type's DISPLAY name
+ *               (K2Node_DynamicCast.cpp:63) and no caller can compute that
+ *   otherwise   the literal pin name, then the pin's DISPLAY name
+ *
+ * The display-name fallback is not a convenience. A latent function's output
+ * exec pin is PN_Then carrying a friendly name of "Completed"
+ * (K2Node_CallFunction.cpp:880), so every Delay, every timeline-style latent
+ * call and every async action in the engine shows the caller a pin called
+ * Completed that no name lookup can find. Without this, the documented
+ * vocabulary cannot express the one connection those nodes exist to make.
+ */
+static UEdGraphPin* ResolveGraphPinByRole(
+    UEdGraphNode* Node,
+    const FString& Role,
+    EEdGraphPinDirection Direction)
+{
+    if (Node == nullptr) { return nullptr; }
+    if (Role == TEXT("exec"))
+    {
+        return Node->FindPin(Direction == EGPD_Output
+            ? UEdGraphSchema_K2::PN_Then : UEdGraphSchema_K2::PN_Execute);
+    }
+    if (Role == TEXT("then"))
+    {
+        return Node->FindPin(UEdGraphSchema_K2::PN_Then);
+    }
+    if (Role == TEXT("AsResult"))
+    {
+        if (UK2Node_DynamicCast* CastNode = Cast<UK2Node_DynamicCast>(Node))
+        {
+            return CastNode->GetCastResultPin();
+        }
+    }
+    if (UEdGraphPin* ByName = Node->FindPin(FName(*Role), Direction))
+    {
+        return ByName;
+    }
+    for (UEdGraphPin* Pin : Node->Pins)
+    {
+        if (Pin == nullptr || Pin->Direction != Direction || Pin->PinFriendlyName.IsEmpty())
+        {
+            continue;
+        }
+        if (Pin->PinFriendlyName.ToString().Equals(Role, ESearchCase::IgnoreCase))
+        {
+            return Pin;
+        }
+    }
+    // Direction-blind last resort, which is what this lookup always was.
+    return Node->FindPin(FName(*Role));
+}
+
 void UBlueprintGraphBuilderLibrary::BuildBlueprintFromJSONWithReport(
     UBlueprint* Blueprint,
     const FString& JsonString,
@@ -1662,47 +1721,34 @@ void UBlueprintGraphBuilderLibrary::BuildBlueprintFromJSONWithReport(
                 continue;
             }
 
-            // Resolve a pin by role:
-            //   "exec" — direction-aware: output-side maps to PN_Then, input-side to PN_Execute
-            //   "then" — always PN_Then
-            //   "AsResult" — a dynamic cast's result pin, asked for by the node
-            //   anything else — treated as a literal pin name via FindPin
-            auto ResolvePin = [](UEdGraphNode* N, const FString& Role, EEdGraphPinDirection Dir) -> UEdGraphPin*
-            {
-                if (Role == TEXT("exec"))
-                {
-                    return N->FindPin(Dir == EGPD_Output ? UEdGraphSchema_K2::PN_Then : UEdGraphSchema_K2::PN_Execute);
-                }
-                if (Role == TEXT("then"))
-                {
-                    return N->FindPin(UEdGraphSchema_K2::PN_Then);
-                }
-                // A cast names its result pin "As" plus the target type's
-                // DISPLAY name (K2Node_DynamicCast.cpp:63), which for a
-                // Blueprint generated class is neither the asset name nor
-                // anything a caller can compute from the spec. Ask the node.
-                if (Role == TEXT("AsResult"))
-                {
-                    if (UK2Node_DynamicCast* CastNode = Cast<UK2Node_DynamicCast>(N))
-                    {
-                        return CastNode->GetCastResultPin();
-                    }
-                }
-                return N->FindPin(FName(*Role));
-            };
-
-            UEdGraphPin* SourcePin = ResolvePin(*FromNodePtr, FromPinRole, EGPD_Output);
-            UEdGraphPin* TargetPin = ResolvePin(*ToNodePtr, ToPinRole, EGPD_Input);
+            UEdGraphPin* SourcePin = ResolveGraphPinByRole(*FromNodePtr, FromPinRole, EGPD_Output);
+            UEdGraphPin* TargetPin = ResolveGraphPinByRole(*ToNodePtr, ToPinRole, EGPD_Input);
 
             if (!SourcePin || !TargetPin)
             {
                 UE_LOG(LogTemp, Warning, TEXT("BuildBlueprintFromJSON: Could not resolve pins for connection %s -> %s"), *FromStr, *ToStr);
+                // Name the pins that ARE there, on the side that failed. A
+                // caller told only that their role matched nothing has to open
+                // the editor to find out what to write instead.
+                UEdGraphNode* MissingOn = !SourcePin ? *FromNodePtr : *ToNodePtr;
+                const EEdGraphPinDirection MissingDir = !SourcePin ? EGPD_Output : EGPD_Input;
+                TArray<FString> Available;
+                for (const UEdGraphPin* Pin : MissingOn->Pins)
+                {
+                    if (Pin == nullptr || Pin->Direction != MissingDir) { continue; }
+                    Available.Add(Pin->PinFriendlyName.IsEmpty()
+                        ? Pin->PinName.ToString()
+                        : FString::Printf(TEXT("%s (shown as %s)"),
+                            *Pin->PinName.ToString(), *Pin->PinFriendlyName.ToString()));
+                }
+                Available.Sort();
                 OutUnresolvedConnections.Add(FString::Printf(
-                    TEXT("%s -> %s (no %s pin '%s' on %s)"),
+                    TEXT("%s -> %s (no %s pin '%s' on %s; it has: %s)"),
                     *FromStr, *ToStr,
                     !SourcePin ? TEXT("output") : TEXT("input"),
                     !SourcePin ? *FromPinRole : *ToPinRole,
-                    !SourcePin ? *FromNodeId : *ToNodeId));
+                    !SourcePin ? *FromNodeId : *ToNodeId,
+                    Available.Num() > 0 ? *FString::Join(Available, TEXT(", ")) : TEXT("no pins of that direction")));
                 continue;
             }
 
@@ -2541,6 +2587,20 @@ FString UBlueprintGraphBuilderLibrary::DescribeBlueprintGraphJSON(
             for (const UEdGraphPin* P : N->Pins)
             {
                 if (P == nullptr) { continue; }
+                // Hidden pins are compiler plumbing and are excluded, because
+                // including them made this hash move for a reason no caller
+                // caused and no caller can fix.
+                //
+                // Measured: a latent call's hidden LatentInfo pin comes out of
+                // node creation with DefaultValue "LatentInfo", the string from
+                // the UFUNCTION's own latent metadata, and the SAVE rewrites it
+                // to the struct's export text "(Linkage=-1,UUID=-1,
+                // ExecutionFunction=\"\",CallbackTarget=None)". So one Delay
+                // node made every graph containing it hash one way freshly
+                // built and another way after a save, forever alternating, and
+                // blueprint_build could never see a rerun as converged. No spec
+                // can set a hidden pin and no inspector reader can address one.
+                if (P->bHidden) { continue; }
                 PinParts.Add(FString::Printf(TEXT("%s:%d:%s:%s"),
                     *P->PinName.ToString(), static_cast<int32>(P->Direction),
                     *P->DefaultValue,
@@ -2591,8 +2651,11 @@ FString UBlueprintGraphBuilderLibrary::DescribeBlueprintGraphJSON(
         Root->SetStringField(TEXT("structure_hash_sha1"),
             BytesToHex(Digest, FSHA1::DigestSize).ToLower());
         Root->SetStringField(TEXT("structure_hash_basis"),
-            TEXT("node type, class, position, comment, enabled state and pin defaults, plus links "
-                 "between those structural keys; object names and NodeGuids deliberately excluded"));
+            TEXT("node type, class, position, comment, enabled state and VISIBLE pin defaults, plus "
+                 "links between those structural keys; object names, NodeGuids and hidden pins "
+                 "deliberately excluded. Hidden pins are excluded because a latent call's "
+                 "LatentInfo pin holds one default when freshly built and another after a save, "
+                 "which moved this hash for a reason no caller caused"));
     }
 
     Root->SetStringField(TEXT("asset_path"), AssetPath);
@@ -2804,21 +2867,7 @@ FPatchTarget ResolveSelector(
     patch and a build address the same pin by the same word. */
 UEdGraphPin* ResolvePatchPin(UEdGraphNode* Node, const FString& Role, EEdGraphPinDirection Direction)
 {
-    if (Node == nullptr) { return nullptr; }
-    if (Role == TEXT("exec"))
-    {
-        return Node->FindPin(Direction == EGPD_Output
-            ? UEdGraphSchema_K2::PN_Then : UEdGraphSchema_K2::PN_Execute);
-    }
-    if (Role == TEXT("then")) { return Node->FindPin(UEdGraphSchema_K2::PN_Then); }
-    if (Role == TEXT("AsResult"))
-    {
-        if (UK2Node_DynamicCast* CastNode = Cast<UK2Node_DynamicCast>(Node))
-        {
-            return CastNode->GetCastResultPin();
-        }
-    }
-    return Node->FindPin(FName(*Role));
+    return ResolveGraphPinByRole(Node, Role, Direction);
 }
 
 /** "nodeId.pinRole" as a patch writes it, split into its two halves. */
