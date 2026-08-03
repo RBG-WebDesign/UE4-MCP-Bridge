@@ -8,7 +8,7 @@
     "puerts-runtime"
   ],
   "scripts": {
-    "build": "npm run build --workspace=puerts-runtime && node Scripts/stage-puerts-runtime.mjs && npm run build --workspace=mcp-server",
+    "build": "npm run build --workspace=puerts-runtime && node Scripts/stage-puerts-runtime.mjs --allow-missing-bundle && npm run build --workspace=mcp-server",
     "dev": "npm run dev --workspace=mcp-server",
     "test": "npm test --workspace=mcp-server",
     "test:integration": "npm run test:integration --workspace=mcp-server",

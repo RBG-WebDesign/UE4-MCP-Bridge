@@ -1,5 +1,11 @@
 #requires -Version 5.1
 
+# Produces a release zip containing BOTH plugins a recipient needs: MCPBridge
+# and the pinned PuerTS bundle it declares a dependency on. The bundle is
+# verified against Plugins/Puerts.lock.json first, and so is the puerts support
+# subtree staged inside MCPBridge/Content/JavaScript. Either check failing stops
+# the packaging: a zip that cannot load is worse than no zip.
+
 [CmdletBinding()]
 param(
     [string]$PluginPath,
@@ -7,6 +13,10 @@ param(
     [string]$OutputRoot,
 
     [string]$RunUAT,
+
+    # Pinned PuerTS bundle to vendor. Defaults to <repo>/Plugins/Puerts, which
+    # is .gitignored, so a worktree or clean clone has to point at one.
+    [string]$PuertsPath,
 
     [switch]$SourceZipOnly
 )
@@ -123,11 +133,95 @@ $stagePlugin = Join-Path $stageRoot "MCPBridge"
 Copy-PluginClean -Source $pluginRoot -Destination $stagePlugin
 Assert-PluginClean -Root $stagePlugin
 
+# Gate 1: the plugin's own generated PuerTS support files, checked against the
+# lock file rather than against whatever happens to be on this disk. Without
+# them the PuerTS lane has nothing to execute.
+& node (Join-Path $repoRoot "Scripts/stage-puerts-runtime.mjs") --check --plugin $stagePlugin
+if ($LASTEXITCODE -ne 0) {
+    Remove-Item -LiteralPath $stageRoot -Recurse -Force -ErrorAction SilentlyContinue
+    throw "Refusing to package: MCPBridge/Content/JavaScript/puerts does not match Plugins/Puerts.lock.json. Run npm run build with the pinned bundle present."
+}
+
+# Gate 2: the bundle itself, vendored into the zip. MCPBridge.uplugin declares
+# a dependency on Puerts and MCPBridgePuerTS.Build.cs links its JsEnv module, so
+# a zip without it is a plugin UE4 refuses to load.
+if (-not $PuertsPath) {
+    $PuertsPath = Join-Path $repoRoot "Plugins/Puerts"
+}
+if (-not (Test-Path -LiteralPath $PuertsPath)) {
+    Remove-Item -LiteralPath $stageRoot -Recurse -Force -ErrorAction SilentlyContinue
+    throw "Refusing to package: pinned PuerTS bundle not found at $PuertsPath. MCPBridge.uplugin requires it and MCPBridgePuerTS links JsEnv, so a zip without it cannot load. Obtain the bundle (docs/PUERTS.md) or pass -PuertsPath."
+}
+$puertsRoot = (Resolve-Path -LiteralPath $PuertsPath).Path
+& node (Join-Path $repoRoot "Scripts/check-puerts-pin.mjs") --strict --bundle $puertsRoot
+if ($LASTEXITCODE -ne 0) {
+    Remove-Item -LiteralPath $stageRoot -Recurse -Force -ErrorAction SilentlyContinue
+    throw "Refusing to package: $puertsRoot does not match Plugins/Puerts.lock.json."
+}
+
+$stagePuerts = Join-Path $stageRoot "Puerts"
+Copy-PluginClean -Source $puertsRoot -Destination $stagePuerts
+Assert-PluginClean -Root $stagePuerts
+
+$lockSource = Join-Path $repoRoot "Plugins/Puerts.lock.json"
+Copy-Item -LiteralPath $lockSource -Destination (Join-Path $stageRoot "Puerts.lock.json") -Force
+
+$lock = Get-Content -LiteralPath $lockSource -Raw | ConvertFrom-Json
+$readme = @"
+MCP Bridge $versionName for Unreal Engine $engineVersion
+=========================================================
+
+This archive contains TWO plugins. Copy both into your project's Plugins
+directory, side by side:
+
+    <YourProject>/Plugins/MCPBridge/
+    <YourProject>/Plugins/Puerts/
+
+MCPBridge.uplugin declares a dependency on Puerts, and the MCPBridgePuerTS
+module links the JsEnv module that lives in it. The editor refuses to load
+MCPBridge if Puerts is missing, and UBT cannot compile it either. That is why
+the bundle ships here instead of being a separate download.
+
+Puerts is the upstream Tencent/puerts bundle, subtree $($lock.upstream.subtree),
+tag $($lock.upstream.tag), commit $($lock.upstream.commit).
+One deliberate local change: $($lock.local_modifications -join '; ').
+Puerts.lock.json in this archive is the checksum manifest for all
+$($lock.file_count) files. Verify an install with:
+
+    node Scripts/check-puerts-pin.mjs --strict --bundle <YourProject>/Plugins/Puerts
+
+Source only: no binaries are included. The target must be a C++ project with
+UE4.27 and UnrealBuildTool available. Open the project and accept the rebuild
+prompt, or build the editor target from the command line.
+
+The MCP server is NOT in this archive. It is Node and lives in the bridge
+repository under mcp-server/. Point your MCP client at that checkout; see
+docs/MCP_BRIDGE_INSTALLER.md.
+"@
+Set-Content -LiteralPath (Join-Path $stageRoot "README_INSTALL.txt") -Value $readme -Encoding UTF8
+
 $zipPath = Join-Path $OutputRoot "MCPBridge_UE$engineVersion`_v$versionName.zip"
 if (Test-Path -LiteralPath $zipPath) {
     Remove-Item -LiteralPath $zipPath -Force
 }
-Compress-Archive -Path $stagePlugin -DestinationPath $zipPath -CompressionLevel Optimal
+# Entries are written one at a time with forward slashes. Both Compress-Archive
+# and ZipFile.CreateFromDirectory on .NET Framework write backslash separators,
+# which are outside the zip spec and become literal filenames on any reader that
+# follows it.
+Add-Type -AssemblyName System.IO.Compression
+Add-Type -AssemblyName System.IO.Compression.FileSystem
+$stageFull = (Resolve-Path -LiteralPath $stageRoot).Path.TrimEnd("\", "/")
+$archive = [System.IO.Compression.ZipFile]::Open($zipPath, [System.IO.Compression.ZipArchiveMode]::Create)
+try {
+    foreach ($file in @(Get-ChildItem -LiteralPath $stageRoot -Recurse -File -Force)) {
+        $entryName = $file.FullName.Substring($stageFull.Length).TrimStart("\", "/").Replace("\", "/")
+        [void][System.IO.Compression.ZipFileExtensions]::CreateEntryFromFile(
+            $archive, $file.FullName, $entryName, [System.IO.Compression.CompressionLevel]::Optimal)
+    }
+}
+finally {
+    $archive.Dispose()
+}
 
 Write-Host "Source plugin zip: $zipPath"
 
@@ -136,6 +230,16 @@ if ($RunUAT -and -not $SourceZipOnly) {
     $uatPackagePath = Join-Path $OutputRoot "MCPBridge_UAT_UE$engineVersion`_v$versionName"
     if (Test-Path -LiteralPath $uatPackagePath) {
         Remove-Item -LiteralPath $uatPackagePath -Recurse -Force
+    }
+
+    # RunUAT.bat pushd's into Engine\Binaries\DotNET and then runs
+    # AutomationTool.exe by bare name. With NoDefaultCurrentDirectoryInExePath
+    # set (Git Bash and several CI harnesses set it) cmd refuses to look in the
+    # current directory and the run dies with 9009 "not recognized", which reads
+    # like a missing engine rather than an environment variable.
+    if ($env:NoDefaultCurrentDirectoryInExePath) {
+        Write-Host "Clearing NoDefaultCurrentDirectoryInExePath for the UAT run."
+        Remove-Item Env:\NoDefaultCurrentDirectoryInExePath
     }
 
     & $runUATPath BuildPlugin -Plugin="$upluginPath" -Package="$uatPackagePath" -Rocket
