@@ -1,79 +1,45 @@
 # Continue here
 
-Written 2026-08-03 at the point integrator context ran out. Every commit named
-here exists and every claim is checkable. The wave is NOT complete.
+Updated 2026-08-03, after all nine wave-four lanes merged and the batch compile
+passed. Every claim below is checkable.
 
 ## State
 
-- Integration branch `bridge/native-consolidation-2026-07-31` at `34b22dd`, **tree clean**.
-- `npm run verify`: green. 220 tools, frozen count 220, every suite 0 failed.
-- `install:check` against `D:/Unreal Projects/BridgeInstallTest`: current.
-- No orphan agents. An editor may be running; close it before any rebuild.
+- Integration branch `bridge/native-consolidation-2026-07-31`, tree clean.
+- `npm run verify`: green. 256 registrations, frozen count 256.
+- **All nine lanes are MERGED.** Nothing is left unmerged.
+- **The batch compile PASSES.** Zero errors, fresh DLL, install matches the repo.
+- The merged plugin LOADS and serves: `mcp-smoke --require-editor`, 12 passed,
+  0 failed, 0 skipped, 12 actors over the named pipe.
+- 45 native commands in the allowlist: 25 that write, 20 read-only.
 
-## Merged this wave
+## Live suite status on the merged build
 
-| Lane | Branch @ commit | What landed |
-|---|---|---|
-| Q | `lane/q-finding-0p` @ `1cbf605` | Diagnosis of finding 0p, five-way comparison |
-| P | `lane/p-slices` @ `53412fc` | Seven slice harnesses, 16 gaps, a capability regression |
-| J | `lane/j-animation` @ `7f53a3b` | AnimBP/montage/blend-space inspectors, create-only AnimBP builder |
-| K | `lane/k-ai-gameplay` @ `e41a17d` | Blackboard, EQS, navigation, perception, AI controller |
+| Suite | Result |
+|---|---|
+| `mcp-smoke --require-editor` | 12 passed, 0 failed, 0 skipped |
+| `graph-inspect-acceptance` | passed |
+| `behavior-tree-acceptance` | passed |
+| `bp-graph-patch-acceptance` | all checks passed |
+| `mutator-atomicity` | **2 red, finding 0r** |
+| `bp-member-patch-acceptance` | 1 red, finding 0q |
 
-Plus the integrator's own **finding 0p fix, verified live**: variable defaults are
-now read from the CDO, so `default_value` survives a compile.
+## Do this first
 
-## NOT merged, all committed and safe
+**Finding 0r.** A failed member batch does not restore variable defaults.
 
-| Lane | Branch @ commit | Why not merged |
-|---|---|---|
-| I | `lane/i-material` @ `8dc589e` | Merge attempted twice and ABORTED. See the merge trap below. |
-| L | `lane/l-level-scene` @ `d2d20c9` | Not attempted, integrator context ran out |
-| M | `lane/m-refront2` @ `4911f16` | Not attempted |
-| N | `lane/n-packaging` @ `8495f08` | Not attempted |
-| O | `lane/o-perf-live` @ `0abd4e5` | Not attempted |
+It is not a regression from the merge. It was always broken, and the member
+structure hash could not see it: `default_value` read empty for every compiled
+variable until finding 0p was fixed, so a rollback that failed to restore a
+default produced an identical hash and the check passed. Fixing the reader made
+the harness able to observe a hole it had been reporting green over.
 
-Nothing is lost. Each branch carries its own complete work and its agent's
-report is in the session transcript.
+The measurement that settles it is one command: apply `set_variable_default`
+inside a transaction, cancel the transaction, then read the CDO with
+`puerts_read_property`. If the CDO still holds the new value, the write is not
+transacted and the fix belongs at the writer, not at the rollback boundary.
 
-## THE MERGE TRAP, read before merging anything
-
-Five lanes all extended the same seven shared files: `MCPPuerTSBridgeService.h`
-and `.cpp`, `MCPBridgePuerTS.Build.cs`, `mcp-server/src/annotations.ts`,
-`mcp-server/src/tools/puerts.ts`, `puerts-runtime/src/registry.ts`,
-`puerts-runtime/types/puerts-bootstrap.d.ts`.
-
-A mechanical "keep both sides" union of the conflict markers **DOES NOT WORK**
-for `registry.ts` and `puerts.ts`. Git's conflict regions there split function
-and array-literal bodies, so unioning two partial hunks yields syntactically
-broken TypeScript. It typechecked as an unbalanced-brace error 300 lines away
-from the real damage. Do not repeat this; it cost most of an integrator session.
-
-What DOES work, proven on `registry.ts`:
-
-```bash
-git merge --no-ff lane/<name>
-BASE=$(git merge-base HEAD lane/<name>)
-git checkout HEAD -- puerts-runtime/src/registry.ts        # restore the valid merged file
-git diff "$BASE" lane/<name> -- puerts-runtime/src/registry.ts > /tmp/lane.patch
-# then insert the patch's added lines at a known anchor, e.g. before
-# "async function buildPhysics(" for functions and before the
-# '{ name: "physics_build"' entry for registry rows
-npx tsc -p puerts-runtime/tsconfig.json                     # must exit 0 BEFORE moving on
-```
-
-Union IS safe for the append-only files: the service header and cpp, Build.cs,
-annotations.ts, and the bootstrap typings.
-
-Two more rules learned the hard way:
-
-- **Never dedupe by trimmed line content** when unioning code. It strips
-  legitimate repeated closing braces and corrupts the file silently.
-- The tool-count assertion in `mcp-server/tests/puerts-tools.test.ts` is one
-  shared scalar every lane moves. Sum the additions: base 25, J +4, K +7, I +2.
-  `npm run verify` confirms the real number.
-- `docs/TOOL_INVENTORY.json`, `docs/CAPABILITY_SCOREBOARD.json` and
-  `docs/CAPABILITY_PRESERVATION_AUDIT.md` are GENERATED. Never merge them as
-  text. Run `node Scripts/generate-tool-inventory.mjs --write` after the merge.
+Do that before trusting any atomicity result on any mutator.
 
 ## Paste this into a fresh session
 
@@ -81,58 +47,77 @@ Two more rules learned the hard way:
 Continue the UE4_Bridge finish program as integration lead.
 
 Repo: D:\Unreal Projects\UE4_Bridge
-Branch: bridge/native-consolidation-2026-07-31 at 34b22dd (clean, verify green)
+Branch: bridge/native-consolidation-2026-07-31 (clean, verify green, 256 tools)
 
-Read docs/CONTINUE_HERE.md first, especially THE MERGE TRAP. Then
-docs/PROJECT_FINISH_SCOREBOARD.json and docs/CAPABILITY_FINDINGS.md 0m to 0q.
+Read docs/CONTINUE_HERE.md, then docs/CAPABILITY_FINDINGS.md findings 0m to 0r.
+All nine lanes are merged and the batch compile passes. Do not re-merge them and
+do not relaunch those lanes.
 
-Do not restart planning. Do not relaunch the lanes: their work is committed.
+1. Settle finding 0r first: apply set_variable_default inside a transaction,
+   cancel it, read the CDO with puerts_read_property. If the CDO still holds the
+   value the write is not transacted, so fix at the writer rather than at the
+   rollback boundary. Then re-run Scripts/mutator-atomicity.mjs.
+2. Give Scripts/mutator-atomicity.mjs a per-run fresh fixture path, the way
+   Scripts/bp-member-patch-acceptance.mjs does. Its control variable survives
+   between runs, so a second run reports a false red.
+3. Settle finding 0q: read compile_status on the FULL member-patch fixture
+   immediately after it is built and BEFORE the patch runs. If it is already
+   UpToDateWithWarnings the patch is innocent and the assertion is wrong.
+4. Close the capability regression lane P found: puerts_spawn_actor lost name,
+   folder and scale, and puerts_find_actors lost include_transforms and
+   folder_filter, against AGENTS.md's rule that legacy capability is preserved.
+   scene_batch and scene_inspect are merged and compiled now, so this is wiring.
+5. Run the seven slice harnesses against the live editor (npm run slice:summary).
+   Nothing has ever run them with the new commands present.
+6. Run the perf harness live for its first evidence file, and lane N's
+   docs/RELEASE.md section 3a steps 5-7 to prove the packaged plugin LOADS.
 
-1. Merge lane/i-material (8dc589e), lane/l-level-scene (d2d20c9),
-   lane/m-refront2 (4911f16), lane/n-packaging (8495f08) and
-   lane/o-perf-live (0abd4e5), ONE AT A TIME, using the recipe in
-   CONTINUE_HERE. After each: npx tsc on both tsconfigs, regenerate the
-   inventory, npm run verify. Do not start the next merge until verify is green.
-2. Then CLOSE THE EDITOR and run one batch compile of the target:
-   node Scripts/bridge-install.mjs --sync --project "D:/Unreal Projects/BridgeInstallTest"
-   Roughly 6000 lines of C++ from lanes I, J, K, L and M have NEVER been
-   compiled. Expect real errors. Each lane named its own highest-risk construct
-   in its report.
-   If the linker blames a symbol in neither header, delete the target's
-   Plugins/MCPBridge/Intermediate and rebuild. That is finding 0m.
-3. Then relaunch the editor and run the live suites, plus the new ones:
-   Scripts/mutator-atomicity.mjs, Scripts/bp-member-patch-acceptance.mjs
-   (1 red check left, finding 0q), and the seven slice harnesses.
-4. Settle finding 0q with its one measurement: read compile_status on the FULL
-   member-patch fixture immediately after it is built and BEFORE the patch runs.
-   If it is already UpToDateWithWarnings the patch is innocent.
-5. Lane N proved the packaged zip installs and compiles but never LOADS.
-   docs/RELEASE.md section 3a steps 5-7 is the scripted procedure. Run it.
-
-Rules that earned their place: merge one at a time and resolve centrally; a
-lane cannot mark its own work live_verified; install:check before and after
-every live run; compilation and mocks are not live proof.
+Rules that earned their place: merge one branch at a time and resolve centrally;
+install:check before AND after every live run; a lane cannot mark its own work
+live_verified; every harness needs a control that must SUCCEED and move state;
+compilation and mocks are not live proof.
 
 Commit integrations separately. Do not push.
 ```
 
+## Merge lessons, do not rediscover these
+
+**Never line-merge `registry.ts`, `mcp-server/src/tools/puerts.ts`, or
+`MCPPuerTSBridgeService.h`.** Git factors out the common suffix of two
+conflicting hunks, so both sides end mid-declaration and share one tail. A union
+closes one and leaves the other open, and it surfaces as an unbalanced brace or
+a UHT "Missing '*' in Expected a pointer type" hundreds of lines away.
+
+Graft whole brace-matched units from the lane's own file instead. Scripts used
+this session are disposable, but the shape is: take the merged file, extract the
+functions or declarations the lane has and the merged file lacks, insert at a
+known anchor, then typecheck before moving on.
+
+**Also learned:**
+
+- Never dedupe by trimmed line content when unioning code. It eats repeated
+  closing braces and corrupts silently.
+- The tool-count assertions in `puerts-tools.test.ts` and `compat-tools.test.ts`
+  are shared scalars every lane moves. Take the real number from a run.
+- `TOOL_INVENTORY.json`, `CAPABILITY_SCOREBOARD.json` and
+  `CAPABILITY_PRESERVATION_AUDIT.md` are GENERATED. Regenerate, never merge.
+- `bUseUnity = false` is set on MCPBridgePuerTS deliberately. One command per
+  .cpp with its own anonymous-namespace helpers collides under a unity build,
+  and the collision scales with the number of commands. Do not turn it back on
+  without renaming every file-local helper.
+
 ## Open defects, highest value first
 
-1. **Capability regression (lane P).** Four of seven slices are blocked on
-   `scene_batch`, and the capabilities it needs shipped in the legacy catalog
-   and did not survive the native migration: `actor_spawn` took `name`,
-   `folder` and `scale`; `puerts_spawn_actor` takes none. `level_actors` took
-   `include_transforms` and `folder_filter`; `puerts_find_actors` takes neither.
-   AGENTS.md requires legacy capability to be preserved. `lane/l-level-scene`
-   is the branch that closes it.
-2. **Finding 0q.** `blueprint_member_patch` leaves the Blueprint compiling with
-   warnings where a fresh one does not. One measurement settles it, above.
-3. **Compile messages are unreachable.** A caller told `UpToDateWithWarnings`
+1. **Finding 0r**, above. Blocks trusting any mutator atomicity claim.
+2. **Capability regression** (lane P): `scene_batch`'s inputs shipped in the
+   legacy catalog and did not survive the native migration.
+3. **Finding 0q**: `blueprint_member_patch` leaves the Blueprint compiling with
+   warnings where a fresh one does not.
+4. **Compile messages are unreachable.** A caller told `UpToDateWithWarnings`
    cannot find out what the warnings were through any command.
-4. **Packaging: source YES, binaries NO.** Lane N ran `-RunUAT` and proved it
-   cannot work in 4.27 with a citation (`BuildPluginCommand.Automation.cs:66`,
-   `:129`, `:133` write a one-plugin host descriptor with no
-   `AdditionalPluginDirectories`). Not an excuse this time; it was attempted.
-5. **A zip install has no `[MCPPuerTSBridge]` section** and the compiled default
-   pipe name is one constant, so two zip installs on one machine fight over one
+5. **Packaging: source YES, binaries NO.** Lane N ran `-RunUAT` and proved it
+   cannot work in 4.27 with an engine citation. The zip installs and compiles;
+   it has never been proven to LOAD.
+6. **A zip install has no `[MCPPuerTSBridge]` section** and the compiled default
+   pipe name is one constant, so two zip installs on one machine contend for one
    pipe.
