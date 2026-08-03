@@ -77,6 +77,17 @@ const GENERATED = [
   "docs/CAPABILITY_PRESERVATION_AUDIT.md",
 ];
 
+/**
+ * Object maps merged as JSON, key by key.
+ *
+ * Unioning these produces INVALID JSON. They look append-only because each lane
+ * adds entries at the end, but the conflict still splits an object literal and
+ * keeping both sides leaves a dangling brace. Merging by key is both correct and
+ * simpler: a lane only ever ADDS tools, so any key the integration branch does
+ * not have is the lane's and any key it has already is authoritative.
+ */
+const JSON_MAPS = [{ file: "docs/TOOL_CAPABILITY_METADATA.json", at: "tools" }];
+
 /** Left for a human: one shared scalar that only a real run can settle. */
 const MANUAL = ["mcp-server/tests/puerts-tools.test.ts", "mcp-server/tests/compat-tools.test.ts"];
 
@@ -269,8 +280,10 @@ function main() {
   console.log(`${branch}: ${conflicted.length} conflicted file(s)`);
 
   const graftPaths = new Set(GRAFT.map((g) => g.file));
+  const jsonPaths = new Set(JSON_MAPS.map((j) => j.file));
   const plan = conflicted.map((f) => {
     if (graftPaths.has(f)) return [f, "GRAFT"];
+    if (jsonPaths.has(f)) return [f, "JSONMERGE"];
     if (GENERATED.includes(f)) return [f, "REGENERATE"];
     if (MANUAL.includes(f)) return [f, "MANUAL"];
     return [f, "UNION"];
@@ -287,6 +300,18 @@ function main() {
       console.log(`  unioned ${f} (${blocks} block(s))`);
     } else if (how === "GRAFT") {
       console.log(`  ${graftFile(GRAFT.find((g) => g.file === f), branch)}`);
+    } else if (how === "JSONMERGE") {
+      const spec = JSON_MAPS.find((j) => j.file === f);
+      git("checkout", "HEAD", "--", f);
+      const path = join(repoRoot, f);
+      const cur = JSON.parse(readFileSync(path, "utf-8"));
+      const lane = JSON.parse(git("show", `${branch}:${f}`));
+      const added = [];
+      for (const [k, v] of Object.entries(lane[spec.at] ?? {})) {
+        if (!(k in (cur[spec.at] ?? {}))) { cur[spec.at][k] = v; added.push(k); }
+      }
+      writeFileSync(path, JSON.stringify(cur, null, 2) + "\n");
+      console.log(`  ${f}: +${added.length} key(s) (${added.join(", ") || "none"})`);
     } else if (how === "REGENERATE") {
       try { git("checkout", "--theirs", "--", f); } catch { /* either side is fine, it is regenerated */ }
       console.log(`  ${f}: taken from the lane, REGENERATE before committing`);
