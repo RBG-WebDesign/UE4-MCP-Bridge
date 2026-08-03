@@ -989,6 +989,43 @@ bool UMCPPuerTSBridgeService::BuildBlueprintJson(
     const TArray<FString> DirtyBefore = Rollback.DirtyPackages();
     const TArray<FString> SourceControlBefore = Rollback.SourceControlState();
 
+    // The asset's own canonical measures, read through the SAME inspector a
+    // caller verifies with, before anything is touched. See the no-save-on-
+    // converge block near the save for why this is taken at all. Two hashes
+    // rather than a diff of the whole response, because those two are what the
+    // project already defines as "this asset's structure": the member hash
+    // covers components, variables, functions and dispatchers, and the graph
+    // hash covers nodes, links and pin defaults.
+    auto ReadAssetFingerprint = [&]() -> FString
+    {
+        FString InspectJson;
+        FString InspectError;
+        const FString Request = FString::Printf(TEXT("{\"asset_path\":\"%s\"}"), *AssetPath);
+        if (!InspectBlueprintJson(Request, InspectJson, InspectError)) { return FString(); }
+        TSharedPtr<FJsonObject> Inspected;
+        TSharedRef<TJsonReader<>> InspectReader = TJsonReaderFactory<>::Create(InspectJson);
+        if (!FJsonSerializer::Deserialize(InspectReader, Inspected) || !Inspected.IsValid())
+        {
+            return FString();
+        }
+        FString MemberHash;
+        Inspected->TryGetStringField(TEXT("member_structure_hash_sha1"), MemberHash);
+        FString GraphHash;
+        const TSharedPtr<FJsonObject>* GraphObject = nullptr;
+        if (Inspected->TryGetObjectField(TEXT("graph"), GraphObject) && GraphObject != nullptr)
+        {
+            (*GraphObject)->TryGetStringField(TEXT("structure_hash_sha1"), GraphHash);
+        }
+        FString Status;
+        Inspected->TryGetStringField(TEXT("compile_status"), Status);
+        if (MemberHash.IsEmpty() && GraphHash.IsEmpty()) { return FString(); }
+        return FString::Printf(TEXT("%s|%s|%s"), *MemberHash, *GraphHash, *Status);
+    };
+    const FString FingerprintBefore = Blueprint != nullptr ? ReadAssetFingerprint() : FString();
+    const bool bPackageDirtyBefore =
+        Blueprint != nullptr && Blueprint->GetOutermost() != nullptr
+        && Blueprint->GetOutermost()->IsDirty();
+
     // Cancel the transaction before destroying anything: its undo records
     // reference these objects and must be replayed while they are still live.
     auto FailWithRollback = [&](const FString& Error) -> bool
@@ -1671,8 +1708,34 @@ bool UMCPPuerTSBridgeService::BuildBlueprintJson(
 
     Blueprint->MarkPackageDirty();
 
+    // --- No save on converge.
+    //
+    // UE regenerates a package GUID on every save, so re-saving an unchanged
+    // asset changes its bytes: there is no idempotent save, and "do not save"
+    // is the only form convergence can take. A caller who reruns an identical
+    // spec, is told the structure hash did not move, and then finds a modified
+    // file with a new checksum and a source-control edit has not been given a
+    // convergent command. Finding 0v recorded the same defect in widget_build.
+    //
+    // A desired-state build always rebuilds, so this is measured rather than
+    // predicted: the asset's fingerprint before the mutation is compared with
+    // the one after, through the inspector the caller verifies with. Equal
+    // means the build reproduced what was already there, so the file on disk is
+    // already right and the package's dirty flag goes back the way it was.
+    const FString FingerprintAfter = ReadAssetFingerprint();
+    const bool bAssetUnchanged = !bCreated
+        && !FingerprintBefore.IsEmpty()
+        && FingerprintBefore == FingerprintAfter;
+    if (bAssetUnchanged)
+    {
+        if (UPackage* Package = Blueprint->GetOutermost())
+        {
+            Package->SetDirtyFlag(bPackageDirtyBefore);
+        }
+    }
+
     bool bSaved = false;
-    if (bSave)
+    if (bSave && !bAssetUnchanged)
     {
         FString SaveError;
         bSaved = SaveProjectAsset(ObjectPath, SaveError);
@@ -1741,6 +1804,12 @@ bool UMCPPuerTSBridgeService::BuildBlueprintJson(
     Result->SetBoolField(TEXT("compiled"), bCompile && bCompileSucceeded);
     Result->SetStringField(TEXT("compile_status"), CompileStatus);
     Result->SetBoolField(TEXT("saved"), bSaved);
+    // Distinct from convergence.converged below, which answers a narrower
+    // question about the managed variable set. This one says the build left the
+    // asset exactly as it found it, which is why nothing was written.
+    Result->SetBoolField(TEXT("asset_unchanged"), bAssetUnchanged);
+    Result->SetStringField(TEXT("pre_structure_fingerprint"), FingerprintBefore);
+    Result->SetStringField(TEXT("post_structure_fingerprint"), FingerprintAfter);
     Result->SetArrayField(TEXT("errors"), Errors);
     Result->SetArrayField(TEXT("warnings"), Warnings);
 

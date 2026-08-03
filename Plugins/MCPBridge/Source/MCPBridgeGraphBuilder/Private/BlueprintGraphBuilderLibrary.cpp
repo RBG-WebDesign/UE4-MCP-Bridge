@@ -2587,6 +2587,20 @@ FString UBlueprintGraphBuilderLibrary::DescribeBlueprintGraphJSON(
             for (const UEdGraphPin* P : N->Pins)
             {
                 if (P == nullptr) { continue; }
+                // Hidden pins are compiler plumbing and are excluded, because
+                // including them made this hash move for a reason no caller
+                // caused and no caller can fix.
+                //
+                // Measured: a latent call's hidden LatentInfo pin comes out of
+                // node creation with DefaultValue "LatentInfo", the string from
+                // the UFUNCTION's own latent metadata, and the SAVE rewrites it
+                // to the struct's export text "(Linkage=-1,UUID=-1,
+                // ExecutionFunction=\"\",CallbackTarget=None)". So one Delay
+                // node made every graph containing it hash one way freshly
+                // built and another way after a save, forever alternating, and
+                // blueprint_build could never see a rerun as converged. No spec
+                // can set a hidden pin and no inspector reader can address one.
+                if (P->bHidden) { continue; }
                 PinParts.Add(FString::Printf(TEXT("%s:%d:%s:%s"),
                     *P->PinName.ToString(), static_cast<int32>(P->Direction),
                     *P->DefaultValue,
@@ -2637,8 +2651,11 @@ FString UBlueprintGraphBuilderLibrary::DescribeBlueprintGraphJSON(
         Root->SetStringField(TEXT("structure_hash_sha1"),
             BytesToHex(Digest, FSHA1::DigestSize).ToLower());
         Root->SetStringField(TEXT("structure_hash_basis"),
-            TEXT("node type, class, position, comment, enabled state and pin defaults, plus links "
-                 "between those structural keys; object names and NodeGuids deliberately excluded"));
+            TEXT("node type, class, position, comment, enabled state and VISIBLE pin defaults, plus "
+                 "links between those structural keys; object names, NodeGuids and hidden pins "
+                 "deliberately excluded. Hidden pins are excluded because a latent call's "
+                 "LatentInfo pin holds one default when freshly built and another after a save, "
+                 "which moved this hash for a reason no caller caused"));
     }
 
     Root->SetStringField(TEXT("asset_path"), AssetPath);
