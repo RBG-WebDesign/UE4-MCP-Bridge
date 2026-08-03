@@ -129,6 +129,8 @@ declare module "ue" {
     PatchClassDefaultsJson(specJson: string, outResultJson: $Ref<string>, outError: $Ref<string>): boolean;
     InspectLevelSequenceJson(requestJson: string, outResultJson: $Ref<string>, outError: $Ref<string>): boolean;
     BuildLevelSequenceJson(specJson: string, outResultJson: $Ref<string>, outError: $Ref<string>): boolean;
+    RenderLevelSequenceJson(specJson: string, outResultJson: $Ref<string>, outError: $Ref<string>): boolean;
+    ControlJobJson(requestJson: string, outResultJson: $Ref<string>, outError: $Ref<string>): boolean;
     InspectInputMappingsJson(requestJson: string, outResultJson: $Ref<string>, outError: $Ref<string>): boolean;
     PatchInputMappingsJson(specJson: string, outResultJson: $Ref<string>, outError: $Ref<string>): boolean;
     SetFolderVisibilityJson(specJson: string, outResultJson: $Ref<string>, outError: $Ref<string>): boolean;

@@ -72,7 +72,7 @@ async function main(): Promise<void> {
       server.listen(pipeName, resolve);
     });
     const client = new PuerTSClient();
-    const tools = createPuertsTools(client);    assert(tools.length === 55, "expected all 55 PuerTS tools");
+    const tools = createPuertsTools(client);    assert(tools.length === 59, "expected all 59 PuerTS tools");
     assert(tools.some((tool) => tool.name === "puerts_behavior_tree_build"), "native Behavior Tree builder tool is missing");
     assert(tools.some((tool) => tool.name === "puerts_behavior_tree_inspect"), "native Behavior Tree inspector tool is missing");
     assert(tools.some((tool) => tool.name === "puerts_sky_shader_create"), "native sky shader tool is missing");
@@ -2226,6 +2226,83 @@ async function animationSuite(): Promise<void> {
   }
 }
 
+/** The job API's contract, checked without an editor.
+
+    The three things worth failing on: the job verbs exist and take the ids
+    they are supposed to take; job_cancel is annotated destructive, because a
+    cancel leaves partial work behind and a client approval heuristic should
+    see that; and job_result is annotated NOT idempotent, because a second call
+    refuses with job_result_consumed and a client that retries on a dropped
+    connection must not be told the retry is safe. */
+async function jobApiSuite(): Promise<void> {
+  const { toolAnnotations } = await import("../src/annotations.js");
+  const client = new PuerTSClient();
+  const tools = createPuertsTools(client);
+  const find = (name: string) => tools.find((tool) => tool.name === name);
+
+  for (const name of [
+    "puerts_job_status", "puerts_job_result", "puerts_job_cancel",
+    "puerts_sequence_render_start",
+  ]) {
+    assert(find(name) !== undefined, `${name} is missing`);
+    assert(toolAnnotations[name] !== undefined, `${name} has no annotation`);
+  }
+
+  // job_status is the only one that may be called with nothing: that is the
+  // listing shape a client uses when it has lost the id.
+  assert(
+    find("puerts_job_status")?.inputSchema.safeParse({}).success === true,
+    "job_status must accept an empty call, which lists every job",
+  );
+  for (const name of ["puerts_job_result", "puerts_job_cancel"]) {
+    assert(
+      find(name)?.inputSchema.safeParse({}).success === false,
+      `${name} must require a job_id rather than silently acting on nothing`,
+    );
+    assert(
+      find(name)?.inputSchema.safeParse({ job_id: "abc-1" }).success === true,
+      `${name} must accept a job_id`,
+    );
+  }
+
+  assert(
+    toolAnnotations.puerts_job_status?.readOnlyHint === true,
+    "job_status changes nothing and must be annotated read-only",
+  );
+  assert(
+    toolAnnotations.puerts_job_result?.idempotentHint === false,
+    "job_result delivers a finished job's output ONCE; a second call refuses, so it is not "
+    + "idempotent and must not be advertised as a safe retry",
+  );
+  assert(
+    toolAnnotations.puerts_job_cancel?.destructiveHint === true
+      && toolAnnotations.puerts_job_cancel?.idempotentHint === true,
+    "job_cancel is destructive (a cancelled build leaves partial derived data, a cancelled "
+    + "render leaves the frames it wrote) and convergent (a second cancel refuses)",
+  );
+  assert(
+    toolAnnotations.puerts_sequence_render_start?.destructiveHint === true
+      && toolAnnotations.puerts_sequence_render_start?.idempotentHint === false,
+    "sequence_render_start spawns a process and overwrites the output directory, and a second "
+    + "call starts a second render rather than converging",
+  );
+
+  const render = find("puerts_sequence_render_start");
+  assert(
+    render?.inputSchema.safeParse({}).success === false,
+    "sequence_render_start must require asset_path",
+  );
+  assert(
+    render?.inputSchema.safeParse({ asset_path: "/Game/C/LS_A", format: "webp" }).success === false,
+    "format must be limited to the capture protocols UE4.27 actually ships",
+  );
+  assert(
+    render?.inputSchema.safeParse({ asset_path: "/Game/C/LS_A", format: "exr" }).success === true,
+    "exr is one of the five shipped capture protocols and must be accepted",
+  );
+  console.log("  PASS  job API: three job verbs, honest cancel and result annotations, render schema");
+}
+
 main()
   .then(marshalingSuite)
   .then(blueprintBuildSuite)
@@ -2239,6 +2316,7 @@ main()
   .then(sceneSuite)
   .then(levelCompletionSuite)
   .then(sequenceSuite)
+  .then(jobApiSuite)
   .then(connectionContractSuite)
   .then(nonActorParentSuite)
   .then(graphInspectSuite)

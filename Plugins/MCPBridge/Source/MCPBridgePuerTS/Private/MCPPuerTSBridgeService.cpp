@@ -225,8 +225,20 @@ bool UMCPPuerTSBridgeService::Initialize(FString& OutError)
             TEXT("anim_blueprint_inspect"), TEXT("anim_montage_inspect"), TEXT("anim_blend_space_inspect"), TEXT("blackboard_inspect"),
             TEXT("eqs_inspect"), TEXT("nav_inspect"), TEXT("nav_query"), TEXT("ai_controller_inspect"),
             TEXT("material_inspect"), TEXT("scene_inspect"), TEXT("input_mapping_info"), TEXT("pie_agent_query"),
-            TEXT("sequence_inspect")
-            TEXT("audio_inspect"), TEXT("cloth_inspect")
+            // The comma after sequence_inspect is load bearing. Without it the
+            // C++ preprocessor concatenates the two adjacent string literals
+            // into "sequence_inspectaudio_inspect" and BOTH tools fall off the
+            // allowlist, refused as unknown at AcceptCommand with nothing in
+            // the build to say why.
+            TEXT("sequence_inspect"),
+            TEXT("audio_inspect"), TEXT("cloth_inspect"),
+            // The job API. job_status, job_result and job_cancel are short
+            // commands that read a small in-memory record and ask the live
+            // engine source for one job's state; they never block and never
+            // wait. sequence_render_start spawns a second UE process and
+            // returns a job id. See MCPPuerTSBridgeJobs.cpp.
+            TEXT("job_status"), TEXT("job_result"), TEXT("job_cancel"),
+            TEXT("sequence_render_start")
         };
         for (const TCHAR* Value : Defaults) { AllowedTools.Add(Value); }
     }
@@ -402,6 +414,17 @@ void UMCPPuerTSBridgeService::Shutdown()
     RuntimeToolCount = 0;
     const bool bHadActiveCommand = !ActiveCommandId.IsEmpty();
     EndActiveCommand();
+
+    // Job records die with the editor, and job_status says so rather than
+    // reporting a job from a previous session as running. What must not die
+    // untidily is the OS handle a sequence render holds: closing the handle
+    // does NOT stop the render, which is a separate process and deliberately
+    // outlives this editor.
+    for (FBridgeJob& Job : Jobs)
+    {
+        if (Job.ProcessHandle.IsValid()) { FPlatformProcess::CloseProc(Job.ProcessHandle); }
+    }
+    Jobs.Reset();
 
     if (HeartbeatHandle.IsValid())
     {

@@ -104,8 +104,8 @@ bool UMCPPuerTSBridgeService::BuildLightingJson(
     if (Action != TEXT("start") && Action != TEXT("status"))
     {
         OutError = FString::Printf(
-            TEXT("action must be \"start\" or \"status\"; got '%s'. There is no cancel: UE4.27 "
-                 "exposes no public entry point for aborting a Lightmass build."), *Action);
+            TEXT("action must be \"start\" or \"status\"; got '%s'. To cancel a running build, use "
+                 "puerts_job_cancel with the job_id this command returned."), *Action);
         return false;
     }
 
@@ -127,6 +127,21 @@ bool UMCPPuerTSBridgeService::BuildLightingJson(
     {
         Result->SetBoolField(TEXT("started"), false);
         Result->SetBoolField(TEXT("waited"), false);
+        // ADDITIVE, and here because a job id is the only handle job_cancel
+        // takes: a caller polling with action="status" (the shape this command
+        // shipped with) would otherwise have no way to reach the cancel that
+        // now exists. The editor runs one lighting build at a time, so the
+        // newest running lighting job IS this build.
+        for (int32 Index = Jobs.Num() - 1; Index >= 0; --Index)
+        {
+            if (Jobs[Index].Kind == EBridgeJobKind::LightingBuild)
+            {
+                PollJob(Jobs[Index]);
+                Result->SetStringField(TEXT("job_id"), Jobs[Index].JobId);
+                Result->SetStringField(TEXT("job_state"), Jobs[Index].State);
+                break;
+            }
+        }
         return Answer(true);
     }
 
@@ -193,6 +208,15 @@ bool UMCPPuerTSBridgeService::BuildLightingJson(
     // export, which is seconds on a small level and can be much longer on a
     // large one. That is the part this command pays for, and it is why the tool
     // carries a long execution budget despite not waiting for the build.
+    // Clear the map-build cancel flag before starting, exactly as the editor's
+    // own build path does (EditorBuildUtils.cpp:248). It is a single global
+    // FUnrealEdMisc flag read all over Lightmass (Lightmass.cpp:726, :1312,
+    // :3385, :3479) and by the CSG and streaming-level builders, and
+    // UEditorEngine::BuildLighting does NOT reset it. Without this line a
+    // job_cancel would poison every later build in the session: the next start
+    // would abort on its first check and report a build that never ran.
+    GEditor->SetMapBuildCancelled(false);
+
     GEditor->BuildLighting(Options);
 
     // Read back rather than assume. CreateStaticLightingSystem returns void and
@@ -203,14 +227,25 @@ bool UMCPPuerTSBridgeService::BuildLightingJson(
     Result->SetBoolField(TEXT("waited"), false);
     Result->SetStringField(TEXT("completion"),
         TEXT("NOT waited for. This call started the build and returned; poll it with "
-             "action=\"status\" until build_running is false, then read "
-             "lighting_unbuilt_objects to see whether the level still needs a rebuild."));
+             "action=\"status\", or with puerts_job_status and the job_id below, until "
+             "build_running is false, then read lighting_unbuilt_objects to see whether the level "
+             "still needs a rebuild. puerts_job_cancel stops it."));
     if (!bStarted)
     {
+        Result->SetStringField(TEXT("job_id"), TEXT(""));
         OutError = TEXT("The lighting build did not start. Lightmass refused it and reported the "
                         "reason to the editor's message log; the usual causes are a level with no "
                         "static geometry to light and a Lightmass configuration error.");
         return Answer(false);
     }
+    // ADDITIVE. Nothing above changed: no parameter was renamed, action="start"
+    // and action="status" behave exactly as they did, and this command still
+    // does not wait. It registers the build it just started as a job so it can
+    // be polled and cancelled through the one job API instead of only through
+    // this command's own hand-rolled status action. Result is shared with the
+    // job record, so job_result hands back this same body.
+    const FString JobId = RegisterJob(
+        EBridgeJobKind::LightingBuild, TEXT("lighting_build"), LevelPath, Result);
+    Result->SetStringField(TEXT("job_id"), JobId);
     return Answer(true);
 }

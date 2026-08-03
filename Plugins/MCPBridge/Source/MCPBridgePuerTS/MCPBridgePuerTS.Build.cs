@@ -80,14 +80,23 @@ public class MCPBridgePuerTS : ModuleRules
         // cannot be included from this module at all. sequence_build reproduces
         // the five lines that factory runs instead of depending on it.
         //
-        // Sequencer, MovieSceneTools and MovieSceneCapture are deliberately NOT
-        // here. They are the render path, and no render command shipped: see the
-        // sequence_render note in docs/CAPABILITY_FINDINGS.md.
+        // MovieSceneCapture and MovieSceneTools ARE here now, for
+        // sequence_render_start only. MovieSceneCapture (Runtime) holds
+        // UMovieSceneCapture, FMovieSceneCaptureSettings and the five image
+        // capture protocols; MovieSceneTools (Editor) holds
+        // UAutomatedLevelSequenceCapture, which is the class the render
+        // manifest names and the one the second process reconstructs. This
+        // module is already editor-only, so an editor dependency costs nothing
+        // new. Sequencer is still NOT here: nothing in the render path needs
+        // the editor UI.
         //
         // The frame types (FFrameRate, FFrameNumber, FFrameTime) are in Core, so
         // TimeManagement is not needed and is not added; LevelSequence exports it
         // publicly anyway.
-        PrivateDependencyModuleNames.AddRange(new string[] { "LevelSequence", "MovieScene", "MovieSceneTracks" });
+        PrivateDependencyModuleNames.AddRange(new string[] {
+            "LevelSequence", "MovieScene", "MovieSceneTracks",
+            "MovieSceneCapture", "MovieSceneTools",
+        });
         // MCPBridgeClothOptimizer is a dependency for the same reason
         // MCPBridgePIEAgent is: cloth_inspect re-fronts
         // UClothOptimizerLibrary::InspectClothAsset rather than reimplementing

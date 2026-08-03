@@ -1583,6 +1583,107 @@ const specs = [
         "The level you believe is loaded. Refuses on a mismatch; never loads a level.",
       ),
     }).strict()],
+  ["puerts_job_status", "job_status",
+    "Report the state of a long job the editor started, or list every job it holds. "
+    + "A job is work the ENGINE advances on its own while the game thread is free: a Lightmass "
+    + "build (puerts_lighting_build), a navigation rebuild (puerts_nav_build with the default "
+    + "wait:false), or a sequence render (puerts_sequence_render_start). Those three commands "
+    + "return a job_id; this is how you find out what happened next. "
+    + "It reports a STAGE and live counters, never a percent, and says so in the response: no "
+    + "UE4.27 entry point on any of these paths reports a completion fraction. What you get "
+    + "instead is the counter the engine itself keeps - lighting_unbuilt_objects, "
+    + "remaining_build_tasks, output_file_count - which has no denominator. "
+    + "state is running, succeeded, failed or cancelled. Every answer also carries "
+    + "cancel_supported and cancel_effect for that job, because cancellation is not uniform. "
+    + "AFTER AN EDITOR RESTART every job is gone and this says so: a job id from a previous "
+    + "session answers job_lost_editor_restarted rather than being reported as still running. A "
+    + "lighting build and a navigation build died with that editor; a sequence render did not, "
+    + "because it is a separate process. "
+    + "Call with no job_id to list every job this editor session holds.",
+    z.object({
+      job_id: z.string().optional().describe(
+        "The id a *_start command returned. Omit to list every job this editor holds.",
+      ),
+    }).strict()],
+  ["puerts_job_result", "job_result",
+    "Collect the finished output of a job, ONCE. The result outlives the command that produced "
+    + "it: it is kept in the editor beside the job record, so a client that lost the start "
+    + "command's response - or never had it, because something else started the job - can still "
+    + "read what it answered. "
+    + "Refuses with job_still_running if the job has not finished; poll puerts_job_status first. "
+    + "Refuses with job_result_consumed on a second call: this delivers the output once, and "
+    + "puerts_job_status still reports the state afterwards. "
+    + "The answer carries the job record (final state, elapsed, live counters) and start_result, "
+    + "which is the body the starting command returned.",
+    z.object({
+      job_id: z.string().describe("The id a *_start command returned."),
+    }).strict()],
+  ["puerts_job_cancel", "job_cancel",
+    "Ask a running job to stop. CANCELLATION IS NOT UNIFORM AND THIS TOOL DOES NOT PRETEND IT IS. "
+    + "Every answer reports cancel_effect for that job: "
+    + "\"immediate\" only for a sequence render, because it runs in a second process and the "
+    + "operating system can kill it; \"deferred\" for a lighting build "
+    + "(GEditor->SetMapBuildCancelled is a flag Lightmass reads at its next checkpoint) and for a "
+    + "navigation build (UNavigationSystemV1::CancelBuild unwinds the Recast tile tasks that are "
+    + "already queued). A deferred cancel does NOT interrupt an engine call already in progress, "
+    + "and stopped_now in the response says which of the two happened. "
+    + "It refuses rather than lying: job_not_running if the job already finished, "
+    + "cancel_unsupported if that kind of work exposes no abort in UE4.27, and "
+    + "cancel_target_gone if the thing being tracked is no longer reachable. "
+    + "Nothing is rolled back. A cancelled navmesh is partial and the recovery is another build; "
+    + "a cancelled render leaves the frames it already wrote on disk. There is no cancel for work "
+    + "that blocks the game thread inside one engine call - puerts_nav_build with wait:true is "
+    + "exactly that, which is why it returns no job_id.",
+    z.object({
+      job_id: z.string().describe("The id a *_start command returned."),
+    }).strict()],
+  ["puerts_sequence_render_start", "sequence_render_start",
+    "Render a ULevelSequence to image files and return a job_id. NOTHING IS RENDERED WHEN THIS "
+    + "RETURNS: it spawns a second UE process and answers. Poll puerts_job_status until state is "
+    + "no longer \"running\", then collect with puerts_job_result. "
+    + "This is the legacy MovieSceneCapture path, the same one the editor's own Render Movie "
+    + "button takes in separate-process mode: a UAutomatedLevelSequenceCapture is serialized to a "
+    + "manifest and a second editor process is launched with -MovieSceneCaptureManifest. Movie "
+    + "Render Queue exists in UE4.27 but ships disabled by default, so it is not used - a command "
+    + "that refused on every project without an optional plugin turned on would be worse. "
+    + "IT REFUSES ON AN UNSAVED LEVEL OR AN UNSAVED SEQUENCE, by name. The render process reads "
+    + "both FROM DISK, so rendering with unsaved changes would produce a correct-looking movie of "
+    + "the previous version and exit successfully, which a caller cannot tell from a good render. "
+    + "Save with puerts_save first. Refused during Play In Editor. "
+    + "output_directory must be inside the project; the default is "
+    + "Saved/MCPRenders/<sequence name>. This is the one job in the bridge that can be cancelled "
+    + "immediately, because puerts_job_cancel kills the render process.",
+    z.object({
+      asset_path: z.string().describe("The ULevelSequence to render, under /Game."),
+      output_directory: z.string().optional().describe(
+        "Where the frames go. Relative paths resolve against the project directory, and anything "
+        + "outside the project is refused. Default Saved/MCPRenders/<sequence name>.",
+      ),
+      format: z.enum(["png", "jpg", "bmp", "exr", "avi"]).optional().describe(
+        "Default png. These are the five capture protocols UE4.27 ships; avi is the only one that "
+        + "produces a single file rather than an image sequence.",
+      ),
+      output_format: z.string().optional().describe(
+        "The filename format string, e.g. \"{world}_{frame}\". Default is the engine's own.",
+      ),
+      resolution_x: z.number().int().optional().describe("Default 1280. Clamped to 16..7680."),
+      resolution_y: z.number().int().optional().describe("Default 720. Clamped to 16..7680."),
+      frame_rate: z.number().int().optional().describe(
+        "Override the capture frame rate. Left alone by default, so the sequence's own display "
+        + "rate is used.",
+      ),
+      warm_up_frames: z.number().int().optional().describe(
+        "Frames played before the capture starts, to let particles and post processing settle. "
+        + "Default 0.",
+      ),
+      overwrite_existing: z.boolean().optional().describe(
+        "Default true. Overwrites frames already in the output directory.",
+      ),
+      plan_only: z.boolean().optional().describe(
+        "Default false. Resolve and report every setting, run every refusal, and start no "
+        + "process.",
+      ),
+    }).strict()],
   ["puerts_class_defaults_patch", "class_defaults_patch",
     "Set INHERITED class-default (CDO) values on a generated Blueprint as desired state: "
     + "AIControllerClass and AutoPossessAI on a pawn, and anything else on the bridge's "
@@ -2023,6 +2124,13 @@ const commandTimeouts: Readonly<Record<string, number>> = {
   // Lightmass export that starting one costs. The build itself outlives the
   // call by design, which is what action="status" is for.
   puerts_lighting_build: 60000,
+  // The job commands read a small in-memory record and make one live query.
+  // They are left on the 7 second default deliberately: a job command that
+  // needed longer would mean the game thread was busy, and the answer to that
+  // is bridge_command_status, not a bigger budget here.
+  // Loads the sequence asset, serializes a capture manifest and spawns a
+  // process. It does NOT wait for the render, so this covers the asset load.
+  puerts_sequence_render_start: 20000,
   puerts_class_defaults_patch: 20000,
   // folder_filter or include_transforms routes the read through the scene
   // snapshot, which walks the level twice; the 7 second default is close enough

@@ -274,6 +274,11 @@ the section 9 numbers alone.
 the command queue; cancellation is not reachable at all for the operations that
 need it most, and no amount of client-side work changes either.**
 
+That line is about work that holds the game thread, and for that work it is
+still exactly right. Section 6.10 covers the other class - work the engine
+advances on its own while the game thread is free - which is cancellable, and
+which the job API tracks. Read 6.1 through 6.9 first; 6.10 changes none of it.
+
 The long form is below, with a file and line for every claim about how the queue
 behaves. Nothing here ships an API. An API that cannot report progress is worse
 than no API, because a caller that polls it learns nothing and concludes the job
@@ -592,6 +597,150 @@ Two things to know before relying on it:
 Cancellation was not built, and 6.4 is why: the seconds are inside
 `CompileBlueprint` and `SavePackages`, which are uninterruptible, and the bridge
 owns no cancel point in between. A status channel cannot deliver one.
+
+### 6.10 The job API, and the one class of work it can carry
+
+Built, uncompiled. `job_status`, `job_result`, `job_cancel`, and
+`sequence_render_start` as the first new producer of a job.
+
+**None of 6.5's three changes was made.** No chunked executor, no game-thread
+ticker, no job-owned transaction, no second pipe. Everything in 6.1 F1 to F6 is
+still true and `AcceptCommand` is untouched. The job API does not make anything
+asynchronous, and cannot.
+
+What it does is track work **the engine already advances while the game thread
+is free**. Three such things exist today, and each was already hand-rolling
+half of this before the job API existed:
+
+| Job kind | Who advances it | Producer |
+|---|---|---|
+| `lighting_build` | `FStaticLightingManager::UpdateBuildLighting`, on the editor's own tick (`StaticLightingSystem.cpp:2492-2522`, `:341-386`) | `puerts_lighting_build`, `action: "start"` |
+| `navigation_build` | Recast's background generator tasks; `ANavigationData::RebuildAll` does not block (`NavigationData.h:619`) | `puerts_nav_build`, `wait: false` |
+| `sequence_render` | a second UE process (`MovieSceneCaptureDialogModule.cpp:678-744`) | `puerts_sequence_render_start` |
+
+Between slices of all three the game thread is free, so `job_status` is an
+ordinary short command that answers in milliseconds. That is the whole trick,
+and it is why none of the expensive machinery in 6.5 is needed.
+
+**The rule that follows, stated so nobody tries it:** a long operation that
+holds the game thread cannot be made a job by wrapping it. `CompileBlueprint`
+and `SavePackages` are still uninterruptible and still block; a job id around
+either would be decoration. `puerts_nav_build` with `wait: true` is exactly
+that case, and it deliberately returns an **empty** `job_id` with a warning
+saying why.
+
+#### The shape
+
+```
+<verb>_start   -> { job_id, ... }      an ordinary command that returns at once
+job_status     -> state, elapsed, live counters, cancel_supported, cancel_effect
+                  (no job_id lists every job this editor holds)
+job_result     -> the finished output, ONCE
+job_cancel     -> per-job, and it refuses where it cannot deliver
+```
+
+`state` is `running`, `succeeded`, `failed` or `cancelled`. Nothing is cached:
+every live counter is derived at poll time from the engine or the operating
+system. There is no `percent` and there is no fraction, for the same reason
+6.3 gave: no UE4.27 entry point on any of these paths reports one. What is
+reported instead is the counter the engine keeps, which has no denominator:
+`lighting_unbuilt_objects`, `remaining_build_tasks`, `output_file_count`.
+
+`job_result` is read-once and says so (`job_result_consumed` on the second
+call). The result outlives the command that produced it because the job record
+holds the start command's own answer, so a client that lost the response, or
+never had it, can still collect it. The map is capped at 32 records and evicts
+the oldest **finished** ones first; a running job is never evicted.
+
+#### Cancellation is not uniform, and 6.4 was wrong about one case
+
+6.4 said the honest scope for cancellation is "between the passes the bridge
+owns, and never inside an engine call". That still holds for in-process
+commands. It is not the whole picture for these three, and one of them
+contradicts a claim made twice in this repository:
+
+| Kind | Supported | Effect | How |
+|---|---|---|---|
+| `sequence_render` | yes | **immediate** | `FPlatformProcess::TerminateProc`. It is a separate process; the OS can kill it. |
+| `lighting_build` | yes | deferred | `GEditor->SetMapBuildCancelled(true)` |
+| `navigation_build` | yes | deferred | `UNavigationSystemV1::CancelBuild()` (`NavigationSystem.h:823`) |
+
+**Lightmass does expose a public abort in 4.27.** `lighting_build`'s own
+description said "There is no cancel: UE4.27 exposes no public entry point for
+aborting a build", and finding 0s repeated it. `UEditorEngine::SetMapBuildCancelled`
+is virtual and public (`EditorEngine.h:816`, overridden at `UnrealEdEngine.h:201`),
+and it is exactly what the editor's own cancel button reaches:
+`FStaticLightingManager::CancelLightingBuild` calls it
+(`StaticLightingSystem.cpp:182-193`), as does the build progress dialog
+(`SBuildProgress.cpp:212`). Lightmass reads the flag between units of its
+export and import work (`Lightmass.cpp:726`, `:1312`, `:3385`, `:3479`), so the
+build stops at its next check rather than at the call. `cancel_effect` says
+`deferred` for exactly that reason.
+
+It comes with a required companion change. `bCancelBuild` is a single global
+`FUnrealEdMisc` flag also read by the CSG and streaming-level builders, and
+`UEditorEngine::BuildLighting` does **not** reset it, unlike
+`FEditorBuildUtils::EditorBuild` (`EditorBuildUtils.cpp:248`). So
+`lighting_build`'s start path now clears it first. Without that line, one
+`job_cancel` would poison every later build in the editor session: the next
+start would abort on its first check and report a build that never ran.
+
+Nothing is rolled back by a cancel, and the API says so per job. A cancelled
+navmesh is partial, and the recovery is another build. A cancelled render keeps
+the frames it already wrote. `job_cancel` refuses rather than lying:
+`job_not_running` when the job already finished, `cancel_unsupported` when the
+kind exposes no abort, `cancel_target_gone` when the thing being tracked is no
+longer reachable from this editor.
+
+#### Across an editor restart
+
+Job records live in the service's memory and do not survive. That is reported,
+never hidden: a job id carries the session id that minted it, so
+`job_status` on an id from a previous editor answers
+`job_lost_editor_restarted` with `state: "lost"` rather than reporting it as
+running. Three distinct codes, because they mean three different things to a
+caller holding an id:
+
+| Code | Means |
+|---|---|
+| `job_lost_editor_restarted` | the id is from another session. The editor is gone and so is the record. |
+| `job_unknown` | this session's id, no record. Never started, or evicted past the 32-record cap. |
+| `job_result_consumed` | the record is here and its output has already been collected once. |
+
+What happens to the underlying work differs by kind, and the refusal says so. A
+lighting build and a navigation build die with the editor. **A sequence render
+does not**: it is a separate process, so it may still be running and still
+writing frames. The refusal names the output directory as the only handle left,
+and `Shutdown` closes the process handle without terminating the process, on
+purpose.
+
+#### Relationship to the status record of 6.9
+
+They answer different questions and neither replaces the other.
+`bridge_command_status` reads a file off disk and answers **while the game
+thread is blocked**: which native command is executing right now. `job_status`
+is a command, and answers what a specific long job's state is. A job does not
+hold the game thread, so a command is enough; if some *other* command is
+blocking it, `job_status` queues behind that command exactly like every other
+tool, and `bridge_command_status` is the tool for that situation. No second
+status file was invented.
+
+#### What did not change
+
+`lighting_build` and `nav_build` were migrated onto the job API **additively**.
+No parameter was renamed, no parameter was removed, and no behaviour changed:
+`lighting_build` still has `action: "start" | "status"` and still does not
+wait, `nav_build` still has `wait` and `plan_only` and still answers
+`status: "building"`. Each gained one field, `job_id`, and `lighting_build`'s
+`action: "status"` additionally reports the live job's id so a caller using the
+old polling shape can still reach the cancel that now exists.
+
+#### Uncompiled
+
+None of this has been through UBT. The C++ is `MCPPuerTSBridgeJobs.cpp`,
+`MCPPuerTSBridgeSequenceRender.cpp`, and edits to `MCPPuerTSBridgeLighting.cpp`,
+`MCPPuerTSBridgeAI.cpp` and `MCPPuerTSBridgeService.cpp`. `npm run verify`
+passes, which proves the TypeScript and nothing about the C++.
 
 ## 7. Running the pieces
 

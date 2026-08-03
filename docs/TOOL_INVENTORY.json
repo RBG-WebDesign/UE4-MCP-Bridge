@@ -23,12 +23,12 @@
     "native_live_partial": "live acceptance passed, but part of the evidence is the builder own report because no independent reader exists yet",
     "legacy_untested": "no live editor proof of any kind; a non-null test_file covers only the mock listener"
   },
-  "tool_count": 268,
+  "tool_count": 272,
   "by_backend": {
     "legacy_http": 170,
     "native_pipe_alias": 40,
     "server_local": 3,
-    "native_pipe": 55
+    "native_pipe": 59
   },
   "tools": [
     {
@@ -8368,6 +8368,117 @@
       "verification": "implemented"
     },
     {
+      "name": "puerts_job_cancel",
+      "module": "mcp-server/src/tools/puerts.ts",
+      "backend": "native_pipe",
+      "migration_state": "native_pending_live",
+      "target_replacement": null,
+      "description": "[PRIMARY NATIVE IPC] Ask a running job to stop. CANCELLATION IS NOT UNIFORM AND THIS TOOL DOES NOT PRETEND IT IS. Every answer reports cancel_effect for that job: \"immediate\" only for a sequence render, because it runs in a second process and the operating system can kill it; \"deferred\" for a lighting build (GEditor->SetMapBuildCancelled is a flag Lightmass reads at its next checkpoint) and for a navigation build (UNavigationSystemV1::CancelBuild unwinds the Recast tile tasks that are already queued). A deferred cancel does NOT interrupt an engine call already in progress, and stopped_now in the response says which of the two happened. It refuses rather than lying: job_not_running if the job already finished, cancel_unsupported if that kind of work exposes no abort in UE4.27, and cancel_target_gone if the thing being tracked is no longer reachable. Nothing is rolled back. A cancelled navmesh is partial and the recovery is another build; a cancelled render leaves the frames it already wrote on disk. There is no cancel for work that blocks the game thread inside one engine call - puerts_nav_build with wait:true is exactly that, which is why it returns no job_id.",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "job_id": "string"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": "mcp-server/tests/puerts-tools.test.ts",
+      "capability_category": "jobs",
+      "canonical_capability": "jobs.cancel",
+      "owner": "MCPBridgePuerTS service",
+      "lifecycle": "active",
+      "migration_action": "KEEP",
+      "replacement_tool": null,
+      "compatibility_alias": false,
+      "cpp_builder": "MCPPuerTSBridgeService",
+      "cpp_entry_point": "ControlJobJson",
+      "python_handler": null,
+      "live_evidence": [],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": "UNCOMPILED. Cancellation is per job kind and the response says which, because a cancel that returns success and does nothing is worse than no cancel. immediate for a sequence render only (FPlatformProcess::TerminateProc on the second process). deferred for a lighting build: GEditor->SetMapBuildCancelled is public in 4.27 (EditorEngine.h:816, overridden UnrealEdEngine.h:201) and is what the editor own cancel button reaches (StaticLightingSystem.cpp:182-193 via SBuildProgress.cpp:212), and Lightmass reads the flag between units of work (Lightmass.cpp:726, :1312, :3385, :3479) so the build stops at its NEXT check. deferred for a navigation build: UNavigationSystemV1::CancelBuild is public (NavigationSystem.h:823) and the queued Recast tile tasks unwind. This CORRECTS the previous claim that Lightmass exposes no public abort; the cancel button proves otherwise. It cannot interrupt an engine call already in progress, so puerts_nav_build with wait:true gets no job id at all. Nothing is rolled back: a cancelled navmesh is partial and a cancelled render keeps the frames it wrote. lighting_build start now clears the flag first (as EditorBuildUtils.cpp:248 does), without which one cancel would poison every later build in the session.",
+      "verification": "implemented"
+    },
+    {
+      "name": "puerts_job_result",
+      "module": "mcp-server/src/tools/puerts.ts",
+      "backend": "native_pipe",
+      "migration_state": "native_pending_live",
+      "target_replacement": null,
+      "description": "[PRIMARY NATIVE IPC] Collect the finished output of a job, ONCE. The result outlives the command that produced it: it is kept in the editor beside the job record, so a client that lost the start command's response - or never had it, because something else started the job - can still read what it answered. Refuses with job_still_running if the job has not finished; poll puerts_job_status first. Refuses with job_result_consumed on a second call: this delivers the output once, and puerts_job_status still reports the state afterwards. The answer carries the job record (final state, elapsed, live counters) and start_result, which is the body the starting command returned.",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "job_id": "string"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": "mcp-server/tests/puerts-tools.test.ts",
+      "capability_category": "jobs",
+      "canonical_capability": "jobs.result",
+      "owner": "MCPBridgePuerTS service",
+      "lifecycle": "active",
+      "migration_action": "KEEP",
+      "replacement_tool": null,
+      "compatibility_alias": false,
+      "cpp_builder": "MCPPuerTSBridgeService",
+      "cpp_entry_point": "ControlJobJson",
+      "python_handler": null,
+      "live_evidence": [],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": "UNCOMPILED. Delivers a finished job output ONCE. The starting command answer is retained on the job record, so it outlives the command that produced it and a client that lost it can still read it. Refuses with job_still_running before the job finishes and job_result_consumed on a second call, rather than answering with a stale or empty body. Collecting drops the record, and the map is capped at 32 with the oldest FINISHED records evicted first; a running job is never evicted.",
+      "verification": "implemented"
+    },
+    {
+      "name": "puerts_job_status",
+      "module": "mcp-server/src/tools/puerts.ts",
+      "backend": "native_pipe",
+      "migration_state": "native_pending_live",
+      "target_replacement": null,
+      "description": "[PRIMARY NATIVE IPC] Report the state of a long job the editor started, or list every job it holds. A job is work the ENGINE advances on its own while the game thread is free: a Lightmass build (puerts_lighting_build), a navigation rebuild (puerts_nav_build with the default wait:false), or a sequence render (puerts_sequence_render_start). Those three commands return a job_id; this is how you find out what happened next. It reports a STAGE and live counters, never a percent, and says so in the response: no UE4.27 entry point on any of these paths reports a completion fraction. What you get instead is the counter the engine itself keeps - lighting_unbuilt_objects, remaining_build_tasks, output_file_count - which has no denominator. state is running, succeeded, failed or cancelled. Every answer also carries cancel_supported and cancel_effect for that job, because cancellation is not uniform. AFTER AN EDITOR RESTART every job is gone and this says so: a job id from a previous session answers job_lost_editor_restarted rather than being reported as still running. A lighting build and a navigation build died with that editor; a sequence render did not, because it is a separate process. Call with no job_id to list every job this editor session holds.",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "job_id": "string?"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": "mcp-server/tests/puerts-tools.test.ts",
+      "capability_category": "jobs",
+      "canonical_capability": "jobs.status",
+      "owner": "MCPBridgePuerTS service",
+      "lifecycle": "active",
+      "migration_action": "KEEP",
+      "replacement_tool": null,
+      "compatibility_alias": false,
+      "cpp_builder": "MCPPuerTSBridgeService",
+      "cpp_entry_point": "ControlJobJson",
+      "python_handler": null,
+      "live_evidence": [],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": "UNCOMPILED. Reports the state of one job, or lists every job this editor session holds. A job is work the ENGINE advances while the game thread is free, which is the only kind this bridge can track: UEditorEngine::BuildLighting hands the level to FStaticLightingManager and returns while the build advances on the editor tick (StaticLightingSystem.cpp:2492-2522, :341-386); ANavigationData::RebuildAll does not block (NavigationData.h:619); a sequence render is a second process. Between slices of all three the game thread is free, so this is an ordinary short command and needs no second pipe, no FTicker and no chunked executor - none of docs/PERF_AND_LONG_JOBS.md 6.5 changes 1 to 3 was made. Nothing is cached: every live counter is derived at poll time from the engine or the OS, and there is deliberately no percent, because no UE4.27 entry point on any of these paths reports a fraction. Job ids carry the session id that minted them, so an id from a previous editor answers job_lost_editor_restarted rather than being reported as running.",
+      "verification": "implemented"
+    },
+    {
       "name": "puerts_lighting_build",
       "module": "mcp-server/src/tools/puerts.ts",
       "backend": "native_pipe",
@@ -8404,7 +8515,7 @@
       "live_evidence": [],
       "migration_risk": "low",
       "capability_loss_risk": "low",
-      "notes": "starts a Lightmass build for the level the editor has open, or reports the state of one. IT DOES NOT WAIT: UEditorEngine::BuildLighting hands the level to FStaticLightingManager and returns, and the build then advances on UpdateBuildLighting from the editor tick over minutes; a command that blocked on that would sit far past any request budget this bridge allows, and a timeout reported while the editor kept building is wrong in both directions. So action=start returns waited:false with a completion note, and action=status is the poll. started is read back from IsLightingBuildCurrentlyRunning rather than assumed, because CreateStaticLightingSystem returns void and swallows a refused start; bForceNoPrecomputedLighting and r.AllowStaticLighting=0 are refused by name first. Refused during PIE: Lightmass reads GWorld. No cancel: UE4.27 exposes no public abort. UNCOMPILED: lane U holds no build rights, so no editor has run this code.",
+      "notes": "starts a Lightmass build for the level the editor has open, or reports the state of one. IT DOES NOT WAIT: UEditorEngine::BuildLighting hands the level to FStaticLightingManager and returns, and the build then advances on UpdateBuildLighting from the editor tick over minutes; a command that blocked on that would sit far past any request budget this bridge allows, and a timeout reported while the editor kept building is wrong in both directions. So action=start returns waited:false with a completion note, and action=status is the poll. started is read back from IsLightingBuildCurrentlyRunning rather than assumed, because CreateStaticLightingSystem returns void and swallows a refused start; bForceNoPrecomputedLighting and r.AllowStaticLighting=0 are refused by name first. Refused during PIE: Lightmass reads GWorld. ADDITIVE CHANGE (lane Z): action=start now also returns a job_id and the build is registered on the job API, so it can be polled with puerts_job_status and CANCELLED with puerts_job_cancel; action=status additionally reports the live job id. No parameter was renamed and no behaviour changed. The earlier claim here that UE4.27 exposes no public abort was wrong: GEditor->SetMapBuildCancelled is public (EditorEngine.h:816, overridden UnrealEdEngine.h:201) and is what the editor own cancel button reaches. The start path now clears that flag first, as EditorBuildUtils.cpp:248 does, because it is a single global flag and a leftover true would abort every later build. UNCOMPILED: lane U holds no build rights, so no editor has run this code.",
       "verification": "implemented"
     },
     {
@@ -8571,7 +8682,7 @@
       "live_evidence": [],
       "migration_risk": "low",
       "capability_loss_risk": "low",
-      "notes": "UNCOMPILED. The write half of the navigation group, closing it beside nav_inspect and nav_query. Rebuilds the editor world navigation so a placed NavMeshBoundsVolume produces an actual navmesh. MUTATING and deliberately NOT transactional, and absent from IsToolMutating for that reason: navmesh tiles are derived data generated by background tasks into a generator the transaction buffer does not record, and UE4.27 own Build Paths calls GEditor->ResetTransaction(\"Rebuilding Navigation\") before triggering the same build (Editor/UnrealEd/Private/EditorBuildUtils.cpp:395), discarding the undo stack outright, so a transaction here would record an undo entry that restores nothing. Not destructive: navigation data is derived from the level, so the recovery from a bad build is another build. Independently inspected by calling InspectNavigationJson for the read-back, the same function puerts_nav_inspect uses, so the two cannot disagree. Two shapes because of time: wait defaults to false and calls the public non-blocking ANavigationData::RebuildAll (Runtime/NavigationSystem/Public/NavigationData.h:619) on every registered nav data, answering status building for the caller to poll nav_inspect until remaining_build_tasks is zero; wait true calls FNavigationSystem::Build (Runtime/Engine/Classes/AI/NavigationSystemBase.h:167), which is what FEditorBuildUtils::TriggerNavigationBuilder does (EditorBuildUtils.cpp:868) and which BLOCKS until every nav data returns from EnsureBuildCompletion (Runtime/NavigationSystem/Private/NavigationSystem.cpp:3329-3335), so on a large level it outlasts the 30s pipe deadline while the build keeps running in the editor. Only the blocking path spawns a missing RecastNavMesh, because UNavigationSystemV1::SpawnMissingNavigationData is protected (NavigationSystem.h:1098, under the protected: at 1024), so wait false refuses a level with bounds volumes and no nav data actor and names wait true as the fix. Every precondition is refused by name BEFORE any generator runs, because UNavigationSystemV1::Build RETURNS SILENTLY when it has no work (NavigationSystem.cpp:3297-3302) and a command that called it blind would report a successful build over a level that still has no navmesh: no navigation system, no NavMeshBoundsVolume, IsNavigationBuildingLocked with the editor auto-update flag masked out exactly as Build masks it (NavigationSystem.h:831, ENavigationBuildLock at :88), and IsThereAnywhereToBuildNavigation false (NavigationSystem.h:605). plan_only runs every precondition and no generator. NOT COMPILED and NOT run: this lane holds no build rights and no editor has executed this code.",
+      "notes": "UNCOMPILED. The write half of the navigation group, closing it beside nav_inspect and nav_query. Rebuilds the editor world navigation so a placed NavMeshBoundsVolume produces an actual navmesh. MUTATING and deliberately NOT transactional, and absent from IsToolMutating for that reason: navmesh tiles are derived data generated by background tasks into a generator the transaction buffer does not record, and UE4.27 own Build Paths calls GEditor->ResetTransaction(\"Rebuilding Navigation\") before triggering the same build (Editor/UnrealEd/Private/EditorBuildUtils.cpp:395), discarding the undo stack outright, so a transaction here would record an undo entry that restores nothing. Not destructive: navigation data is derived from the level, so the recovery from a bad build is another build. Independently inspected by calling InspectNavigationJson for the read-back, the same function puerts_nav_inspect uses, so the two cannot disagree. Two shapes because of time: wait defaults to false and calls the public non-blocking ANavigationData::RebuildAll (Runtime/NavigationSystem/Public/NavigationData.h:619) on every registered nav data, answering status building for the caller to poll nav_inspect until remaining_build_tasks is zero; wait true calls FNavigationSystem::Build (Runtime/Engine/Classes/AI/NavigationSystemBase.h:167), which is what FEditorBuildUtils::TriggerNavigationBuilder does (EditorBuildUtils.cpp:868) and which BLOCKS until every nav data returns from EnsureBuildCompletion (Runtime/NavigationSystem/Private/NavigationSystem.cpp:3329-3335), so on a large level it outlasts the 30s pipe deadline while the build keeps running in the editor. Only the blocking path spawns a missing RecastNavMesh, because UNavigationSystemV1::SpawnMissingNavigationData is protected (NavigationSystem.h:1098, under the protected: at 1024), so wait false refuses a level with bounds volumes and no nav data actor and names wait true as the fix. Every precondition is refused by name BEFORE any generator runs, because UNavigationSystemV1::Build RETURNS SILENTLY when it has no work (NavigationSystem.cpp:3297-3302) and a command that called it blind would report a successful build over a level that still has no navmesh: no navigation system, no NavMeshBoundsVolume, IsNavigationBuildingLocked with the editor auto-update flag masked out exactly as Build masks it (NavigationSystem.h:831, ENavigationBuildLock at :88), and IsThereAnywhereToBuildNavigation false (NavigationSystem.h:605). plan_only runs every precondition and no generator. ADDITIVE CHANGE (lane Z): the wait false path now also returns a job_id, so the started-not-finished shape it already had is pollable with puerts_job_status and cancellable with puerts_job_cancel (UNavigationSystemV1::CancelBuild, NavigationSystem.h:823). wait true returns an EMPTY job_id on purpose: it blocked inside the generator, which is the one shape the job API cannot cover. plan_only returns an empty job_id too. No parameter was renamed and no behaviour changed. NOT COMPILED and NOT run: this lane holds no build rights and no editor has executed this code.",
       "verification": "implemented"
     },
     {
@@ -9081,6 +9192,52 @@
       "migration_risk": "low",
       "capability_loss_risk": "low",
       "notes": "the first tool in this bridge that touches Sequencer at all. Reads a ULevelSequence as canonical JSON: display rate, tick resolution, playback range, possessables and spawnables, master and object tracks, sections with their ranges and row indices, and every key on every channel with its time, value and interpolation. Read-only: absent from IsToolMutating, nothing calls Modify or MarkPackageDirty, package_dirty_before/after reported. Binding identity is OBSERVED - the FGuid UMovieScene already stores - unlike the derived identities widget_inspect and behavior_tree_inspect must use. Frames are reported in DISPLAY-RATE frames with the raw ticks beside them, so a caller never has to know the 60000-per-second tick resolution; the conversion is FFrameRate::TransformTime, the engine's own integer path. Canonical order is bindings by name then guid, tracks by binding then type then property, sections by start tick then row, channels in engine channel order. structure_hash_sha1 comes from MCPBridgeBlueprintMembers::StructureHash - the same digest and the same lowercase hex the graph, Behavior Tree, widget and scene inspectors report - and covers keyframe VALUES as well as shape, because for a sequence a key value is the content. Actor resolution is reported under 'resolution' and is deliberately OUTSIDE the hashed set: it depends on which level the editor has open, not on the asset. UNCOMPILED and NOT live: this lane had no build rights and no editor.",
+      "verification": "implemented"
+    },
+    {
+      "name": "puerts_sequence_render_start",
+      "module": "mcp-server/src/tools/puerts.ts",
+      "backend": "native_pipe",
+      "migration_state": "native_pending_live",
+      "target_replacement": null,
+      "description": "[PRIMARY NATIVE IPC] Render a ULevelSequence to image files and return a job_id. NOTHING IS RENDERED WHEN THIS RETURNS: it spawns a second UE process and answers. Poll puerts_job_status until state is no longer \"running\", then collect with puerts_job_result. This is the legacy MovieSceneCapture path, the same one the editor's own Render Movie button takes in separate-process mode: a UAutomatedLevelSequenceCapture is serialized to a manifest and a second editor process is launched with -MovieSceneCaptureManifest. Movie Render Queue exists in UE4.27 but ships disabled by default, so it is not used - a command that refused on every project without an optional plugin turned on would be worse. IT REFUSES ON AN UNSAVED LEVEL OR AN UNSAVED SEQUENCE, by name. The render process reads both FROM DISK, so rendering with unsaved changes would produce a correct-looking movie of the previous version and exit successfully, which a caller cannot tell from a good render. Save with puerts_save first. Refused during Play In Editor. output_directory must be inside the project; the default is Saved/MCPRenders/<sequence name>. This is the one job in the bridge that can be cancelled immediately, because puerts_job_cancel kills the render process.",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "asset_path": "string",
+          "output_directory": "string?",
+          "format": "enum?",
+          "output_format": "string?",
+          "resolution_x": "number?",
+          "resolution_y": "number?",
+          "frame_rate": "number?",
+          "warm_up_frames": "number?",
+          "overwrite_existing": "boolean?",
+          "plan_only": "boolean?"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "idempotentHint": false,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": "mcp-server/tests/puerts-tools.test.ts",
+      "capability_category": "cinematics",
+      "canonical_capability": "cinematics.sequence_render",
+      "owner": "MCPBridgePuerTS service",
+      "lifecycle": "active",
+      "migration_action": "KEEP",
+      "replacement_tool": null,
+      "compatibility_alias": false,
+      "cpp_builder": "MCPPuerTSBridgeService",
+      "cpp_entry_point": "RenderLevelSequenceJson",
+      "python_handler": null,
+      "live_evidence": [],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": "UNCOMPILED, and the command finding 0s said could not ship synchronously. It ships asynchronously instead, on the job API. Legacy MovieSceneCapture in a second process, the same path the editor own Render Movie button takes in separate-process mode: a UAutomatedLevelSequenceCapture is built and serialized with the engine own converter, written to a per-render manifest under Saved/MCPPuerTSBridge, and a second editor process is launched with -MovieSceneCaptureManifest (MovieSceneCaptureDialogModule.cpp:678-744). Movie Render Queue exists in 4.27 at Engine/Plugins/MovieScene/MovieRenderPipeline and is EnabledByDefault false, so it is not used. The manifest is produced from the real UObject rather than hand-written JSON because the child reconstructs it with FJsonObjectConverter::JsonAttributesToUStruct (MovieSceneCaptureModule.cpp:104-160). The refusals are the work: the second process reads the level and the sequence FROM DISK, so an unsaved or never-saved level and an unsaved sequence are refused by name rather than producing a correct-looking render of the previous version; PIE is refused; the output directory must resolve inside the project. Needs the MovieSceneCapture and MovieSceneTools module dependencies. Opens no transaction and touches no asset: it writes image files, so there is nothing to undo.",
       "verification": "implemented"
     },
     {
