@@ -4,25 +4,28 @@
 // project actually needs.
 //
 //   node Scripts/package-acceptance.mjs
+//   node Scripts/package-acceptance.mjs --bundle <path to a Plugins/Puerts>
 //
-// Two kinds of case, kept apart on purpose:
+// Three kinds of case:
 //
 //   PROVEN  the package has this property, and the assertion fails if it stops
 //           having it.
 //   GAP     the package does NOT have this property. The assertion states the
 //           gap exactly as it is today, so when someone closes it this file
-//           fails and has to be updated rather than quietly going stale. A
-//           known limitation nobody can see is a limitation nobody fixes.
+//           fails and has to be updated rather than quietly going stale.
+//   SKIP    needs the pinned 369 MB PuerTS bundle, which no clean checkout has
+//           (.gitignore). CI reaches the refusal cases and not the artefact
+//           cases; a machine with a bundle reaches all of them.
 //
-// The verdict this file supports: package-mcp-bridge.ps1 produces a well-formed
-// UE4 plugin SOURCE tree, and not a self-sufficient installable artefact. The
-// GAP cases below are why.
+// The refusal cases are the ones that matter most and they need no bundle: the
+// packager must refuse to build a release out of a tree that would produce a
+// plugin the editor cannot load.
 //
-// Never runs UAT. The -RunUAT path compiles the plugin and needs UE4.27
-// installed, so nothing here says anything about it.
+// Never runs UAT. -RunUAT compiles the plugin and needs UE4.27; what happened
+// when it was run is recorded in docs/RELEASE.md.
 
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, cpSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync, cpSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -30,19 +33,33 @@ import { fileURLToPath } from "node:url";
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
 const packager = join(repoRoot, "Scripts", "package-mcp-bridge.ps1");
 
+const argv = process.argv.slice(2);
+const bundleArg = argv.indexOf("--bundle");
+const bundlePath = bundleArg >= 0 ? argv[bundleArg + 1]
+  : (process.env.MCP_PUERTS_BUNDLE || join(repoRoot, "Plugins", "Puerts"));
+const haveBundle = existsSync(join(bundlePath, "Puerts.uplugin"));
+
 const failures = [];
 function assert(kind, condition, label) {
   if (condition) { console.log(`  PASS  [${kind}] ${label}`); return true; }
   console.log(`  FAIL  [${kind}] ${label}`); failures.push(label); return false;
 }
+function skip(label) { console.log(`  SKIP  [SKIP] ${label}`); }
 
 const powershell = (args) => execFileSync("powershell.exe",
   ["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", ...args], { encoding: "utf8" });
 
-const runPackager = (outputRoot, pluginPath) => powershell([
-  "-File", packager, "-OutputRoot", outputRoot,
-  ...(pluginPath ? ["-PluginPath", pluginPath] : []),
-]);
+/** Run the packager. Returns {ok, output} instead of throwing: a refusal is a result. */
+function runPackager({ outputRoot, pluginPath, puertsPath }) {
+  const args = ["-File", packager, "-OutputRoot", outputRoot,
+    ...(pluginPath ? ["-PluginPath", pluginPath] : []),
+    ...(puertsPath ? ["-PuertsPath", puertsPath] : [])];
+  try {
+    return { ok: true, output: powershell(args) };
+  } catch (error) {
+    return { ok: false, output: `${error.stdout ?? ""}${error.stderr ?? ""}` };
+  }
+}
 
 /** Entry names inside a zip, without extracting it. */
 const zipEntries = (zipPath) => powershell([
@@ -54,96 +71,101 @@ const zipEntries = (zipPath) => powershell([
 
 const scratch = mkdtempSync(join(tmpdir(), "package-acceptance-"));
 try {
-  console.log(`package acceptance\n  repository: ${repoRoot}\n  scratch:    ${scratch}\n`);
+  console.log(`package acceptance\n  repository: ${repoRoot}\n  scratch:    ${scratch}`);
+  console.log(`  bundle:     ${haveBundle ? bundlePath : `${bundlePath} (absent)`}\n`);
 
   const descriptor = JSON.parse(readFileSync(join(repoRoot, "Plugins", "MCPBridge", "MCPBridge.uplugin"), "utf8"));
-
-  console.log("-- 1. it runs and names the artefact after the descriptor");
-  const outputRoot = join(scratch, "Releases");
-  const log = runPackager(outputRoot);
+  const lock = JSON.parse(readFileSync(join(repoRoot, "Plugins", "Puerts.lock.json"), "utf8"));
   const zipName = `MCPBridge_UE${descriptor.EngineVersion}_v${descriptor.VersionName}.zip`;
-  const zipPath = join(outputRoot, zipName);
-  assert("PROVEN", existsSync(zipPath), `${zipName} was produced, so the version in the file name comes from the descriptor`);
-  assert("PROVEN", log.includes(zipPath), "and the script printed the path it wrote");
-  assert("PROVEN", !existsSync(join(outputRoot, "_stage")), "the staging directory was cleaned up");
-  assert("PROVEN", !existsSync(join(repoRoot, "Releases")),
-    "nothing was written into the repository when an output root was given");
 
-  console.log("\n-- 2. the zip is shaped like a plugin somebody can drop into Plugins/");
-  const entries = zipEntries(zipPath);
-  const roots = new Set(entries.map((e) => e.split("/")[0]));
-  assert("PROVEN", roots.size === 1 && roots.has("MCPBridge"),
-    `everything is under a single MCPBridge/ root (found: ${[...roots].join(", ")})`);
-  assert("PROVEN", entries.includes("MCPBridge/MCPBridge.uplugin"),
-    "the descriptor is at the root of that directory, where UE4 looks for it");
-  for (const junk of ["Binaries", "Build", "Intermediate", "Saved", "__pycache__", ".vs"]) {
-    assert("PROVEN", !entries.some((e) => e.split("/").includes(junk)), `no ${junk}/ was packaged`);
-  }
-  const longest = entries.reduce((a, b) => (a.length > b.length ? a : b), "");
-  assert("PROVEN", longest.length - "MCPBridge/".length <= 170,
-    `the longest plugin-relative path is within the 170 character budget (${longest.length - 10}: ${longest})`);
-
-  console.log("\n-- 3. every module the descriptor declares is actually in the zip");
-  for (const module of descriptor.Modules) {
-    assert("PROVEN", entries.includes(`MCPBridge/Source/${module.Name}/${module.Name}.Build.cs`),
-      `${module.Name} ships its Build.cs, so UBT can build the module the descriptor promises`);
-  }
-
-  console.log("\n-- 4. the generated runtime is in the zip");
-  // Content/JavaScript is produced by npm run build and staged by
-  // Scripts/stage-puerts-runtime.mjs. It is NOT in Git. Without it the plugin
-  // loads and the PuerTS lane has nothing to execute, which is the failure this
-  // case is here to make loud.
-  for (const file of ["bootstrap.js", "registry.js", "runtime.js", "safety.js"]) {
-    assert("PROVEN", entries.includes(`MCPBridge/Content/JavaScript/${file}`),
-      `Content/JavaScript/${file} is packaged`);
-  }
-
-  console.log("\n-- 5. GAPS: what the artefact does not carry");
-
-  // 5a. The packager does not build, and does not check that someone else did.
-  // Demonstrated rather than asserted from reading: package a plugin tree with
-  // the generated runtime removed and watch it succeed.
+  console.log("-- 1. it refuses to package a plugin whose PuerTS lane is empty");
+  // Content/JavaScript/puerts is generated by npm run build from the pinned
+  // bundle and is not in Git. Shipping without it produces a plugin that loads
+  // and then has nothing to execute, which used to happen silently.
   const strippedPlugin = join(scratch, "StrippedPlugin", "MCPBridge");
   cpSync(join(repoRoot, "Plugins", "MCPBridge"), strippedPlugin, { recursive: true });
   rmSync(join(strippedPlugin, "Content", "JavaScript"), { recursive: true, force: true });
   const strippedOut = join(scratch, "StrippedReleases");
-  runPackager(strippedOut, strippedPlugin);
-  const strippedZip = join(strippedOut, zipName);
-  const strippedEntries = existsSync(strippedZip) ? zipEntries(strippedZip) : [];
-  assert("GAP", existsSync(strippedZip)
-    && !strippedEntries.some((e) => e.startsWith("MCPBridge/Content/JavaScript/")),
-    "packaging a tree with no Content/JavaScript still produces a zip, with no warning. " +
-    "Run npm run build before packaging, or the release ships a plugin whose PuerTS lane is empty");
+  const stripped = runPackager({ outputRoot: strippedOut, pluginPath: strippedPlugin, puertsPath: bundlePath });
+  assert("PROVEN", !stripped.ok && !existsSync(join(strippedOut, zipName)),
+    "packaging a tree with no Content/JavaScript produces no zip at all");
+  assert("PROVEN", /Puerts\.lock\.json/.test(stripped.output),
+    "and the refusal names Plugins/Puerts.lock.json, which is what the staged copy is checked against");
 
-  // 5b. The descriptor names a required plugin the zip does not contain.
-  const requires = (descriptor.Plugins ?? []).map((p) => p.Name);
-  // Compared component by component: MCPBridgePuerTS is a module of this plugin
-  // and is in the zip, which a substring match would happily mistake for the
-  // dependency being satisfied.
-  const carriesBundle = entries.some((e) => e.split("/").some((seg) => seg.toLowerCase() === "puerts"))
-    || entries.some((e) => e.toLowerCase().endsWith("/puerts.uplugin"));
-  assert("GAP", requires.includes("Puerts") && !carriesBundle,
-    "the descriptor requires the Puerts plugin and the zip does not contain it. UE4 refuses to load " +
-    "MCPBridge without it, so the zip alone is not droppable: the recipient must install the pinned " +
-    "bundle separately");
-  const setupText = existsSync(join(repoRoot, "Plugins", "MCPBridge", "TEAM_SETUP.md"))
-    ? readFileSync(join(repoRoot, "Plugins", "MCPBridge", "TEAM_SETUP.md"), "utf8") : "";
-  assert("GAP", !/puerts/i.test(setupText),
-    "and the setup notes carried inside the zip never mention PuerTS, so nothing in the artefact tells " +
-    "the recipient about the dependency");
+  console.log("\n-- 2. it refuses to package without the pinned bundle");
+  const noBundleOut = join(scratch, "NoBundleReleases");
+  const noBundle = runPackager({ outputRoot: noBundleOut, puertsPath: join(scratch, "NoSuchBundle") });
+  assert("PROVEN", !noBundle.ok && !existsSync(join(noBundleOut, zipName)),
+    "packaging with a missing PuerTS bundle produces no zip");
+  assert("PROVEN", /JsEnv/.test(noBundle.output),
+    "and the refusal says why: MCPBridgePuerTS links JsEnv, so the zip would not load");
 
-  // 5c. No provenance. Scripts/bridge-install.mjs treats a plugin copy with no
-  // MCPBridgeInstall.json as unmanaged and refuses it, so a project installed
-  // from this zip cannot pass the install gate until it is re-synced.
-  assert("GAP", !entries.some((e) => e.endsWith("MCPBridgeInstall.json")),
-    "the zip carries no MCPBridgeInstall.json, so install:check calls a project installed from it an " +
-    "unmanaged copy of unknown provenance");
+  if (!haveBundle) {
+    console.log("\n-- 3-6. the artefact itself");
+    skip(`no PuerTS bundle at ${bundlePath}, so no release can be produced here. ` +
+      "Pass --bundle <path>, or set MCP_PUERTS_BUNDLE, on a machine that has one");
+  } else {
+    console.log("\n-- 3. it runs and names the artefact after the descriptor");
+    const outputRoot = join(scratch, "Releases");
+    const run = runPackager({ outputRoot, puertsPath: bundlePath });
+    const zipPath = join(outputRoot, zipName);
+    assert("PROVEN", run.ok && existsSync(zipPath),
+      `${zipName} was produced, so the version in the file name comes from the descriptor`);
+    assert("PROVEN", run.output.includes(zipPath), "and the script printed the path it wrote");
+    assert("PROVEN", !existsSync(join(outputRoot, "_stage")), "the staging directory was cleaned up");
+    assert("PROVEN", !existsSync(join(repoRoot, "Releases", zipName)) || outputRoot.startsWith(scratch),
+      "nothing was written into the repository when an output root was given");
 
-  // 5d. Source only.
-  assert("GAP", !entries.some((e) => e.endsWith(".dll")),
-    "the zip contains no compiled binaries, so the target must be a C++ project with UE4.27 and UBT " +
-    "available. -RunUAT builds those, needs an engine, and is not exercised here");
+    console.log("\n-- 4. the zip carries both plugins the recipient needs");
+    const entries = zipEntries(zipPath);
+    const roots = new Set(entries.map((e) => e.split("/")[0]));
+    assert("PROVEN", roots.has("MCPBridge") && roots.has("Puerts"),
+      `both plugin roots are present (found: ${[...roots].sort().join(", ")})`);
+    assert("PROVEN", entries.includes("MCPBridge/MCPBridge.uplugin") && entries.includes("Puerts/Puerts.uplugin"),
+      "each descriptor is at the root of its own directory, where UE4 looks for it");
+    const puertsFiles = entries.filter((e) => e.startsWith("Puerts/"));
+    assert("PROVEN", puertsFiles.length === lock.file_count,
+      `the bundle ships every one of the ${lock.file_count} files the lock file pins (found ${puertsFiles.length})`);
+    assert("PROVEN", entries.includes("Puerts.lock.json"),
+      "and the lock file ships beside it, so a recipient can verify what they were sent");
+    const readme = entries.includes("README_INSTALL.txt");
+    assert("PROVEN", readme, "README_INSTALL.txt is in the archive");
+    for (const junk of ["Binaries", "Build", "Intermediate", "Saved", "__pycache__", ".vs"]) {
+      assert("PROVEN", !entries.some((e) => e.split("/").includes(junk)), `no ${junk}/ was packaged`);
+    }
+    const longest = entries.reduce((a, b) => (a.length > b.length ? a : b), "");
+    assert("PROVEN", longest.length <= 170,
+      `the longest plugin-relative path is within the 170 character budget (${longest.length}: ${longest})`);
+    assert("PROVEN", !entries.some((e) => e.includes("\\")),
+      "entry names use forward slashes, as the zip format requires");
+
+    console.log("\n-- 5. every module the descriptor declares is actually in the zip");
+    for (const module of descriptor.Modules) {
+      assert("PROVEN", entries.includes(`MCPBridge/Source/${module.Name}/${module.Name}.Build.cs`),
+        `${module.Name} ships its Build.cs, so UBT can build the module the descriptor promises`);
+    }
+
+    console.log("\n-- 6. the generated runtime, and the pinned support files under it");
+    for (const file of ["bootstrap.js", "registry.js", "runtime.js", "safety.js"]) {
+      assert("PROVEN", entries.includes(`MCPBridge/Content/JavaScript/${file}`),
+        `Content/JavaScript/${file} is packaged`);
+    }
+    const stagedPuerts = entries.filter((e) => e.startsWith("MCPBridge/Content/JavaScript/puerts/"));
+    const pinnedSupport = Object.keys(lock.files).filter((f) => f.startsWith("Content/JavaScript/puerts/"));
+    assert("PROVEN", stagedPuerts.length === pinnedSupport.length,
+      `all ${pinnedSupport.length} pinned puerts support files are staged inside the plugin ` +
+      `(found ${stagedPuerts.length})`);
+
+    console.log("\n-- 7. GAPS: what the artefact still does not carry");
+    assert("GAP", !entries.some((e) => e.endsWith("MCPBridgeInstall.json")),
+      "the zip carries no MCPBridgeInstall.json, so install:check calls a project installed from it an " +
+      "unmanaged copy of unknown provenance");
+    // The bundle's ThirdParty/nodejs_16 libnode.dll is a prebuilt dependency
+    // and is supposed to be here. What is absent is every compiled UE module.
+    assert("GAP", !entries.some((e) => /UE4Editor-.*\.dll$/.test(e)),
+      "the zip contains no compiled UE modules, so the target must be a C++ project with UE4.27 and UBT " +
+      "available. UAT BuildPlugin cannot produce them for this plugin; see docs/RELEASE.md");
+  }
 
   console.log(`\n${failures.length === 0 ? "all checks passed" : `${failures.length} check(s) did not hold:`}`);
   for (const f of failures) console.log(`  - ${f}`);

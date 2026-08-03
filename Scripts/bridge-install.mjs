@@ -499,11 +499,19 @@ if (import.meta.url === pathToFileURL(process.argv[1]).href) {
       const g = report.groups[key];
       console.log(`  ${g.difference_count ? 'STALE' : ' OK  '}  ${key.padEnd(19)} ${g.files} file(s)  ${g.repository_hash.slice(0, 12)}`);
     }
-    if (report.manifest) {
+    // Gated on trusted, not on presence: an untrusted manifest is refused whole
+    // by checkInstall, and printing a field out of one is the same guess it
+    // refuses to make. A pre-versioning manifest has no bridge_commit at all, so
+    // reading it here threw and the manifest_schema refusal below never printed.
+    if (report.manifest && report.manifest_schema.trusted) {
       console.log(`  installed from ${report.manifest.bridge_commit.slice(0, 7)}${report.manifest.bridge_tree_dirty ? ' (dirty tree)' : ''} at ${report.manifest.installed_at}`);
     }
     for (const p of problems) console.log(`  FAIL  ${p}`);
-    console.log(ok ? '\ninstall is current' : `\n${problems.length} problem(s); run npm run install:sync -- --project <path>`);
+    // No blanket remedy here. Every problem states its own fix, and one of them
+    // is "update this checkout, do NOT sync" for a target installed from a newer
+    // bridge. A summary line telling everyone to sync contradicted that refusal
+    // on the one path where syncing moves the target backwards.
+    console.log(ok ? '\ninstall is current' : `\n${problems.length} problem(s); each FAIL above names its fix`);
     process.exit(ok ? 0 : 1);
   } catch (error) {
     console.error(`bridge install: ${error.message}`);

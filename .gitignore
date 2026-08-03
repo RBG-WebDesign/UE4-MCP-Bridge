@@ -39,3 +39,7 @@ Plugins/MCPBridge/Content/JavaScript/
 
 # Local release artifacts (uploaded to cloud storage, not tracked)
 _releases/
+
+# Release artifacts produced by Scripts/package-mcp-bridge.ps1 (over 100 MB:
+# the vendored PuerTS bundle is in there)
+Releases/

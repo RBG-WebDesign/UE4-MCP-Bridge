@@ -8,6 +8,8 @@
 // Usage:
 //   node Scripts/check-puerts-pin.mjs            verify, skip if bundle absent
 //   node Scripts/check-puerts-pin.mjs --strict   verify, fail if bundle absent
+//   node Scripts/check-puerts-pin.mjs --bundle <dir>   verify a bundle that is
+//                                                not at Plugins/Puerts
 //   node Scripts/check-puerts-pin.mjs --write    regenerate the lock file from
 //                                                the current bundle (only after
 //                                                a deliberate, reviewed change)
@@ -18,13 +20,17 @@ import { join, relative, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), '..');
-const bundleDir = join(repoRoot, 'Plugins', 'Puerts');
 const lockPath = join(repoRoot, 'Plugins', 'Puerts.lock.json');
 
 const EXCLUDED_DIRS = new Set(['Binaries', 'Intermediate', 'Saved']);
 
-const strict = process.argv.includes('--strict');
-const write = process.argv.includes('--write');
+const args = process.argv.slice(2);
+const strict = args.includes('--strict');
+const write = args.includes('--write');
+// --bundle <dir> verifies a bundle that is not at Plugins/Puerts: a worktree,
+// or the tree Scripts/package-mcp-bridge.ps1 is about to vendor into a release.
+const bundleArg = args.indexOf('--bundle');
+const bundleDir = bundleArg >= 0 ? args[bundleArg + 1] : join(repoRoot, 'Plugins', 'Puerts');
 
 function listFiles(root) {
   const out = [];
@@ -112,7 +118,7 @@ const added = Object.keys(actual).filter((f) => !(f in expected));
 const changed = Object.keys(expected).filter((f) => f in actual && actual[f] !== expected[f]);
 
 if (missing.length || added.length || changed.length) {
-  console.error(`FAIL: Plugins/Puerts does not match Puerts.lock.json (pinned ${lock.upstream.tag} @ ${lock.upstream.commit.slice(0, 12)}).`);
+  console.error(`FAIL: ${bundleDir} does not match Puerts.lock.json (pinned ${lock.upstream.tag} @ ${lock.upstream.commit.slice(0, 12)}).`);
   for (const f of missing.slice(0, 20)) console.error(`  missing: ${f}`);
   for (const f of added.slice(0, 20)) console.error(`  added:   ${f}`);
   for (const f of changed.slice(0, 20)) console.error(`  changed: ${f}`);
@@ -123,4 +129,4 @@ if (missing.length || added.length || changed.length) {
   process.exit(1);
 }
 
-console.log(`OK: Plugins/Puerts matches the pin (${lock.upstream.tag} @ ${lock.upstream.commit.slice(0, 12)}, ${lock.file_count} files).`);
+console.log(`OK: ${bundleDir} matches the pin (${lock.upstream.tag} @ ${lock.upstream.commit.slice(0, 12)}, ${lock.file_count} files).`);
