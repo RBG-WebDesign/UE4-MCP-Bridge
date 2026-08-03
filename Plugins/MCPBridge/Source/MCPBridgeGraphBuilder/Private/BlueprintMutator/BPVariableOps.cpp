@@ -93,6 +93,32 @@ bool FBPVariableOps::AddVariable(UBlueprint* Blueprint, const FString& VarName, 
             }
             return true;
         });
+    if (bOk && !DefaultValueJson.IsEmpty())
+    {
+        // A brand new variable has no compiled property until this mutation's
+        // own compile has run, so this is the first moment the question "can
+        // that type hold that value" can be asked at all. Asked late beats not
+        // asked: the compiler imports an unreadable float default as 0.0, which
+        // is indistinguishable from a requested zero once it is written.
+        UClass* GenClass = Blueprint->GeneratedClass;
+        UObject* CDO = GenClass != nullptr ? GenClass->GetDefaultObject(/*bCreateIfNeeded=*/false) : nullptr;
+        FProperty* Prop = GenClass != nullptr ? FindFProperty<FProperty>(GenClass, VarFName) : nullptr;
+        if (CDO != nullptr && Prop != nullptr)
+        {
+            const bool bIsTextLike = Prop->IsA<FStrProperty>() || Prop->IsA<FNameProperty>() || Prop->IsA<FTextProperty>();
+            const FString ImportString = JsonDefaultToImportText(DefaultValueJson, bIsTextLike);
+            FDefaultConstructedPropertyElement Scratch(Prop);
+            if (!UBlueprintMutatorLibrary::ImportDefaultValue(Prop, ImportString, Scratch.GetObjAddress(), CDO))
+            {
+                UE_LOG(LogBlueprintMutator, Warning,
+                    TEXT("AddVariable: '%s' is not a value %s can hold (variable '%s'). The check can "
+                         "only run after the variable exists, so this fails AFTER the mutation and the "
+                         "enclosing transaction owns undoing it."),
+                    *ImportString, *Prop->GetClass()->GetName(), *VarName);
+                return false;
+            }
+        }
+    }
     if (bOk)
     {
         // RunMutation -> CompileBlueprint empties NewVariables[i].DefaultValue after copying
@@ -160,19 +186,29 @@ bool FBPVariableOps::SetVariableDefault(UBlueprint* Blueprint, const FString& Va
 
             const bool bIsTextLike = Prop->IsA<FStrProperty>() || Prop->IsA<FNameProperty>() || Prop->IsA<FTextProperty>();
             const FString ImportString = JsonDefaultToImportText(DefaultValueJson, bIsTextLike);
+
+            // Parsed into scratch BEFORE anything real is touched. ImportText
+            // has no dry-run mode and writes what it managed to read, so the
+            // old order (write the description, Modify the CDO, then discover
+            // the value will not parse) left a description string and a dirtied
+            // CDO behind on every refusal. Nothing below this point can fail on
+            // the value.
+            FDefaultConstructedPropertyElement Scratch(Prop);
+            if (!UBlueprintMutatorLibrary::ImportDefaultValue(Prop, ImportString, Scratch.GetObjAddress(), CDO))
+            {
+                UE_LOG(LogBlueprintMutator, Warning,
+                    TEXT("SetVariableDefault: '%s' is not a value %s can hold (variable '%s')"),
+                    *ImportString, *Prop->GetClass()->GetName(), *VarName);
+                return false;
+            }
+
             Blueprint->NewVariables[VarIndex].DefaultValue = ImportString;
 
             FString OldExported;
             Prop->ExportTextItem(OldExported, Addr, Addr, nullptr, PPF_SerializedAsImportText);
 
             CDO->Modify();
-            if (Prop->ImportText(*ImportString, Addr, PPF_SerializedAsImportText, CDO) == nullptr)
-            {
-                UE_LOG(LogBlueprintMutator, Warning,
-                    TEXT("SetVariableDefault: could not parse '%s' as a value for '%s'"),
-                    *ImportString, *VarName);
-                return false;
-            }
+            Prop->ImportText(*ImportString, Addr, PPF_SerializedAsImportText, CDO);
 
             // Loaded child class CDOs carry their own copy of the value. Any
             // child still holding the old default should follow the new one
