@@ -73,7 +73,7 @@ async function main(): Promise<void> {
     });
     const client = new PuerTSClient();
     const tools = createPuertsTools(client);
-    assert(tools.length === 25, "expected all 25 PuerTS tools");
+    assert(tools.length === 30, "expected all 30 PuerTS tools");
     assert(tools.some((tool) => tool.name === "puerts_behavior_tree_build"), "native Behavior Tree builder tool is missing");
     assert(tools.some((tool) => tool.name === "puerts_behavior_tree_inspect"), "native Behavior Tree inspector tool is missing");
     assert(tools.some((tool) => tool.name === "puerts_sky_shader_create"), "native sky shader tool is missing");
@@ -82,6 +82,11 @@ async function main(): Promise<void> {
     assert(tools.some((tool) => tool.name === "puerts_graph_inspect"), "native Blueprint inspector tool is missing");
     assert(tools.some((tool) => tool.name === "puerts_widget_inspect"), "native widget inspector tool is missing");
     assert(tools.some((tool) => tool.name === "puerts_blueprint_member_patch"), "native Blueprint member patch tool is missing");
+    assert(tools.some((tool) => tool.name === "puerts_input_mapping_info"), "native input mapping inspector is missing");
+    assert(tools.some((tool) => tool.name === "puerts_input_mapping_patch"), "native input mapping patch tool is missing");
+    assert(tools.some((tool) => tool.name === "puerts_folder_visibility"), "native folder visibility tool is missing");
+    assert(tools.some((tool) => tool.name === "puerts_camera_shake"), "native camera shake tool is missing");
+    assert(tools.some((tool) => tool.name === "puerts_pie_agent_query"), "native PIE agent read tool is missing");
     const response = await client.call("find_actors", {});
     assert(response.success && response.message === "Actors found.", "valid response was rejected");
     const actorTool = tools.find((tool) => tool.name === "puerts_find_actors");

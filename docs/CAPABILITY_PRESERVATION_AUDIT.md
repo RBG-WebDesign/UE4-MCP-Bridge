@@ -9,22 +9,20 @@ capability coverage vary by tool.
 
 ## Counts (derived, cannot drift)
 
-- Total public registrations: 209
-- Unique canonical capabilities (excluding proposed retirements): 165
-- By backend: legacy_http 170, native_pipe_alias 12, server_local 2, native_pipe 25
-- By verification: untested 122, mock_only 60, live_verified 18, implemented 1, live_partial 8
-- By migration action: ALIAS 29, PORT 39, REFRONT 54, MERGE 10, KEEP 76, RETIRE 1
+- Total public registrations: 240
+- Unique canonical capabilities (excluding proposed retirements): 170
+- By backend: legacy_http 170, native_pipe_alias 38, server_local 2, native_pipe 30
+- By verification: untested 122, mock_only 86, live_verified 18, implemented 6, live_partial 8
+- By migration action: ALIAS 81, PORT 39, REFRONT 28, MERGE 10, KEEP 81, RETIRE 1
 
 ## Existing C++ builders awaiting re-fronting
 
-- **BlueprintMutatorLibrary** (17 tools): blueprint_add_event_dispatcher, blueprint_add_function, blueprint_add_interface, blueprint_add_variable, blueprint_component_remove, blueprint_component_rename, blueprint_node_add, blueprint_node_delete, blueprint_node_move, blueprint_node_set_enabled, blueprint_pins_break, blueprint_pins_connect, blueprint_remove_event_dispatcher, blueprint_remove_function, blueprint_remove_interface, blueprint_remove_variable, blueprint_set_variable_default
-- **MCPBridgePIEAgent** (10 tools): gameplay_telemetry_snapshot, pie_agent_expect, pie_agent_look_at, pie_agent_move_to, pie_agent_observe, pie_agent_press, pie_agent_record_start, pie_agent_record_stop, pie_agent_replay, pie_agent_status
+- **MCPBridgePIEAgent** (7 tools): gameplay_telemetry_snapshot, pie_agent_look_at, pie_agent_move_to, pie_agent_press, pie_agent_record_start, pie_agent_record_stop, pie_agent_replay
 - **AnimPoseLibrary** (5 tools): anim_batch_reanchor, anim_pose_delta, anim_pose_snapshot, anim_reanchor, anim_root_motion_analyze
 - **MCPBridgeClothOptimizer** (4 tools): cloth_apply_fabric_profile, cloth_apply_lower_leg_gradient, cloth_inspect_asset, cloth_smooth_max_distance
-- **MCPBridgeInputLibrary** (4 tools): input_mapping_add, input_mapping_info, input_mapping_remove, input_preset_apply
 - **WidgetBlueprintBuilderLibrary** (4 tools): title_widget_build_from_manifest, widget_lower_third_create, widget_title_card_create, widget_title_template
-- **AutoPIEHelper** (3 tools): camera_shake_play, camera_shake_spawn, camera_shake_trigger
-- **FolderVisibilityLibrary** (3 tools): folder_hidden_list, folder_hide, folder_show
+- **BlueprintMutatorLibrary** (2 tools): blueprint_node_set_enabled, blueprint_pins_break
+- **AutoPIEHelper** (2 tools): camera_shake_spawn, camera_shake_trigger
 - **MCPBridgeDataLibrary** (2 tools): data_table_create, data_table_fill_from_json
 - **AnimBlueprintBuilderLibrary** (1 tools): anim_blueprint_build_from_json
 - **BlueprintGraphBuilderLibrary** (1 tools): blueprint_compile
@@ -34,11 +32,11 @@ capability coverage vary by tool.
 Ranked by existing-implementation leverage: a REFRONT reuses a compiled C++
 builder, so each is one doorway away from native.
 
-1. Re-front **BlueprintMutatorLibrary** (17 tools)
-2. Re-front **MCPBridgePIEAgent** (10 tools)
-3. Re-front **AnimPoseLibrary** (5 tools)
-4. Re-front **MCPBridgeClothOptimizer** (4 tools)
-5. Re-front **MCPBridgeInputLibrary** (4 tools)
+1. Re-front **MCPBridgePIEAgent** (7 tools)
+2. Re-front **AnimPoseLibrary** (5 tools)
+3. Re-front **MCPBridgeClothOptimizer** (4 tools)
+4. Re-front **WidgetBlueprintBuilderLibrary** (4 tools)
+5. Re-front **BlueprintMutatorLibrary** (2 tools)
 
 ## Legacy capabilities with no current replacement
 

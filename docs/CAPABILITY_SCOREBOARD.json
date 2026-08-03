@@ -1,36 +1,36 @@
 {
   "generated_by": "Scripts/generate-tool-inventory.mjs (do not edit by hand)",
-  "total_registrations": 209,
-  "unique_canonical_capabilities": 165,
+  "total_registrations": 240,
+  "unique_canonical_capabilities": 170,
   "by_backend": {
     "legacy_http": 170,
-    "native_pipe_alias": 12,
+    "native_pipe_alias": 38,
     "server_local": 2,
-    "native_pipe": 25
+    "native_pipe": 30
   },
   "by_verification": {
     "untested": 122,
-    "mock_only": 60,
+    "mock_only": 86,
     "live_verified": 18,
-    "implemented": 1,
+    "implemented": 6,
     "live_partial": 8
   },
   "by_migration_action": {
-    "ALIAS": 29,
+    "ALIAS": 81,
     "PORT": 39,
-    "REFRONT": 54,
+    "REFRONT": 28,
     "MERGE": 10,
-    "KEEP": 76,
+    "KEEP": 81,
     "RETIRE": 1
   },
   "by_capability_category": {
     "actors": 12,
-    "compat": 12,
+    "compat": 38,
     "gameplay-setup": 11,
     "animation": 5,
     "blueprint": 30,
-    "project": 10,
-    "assets": 9,
+    "project": 12,
+    "assets": 10,
     "editor-ops": 8,
     "listener-admin": 9,
     "effects": 8,
@@ -38,7 +38,7 @@
     "cpp-build": 5,
     "engine-source": 2,
     "project-intelligence": 4,
-    "pie": 16,
+    "pie": 18,
     "levels": 3,
     "materials": 5,
     "optimization": 24,
@@ -50,36 +50,14 @@
     "cinematics": 8
   },
   "cpp_builders_awaiting_refront": {
-    "BlueprintMutatorLibrary": [
-      "blueprint_add_event_dispatcher",
-      "blueprint_add_function",
-      "blueprint_add_interface",
-      "blueprint_add_variable",
-      "blueprint_component_remove",
-      "blueprint_component_rename",
-      "blueprint_node_add",
-      "blueprint_node_delete",
-      "blueprint_node_move",
-      "blueprint_node_set_enabled",
-      "blueprint_pins_break",
-      "blueprint_pins_connect",
-      "blueprint_remove_event_dispatcher",
-      "blueprint_remove_function",
-      "blueprint_remove_interface",
-      "blueprint_remove_variable",
-      "blueprint_set_variable_default"
-    ],
     "MCPBridgePIEAgent": [
       "gameplay_telemetry_snapshot",
-      "pie_agent_expect",
       "pie_agent_look_at",
       "pie_agent_move_to",
-      "pie_agent_observe",
       "pie_agent_press",
       "pie_agent_record_start",
       "pie_agent_record_stop",
-      "pie_agent_replay",
-      "pie_agent_status"
+      "pie_agent_replay"
     ],
     "AnimPoseLibrary": [
       "anim_batch_reanchor",
@@ -94,27 +72,19 @@
       "cloth_inspect_asset",
       "cloth_smooth_max_distance"
     ],
-    "MCPBridgeInputLibrary": [
-      "input_mapping_add",
-      "input_mapping_info",
-      "input_mapping_remove",
-      "input_preset_apply"
-    ],
     "WidgetBlueprintBuilderLibrary": [
       "title_widget_build_from_manifest",
       "widget_lower_third_create",
       "widget_title_card_create",
       "widget_title_template"
     ],
+    "BlueprintMutatorLibrary": [
+      "blueprint_node_set_enabled",
+      "blueprint_pins_break"
+    ],
     "AutoPIEHelper": [
-      "camera_shake_play",
       "camera_shake_spawn",
       "camera_shake_trigger"
-    ],
-    "FolderVisibilityLibrary": [
-      "folder_hidden_list",
-      "folder_hide",
-      "folder_show"
     ],
     "MCPBridgeDataLibrary": [
       "data_table_create",

@@ -395,4 +395,30 @@ export const compatAliasAnnotations: Record<string, ToolAnnotations> = {
   pie_agent_observe: readOnly,            // -> puerts_pie_agent_query
   pie_agent_status: readOnly,             // -> puerts_pie_agent_query
   pie_agent_expect: readOnly,             // -> puerts_pie_agent_query
+
+  // Blueprint members -> puerts_blueprint_member_patch. Every add here is
+  // idempotent where its legacy twin above is plain mutating, and that is not
+  // a relabelling: the native command classifies each operation against live
+  // state and reports an operation whose result is already present as
+  // unchanged, so a rerun applies nothing and does not dirty the package. The
+  // legacy tools rerun into a failure.
+  blueprint_add_variable: mutatingIdempotent,
+  blueprint_remove_variable: destructiveIdempotent,
+  blueprint_set_variable_default: mutatingIdempotent,
+  blueprint_add_function: mutatingIdempotent,
+  blueprint_remove_function: destructiveIdempotent,
+  blueprint_add_event_dispatcher: mutatingIdempotent,
+  blueprint_remove_event_dispatcher: destructiveIdempotent,
+  blueprint_add_interface: mutatingIdempotent,
+  blueprint_remove_interface: destructiveIdempotent,
+  blueprint_component_remove: destructiveIdempotent,
+  blueprint_component_rename: mutatingIdempotent,
+
+  // Blueprint graph -> puerts_blueprint_graph_patch. Same reasoning: a move to
+  // the position a node already holds, or a link that already exists, is
+  // reported unchanged rather than rewritten.
+  blueprint_node_add: mutating,           // adding a node twice adds two nodes
+  blueprint_node_delete: destructiveIdempotent,
+  blueprint_node_move: mutatingIdempotent,
+  blueprint_pins_connect: mutatingIdempotent,
 };

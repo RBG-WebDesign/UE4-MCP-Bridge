@@ -128,11 +128,14 @@ real. Do not re-run blind - start from these:
    node Scripts/generate-tool-inventory.mjs --write
 
 THEN wave three, sequentially, in this order:
-- The remaining 38 genuine REFRONT tools. docs/REFRONT_PLAN.md has a verdict per
-  builder. Take one builder group end to end with a live acceptance each. Lane E
-  re-classified 5 of 17 BlueprintMutator tools as MERGE rather than REFRONT;
-  expect more, and check each verdict against source rather than trusting the
-  paper assignment.
+- The remaining REFRONT tools. docs/REFRONT_MAP.md has a verdict per builder and
+  is now the single document (docs/REFRONT_PLAN.md was folded into it). Take one
+  builder group end to end with a live acceptance each. Lane E re-classified 5
+  of 17 BlueprintMutator tools as MERGE rather than REFRONT; expect more, and
+  check each verdict against source rather than trusting the paper assignment.
+  The 38 this line used to quote does not reconcile with its own source tables;
+  see "The MERGE argument, and its arithmetic" in docs/REFRONT_MAP.md. The count
+  is derived from docs/TOOL_INVENTORY.json, never written down here.
 - The 16 native-wrapper gaps, listed in docs/CAPABILITY_SCOREBOARD.json under
   native_wrappers_required.
 - Two capabilities have NO native command at all and block the project index's
