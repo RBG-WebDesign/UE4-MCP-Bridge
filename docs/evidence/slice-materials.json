@@ -3,8 +3,8 @@
   "title": "a master material with parameters, an instance that overrides them, compiled and applied",
   "proves": "author a material graph, instance it, read the parameter values back, and see it on a mesh",
   "phase": "warm",
-  "generated_at": "2026-08-03T14:38:33.635Z",
-  "verdict": "BLOCKED_MISSING_PRIMITIVE",
+  "generated_at": "2026-08-03T15:42:07.739Z",
+  "verdict": "PRESENT_BUT_FAILING",
   "editor": {
     "available": true,
     "reason": "puerts_diagnostic answered"
@@ -14,17 +14,15 @@
     "project_root": "D:/Unreal Projects/BridgeInstallTest"
   },
   "catalog": {
-    "registered_tool_count": 48,
+    "registered_tool_count": 58,
     "legacy_http_enabled": false
   },
   "steps": [
     {
       "n": 1,
-      "label": "primitive puerts_material_build is NOT usable",
+      "label": "primitive puerts_material_build is registered",
       "tool": "puerts_material_build",
-      "status": "MISSING_PRIMITIVE",
-      "detail": "NEW: not registered, and no legacy tool in the inventory covers it either",
-      "why": "author a UMaterial graph: expression nodes, named scalar/vector/texture parameters, and the base-colour, emissive, roughness and normal connections. Without it there is no parent material to instance, so the material slice cannot start from a prompt. Lane I states this will not exist in that lane, and lane B recorded material graph structure as a platform gap. The nearest registered tool, puerts_sky_shader_create, builds one specific hard-coded sky material"
+      "status": "PASS"
     },
     {
       "n": 2,
@@ -78,11 +76,9 @@
     },
     {
       "n": 10,
-      "label": "primitive puerts_texture_import is NOT usable",
+      "label": "primitive puerts_texture_import is registered",
       "tool": "puerts_texture_import",
-      "status": "MISSING_PRIMITIVE",
-      "detail": "NEW: not registered, and no legacy tool in the inventory covers it either",
-      "why": "import or generate a UTexture2D so a texture parameter can be set. puerts_material_instance_build accepts a textures map and nothing in the catalog can produce a texture to put in it; docs/GAP_AUDIT-2026-07-29.md records no texture tools at all"
+      "status": "PASS"
     },
     {
       "n": 11,
@@ -117,56 +113,13 @@
       "detail": "no registered tool reports whether the shader compiler has finished, so a screenshot taken immediately after a material change can legitimately show the default checkerboard. Lane I reports compile result inside the instance build response, which covers the instance but not the shader map."
     }
   ],
-  "missing_primitives": [
-    {
-      "tool": "puerts_material_build",
-      "state": "MISSING",
-      "gap_kind": "NEW",
-      "why": "author a UMaterial graph: expression nodes, named scalar/vector/texture parameters, and the base-colour, emissive, roughness and normal connections. Without it there is no parent material to instance, so the material slice cannot start from a prompt. Lane I states this will not exist in that lane, and lane B recorded material graph structure as a platform gap. The nearest registered tool, puerts_sky_shader_create, builds one specific hard-coded sky material",
-      "proposed_schema": {
-        "tool": "puerts_material_build",
-        "owner": "UNOWNED. Lane I ships the instance and the inspector only",
-        "nearest_existing": "material_create (legacy_http), which creates a simple opaque surface from a fixed template and authors no graph",
-        "params": {
-          "asset_path": "/Game/MCPGenerated/...",
-          "domain": "Surface | PostProcess | UI",
-          "blend_mode": "Opaque | Masked | Translucent",
-          "shading_model": "DefaultLit | Unlit",
-          "parameters": "[{kind:'scalar'|'vector'|'texture'|'switch', name, default, group?}]",
-          "expressions": "[{id, type, params}] and connections: [{from:'id.output', to:'id.input'}], the same node-and-connection shape puerts_blueprint_build already uses",
-          "outputs": "{BaseColor:'id.output', EmissiveColor:'id.output', Roughness:..., Normal:...}",
-          "save": "boolean"
-        },
-        "returns": "{ compile_status, parameters_read_back, structure_hash_sha1 }"
-      }
-    },
-    {
-      "tool": "puerts_texture_import",
-      "state": "MISSING",
-      "gap_kind": "NEW",
-      "why": "import or generate a UTexture2D so a texture parameter can be set. puerts_material_instance_build accepts a textures map and nothing in the catalog can produce a texture to put in it; docs/GAP_AUDIT-2026-07-29.md records no texture tools at all",
-      "proposed_schema": {
-        "tool": "puerts_texture_import",
-        "params": {
-          "asset_path": "/Game/MCPGenerated/...",
-          "source_file": "absolute path on disk",
-          "srgb": "boolean",
-          "compression": "Default | Normalmap | Masks | Grayscale",
-          "save": "boolean"
-        },
-        "returns": "{ asset_path, width, height, format }"
-      }
-    }
-  ],
+  "missing_primitives": [],
   "checks": {
     "passed": 2,
     "failed": 4
   },
   "sealed_artifacts": [],
   "mcp_round_trips": 6,
-  "elapsed_ms": 5388,
-  "blocks": [
-    "puerts_material_build",
-    "puerts_texture_import"
-  ]
+  "elapsed_ms": 2257,
+  "blocks": []
 }

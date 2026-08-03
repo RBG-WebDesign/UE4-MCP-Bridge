@@ -3,7 +3,7 @@
   "title": "a Blueprint actor with components, variables and a working event graph",
   "proves": "author, compile, read back independently, converge on rerun, place in the level, and observe it run",
   "phase": "warm",
-  "generated_at": "2026-08-03T14:38:28.952Z",
+  "generated_at": "2026-08-03T15:41:53.847Z",
   "verdict": "PRESENT_BUT_FAILING",
   "editor": {
     "available": true,
@@ -14,7 +14,7 @@
     "project_root": "D:/Unreal Projects/BridgeInstallTest"
   },
   "catalog": {
-    "registered_tool_count": 48,
+    "registered_tool_count": 58,
     "legacy_http_enabled": false
   },
   "steps": [
@@ -98,6 +98,6 @@
     }
   ],
   "mcp_round_trips": 5,
-  "elapsed_ms": 3672,
+  "elapsed_ms": 2530,
   "blocks": []
 }

@@ -3,8 +3,8 @@
   "title": "a scene of several actors with lighting and a volume, placed and verified",
   "proves": "describe a scene as desired state, place it in one call, read it back independently, and save the level",
   "phase": "warm",
-  "generated_at": "2026-08-03T14:38:40.101Z",
-  "verdict": "BLOCKED_MISSING_PRIMITIVE",
+  "generated_at": "2026-08-03T15:42:11.025Z",
+  "verdict": "PRESENT_BUT_FAILING",
   "editor": {
     "available": true,
     "reason": "puerts_diagnostic answered"
@@ -14,7 +14,7 @@
     "project_root": "D:/Unreal Projects/BridgeInstallTest"
   },
   "catalog": {
-    "registered_tool_count": 48,
+    "registered_tool_count": 58,
     "legacy_http_enabled": false
   },
   "steps": [
@@ -98,70 +98,57 @@
     },
     {
       "n": 14,
-      "label": "primitive puerts_lighting_build is NOT usable",
+      "label": "primitive puerts_lighting_build is registered",
       "tool": "puerts_lighting_build",
-      "status": "MISSING_PRIMITIVE",
-      "detail": "NEW: not registered, and no legacy tool in the inventory covers it either",
-      "why": "build lighting so the placed lights are baked rather than preview-only. Nothing in the catalog, native or legacy, triggers a lighting build, so a screenshot of an authored scene shows unbuilt lighting and the Unreal 'Lighting needs to be rebuilt' banner"
+      "status": "PASS"
     },
     {
       "n": 15,
+      "label": "4. start a lighting build so the placed lights are baked rather than preview-only",
+      "tool": "puerts_lighting_build",
+      "status": "FAIL",
+      "detail": "PRESENT BUT FAILING: [\"PuerTS command pipe timed out\"]"
+    },
+    {
+      "n": 16,
       "label": "primitive puerts_save is registered",
       "tool": "puerts_save",
       "status": "PASS"
     },
     {
-      "n": 16,
-      "label": "4. persist the level, which scene_batch deliberately does not do",
+      "n": 17,
+      "label": "6. persist the level, which scene_batch deliberately does not do",
       "tool": "puerts_save",
       "status": "FAIL",
       "detail": "PRESENT BUT FAILING: [\"PuerTS command pipe timed out\"]"
     },
     {
-      "n": 17,
+      "n": 18,
       "label": "primitive puerts_viewport_screenshot is registered",
       "tool": "puerts_viewport_screenshot",
       "status": "PASS"
     },
     {
-      "n": 18,
-      "label": "5. capture the courtyard",
+      "n": 19,
+      "label": "7. capture the courtyard",
       "tool": "puerts_viewport_screenshot",
       "status": "FAIL",
       "detail": "PRESENT BUT FAILING: [\"PuerTS command pipe timed out\"]"
     },
     {
-      "n": 19,
-      "label": "6. this slice seals no artifact for the cold phase",
+      "n": 20,
+      "label": "8. this slice seals no artifact for the cold phase",
       "status": "NOTE",
       "detail": "the generic cold check re-reads by asset_path, and puerts_scene_inspect addresses the loaded level rather than an asset path. Proving a level survives a restart needs a cold check written against level_path."
     }
   ],
-  "missing_primitives": [
-    {
-      "tool": "puerts_lighting_build",
-      "state": "MISSING",
-      "gap_kind": "NEW",
-      "why": "build lighting so the placed lights are baked rather than preview-only. Nothing in the catalog, native or legacy, triggers a lighting build, so a screenshot of an authored scene shows unbuilt lighting and the Unreal 'Lighting needs to be rebuilt' banner",
-      "proposed_schema": {
-        "tool": "puerts_lighting_build",
-        "params": {
-          "quality": "Preview | Medium | High | Production",
-          "wait_for_completion": "boolean",
-          "timeout_ms": "number"
-        },
-        "returns": "{ built: boolean, quality, mapped_lights, elapsed_ms, warnings }"
-      }
-    }
-  ],
+  "missing_primitives": [],
   "checks": {
     "passed": 3,
-    "failed": 7
+    "failed": 8
   },
   "sealed_artifacts": [],
-  "mcp_round_trips": 7,
-  "elapsed_ms": 17893,
-  "blocks": [
-    "puerts_lighting_build"
-  ]
+  "mcp_round_trips": 8,
+  "elapsed_ms": 76175,
+  "blocks": []
 }

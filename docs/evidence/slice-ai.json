@@ -3,18 +3,18 @@
   "title": "a Behavior Tree plus Blackboard driving an AIController on a pawn",
   "proves": "author the tree, the blackboard, the controller wiring and the pawn, then prove the wiring by reading it back",
   "phase": "warm",
-  "generated_at": "2026-08-03T07:18:30.782Z",
-  "verdict": "BLOCKED_MISSING_PRIMITIVE",
+  "generated_at": "2026-08-03T15:42:01.100Z",
+  "verdict": "PRESENT_BUT_FAILING",
   "editor": {
-    "available": false,
-    "reason": "install gate refused; no editor was contacted"
+    "available": true,
+    "reason": "puerts_diagnostic answered"
   },
   "install_gate": {
-    "ok": false,
-    "reason": "Set MCP_UNREAL_PROJECT_ROOT to the test project root"
+    "ok": true,
+    "project_root": "D:/Unreal Projects/BridgeInstallTest"
   },
   "catalog": {
-    "registered_tool_count": 27,
+    "registered_tool_count": 58,
     "legacy_http_enabled": false
   },
   "steps": [
@@ -28,179 +28,167 @@
       "n": 2,
       "label": "1. build the guard tree and its blackboard in one call",
       "tool": "puerts_behavior_tree_build",
-      "status": "UNPROVEN_NO_EDITOR",
-      "detail": "install gate refused; no editor was contacted"
+      "status": "PASS"
     },
     {
       "n": 3,
+      "label": "1. the blackboard carries all three keys, read back off the asset",
+      "status": "PASS",
+      "detail": "[\"SelfActor\",\"TargetActor\",\"PatrolPoint\",\"IsAlert\"]"
+    },
+    {
+      "n": 4,
       "label": "primitive puerts_behavior_tree_inspect is registered",
       "tool": "puerts_behavior_tree_inspect",
       "status": "PASS"
     },
     {
-      "n": 4,
+      "n": 5,
       "label": "2. read the tree back with the independent inspector",
       "tool": "puerts_behavior_tree_inspect",
-      "status": "UNPROVEN_NO_EDITOR",
-      "detail": "install gate refused; no editor was contacted"
-    },
-    {
-      "n": 5,
-      "label": "3. rerunning the identical spec converges",
-      "tool": "puerts_behavior_tree_build",
-      "status": "UNPROVEN_NO_EDITOR",
-      "detail": "install gate refused; no editor was contacted"
+      "status": "PASS"
     },
     {
       "n": 6,
+      "label": "2. all three composites are in the asset",
+      "status": "PASS",
+      "detail": "{}"
+    },
+    {
+      "n": 7,
+      "label": "2. all four tasks are in the asset",
+      "status": "PASS"
+    },
+    {
+      "n": 8,
+      "label": "2. the tree names the blackboard the spec asked for",
+      "status": "PASS",
+      "detail": "/Game/MCPGenerated/BB_SliceGuard.BB_SliceGuard"
+    },
+    {
+      "n": 9,
+      "label": "2. the inspector reports a structure hash",
+      "status": "PASS",
+      "detail": "BF3824C2AE6A676D9AA54A5558CE0C14F06D2DD9"
+    },
+    {
+      "n": 10,
+      "label": "2. inspecting did not dirty the package",
+      "status": "PASS"
+    },
+    {
+      "n": 11,
+      "label": "3. rerunning the identical spec converges",
+      "tool": "puerts_behavior_tree_build",
+      "status": "PASS"
+    },
+    {
+      "n": 12,
+      "label": "3. re-read after the rerun",
+      "tool": "puerts_behavior_tree_inspect",
+      "status": "PASS"
+    },
+    {
+      "n": 13,
+      "label": "3. the structure hash is unmoved by an identical rebuild",
+      "status": "PASS",
+      "detail": "BF3824C2AE6A676D9AA54A5558CE0C14F06D2DD9 vs BF3824C2AE6A676D9AA54A5558CE0C14F06D2DD9"
+    },
+    {
+      "n": 14,
       "label": "primitive puerts_blueprint_build is registered",
       "tool": "puerts_blueprint_build",
       "status": "PASS"
     },
     {
-      "n": 7,
+      "n": 15,
       "label": "4. author the AIController that runs the tree",
       "tool": "puerts_blueprint_build",
-      "status": "UNPROVEN_NO_EDITOR",
-      "detail": "install gate refused; no editor was contacted"
+      "status": "PASS"
     },
     {
-      "n": 8,
+      "n": 16,
+      "label": "4. the begin-and-run chain resolved to real pins",
+      "status": "PASS",
+      "detail": "[]"
+    },
+    {
+      "n": 17,
+      "label": "primitive puerts_graph_inspect is registered",
+      "tool": "puerts_graph_inspect",
+      "status": "PASS"
+    },
+    {
+      "n": 18,
+      "label": "5. prove the wiring by reading the BTAsset pin default back off the controller",
+      "tool": "puerts_graph_inspect",
+      "status": "PASS"
+    },
+    {
+      "n": 19,
+      "label": "5. a RunBehaviorTree node in the controller names BT_SliceGuard",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "n": 20,
+      "label": "5. a purpose-built read exists on paper",
+      "status": "NOTE",
+      "detail": "lane K's puerts_ai_controller_inspect reports RunBehaviorTree call sites and perception senses directly. It is not registered yet; graph_inspect covers the same claim today, so this slice does not block on it."
+    },
+    {
+      "n": 21,
       "label": "6. author the pawn the controller will possess",
       "tool": "puerts_blueprint_build",
-      "status": "UNPROVEN_NO_EDITOR",
-      "detail": "install gate refused; no editor was contacted"
+      "status": "PASS"
     },
     {
-      "n": 9,
-      "label": "primitive puerts_class_defaults_patch is NOT usable",
+      "n": 22,
+      "label": "primitive puerts_class_defaults_patch is registered",
       "tool": "puerts_class_defaults_patch",
-      "status": "MISSING_PRIMITIVE",
-      "detail": "NEW: not registered, and no legacy tool in the inventory covers it either",
-      "why": "set class-default (CDO) properties on a generated Blueprint. The AI slice needs AIControllerClass and AutoPossessAI on the pawn; puerts_blueprint_build writes component template properties and member variable defaults, and has no section for the actor's own class defaults, so an authored pawn can never be possessed by an authored controller"
+      "status": "PASS"
     },
     {
-      "n": 10,
-      "label": "primitive puerts_scene_batch is NOT usable",
+      "n": 23,
+      "label": "7. point the pawn's class defaults at the authored controller",
+      "tool": "puerts_class_defaults_patch",
+      "status": "FAIL",
+      "detail": "PRESENT BUT FAILING: [\"could not set 'AIControllerClass' on the class default object: value must be valid JSON.\"]"
+    },
+    {
+      "n": 24,
+      "label": "primitive puerts_scene_batch is registered",
       "tool": "puerts_scene_batch",
-      "status": "LEGACY_ONLY",
-      "detail": "PORT: actor_spawn (MCP_ENABLE_LEGACY_HTTP=1) + batch_spawn (MCP_ENABLE_LEGACY_HTTP=1) + actor_organize (MCP_ENABLE_LEGACY_HTTP=1) already does this, with no native front",
-      "why": "place a NavMeshBoundsVolume and the guard pawn in the level; puerts_spawn_actor cannot set a volume's brush extent or label the actor"
+      "status": "PASS"
     },
     {
-      "n": 11,
-      "label": "primitive puerts_nav_build is NOT usable",
+      "n": 25,
+      "label": "primitive puerts_nav_build is registered",
       "tool": "puerts_nav_build",
-      "status": "LEGACY_ONLY",
-      "detail": "PORT: ai_nav_rebuild (MCP_ENABLE_LEGACY_HTTP=1) already does this, with no native front",
-      "why": "rebuild navigation so MoveTo can path. The legacy catalog has ai_nav_rebuild behind the HTTP opt-in; lane K's puerts_nav_inspect and puerts_nav_query are read-only by design, so no registered tool builds a navmesh"
+      "status": "PASS"
     },
     {
-      "n": 12,
-      "label": "7. watch the guard patrol",
+      "n": 26,
+      "label": "10. watch the guard patrol",
       "status": "NOT_ATTEMPTED_BY_POLICY",
       "detail": "a Behavior Tree only ticks in a running game. PIE is reserved for the user to ask for, and the only runtime observation surface is the pie_agent_* family, which is legacy-only and also user-gated."
     }
   ],
-  "missing_primitives": [
-    {
-      "tool": "puerts_class_defaults_patch",
-      "state": "MISSING",
-      "gap_kind": "NEW",
-      "why": "set class-default (CDO) properties on a generated Blueprint. The AI slice needs AIControllerClass and AutoPossessAI on the pawn; puerts_blueprint_build writes component template properties and member variable defaults, and has no section for the actor's own class defaults, so an authored pawn can never be possessed by an authored controller",
-      "proposed_schema": {
-        "tool": "puerts_class_defaults_patch",
-        "alternative": "add a `defaults: {PropertyName: value}` section to puerts_blueprint_build",
-        "params": {
-          "asset_path": "/Game/MCPGenerated/...",
-          "properties": "{PropertyName: reflected value} applied to the generated class default object",
-          "plan_only": "boolean",
-          "verify": "boolean",
-          "save": "boolean"
-        }
-      }
-    },
-    {
-      "tool": "puerts_scene_batch",
-      "state": "LEGACY_ONLY",
-      "gap_kind": "PORT",
-      "why": "place a NavMeshBoundsVolume and the guard pawn in the level; puerts_spawn_actor cannot set a volume's brush extent or label the actor",
-      "proposed_schema": {
-        "tool": "puerts_scene_batch",
-        "owner": "lane L (settled, implemented_unverified)"
-      },
-      "legacy_equivalent": [
-        {
-          "tool": "actor_spawn",
-          "backend": "legacy_http",
-          "gate": "MCP_ENABLE_LEGACY_HTTP=1",
-          "handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/actors.py",
-          "migration_state": "hybrid_candidate",
-          "description": "Spawn an actor from an asset path at a given location/rotation/scale. Returns validation results by default."
-        },
-        {
-          "tool": "batch_spawn",
-          "backend": "legacy_http",
-          "gate": "MCP_ENABLE_LEGACY_HTTP=1",
-          "handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/actors.py",
-          "migration_state": "legacy_untested",
-          "description": "Spawn multiple actors in one call. Each spawn definition uses the same format as actor_spawn."
-        },
-        {
-          "tool": "actor_organize",
-          "backend": "legacy_http",
-          "gate": "MCP_ENABLE_LEGACY_HTTP=1",
-          "handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/actors.py",
-          "migration_state": "legacy_untested",
-          "description": "Move actors into World Outliner folders."
-        }
-      ],
-      "note": "The capability already runs behind a human opt-in and has no native front. This is a port, not a new command."
-    },
-    {
-      "tool": "puerts_nav_build",
-      "state": "LEGACY_ONLY",
-      "gap_kind": "PORT",
-      "why": "rebuild navigation so MoveTo can path. The legacy catalog has ai_nav_rebuild behind the HTTP opt-in; lane K's puerts_nav_inspect and puerts_nav_query are read-only by design, so no registered tool builds a navmesh",
-      "proposed_schema": {
-        "tool": "puerts_nav_build",
-        "params": {
-          "wait_for_completion": "boolean (default true)",
-          "timeout_ms": "number"
-        },
-        "returns": "{ built: boolean, navmesh_tile_count: number, bounds_volume_count: number, elapsed_ms: number }"
-      },
-      "legacy_equivalent": [
-        {
-          "tool": "ai_nav_rebuild",
-          "backend": "legacy_http",
-          "gate": "MCP_ENABLE_LEGACY_HTTP=1",
-          "handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/gamedev.py",
-          "migration_state": "legacy_untested",
-          "description": "Rebuild navigation data in the loaded level (RebuildNavigation console command)."
-        }
-      ],
-      "note": "The capability already runs behind a human opt-in and has no native front. This is a port, not a new command."
-    }
-  ],
+  "missing_primitives": [],
   "checks": {
-    "passed": 0,
-    "failed": 0
+    "passed": 16,
+    "failed": 1
   },
   "sealed_artifacts": [
     {
       "asset_path": "/Game/MCPGenerated/BT_SliceGuard",
       "inspect_tool": "puerts_behavior_tree_inspect",
-      "structure_hash": null,
+      "structure_hash": "BF3824C2AE6A676D9AA54A5558CE0C14F06D2DD9",
       "node_count": null,
-      "file_sha256": null
+      "file_sha256": "afa335635a2f427480ce4ffa832e95424d81c208f5f4ef350a6898985a4a7f2c"
     }
   ],
-  "mcp_round_trips": 0,
-  "elapsed_ms": 647,
-  "blocks": [
-    "puerts_class_defaults_patch",
-    "puerts_scene_batch",
-    "puerts_nav_build"
-  ]
+  "mcp_round_trips": 9,
+  "elapsed_ms": 2458,
+  "blocks": []
 }

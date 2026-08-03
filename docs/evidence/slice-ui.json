@@ -3,18 +3,18 @@
   "title": "a Widget Blueprint with a layout, a binding and an independent read-back",
   "proves": "author a UMG tree, bind a widget property to data, read the asset back, and get it on screen",
   "phase": "warm",
-  "generated_at": "2026-08-03T07:18:30.132Z",
-  "verdict": "BLOCKED_MISSING_PRIMITIVE",
+  "generated_at": "2026-08-03T15:41:57.423Z",
+  "verdict": "PRESENT_BUT_FAILING",
   "editor": {
-    "available": false,
-    "reason": "install gate refused; no editor was contacted"
+    "available": true,
+    "reason": "puerts_diagnostic answered"
   },
   "install_gate": {
-    "ok": false,
-    "reason": "Set MCP_UNREAL_PROJECT_ROOT to the test project root"
+    "ok": true,
+    "project_root": "D:/Unreal Projects/BridgeInstallTest"
   },
   "catalog": {
-    "registered_tool_count": 27,
+    "registered_tool_count": 58,
     "legacy_http_enabled": false
   },
   "steps": [
@@ -28,92 +28,178 @@
       "n": 2,
       "label": "1. build the HUD widget tree from one spec",
       "tool": "puerts_widget_build",
-      "status": "UNPROVEN_NO_EDITOR",
-      "detail": "install gate refused; no editor was contacted"
+      "status": "PASS"
     },
     {
       "n": 3,
+      "label": "1. the response names the generated widget class a graph can create",
+      "status": "PASS",
+      "detail": "/Game/MCPGenerated/WBP_SliceHUD.WBP_SliceHUD_C"
+    },
+    {
+      "n": 4,
       "label": "primitive puerts_widget_inspect is registered",
       "tool": "puerts_widget_inspect",
       "status": "PASS"
     },
     {
-      "n": 4,
+      "n": 5,
       "label": "2. read the widget back with the independent inspector",
       "tool": "puerts_widget_inspect",
-      "status": "UNPROVEN_NO_EDITOR",
-      "detail": "install gate refused; no editor was contacted"
-    },
-    {
-      "n": 5,
-      "label": "3. rerunning the identical tree converges",
-      "tool": "puerts_widget_build",
-      "status": "UNPROVEN_NO_EDITOR",
-      "detail": "install gate refused; no editor was contacted"
+      "status": "PASS"
     },
     {
       "n": 6,
-      "label": "primitive puerts_widget_bind is NOT usable",
-      "tool": "puerts_widget_bind",
-      "status": "MISSING_PRIMITIVE",
-      "detail": "NEW: not registered, and no legacy tool in the inventory covers it either",
-      "why": "bind a widget property to a function or variable, and expose a widget as a BindWidget variable. puerts_widget_inspect already REPORTS bindings and is_variable; puerts_widget_build has no field that writes either, so every widget this bridge can author is static and unreachable from a graph by name"
+      "label": "2. every widget in the spec is in the asset",
+      "status": "PASS",
+      "detail": "[\"Root\",\"Panel\",\"TitleText\",\"ChargeBar\",\"ToggleButton\",\"ToggleLabel\",\"FooterText\"]"
     },
     {
       "n": 7,
+      "label": "2. the inspector reports a structure hash",
+      "status": "PASS",
+      "detail": "1BDD80C4B5FF75684E162104B136E60A9B1A6D8F"
+    },
+    {
+      "n": 8,
+      "label": "2. inspecting did not dirty the package",
+      "status": "PASS"
+    },
+    {
+      "n": 9,
+      "label": "2. AGENTS.md is stale on this point",
+      "status": "NOTE",
+      "detail": "\"widget_build has no inspector yet\" in AGENTS.md and in the product-goal section is wrong: puerts_widget_inspect is registered and carries live evidence (docs/evidence/widget-inspect-2026-08-02.json)"
+    },
+    {
+      "n": 10,
+      "label": "3. rerunning the identical tree converges",
+      "tool": "puerts_widget_build",
+      "status": "PASS"
+    },
+    {
+      "n": 11,
+      "label": "3. re-read after the rerun",
+      "tool": "puerts_widget_inspect",
+      "status": "PASS"
+    },
+    {
+      "n": 12,
+      "label": "3. the structure hash is unmoved by an identical rebuild",
+      "status": "PASS",
+      "detail": "1BDD80C4B5FF75684E162104B136E60A9B1A6D8F vs 1BDD80C4B5FF75684E162104B136E60A9B1A6D8F"
+    },
+    {
+      "n": 13,
+      "label": "3. a converged rerun wrote no new bytes to disk",
+      "status": "FAIL"
+    },
+    {
+      "n": 14,
+      "label": "primitive puerts_widget_bind is registered",
+      "tool": "puerts_widget_bind",
+      "status": "PASS"
+    },
+    {
+      "n": 15,
+      "label": "4a. expose the driveable widgets as members of the generated class",
+      "tool": "puerts_widget_bind",
+      "status": "PASS"
+    },
+    {
+      "n": 16,
+      "label": "4a. read the exposed variables back with the independent inspector",
+      "tool": "puerts_widget_inspect",
+      "status": "PASS"
+    },
+    {
+      "n": 17,
+      "label": "4a. every widget asked for is a variable on the asset, read back independently",
+      "status": "PASS",
+      "detail": "[\"ChargeBar\",\"TitleText\",\"ToggleButton\"]"
+    },
+    {
+      "n": 18,
+      "label": "4a. rerunning the identical bind spec converges",
+      "tool": "puerts_widget_bind",
+      "status": "PASS"
+    },
+    {
+      "n": 19,
+      "label": "4a. a converged rerun applied nothing and said so",
+      "status": "PASS",
+      "detail": "applied=0 converged=true"
+    },
+    {
+      "n": 20,
+      "label": "4a. a converged rerun saved nothing",
+      "status": "PASS",
+      "detail": "false"
+    },
+    {
+      "n": 21,
+      "label": "4a. the property-binding half of this slice is unrun, not unsupported",
+      "status": "NOTE",
+      "detail": "puerts_widget_bind takes bindings of {widget, property, source:{kind, name}}, but a source has to already exist on WBP_SliceHUD. Authoring one is the widget event graph question step 4 measures, so this slice exposes the widgets and stops rather than binding to a function it invented."
+    },
+    {
+      "n": 22,
       "label": "primitive puerts_graph_inspect is registered",
       "tool": "puerts_graph_inspect",
       "status": "PASS"
     },
     {
-      "n": 8,
+      "n": 23,
       "label": "4. probe whether the Blueprint inspector can read a Widget Blueprint's event graph",
       "tool": "puerts_graph_inspect",
-      "status": "UNPROVEN_NO_EDITOR",
-      "detail": "install gate refused; no editor was contacted"
+      "status": "PASS"
     },
     {
-      "n": 9,
+      "n": 24,
+      "label": "4. the Blueprint graph inspector accepts a Widget Blueprint",
+      "status": "PASS",
+      "detail": "graphs: [\"EventGraph\"]"
+    },
+    {
+      "n": 25,
+      "label": "primitive puerts_blueprint_build is registered",
+      "tool": "puerts_blueprint_build",
+      "status": "PASS"
+    },
+    {
+      "n": 26,
+      "label": "5. author a driver Blueprint that creates the HUD and adds it to the viewport",
+      "tool": "puerts_blueprint_build",
+      "status": "PASS"
+    },
+    {
+      "n": 27,
+      "label": "5. the create-and-show chain resolved to real pins",
+      "status": "PASS",
+      "detail": "[]"
+    },
+    {
+      "n": 28,
       "label": "6. see the HUD rendered",
       "status": "NOT_ATTEMPTED_BY_POLICY",
       "detail": "the widget only draws in a running game. PIE is reserved for the user to ask for, and puerts_viewport_screenshot captures the EDITOR viewport, which never contains a UMG widget. There is no primitive that renders a widget to an image without entering play."
     }
   ],
-  "missing_primitives": [
-    {
-      "tool": "puerts_widget_bind",
-      "state": "MISSING",
-      "gap_kind": "NEW",
-      "why": "bind a widget property to a function or variable, and expose a widget as a BindWidget variable. puerts_widget_inspect already REPORTS bindings and is_variable; puerts_widget_build has no field that writes either, so every widget this bridge can author is static and unreachable from a graph by name",
-      "proposed_schema": {
-        "tool": "puerts_widget_bind",
-        "alternative": "add is_variable and bindings to the puerts_widget_build widget node schema instead of a second tool",
-        "params": {
-          "asset_path": "/Game/MCPGenerated/...",
-          "bindings": "[{widget: string, property: string, source: {kind: 'function'|'variable', name: string}}]",
-          "expose_as_variable": "string[] (widget names to mark is_variable for BindWidget)",
-          "remove_unlisted": "boolean",
-          "save": "boolean"
-        }
-      }
-    }
-  ],
+  "missing_primitives": [],
   "checks": {
-    "passed": 0,
-    "failed": 0
+    "passed": 19,
+    "failed": 1
   },
   "sealed_artifacts": [
     {
       "asset_path": "/Game/MCPGenerated/WBP_SliceHUD",
       "inspect_tool": "puerts_widget_inspect",
-      "structure_hash": null,
+      "structure_hash": "1BDD80C4B5FF75684E162104B136E60A9B1A6D8F",
       "node_count": null,
-      "file_sha256": null
+      "file_sha256": "321a1bf911038f5f9a26c5cfe2c389a27f56dc504ccbfd81af09c88b2dc36fd4"
     }
   ],
-  "mcp_round_trips": 0,
-  "elapsed_ms": 551,
-  "blocks": [
-    "puerts_widget_bind"
-  ]
+  "mcp_round_trips": 10,
+  "elapsed_ms": 2642,
+  "blocks": []
 }
