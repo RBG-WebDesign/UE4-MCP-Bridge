@@ -73,7 +73,7 @@ async function main(): Promise<void> {
     });
     const client = new PuerTSClient();
     const tools = createPuertsTools(client);
-    assert(tools.length === 29, "expected all 29 PuerTS tools");
+    assert(tools.length === 36, "expected all 36 PuerTS tools");
     assert(tools.some((tool) => tool.name === "puerts_behavior_tree_build"), "native Behavior Tree builder tool is missing");
     assert(tools.some((tool) => tool.name === "puerts_behavior_tree_inspect"), "native Behavior Tree inspector tool is missing");
     assert(tools.some((tool) => tool.name === "puerts_sky_shader_create"), "native sky shader tool is missing");
@@ -82,10 +82,21 @@ async function main(): Promise<void> {
     assert(tools.some((tool) => tool.name === "puerts_graph_inspect"), "native Blueprint inspector tool is missing");
     assert(tools.some((tool) => tool.name === "puerts_widget_inspect"), "native widget inspector tool is missing");
     assert(tools.some((tool) => tool.name === "puerts_blueprint_member_patch"), "native Blueprint member patch tool is missing");
-    assert(tools.some((tool) => tool.name === "puerts_anim_blueprint_build"), "native Animation Blueprint builder tool is missing");
-    assert(tools.some((tool) => tool.name === "puerts_anim_blueprint_inspect"), "native Animation Blueprint inspector tool is missing");
-    assert(tools.some((tool) => tool.name === "puerts_anim_montage_inspect"), "native Animation Montage inspector tool is missing");
-    assert(tools.some((tool) => tool.name === "puerts_anim_blend_space_inspect"), "native Blend Space inspector tool is missing");
+    for (const name of [
+      "puerts_anim_blueprint_build",
+      "puerts_anim_blueprint_inspect",
+      "puerts_anim_montage_inspect",
+      "puerts_anim_blend_space_inspect",
+      "puerts_blackboard_build",
+      "puerts_blackboard_inspect",
+      "puerts_eqs_inspect",
+      "puerts_nav_inspect",
+      "puerts_nav_query",
+      "puerts_ai_perception_build",
+      "puerts_ai_controller_inspect",
+    ]) {
+      assert(tools.some((tool) => tool.name === name), `${name} is missing`);
+    }
     const response = await client.call("find_actors", {});
     assert(response.success && response.message === "Actors found.", "valid response was rejected");
     const actorTool = tools.find((tool) => tool.name === "puerts_find_actors");

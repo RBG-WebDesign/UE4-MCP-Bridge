@@ -26,5 +26,14 @@ public class MCPBridgePuerTS : ModuleRules
         // module, and the state machine structure cannot be read without them.
         // The AnimBlueprint construction itself stays in MCPBridgeGraphBuilder.
         PrivateDependencyModuleNames.AddRange(new string[] { "AIModule", "AnimGraph", "AssetRegistry", "BlueprintGraph", "GameplayTasks", "Json", "JsonUtilities", "JsEnv", "MCPBridgeGraphBuilder", "Projects", "SourceControl", "UMG", "UMGEditor", "UnrealEd" });
+        // BlueprintGraph is for UK2Node_Variable and UK2Node_CallFunction:
+        // remove_unlisted has to find the graph nodes that read or write a
+        // variable before it may remove it, and ai_controller_inspect finds the
+        // RunBehaviorTree call sites that wire a controller to its tree.
+        // NavigationSystem is for nav_inspect and nav_query only, both read
+        // only: UNavigationSystemV1, ANavigationData, ANavMeshBoundsVolume and
+        // ANavModifierVolume live there. AIModule already covers the blackboard,
+        // Environment Query and AIPerception types.
+        PrivateDependencyModuleNames.AddRange(new string[] { "AIModule", "AssetRegistry", "BlueprintGraph", "GameplayTasks", "Json", "JsonUtilities", "JsEnv", "MCPBridgeGraphBuilder", "NavigationSystem", "Projects", "SourceControl", "UMG", "UMGEditor", "UnrealEd" });
     }
 }

@@ -203,6 +203,9 @@ bool UMCPPuerTSBridgeService::Initialize(FString& OutError)
             TEXT("graph_inspect"), TEXT("behavior_tree_inspect"), TEXT("widget_inspect"),
             TEXT("anim_blueprint_inspect"), TEXT("anim_montage_inspect"),
             TEXT("anim_blend_space_inspect")
+            TEXT("blackboard_build"), TEXT("ai_perception_build"),
+            TEXT("blackboard_inspect"), TEXT("eqs_inspect"),
+            TEXT("nav_inspect"), TEXT("nav_query"), TEXT("ai_controller_inspect")
         };
         for (const TCHAR* Value : Defaults) { AllowedTools.Add(Value); }
     }
@@ -1421,6 +1424,13 @@ bool UMCPPuerTSBridgeService::IsToolMutating(const FString& ToolName) const
         // anim_blueprint_build only. The two anim inspectors are deliberately
         // absent: they open no transaction and return no transaction id.
         || ToolName == TEXT("anim_blueprint_build");
+        // blackboard_build and ai_perception_build write assets. Their
+        // plan_only path returns before the mutation section, so a plan still
+        // opens a transaction it never uses; that costs an empty undo entry and
+        // is the cheap side of the mistake, because the alternative is a build
+        // that reaches the mutation section with no rollback.
+        || ToolName == TEXT("blackboard_build")
+        || ToolName == TEXT("ai_perception_build");
 }
 
 void UMCPPuerTSBridgeService::EndActiveCommand()

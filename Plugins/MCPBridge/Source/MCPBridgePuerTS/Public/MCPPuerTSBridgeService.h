@@ -381,9 +381,151 @@ public:
         transition before the asset is saved. */
     UFUNCTION(BlueprintCallable, Category="MCP PuerTS Bridge")
     bool BuildAnimBlueprintJson(
+    /** Create or update a Blackboard asset from one desired-state spec: keys
+        with their types, per-key instance sync, editor description and
+        category, and the parent blackboard.
+
+        puerts_behavior_tree_build already creates a blackboard and adds keys to
+        it, and that path is unchanged. This one owns the blackboard as an asset
+        in its own right: it can UPDATE a key, REMOVE one, and set the parent,
+        none of which add-only key creation can express.
+
+        UE4.27 blackboard keys have NO default values. FBlackboardEntry carries
+        EntryName, an instanced UBlackboardKeyType, bInstanceSynced and two
+        editor-only strings, and that is all; a key's value exists only on a
+        running UBlackboardComponent. A spec that asked for a default would be
+        asking for something the asset format cannot hold, so there is no such
+        field and this comment is why.
+
+        Convergent: a rerun that finds everything already in place returns
+        before the mutation section, so no package is dirtied and nothing is
+        saved. Failure-atomic: the transaction is cancelled and the rollback
+        boundary removes an asset this command created. Independently verified:
+        every key is read back off the asset after the write, and a shortfall
+        rolls the whole build back rather than reporting success. */
+    bool BuildBlackboardJson(
         const FString& SpecJson,
         FString& OutResultJson,
         FString& OutError);
+
+    /** Read a Blackboard back as JSON: every key with its type, base class,
+        instance-sync flag, description and category, the parent chain and the
+        keys inherited through it, the asset's own IsValid verdict, and a
+        canonical structure hash.
+
+        The read half of blackboard_build. READ ONLY: not in IsToolMutating, so
+        no transaction opens; nothing here calls Modify or MarkPackageDirty; and
+        the package dirty flag is reported before and after.
+
+        Unlike a Behavior Tree node, a blackboard key has an AUTHORED identity:
+        its name is what every FBlackboardKeySelector binds to, so identity_kind
+        is "authored_name" rather than "derived". */
+    UFUNCTION(BlueprintCallable, Category="MCP PuerTS Bridge")
+    bool InspectBlackboardJson(
+        const FString& RequestJson,
+        FString& OutResultJson,
+        FString& OutError) const;
+
+    /** Read an Environment Query back as JSON: query name, options in order,
+        each option's generator and its tests with their scoring and filtering
+        properties, and a canonical structure hash.
+
+        READ ONLY, and there is no matching builder on purpose.
+        UEnvironmentQueryGraph::UpdateAsset resets UEnvQuery::Options and
+        rebuilds them from the editor graph, which makes Options a compiled
+        artifact rather than the source of truth: a command that wrote Options
+        without authoring the matching UEdGraph would verify against its own
+        write and then be wiped the next time a human opened the asset. The
+        response says so in build_unsupported_reason rather than leaving a
+        caller to discover it. */
+    UFUNCTION(BlueprintCallable, Category="MCP PuerTS Bridge")
+    bool InspectEnvQueryJson(
+        const FString& RequestJson,
+        FString& OutResultJson,
+        FString& OutError) const;
+
+    /** Read the editor world's navigation configuration: the navigation system
+        and its build state, nav data actors with their agent and generation
+        settings, NavMeshBoundsVolumes and NavModifierVolumes with world-space
+        boxes, and the bounds the navigation system actually registered.
+
+        The registered bounds are not the same list as the volumes: a volume in
+        an unloaded sublevel is an actor and is not registered, which is the
+        usual reason a navmesh is missing where a level looks like it has one.
+
+        READ ONLY: no transaction, no Modify, no MarkPackageDirty. */
+    UFUNCTION(BlueprintCallable, Category="MCP PuerTS Bridge")
+    bool InspectNavigationJson(
+        const FString& RequestJson,
+        FString& OutResultJson,
+        FString& OutError) const;
+
+    /** Answer a batch of navigation queries against the editor world's navmesh:
+        project a point onto the navmesh, ask whether one point is reachable
+        from another and at what path length and cost, raycast along the
+        navmesh, and pick a random navigable point in a radius.
+
+        Batched because a placement decision needs several of these at once and
+        one round trip per point is the interface this bridge exists to avoid.
+        The whole batch is validated before the first query runs.
+
+        READ ONLY: every one of these is a const query on UNavigationSystemV1.
+        Nothing is spawned, nothing is rebuilt, and no navmesh is generated. */
+    UFUNCTION(BlueprintCallable, Category="MCP PuerTS Bridge")
+    bool QueryNavigationJson(
+        const FString& RequestJson,
+        FString& OutResultJson,
+        FString& OutError) const;
+
+    /** Reconcile the whole AIPerceptionComponent configuration on an existing
+        AIController Blueprint in one call: the senses it has, each sense's
+        properties, and the dominant sense. The component is created if it is
+        missing.
+
+        Desired-state rather than a set of setters, because a perception config
+        is only meaningful as a whole: sight radius without lose-sight radius,
+        or a dominant sense that is not configured, are the states this refuses
+        rather than writes.
+
+        UAIPerceptionComponent declares SensesConfig and DominantSense
+        protected, so the write goes through reflection on the UPROPERTY; the
+        read half uses the public GetSensesConfigIterator. A listed sense is
+        replaced wholesale, so the config that lands is the spec plus class
+        defaults and never the residue of an earlier spec.
+
+        Transactional, compiled, verified by reading the component template
+        again, and saved only after that passes. A failure cancels the
+        transaction and saves nothing.
+
+        Convergent: a rerun compares every property the spec names against the
+        config that is already there and returns before the mutation section
+        when nothing differs, so a satisfied rerun costs no Blueprint compile
+        and no save. The dominant sense counts as a difference in its own
+        right. */
+    UFUNCTION(BlueprintCallable, Category="MCP PuerTS Bridge")
+    bool BuildAIPerceptionJson(
+        const FString& SpecJson,
+        FString& OutResultJson,
+        FString& OutError);
+
+    /** Read an AIController Blueprint back as JSON: parent class, every
+        AIPerceptionComponent it declares with each sense's configuration and
+        the dominant sense, and every RunBehaviorTree call site in its graphs
+        with the Behavior Tree and Blackboard each one names.
+
+        The controller-to-BT wiring is reported as call sites because that is
+        what it is: UE4.27 has no data-driven field for it, a controller starts
+        a tree by calling AAIController::RunBehaviorTree, and a tree chosen
+        through a variable at runtime resolves to nothing and is listed under
+        dynamic_behavior_tree_call_sites instead of being guessed at.
+
+        READ ONLY: not in IsToolMutating, nothing calls Modify or
+        MarkPackageDirty, and the package dirty flag is reported both sides. */
+    UFUNCTION(BlueprintCallable, Category="MCP PuerTS Bridge")
+    bool InspectAIControllerJson(
+        const FString& RequestJson,
+        FString& OutResultJson,
+        FString& OutError) const;
 
     UFUNCTION(BlueprintCallable, Category="MCP PuerTS Bridge")
     bool BuildPhysicsSceneJson(

@@ -615,6 +615,225 @@ async function inspectBehaviorTree(context: ToolContext, input: JsonObject): Pro
   return result;
 }
 
+/** Reconcile a whole Blackboard asset from one desired-state spec. Same shape
+    as buildBehaviorTree: composition here, every protected operation in the
+    native library. behavior_tree_build's add-only key path is untouched; this
+    is the command that can update, remove and reparent. */
+async function buildBlackboard(context: ToolContext, input: JsonObject): Promise<CommandResponse> {
+  const assetPath = requireString(input, "asset_path");
+  if (!assetPath.startsWith("/Game/MCPGenerated/")) {
+    throw new Error("Blackboard assets are limited to /Game/MCPGenerated/");
+  }
+  const spec: JsonObject = {
+    asset_path: assetPath,
+    keys: objectArray(input, "keys"),
+    remove_unlisted: optionalBoolean(input, "remove_unlisted", false),
+    plan_only: optionalBoolean(input, "plan_only", false),
+    save: optionalBoolean(input, "save", true),
+  };
+  const parentPath = optionalString(input, "parent_path");
+  if (parentPath !== undefined) {
+    spec.parent_path = parentPath;
+  }
+
+  const resultJson = puerts.$ref<string>("");
+  const error = puerts.$ref<string>("");
+  if (!context.bridge.BuildBlackboardJson(JSON.stringify(spec), resultJson, error)) {
+    throw new Error(puerts.$unref(error));
+  }
+  const parsed = JSON.parse(puerts.$unref(resultJson)) as JsonObject;
+  const errors = stringArray(parsed, "errors");
+  const warnings = stringArray(parsed, "warnings");
+  delete parsed.errors;
+  delete parsed.warnings;
+
+  const planOnly = parsed.plan_only === true;
+  const converged = parsed.converged === true;
+  const result = response(
+    errors.length === 0,
+    errors.length > 0
+      ? "Blackboard build reported errors."
+      : planOnly
+        ? "Blackboard change planned."
+        : converged
+          ? "Blackboard already matches the spec."
+          : parsed.created === true ? "Blackboard created." : "Blackboard updated.",
+    parsed,
+  );
+  result.errors.push(...errors);
+  result.warnings.push(...warnings);
+  // A plan and a converged rerun both changed nothing, so neither reports a
+  // changed asset: a client told to save something nobody edited will save it.
+  const objectPath = parsed.object_path;
+  if (!planOnly && !converged && errors.length === 0
+    && typeof objectPath === "string" && objectPath.length > 0) {
+    result.changed_assets.push(objectPath);
+  }
+  return result;
+}
+
+/** Read a Blackboard back as JSON. The read half of buildBlackboard, same
+    shape as inspectBehaviorTree: no transaction, nothing dirtied, dirty flag
+    reported before and after. */
+async function inspectBlackboard(context: ToolContext, input: JsonObject): Promise<CommandResponse> {
+  const assetPath = requireString(input, "asset_path");
+  if (!assetPath.startsWith("/Game/") && !assetPath.startsWith("/Engine/")) {
+    throw new Error("Blackboard inspection is limited to /Game and /Engine");
+  }
+  const resultJson = puerts.$ref<string>("");
+  const error = puerts.$ref<string>("");
+  if (!context.bridge.InspectBlackboardJson(
+    JSON.stringify({ asset_path: assetPath }), resultJson, error)) {
+    throw new Error(puerts.$unref(error));
+  }
+  const parsed = JSON.parse(puerts.$unref(resultJson)) as JsonObject;
+  const warnings = stringArray(parsed, "warnings");
+  delete parsed.warnings;
+  const result = response(true, "Blackboard inspected.", parsed);
+  result.warnings.push(...warnings);
+  return result;
+}
+
+/** Read an Environment Query back as JSON. Read-only, and there is no build
+    half: UEnvironmentQueryGraph::UpdateAsset rebuilds UEnvQuery::Options from
+    the editor graph, so a write to Options is wiped the next time the asset is
+    opened. The response says so in build_unsupported_reason. */
+async function inspectEnvQuery(context: ToolContext, input: JsonObject): Promise<CommandResponse> {
+  const assetPath = requireString(input, "asset_path");
+  if (!assetPath.startsWith("/Game/") && !assetPath.startsWith("/Engine/")) {
+    throw new Error("Environment Query inspection is limited to /Game and /Engine");
+  }
+  const resultJson = puerts.$ref<string>("");
+  const error = puerts.$ref<string>("");
+  if (!context.bridge.InspectEnvQueryJson(
+    JSON.stringify({ asset_path: assetPath }), resultJson, error)) {
+    throw new Error(puerts.$unref(error));
+  }
+  const parsed = JSON.parse(puerts.$unref(resultJson)) as JsonObject;
+  const warnings = stringArray(parsed, "warnings");
+  delete parsed.warnings;
+  const result = response(true, "Environment Query inspected.", parsed);
+  result.warnings.push(...warnings);
+  return result;
+}
+
+/** Read the editor world's navigation configuration. Read-only: no navmesh is
+    rebuilt and no actor is touched. */
+async function inspectNavigation(context: ToolContext): Promise<CommandResponse> {
+  const resultJson = puerts.$ref<string>("");
+  const error = puerts.$ref<string>("");
+  if (!context.bridge.InspectNavigationJson(JSON.stringify({}), resultJson, error)) {
+    throw new Error(puerts.$unref(error));
+  }
+  const parsed = JSON.parse(puerts.$unref(resultJson)) as JsonObject;
+  const warnings = stringArray(parsed, "warnings");
+  delete parsed.warnings;
+  const result = response(true, "Navigation configuration inspected.", parsed);
+  result.warnings.push(...warnings);
+  return result;
+}
+
+/** Answer a batch of navigation queries. Read-only: every kind is a const
+    query on UNavigationSystemV1. The batch is validated natively before the
+    first query runs, so this layer owns nothing but the envelope. */
+async function queryNavigation(context: ToolContext, input: JsonObject): Promise<CommandResponse> {
+  const queries = objectArray(input, "queries");
+  if (queries.length === 0) {
+    throw new Error("queries must be a non-empty array; a query batch with no entries is not a request.");
+  }
+  const resultJson = puerts.$ref<string>("");
+  const error = puerts.$ref<string>("");
+  if (!context.bridge.QueryNavigationJson(
+    JSON.stringify({ queries: queries as unknown as JsonValue }), resultJson, error)) {
+    throw new Error(puerts.$unref(error));
+  }
+  const parsed = JSON.parse(puerts.$unref(resultJson)) as JsonObject;
+  const warnings = stringArray(parsed, "warnings");
+  delete parsed.warnings;
+  const result = response(true, "Navigation queried.", parsed);
+  result.warnings.push(...warnings);
+  return result;
+}
+
+/** Reconcile the AIPerceptionComponent configuration on an existing
+    AIController Blueprint. The Blueprint must already exist: this configures a
+    controller, blueprint_build creates one. */
+async function buildAIPerception(context: ToolContext, input: JsonObject): Promise<CommandResponse> {
+  const assetPath = requireString(input, "asset_path");
+  if (!assetPath.startsWith("/Game/MCPGenerated/")) {
+    throw new Error("Perception authoring is limited to /Game/MCPGenerated/");
+  }
+  const spec: JsonObject = {
+    asset_path: assetPath,
+    senses: objectArray(input, "senses"),
+    remove_unlisted: optionalBoolean(input, "remove_unlisted", false),
+    plan_only: optionalBoolean(input, "plan_only", false),
+    compile: optionalBoolean(input, "compile", true),
+    save: optionalBoolean(input, "save", true),
+  };
+  const componentName = optionalString(input, "component_name");
+  if (componentName !== undefined) {
+    spec.component_name = componentName;
+  }
+  const dominantSense = optionalString(input, "dominant_sense");
+  if (dominantSense !== undefined) {
+    spec.dominant_sense = dominantSense;
+  }
+
+  const resultJson = puerts.$ref<string>("");
+  const error = puerts.$ref<string>("");
+  if (!context.bridge.BuildAIPerceptionJson(JSON.stringify(spec), resultJson, error)) {
+    throw new Error(puerts.$unref(error));
+  }
+  const parsed = JSON.parse(puerts.$unref(resultJson)) as JsonObject;
+  const errors = stringArray(parsed, "errors");
+  const warnings = stringArray(parsed, "warnings");
+  delete parsed.errors;
+  delete parsed.warnings;
+
+  const planOnly = parsed.plan_only === true;
+  const applied = typeof parsed.applied_change_count === "number" ? parsed.applied_change_count : 0;
+  const result = response(
+    errors.length === 0,
+    errors.length > 0
+      ? "Perception build reported errors."
+      : planOnly
+        ? "Perception change planned."
+        : applied === 0 ? "Perception already matches the spec." : "Perception configured.",
+    parsed,
+  );
+  result.errors.push(...errors);
+  result.warnings.push(...warnings);
+  const objectPath = parsed.object_path;
+  if (!planOnly && applied > 0 && errors.length === 0
+    && typeof objectPath === "string" && objectPath.length > 0) {
+    result.changed_assets.push(objectPath);
+  }
+  return result;
+}
+
+/** Read an AIController Blueprint back as JSON: its perception config and the
+    RunBehaviorTree call sites that wire it to a tree. The independent read
+    half of buildAIPerception. */
+async function inspectAIController(context: ToolContext, input: JsonObject): Promise<CommandResponse> {
+  const assetPath = requireString(input, "asset_path");
+  if (!assetPath.startsWith("/Game/") && !assetPath.startsWith("/Engine/")) {
+    throw new Error("AIController inspection is limited to /Game and /Engine");
+  }
+  const resultJson = puerts.$ref<string>("");
+  const error = puerts.$ref<string>("");
+  if (!context.bridge.InspectAIControllerJson(
+    JSON.stringify({ asset_path: assetPath }), resultJson, error)) {
+    throw new Error(puerts.$unref(error));
+  }
+  const parsed = JSON.parse(puerts.$unref(resultJson)) as JsonObject;
+  const warnings = stringArray(parsed, "warnings");
+  delete parsed.warnings;
+  const result = response(true, "AIController inspected.", parsed);
+  result.warnings.push(...warnings);
+  return result;
+}
+
 /** Read a Widget Blueprint back as JSON. The independent read half of
     widget_build, same shape as inspectGraph and inspectBehaviorTree: no
     transaction, nothing dirtied, dirty flag reported both sides. */
@@ -913,6 +1132,15 @@ export const toolDefinitions: readonly ToolDefinition[] = [
   { name: "anim_blueprint_inspect", inputSchema: schema({ asset_path: { type: "string" } }, ["asset_path"]), outputSchema, permissions: ["assets.read"], executionTimeoutMs: 15000, execute: inspectAnimBlueprint },
   { name: "anim_montage_inspect", inputSchema: schema({ asset_path: { type: "string" } }, ["asset_path"]), outputSchema, permissions: ["assets.read"], executionTimeoutMs: 15000, execute: inspectAnimMontage },
   { name: "anim_blend_space_inspect", inputSchema: schema({ asset_path: { type: "string" } }, ["asset_path"]), outputSchema, permissions: ["assets.read"], executionTimeoutMs: 15000, execute: inspectAnimBlendSpace },
+  { name: "blackboard_build", inputSchema: schema({ asset_path: { type: "string" }, parent_path: { type: "string" }, keys: { type: "array", items: { type: "object" } }, remove_unlisted: { type: "boolean" }, plan_only: { type: "boolean" }, save: { type: "boolean" } }, ["asset_path"]), outputSchema, permissions: ["assets.write"], executionTimeoutMs: 20000, execute: buildBlackboard },
+  { name: "blackboard_inspect", inputSchema: schema({ asset_path: { type: "string" } }, ["asset_path"]), outputSchema, permissions: ["assets.read"], executionTimeoutMs: 10000, execute: inspectBlackboard },
+  { name: "eqs_inspect", inputSchema: schema({ asset_path: { type: "string" } }, ["asset_path"]), outputSchema, permissions: ["assets.read"], executionTimeoutMs: 10000, execute: inspectEnvQuery },
+  // Navigation reads the level, not an asset, so it is actors.read rather than
+  // assets.read: nav data, bounds volumes and modifier volumes are all actors.
+  { name: "nav_inspect", inputSchema: schema({}), outputSchema, permissions: ["actors.read"], executionTimeoutMs: 20000, execute: inspectNavigation },
+  { name: "nav_query", inputSchema: schema({ queries: { type: "array", items: { type: "object" } } }, ["queries"]), outputSchema, permissions: ["actors.read"], executionTimeoutMs: 20000, execute: queryNavigation },
+  { name: "ai_perception_build", inputSchema: schema({ asset_path: { type: "string" }, component_name: { type: "string" }, senses: { type: "array", items: { type: "object" } }, dominant_sense: { type: "string" }, remove_unlisted: { type: "boolean" }, plan_only: { type: "boolean" }, compile: { type: "boolean" }, save: { type: "boolean" } }, ["asset_path"]), outputSchema, permissions: ["assets.write"], executionTimeoutMs: 30000, execute: buildAIPerception },
+  { name: "ai_controller_inspect", inputSchema: schema({ asset_path: { type: "string" } }, ["asset_path"]), outputSchema, permissions: ["assets.read"], executionTimeoutMs: 15000, execute: inspectAIController },
   { name: "physics_build", inputSchema: schema({ actors: { type: "array", items: { type: "object" } } }, ["actors"]), outputSchema, permissions: ["actors.spawn"], executionTimeoutMs: 10000, execute: buildPhysics },
   { name: "physics_observe", inputSchema: schema({ actors: { type: "array", items: { type: "string" } } }), outputSchema, permissions: ["actors.read"], executionTimeoutMs: 2000, execute: observePhysics },
   { name: "viewport_screenshot", inputSchema: schema({ actors: { type: "array", items: { type: "string" } }, filename: { type: "string" } }), outputSchema, permissions: ["viewport.capture"], executionTimeoutMs: 2000, execute: captureViewport },

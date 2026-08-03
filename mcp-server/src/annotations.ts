@@ -107,12 +107,38 @@ export const toolAnnotations: Record<string, ToolAnnotations> = {
   // misled. Nothing is ever destroyed: on failure the creation is rolled back,
   // and an existing asset is never touched at all.
   puerts_anim_blueprint_build: mutating,
+  // The read half of puerts_blackboard_build: kept out of IsToolMutating on
+  // the native side, reports the package dirty flag before and after the read.
+  puerts_blackboard_inspect: readOnly,
+  // No build half exists, so this is read-only by construction rather than by
+  // discipline. See the tool description for why there is no eqs_build.
+  puerts_eqs_inspect: readOnly,
+  // Both navigation tools read the editor world. Nothing is spawned, no navmesh
+  // is rebuilt, and no package is dirtied: unlike a viewport capture, there is
+  // not even a file written, so these are readOnly rather than
+  // mutatingIdempotent.
+  puerts_nav_inspect: readOnly,
+  puerts_nav_query: readOnly,
+  // The read half of puerts_ai_perception_build, plus the RunBehaviorTree call
+  // sites. Same read-only contract as the other inspectors.
+  puerts_ai_controller_inspect: readOnly,
   puerts_viewport_screenshot: mutatingIdempotent,
   puerts_set_property: mutatingIdempotent,
   puerts_call_function: mutating,
   // Converges on rerun: the tree's root is replaced only on full success and
   // existing blackboard keys are left alone.
   puerts_behavior_tree_build: mutatingIdempotent,
+  // Converges: a rerun that finds everything in place returns before the
+  // mutation section and does not save. Destructive because the schema allows
+  // it: remove_unlisted deletes keys, and a deleted key silently dangles every
+  // FBlackboardKeySelector in every Behavior Tree that bound to it, which no
+  // editor undo of this asset restores. Off by default, but the classification
+  // has to cover what the tool can do, not what it usually does.
+  puerts_blackboard_build: destructiveIdempotent,
+  // Same shape and same reason: converges, and remove_unlisted deletes sense
+  // configs. A listed sense is also replaced wholesale rather than patched, so
+  // a partial spec overwrites the config that was there.
+  puerts_ai_perception_build: destructiveIdempotent,
   puerts_spawn_actor: mutating,
   puerts_sky_shader_create: mutating,
   puerts_physics_build: mutating,
