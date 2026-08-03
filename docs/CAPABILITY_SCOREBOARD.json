@@ -1,18 +1,18 @@
 {
   "generated_by": "Scripts/generate-tool-inventory.mjs (do not edit by hand)",
-  "total_registrations": 240,
-  "unique_canonical_capabilities": 170,
+  "total_registrations": 255,
+  "unique_canonical_capabilities": 185,
   "by_backend": {
     "legacy_http": 170,
     "native_pipe_alias": 38,
     "server_local": 2,
-    "native_pipe": 30
+    "native_pipe": 45
   },
   "by_verification": {
     "untested": 122,
     "mock_only": 86,
     "live_verified": 18,
-    "implemented": 6,
+    "implemented": 21,
     "live_partial": 8
   },
   "by_migration_action": {
@@ -20,14 +20,14 @@
     "PORT": 39,
     "REFRONT": 28,
     "MERGE": 10,
-    "KEEP": 81,
+    "KEEP": 96,
     "RETIRE": 1
   },
   "by_capability_category": {
     "actors": 12,
     "compat": 38,
-    "gameplay-setup": 11,
-    "animation": 5,
+    "gameplay-setup": 13,
+    "animation": 9,
     "blueprint": 30,
     "project": 12,
     "assets": 10,
@@ -40,12 +40,13 @@
     "project-intelligence": 4,
     "pie": 18,
     "levels": 3,
-    "materials": 5,
+    "materials": 7,
     "optimization": 24,
     "ui": 9,
-    "ai": 2,
+    "ai": 7,
     "properties": 3,
     "bridge": 1,
+    "level": 2,
     "viewport": 9,
     "cinematics": 8
   },
