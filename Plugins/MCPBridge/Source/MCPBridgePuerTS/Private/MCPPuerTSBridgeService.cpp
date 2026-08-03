@@ -206,6 +206,11 @@ bool UMCPPuerTSBridgeService::Initialize(FString& OutError)
             TEXT("blackboard_build"), TEXT("ai_perception_build"),
             TEXT("blackboard_inspect"), TEXT("eqs_inspect"),
             TEXT("nav_inspect"), TEXT("nav_query"), TEXT("ai_controller_inspect")
+            TEXT("material_instance_build"),
+            // Read only. Deliberately absent from IsToolMutating below, so they
+            // open no transaction and return no transaction id.
+            TEXT("graph_inspect"), TEXT("behavior_tree_inspect"), TEXT("widget_inspect"),
+            TEXT("material_inspect")
         };
         for (const TCHAR* Value : Defaults) { AllowedTools.Add(Value); }
     }
@@ -1431,6 +1436,7 @@ bool UMCPPuerTSBridgeService::IsToolMutating(const FString& ToolName) const
         // that reaches the mutation section with no rollback.
         || ToolName == TEXT("blackboard_build")
         || ToolName == TEXT("ai_perception_build");
+        || ToolName == TEXT("material_instance_build");
 }
 
 void UMCPPuerTSBridgeService::EndActiveCommand()

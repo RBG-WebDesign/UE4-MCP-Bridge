@@ -35,5 +35,13 @@ public class MCPBridgePuerTS : ModuleRules
         // ANavModifierVolume live there. AIModule already covers the blackboard,
         // Environment Query and AIPerception types.
         PrivateDependencyModuleNames.AddRange(new string[] { "AIModule", "AssetRegistry", "BlueprintGraph", "GameplayTasks", "Json", "JsonUtilities", "JsEnv", "MCPBridgeGraphBuilder", "NavigationSystem", "Projects", "SourceControl", "UMG", "UMGEditor", "UnrealEd" });
+        // MaterialEditor is for material_inspect and material_instance_build:
+        // UMaterialEditingLibrary is the only 4.27 API that reads and writes
+        // material instance parameters by plain FName, and it is an editor-only
+        // module, which this one already is.
+        // RenderCore and RHI are for the compile report: GMaxRHIFeatureLevel
+        // selects the FMaterialResource whose compile errors are reported
+        // instead of assumed.
+        PrivateDependencyModuleNames.AddRange(new string[] { "AIModule", "AssetRegistry", "BlueprintGraph", "GameplayTasks", "Json", "JsonUtilities", "JsEnv", "MaterialEditor", "MCPBridgeGraphBuilder", "Projects", "RenderCore", "RHI", "SourceControl", "UMG", "UMGEditor", "UnrealEd" });
     }
 }

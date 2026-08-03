@@ -109,6 +109,8 @@ declare module "ue" {
     QueryNavigationJson(requestJson: string, outResultJson: $Ref<string>, outError: $Ref<string>): boolean;
     BuildAIPerceptionJson(specJson: string, outResultJson: $Ref<string>, outError: $Ref<string>): boolean;
     InspectAIControllerJson(requestJson: string, outResultJson: $Ref<string>, outError: $Ref<string>): boolean;
+    InspectMaterialJson(requestJson: string, outResultJson: $Ref<string>, outError: $Ref<string>): boolean;
+    BuildMaterialInstanceJson(specJson: string, outResultJson: $Ref<string>, outError: $Ref<string>): boolean;
     BuildPhysicsSceneJson(specJson: string, outResultJson: $Ref<string>, outError: $Ref<string>): boolean;
     ObservePhysicsSceneJson(requestJson: string, outResultJson: $Ref<string>, outError: $Ref<string>): boolean;
     CaptureViewportJson(requestJson: string, outResultJson: $Ref<string>, outError: $Ref<string>): boolean;

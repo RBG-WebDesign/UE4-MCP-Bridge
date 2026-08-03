@@ -122,6 +122,12 @@ export const toolAnnotations: Record<string, ToolAnnotations> = {
   // The read half of puerts_ai_perception_build, plus the RunBehaviorTree call
   // sites. Same read-only contract as the other inspectors.
   puerts_ai_controller_inspect: readOnly,
+  // The read half of material authoring, and for master material graphs the
+  // ONLY half: UE4.27's graph mutators write outside the undo record, so a
+  // failed multi-node build cannot be rolled back and no write command was
+  // shipped. Kept out of IsToolMutating on the native side, reports the package
+  // dirty flag before and after the read.
+  puerts_material_inspect: readOnly,
   puerts_viewport_screenshot: mutatingIdempotent,
   puerts_set_property: mutatingIdempotent,
   puerts_call_function: mutating,
@@ -139,6 +145,13 @@ export const toolAnnotations: Record<string, ToolAnnotations> = {
   // configs. A listed sense is also replaced wholesale rather than patched, so
   // a partial spec overwrites the config that was there.
   puerts_ai_perception_build: destructiveIdempotent,
+  // Mutating and idempotent, and NOT destructive by default: it writes only the
+  // parameters it was given and leaves every other override alone. A parameter
+  // already at the requested value is reported unchanged and not rewritten, so
+  // a rerun dirties nothing. clear_unlisted turns the spec into the whole
+  // desired state and does drop unnamed overrides, but it is opt-in and off by
+  // default, which is why the classification here is the non-destructive one.
+  puerts_material_instance_build: mutatingIdempotent,
   puerts_spawn_actor: mutating,
   puerts_sky_shader_create: mutating,
   puerts_physics_build: mutating,
