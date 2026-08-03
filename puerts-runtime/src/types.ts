@@ -17,6 +17,17 @@ export type Permission =
   | "functions.call"
   | "level.save"
   | "editor.pie"
+  // Ini-backed project and editor configuration: input mappings
+  // (Config/DefaultInput.ini) and Content Browser folder visibility
+  // (Config/FolderVisibility.ini). Separate from assets.* because these write
+  // config, not content, and separate read from write so a client can be
+  // allowed to inspect the input bindings without being allowed to rebind them.
+  | "project.config.read"
+  | "project.config.write"
+  // Reading a running PIE session: the world snapshot, an operation's status,
+  // an in-engine condition check. Distinct from editor.pie, which starts and
+  // stops the session, because observing is not controlling.
+  | "pie.observe"
   | "logs.read"
   | "viewport.capture"
   | "transactions.undo";

@@ -21,6 +21,12 @@ public class MCPBridgePuerTS : ModuleRules
         // never adds, checks out, or reverts.
         // BlueprintGraph is for UK2Node_Variable only: remove_unlisted has to find
         // the graph nodes that read or write a variable before it may remove it.
-        PrivateDependencyModuleNames.AddRange(new string[] { "AIModule", "AssetRegistry", "BlueprintGraph", "GameplayTasks", "Json", "JsonUtilities", "JsEnv", "MCPBridgeGraphBuilder", "Projects", "SourceControl", "UMG", "UMGEditor", "UnrealEd" });
+        // InputCore is for input_mapping_info and input_mapping_patch: an input
+        // mapping is identified by its FKey, which is that module's type, and
+        // reading one back requires resolving and printing it.
+        // MCPBridgePIEAgent is a dependency for the same reason
+        // MCPBridgeGraphBuilder is: pie_agent_query re-fronts UPIEAgentLibrary
+        // rather than reimplementing the runtime observation it already owns.
+        PrivateDependencyModuleNames.AddRange(new string[] { "AIModule", "AssetRegistry", "BlueprintGraph", "GameplayTasks", "InputCore", "Json", "JsonUtilities", "JsEnv", "MCPBridgeGraphBuilder", "MCPBridgePIEAgent", "Projects", "SourceControl", "UMG", "UMGEditor", "UnrealEd" });
     }
 }

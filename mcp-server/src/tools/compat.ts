@@ -1,7 +1,7 @@
 /**
  * Compatibility alias router.
  *
- * Twelve legacy HTTP tool names kept alive as router-level aliases onto the
+ * Legacy HTTP tool names kept alive as router-level aliases onto the
  * native named-pipe catalog, per the Wrap action in docs/TOOL_MIGRATION.md.
  * An alias keeps the old public name and a close copy of the old schema,
  * translates the parameters into the native tool's schema, and executes
@@ -389,7 +389,236 @@ const aliases: readonly CompatAlias[] = [
       return routed({ transaction_id: params.transaction_id });
     },
   },
+  // --- Input mappings: four legacy names onto one reconciling command --------
+  {
+    name: "input_mapping_info",
+    canonical: "puerts_input_mapping_info",
+    description:
+      "Inspect Unreal input action and axis mappings. The three filters pass through unchanged; " +
+      "the native read is exact-match, as the legacy one was.",
+    inputSchema: z.object({
+      action_name: z.string().optional().describe("Exact action name to filter, such as PF_Pause"),
+      axis_name: z.string().optional().describe("Exact axis name to filter"),
+      key: z.string().optional().describe("Exact key name to filter, such as Escape"),
+    }),
+    translate: (params) => {
+      const translated: Params = {};
+      for (const key of ["action_name", "axis_name", "key"] as const) {
+        if (params[key] !== undefined) translated[key] = params[key];
+      }
+      return routed(translated);
+    },
+  },
+  {
+    name: "input_mapping_add",
+    canonical: "puerts_input_mapping_patch",
+    description:
+      "Add one action or axis mapping. kind selects which half of the native patch the mapping " +
+      "goes into; a parameter belonging to the other half is refused rather than dropped, because " +
+      "a scale silently ignored on an action mapping reads as a working binding that is not one.",
+    inputSchema: z.object({
+      kind: z.enum(["action", "axis"]),
+      name: z.string().describe("Action or axis name, e.g. Jump, MoveForward."),
+      key: z.string().describe("FKey name."),
+      scale: z.number().optional().describe("Axis scale (axis only), default 1.0."),
+      shift: z.boolean().optional().describe("Action only."),
+      ctrl: z.boolean().optional().describe("Action only."),
+      alt: z.boolean().optional().describe("Action only."),
+      cmd: z.boolean().optional().describe("Action only."),
+    }),
+    translate: (params) => {
+      const modifiers = ["shift", "ctrl", "alt", "cmd"] as const;
+      if (params.kind === "axis") {
+        const rejected = rejectSupplied(params, modifiers.map((name) => [
+          name,
+          `an axis mapping has no modifier keys. Unreal stores ${name} on FInputActionKeyMapping only; ` +
+          "bind the modifier as its own action, or use kind \"action\".",
+        ] as const));
+        if (rejected.parameters.length > 0) return unmappable(rejected.parameters, rejected.reasons);
+        const axis: Params = { name: params.name, key: params.key };
+        if (params.scale !== undefined) axis.scale = params.scale;
+        return routed({ axes: [axis] });
+      }
+      const rejected = rejectSupplied(params, [
+        ["scale", "an action mapping has no scale. Unreal stores Scale on FInputAxisKeyMapping only; use kind \"axis\"."],
+      ]);
+      if (rejected.parameters.length > 0) return unmappable(rejected.parameters, rejected.reasons);
+      const action: Params = { name: params.name, key: params.key };
+      for (const name of modifiers) {
+        if (params[name] !== undefined) action[name] = params[name];
+      }
+      return routed({ actions: [action] });
+    },
+  },
+  {
+    name: "input_mapping_remove",
+    canonical: "puerts_input_mapping_patch",
+    description:
+      "Remove action or axis mappings. Omit 'key' to remove every key bound to the name, exactly " +
+      "as the legacy tool did. Never sets remove_unlisted, so nothing the call did not name is touched.",
+    inputSchema: z.object({
+      kind: z.enum(["action", "axis"]),
+      name: z.string(),
+      key: z.string().optional(),
+    }),
+    translate: (params) => {
+      const entry: Params = { name: params.name };
+      if (params.key !== undefined) entry.key = params.key;
+      return routed(params.kind === "axis" ? { remove_axes: [entry] } : { remove_actions: [entry] });
+    },
+  },
+  {
+    name: "input_preset_apply",
+    canonical: "puerts_input_mapping_patch",
+    description:
+      "Apply a standard control scheme preset. The four preset names and their bindings are the " +
+      "legacy handler's, unchanged, so an old prompt gets the bindings it always did. Additive: " +
+      "existing mappings the preset does not name are left alone.",
+    inputSchema: z.object({
+      preset: z.enum(["first_person", "third_person", "top_down", "tank"]),
+    }),
+    translate: (params) => routed({ preset: params.preset }),
+  },
+  // --- Content Browser folder visibility ------------------------------------
+  {
+    name: "folder_hide",
+    canonical: "puerts_folder_visibility",
+    description:
+      "Hide /Game subfolders in the Content Browser (display-only). folder and folders both " +
+      "collapse into the native hide list.",
+    inputSchema: z.object({
+      folder: z.string().optional().describe("Single folder path, e.g. /Game/HorrorEngine"),
+      folders: z.array(z.string()).optional().describe("Multiple folder paths to hide at once"),
+    }),
+    translate: (params) => {
+      const folders = collectFolders(params);
+      if (folders.length === 0) {
+        return unmappable(
+          ["folder"],
+          ["folder: folder_hide needs 'folder' or 'folders'. An empty hide list would be a call that asks for nothing."],
+        );
+      }
+      return routed({ hide: folders });
+    },
+  },
+  {
+    name: "folder_show",
+    canonical: "puerts_folder_visibility",
+    description:
+      "Unhide Content Browser folders. Called with no arguments it unhides EVERYTHING, which the " +
+      "native command expresses as the empty desired set (hidden: []) rather than as a separate " +
+      "show-all verb.",
+    inputSchema: z.object({
+      folder: z.string().optional().describe("Single folder path to unhide"),
+      folders: z.array(z.string()).optional().describe("Multiple folder paths to unhide"),
+    }),
+    translate: (params) => {
+      const folders = collectFolders(params);
+      // The legacy escape hatch: no arguments meant unhide everything.
+      return routed(folders.length === 0 ? { hidden: [] } : { show: folders });
+    },
+  },
+  {
+    name: "folder_hidden_list",
+    canonical: "puerts_folder_visibility",
+    description:
+      "List Content Browser folders currently hidden. The native command with no hidden, hide or " +
+      "show is the read: it changes nothing and answers with the hidden set.",
+    inputSchema: z.object({}),
+    translate: () => routed({}),
+  },
+  // --- Camera shake ---------------------------------------------------------
+  {
+    name: "camera_shake_play",
+    canonical: "puerts_camera_shake",
+    description:
+      "Play a camera shake on the PIE player camera. play_space has no native equivalent and is " +
+      "refused: the native chain uses the shake asset's own play space, and quietly ignoring a " +
+      "requested one would report a World-space shake that played in camera space.",
+    inputSchema: z.object({
+      shake_class: z.string().describe("Path to a CameraShake class (a Blueprint's runtime path usually ends in _C)"),
+      scale: z.number().optional().describe("Intensity multiplier, default 1.0"),
+      play_space: z.string().optional().describe("Not supported natively; supplying it fails the call"),
+    }),
+    translate: (params) => {
+      const rejected = rejectSupplied(params, [
+        ["play_space", "puerts_camera_shake calls StartCameraShake with the shake asset's own play space. There is no native override."],
+      ]);
+      if (rejected.parameters.length > 0) return unmappable(rejected.parameters, rejected.reasons);
+      const translated: Params = { shake_class: params.shake_class };
+      if (params.scale !== undefined) translated.scale = params.scale;
+      return routed(translated);
+    },
+  },
+  // --- PIE agent, read-only half --------------------------------------------
+  {
+    name: "pie_agent_observe",
+    canonical: "puerts_pie_agent_query",
+    description:
+      "Capture a PIE snapshot: pawn transform and velocity, nearby actors with physics and " +
+      "collision state, widgets, player counters, and the Output Log tail. Every parameter passes " +
+      "through unchanged.",
+    inputSchema: z.object({
+      radius: z.number().positive().optional().describe("Actor scan radius around the pawn in uu (default 1500)"),
+      class_filter: z.string().optional().describe("Only include actors whose class contains this text"),
+      log_lines: z.number().int().min(0).optional().describe("Output Log tail length (default 20)"),
+    }),
+    translate: (params) => {
+      const translated: Params = { op: "observe" };
+      for (const key of ["radius", "class_filter", "log_lines"] as const) {
+        if (params[key] !== undefined) translated[key] = params[key];
+      }
+      return routed(translated);
+    },
+  },
+  {
+    name: "pie_agent_status",
+    canonical: "puerts_pie_agent_query",
+    description:
+      "Poll the current PIE agent asynchronous operation. Operation id 0 means the latest operation.",
+    inputSchema: z.object({
+      operation_id: z.number().int().nonnegative().optional(),
+    }),
+    translate: (params) => {
+      const translated: Params = { op: "status" };
+      if (params.operation_id !== undefined) translated.operation_id = params.operation_id;
+      return routed(translated);
+    },
+  },
+  {
+    name: "pie_agent_expect",
+    canonical: "puerts_pie_agent_query",
+    description:
+      "Start an in-engine check of declarative actor_count, counter and log regex conditions. " +
+      "ONE DIFFERENCE FROM THE LEGACY TOOL, and it is in the return rather than the request: the " +
+      "legacy tool blocked in the MCP server until the conditions passed or the deadline expired, " +
+      "and answered with the verdict. The native command starts the check and answers with " +
+      "operation_id and status \"running\". Poll pie_agent_status for the verdict. The blocking " +
+      "loop is orchestration and belongs in the caller, not in a command that occupies the game " +
+      "thread while it waits.",
+    inputSchema: z.object({
+      conditions: z.array(z.string()).min(1),
+      within_seconds: z.number().positive().optional().describe("Deadline in seconds (default 5)"),
+    }),
+    translate: (params) => {
+      const translated: Params = { op: "expect", conditions: params.conditions };
+      if (params.within_seconds !== undefined) translated.within_seconds = params.within_seconds;
+      return routed(translated);
+    },
+  },
 ];
+
+/** The legacy folder pair took folder, folders, or both. */
+function collectFolders(params: Params): string[] {
+  const folders: string[] = [];
+  if (typeof params.folder === "string" && params.folder.length > 0) folders.push(params.folder);
+  if (Array.isArray(params.folders)) {
+    for (const entry of params.folders as unknown[]) {
+      if (typeof entry === "string" && entry.length > 0 && !folders.includes(entry)) folders.push(entry);
+    }
+  }
+  return folders;
+}
 
 /** alias name -> the puerts_* tool that executes it. Consumed by
     Scripts/generate-tool-inventory.mjs to record target_replacement. */
