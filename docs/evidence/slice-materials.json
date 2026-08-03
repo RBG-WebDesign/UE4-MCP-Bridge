@@ -1,0 +1,196 @@
+{
+  "slice": "materials",
+  "title": "a master material with parameters, an instance that overrides them, compiled and applied",
+  "proves": "author a material graph, instance it, read the parameter values back, and see it on a mesh",
+  "phase": "warm",
+  "generated_at": "2026-08-02T21:46:37.891Z",
+  "verdict": "BLOCKED_MISSING_PRIMITIVE",
+  "editor": {
+    "available": false,
+    "reason": "install gate refused; no editor was contacted"
+  },
+  "install_gate": {
+    "ok": false,
+    "reason": "Set MCP_UNREAL_PROJECT_ROOT to the test project root"
+  },
+  "catalog": {
+    "registered_tool_count": 27,
+    "legacy_http_enabled": false
+  },
+  "steps": [
+    {
+      "n": 1,
+      "label": "primitive puerts_material_build is NOT usable",
+      "tool": "puerts_material_build",
+      "status": "MISSING_PRIMITIVE",
+      "detail": "not registered and not in the tool inventory",
+      "why": "author a UMaterial graph: expression nodes, named scalar/vector/texture parameters, and the base-colour, emissive, roughness and normal connections. Without it there is no parent material to instance, so the material slice cannot start from a prompt. Lane I states this will not exist in that lane, and lane B recorded material graph structure as a platform gap. The nearest registered tool, puerts_sky_shader_create, builds one specific hard-coded sky material"
+    },
+    {
+      "n": 2,
+      "label": "primitive puerts_find_assets is registered",
+      "tool": "puerts_find_assets",
+      "status": "PASS"
+    },
+    {
+      "n": 3,
+      "label": "1. look for an existing master material to instance instead",
+      "tool": "puerts_find_assets",
+      "status": "UNPROVEN_NO_EDITOR",
+      "detail": "install gate refused; no editor was contacted"
+    },
+    {
+      "n": 4,
+      "label": "primitive puerts_material_instance_build is NOT usable",
+      "tool": "puerts_material_instance_build",
+      "status": "MISSING_PRIMITIVE",
+      "detail": "not registered and not in the tool inventory",
+      "why": "the instance is what a designer actually tunes, and it is the only material write lane I will ship"
+    },
+    {
+      "n": 5,
+      "label": "2. build the material instance with the prompt's parameter values",
+      "tool": "puerts_material_instance_build",
+      "status": "SKIPPED_PRIOR_STEP_BLOCKED",
+      "detail": "its primitive is missing"
+    },
+    {
+      "n": 6,
+      "label": "primitive puerts_material_inspect is NOT usable",
+      "tool": "puerts_material_inspect",
+      "status": "MISSING_PRIMITIVE",
+      "detail": "not registered and not in the tool inventory",
+      "why": "a material builder with no inspector cannot be verified without a human opening the asset"
+    },
+    {
+      "n": 7,
+      "label": "3. read the instance back and compare the overrides field for field",
+      "tool": "puerts_material_inspect",
+      "status": "SKIPPED_PRIOR_STEP_BLOCKED",
+      "detail": "its primitive is missing"
+    },
+    {
+      "n": 8,
+      "label": "primitive puerts_texture_import is NOT usable",
+      "tool": "puerts_texture_import",
+      "status": "MISSING_PRIMITIVE",
+      "detail": "not registered and not in the tool inventory",
+      "why": "import or generate a UTexture2D so a texture parameter can be set. puerts_material_instance_build accepts a textures map and nothing in the catalog can produce a texture to put in it; docs/GAP_AUDIT-2026-07-29.md records no texture tools at all"
+    },
+    {
+      "n": 9,
+      "label": "primitive puerts_blueprint_build is registered",
+      "tool": "puerts_blueprint_build",
+      "status": "PASS"
+    },
+    {
+      "n": 10,
+      "label": "4. put the instance on a mesh through a component template property",
+      "tool": "puerts_blueprint_build",
+      "status": "UNPROVEN_NO_EDITOR",
+      "detail": "install gate refused; no editor was contacted"
+    },
+    {
+      "n": 11,
+      "label": "primitive puerts_viewport_screenshot is registered",
+      "tool": "puerts_viewport_screenshot",
+      "status": "PASS"
+    },
+    {
+      "n": 12,
+      "label": "5. capture the viewport so the material can be judged by eye",
+      "tool": "puerts_viewport_screenshot",
+      "status": "UNPROVEN_NO_EDITOR",
+      "detail": "install gate refused; no editor was contacted"
+    },
+    {
+      "n": 13,
+      "label": "6. shader compilation is not observable",
+      "status": "NOTE",
+      "detail": "no registered tool reports whether the shader compiler has finished, so a screenshot taken immediately after a material change can legitimately show the default checkerboard. Lane I reports compile result inside the instance build response, which covers the instance but not the shader map."
+    }
+  ],
+  "missing_primitives": [
+    {
+      "tool": "puerts_material_build",
+      "state": "MISSING",
+      "why": "author a UMaterial graph: expression nodes, named scalar/vector/texture parameters, and the base-colour, emissive, roughness and normal connections. Without it there is no parent material to instance, so the material slice cannot start from a prompt. Lane I states this will not exist in that lane, and lane B recorded material graph structure as a platform gap. The nearest registered tool, puerts_sky_shader_create, builds one specific hard-coded sky material",
+      "proposed_schema": {
+        "tool": "puerts_material_build",
+        "owner": "UNOWNED. Lane I ships the instance and the inspector only",
+        "params": {
+          "asset_path": "/Game/MCPGenerated/...",
+          "domain": "Surface | PostProcess | UI",
+          "blend_mode": "Opaque | Masked | Translucent",
+          "shading_model": "DefaultLit | Unlit",
+          "parameters": "[{kind:'scalar'|'vector'|'texture'|'switch', name, default, group?}]",
+          "expressions": "[{id, type, params}] and connections: [{from:'id.output', to:'id.input'}], the same node-and-connection shape puerts_blueprint_build already uses",
+          "outputs": "{BaseColor:'id.output', EmissiveColor:'id.output', Roughness:..., Normal:...}",
+          "save": "boolean"
+        },
+        "returns": "{ compile_status, parameters_read_back, structure_hash_sha1 }"
+      }
+    },
+    {
+      "tool": "puerts_material_instance_build",
+      "state": "MISSING",
+      "why": "the instance is what a designer actually tunes, and it is the only material write lane I will ship",
+      "proposed_schema": {
+        "tool": "puerts_material_instance_build",
+        "owner": "lane I (settled, implementation in progress)",
+        "params": {
+          "asset_path": "string",
+          "parent_path": "string",
+          "scalars": "{name: number}",
+          "vectors": "{name: {r,g,b,a}}",
+          "textures": "{name: path}",
+          "switches": "{name: boolean}",
+          "clear_unlisted": "boolean",
+          "save": "boolean"
+        }
+      }
+    },
+    {
+      "tool": "puerts_material_inspect",
+      "state": "MISSING",
+      "why": "a material builder with no inspector cannot be verified without a human opening the asset",
+      "proposed_schema": {
+        "tool": "puerts_material_inspect",
+        "owner": "lane I (settled, implementation in progress)",
+        "params": {
+          "asset_path": "string"
+        },
+        "returns": "{ asset_kind: 'material'|'material_instance', parent_path, scalars, vectors, textures, switches, structure_hash_sha1 }"
+      }
+    },
+    {
+      "tool": "puerts_texture_import",
+      "state": "MISSING",
+      "why": "import or generate a UTexture2D so a texture parameter can be set. puerts_material_instance_build accepts a textures map and nothing in the catalog can produce a texture to put in it; docs/GAP_AUDIT-2026-07-29.md records no texture tools at all",
+      "proposed_schema": {
+        "tool": "puerts_texture_import",
+        "params": {
+          "asset_path": "/Game/MCPGenerated/...",
+          "source_file": "absolute path on disk",
+          "srgb": "boolean",
+          "compression": "Default | Normalmap | Masks | Grayscale",
+          "save": "boolean"
+        },
+        "returns": "{ asset_path, width, height, format }"
+      }
+    }
+  ],
+  "checks": {
+    "passed": 0,
+    "failed": 0
+  },
+  "sealed_artifacts": [],
+  "mcp_round_trips": 0,
+  "elapsed_ms": 501,
+  "blocks": [
+    "puerts_material_build",
+    "puerts_material_instance_build",
+    "puerts_material_inspect",
+    "puerts_texture_import"
+  ]
+}

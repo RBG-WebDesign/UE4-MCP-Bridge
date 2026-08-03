@@ -31,6 +31,13 @@
     "smoke:inspect": "node Scripts/graph-inspect-acceptance.mjs",
     "smoke:bt": "node Scripts/behavior-tree-acceptance.mjs",
     "acceptance:editor": "node Scripts/editor-acceptance.mjs",
+    "slice:gameplay": "node Scripts/slice-gameplay.mjs",
+    "slice:ui": "node Scripts/slice-ui.mjs",
+    "slice:ai": "node Scripts/slice-ai.mjs",
+    "slice:animation": "node Scripts/slice-animation.mjs",
+    "slice:materials": "node Scripts/slice-materials.mjs",
+    "slice:level": "node Scripts/slice-level.mjs",
+    "slice:cinematics": "node Scripts/slice-cinematics.mjs",
     "verify": "npm run build && npm test && npm run test:perf && npm run check:puerts && npm run check:inventory && npm run smoke",
     "inspect": "mcp-inspector node mcp-server/dist/index.js",
     "inspect:list": "mcp-inspector --cli node mcp-server/dist/index.js --method tools/list"

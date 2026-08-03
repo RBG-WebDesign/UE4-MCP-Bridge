@@ -1,0 +1,122 @@
+{
+  "slice": "gameplay",
+  "title": "a Blueprint actor with components, variables and a working event graph",
+  "proves": "author, compile, read back independently, converge on rerun, place in the level, and observe it run",
+  "phase": "warm",
+  "generated_at": "2026-08-02T21:46:35.279Z",
+  "verdict": "BLOCKED_MISSING_PRIMITIVE",
+  "editor": {
+    "available": false,
+    "reason": "install gate refused; no editor was contacted"
+  },
+  "install_gate": {
+    "ok": false,
+    "reason": "Set MCP_UNREAL_PROJECT_ROOT to the test project root"
+  },
+  "catalog": {
+    "registered_tool_count": 27,
+    "legacy_http_enabled": false
+  },
+  "steps": [
+    {
+      "n": 1,
+      "label": "primitive puerts_blueprint_build is registered",
+      "tool": "puerts_blueprint_build",
+      "status": "PASS"
+    },
+    {
+      "n": 2,
+      "label": "1. build the beacon Blueprint from one spec",
+      "tool": "puerts_blueprint_build",
+      "status": "UNPROVEN_NO_EDITOR",
+      "detail": "install gate refused; no editor was contacted"
+    },
+    {
+      "n": 3,
+      "label": "primitive puerts_graph_inspect is registered",
+      "tool": "puerts_graph_inspect",
+      "status": "PASS"
+    },
+    {
+      "n": 4,
+      "label": "2. read the asset back with the independent inspector",
+      "tool": "puerts_graph_inspect",
+      "status": "UNPROVEN_NO_EDITOR",
+      "detail": "install gate refused; no editor was contacted"
+    },
+    {
+      "n": 5,
+      "label": "3. rerunning the identical spec converges",
+      "tool": "puerts_blueprint_build",
+      "status": "UNPROVEN_NO_EDITOR",
+      "detail": "install gate refused; no editor was contacted"
+    },
+    {
+      "n": 6,
+      "label": "primitive puerts_scene_batch is NOT usable",
+      "tool": "puerts_scene_batch",
+      "status": "MISSING_PRIMITIVE",
+      "detail": "not registered and not in the tool inventory",
+      "why": "place the beacon with a stable label and a transform in one desired-state call; puerts_spawn_actor cannot label, scale, or fold an actor"
+    },
+    {
+      "n": 7,
+      "label": "primitive puerts_viewport_screenshot is registered",
+      "tool": "puerts_viewport_screenshot",
+      "status": "PASS"
+    },
+    {
+      "n": 8,
+      "label": "5. capture the viewport as the visual half of the feedback loop",
+      "tool": "puerts_viewport_screenshot",
+      "status": "UNPROVEN_NO_EDITOR",
+      "detail": "install gate refused; no editor was contacted"
+    },
+    {
+      "n": 9,
+      "label": "6. observe the graph actually running",
+      "status": "NOT_ATTEMPTED_BY_POLICY",
+      "detail": "PIE is reserved for the user to request (AGENTS.md testing etiquette). puerts_pie_start exists but is live_partial, and there is no primitive that reads a variable off a running actor: puerts_read_property addresses editor objects. A gameplay slice therefore proves authoring, not behavior."
+    },
+    {
+      "n": 10,
+      "label": "7. source-control quiescence not measured",
+      "status": "NOTE",
+      "detail": "p4 is unavailable in this environment"
+    }
+  ],
+  "missing_primitives": [
+    {
+      "tool": "puerts_scene_batch",
+      "state": "MISSING",
+      "why": "place the beacon with a stable label and a transform in one desired-state call; puerts_spawn_actor cannot label, scale, or fold an actor",
+      "proposed_schema": {
+        "tool": "puerts_scene_batch",
+        "owner": "lane L (settled, implemented_unverified)",
+        "params": {
+          "operations": "[{op:'upsert_actor', select?, label?, class?, location?, rotation?, scale?, folder?, tags?, properties?}]",
+          "plan_only": "boolean",
+          "verify": "boolean"
+        }
+      }
+    }
+  ],
+  "checks": {
+    "passed": 0,
+    "failed": 0
+  },
+  "sealed_artifacts": [
+    {
+      "asset_path": "/Game/MCPGenerated/BP_SliceBeacon",
+      "inspect_tool": "puerts_graph_inspect",
+      "structure_hash": null,
+      "node_count": null,
+      "file_sha256": null
+    }
+  ],
+  "mcp_round_trips": 0,
+  "elapsed_ms": 516,
+  "blocks": [
+    "puerts_scene_batch"
+  ]
+}
