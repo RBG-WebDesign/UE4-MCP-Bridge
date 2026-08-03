@@ -58,6 +58,23 @@ public:
     static FString JsonDefaultToImportText(const FString& DefaultValueJson, bool bTextLike);
 
     /**
+     * A variable's effective default, read from the generated class CDO.
+     *
+     * The CDO is where a Blueprint variable's default actually LIVES.
+     * FBPVariableDescription::DefaultValue is editor scratch: KismetCompiler
+     * copies it into the CDO on a Full compile and then calls Empty() on it,
+     * deliberately, saying so in its own comment. So any reader that reports
+     * the description answers "" for every variable whose Blueprint has been
+     * compiled since the value was set, which includes every variable a
+     * caller sets through a command that compiles afterwards.
+     *
+     * Returns false when the generated class or the property cannot be
+     * resolved, which is the genuine case before a variable's first full
+     * compile. Only then is the description the better answer.
+     */
+    static bool TryReadVariableDefaultFromCDO(const UBlueprint* Blueprint, FName VarName, FString& OutDefault);
+
+    /**
      * Import a default value into ValueAddress and report whether the WHOLE
      * value was read. Public for the same reason JsonDefaultToImportText is:
      * the validator that decides whether a type can hold a value and the

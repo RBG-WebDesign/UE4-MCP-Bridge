@@ -30,18 +30,11 @@ namespace
     void SyncDefaultValueFromCDO(UBlueprint* Blueprint, const FName& VarFName)
     {
         if (!Blueprint) return;
-        UClass* GenClass = Blueprint->GeneratedClass;
-        UObject* CDO = GenClass ? GenClass->GetDefaultObject(/*bCreateIfNeeded=*/false) : nullptr;
-        if (!CDO) return;
-        FProperty* Prop = FindFProperty<FProperty>(CDO->GetClass(), VarFName);
-        if (!Prop) return;
-        void* Addr = Prop->ContainerPtrToValuePtr<void>(CDO);
-        if (!Addr) return;
+        FString Exported;
+        if (!UBlueprintMutatorLibrary::TryReadVariableDefaultFromCDO(Blueprint, VarFName, Exported)) return;
         const int32 Idx = Blueprint->NewVariables.IndexOfByPredicate(
             [&](const FBPVariableDescription& D){ return D.VarName == VarFName; });
         if (Idx == INDEX_NONE) return;
-        FString Exported;
-        Prop->ExportTextItem(Exported, Addr, Addr, nullptr, PPF_SerializedAsImportText);
         Blueprint->NewVariables[Idx].DefaultValue = Exported;
     }
 }

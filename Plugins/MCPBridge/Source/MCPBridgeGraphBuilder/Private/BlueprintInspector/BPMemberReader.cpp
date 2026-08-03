@@ -3,6 +3,7 @@
 #include "BPMemberReader.h"
 #include "BPGLogCategories.h"
 #include "BPTypeDescriptor.h"
+#include "BlueprintMutatorLibrary.h"
 #include "Engine/Blueprint.h"
 #include "Engine/SimpleConstructionScript.h"
 #include "Engine/SCS_Node.h"
@@ -137,7 +138,21 @@ FString FBPMemberReader::ListVariables(UBlueprint* Blueprint)
         VO->SetStringField(TEXT("name"), V.VarName.ToString());
         VO->SetObjectField(TEXT("type"), FBPTypeDescriptor::ToJson(V.VarType));
         VO->SetStringField(TEXT("category"), V.Category.ToString());
-        VO->SetStringField(TEXT("default_value"), V.DefaultValue);
+
+        // The CDO, not V.DefaultValue. The description is editor scratch that
+        // KismetCompiler empties on every Full compile after copying it into
+        // the CDO, so reporting it answered "" for every variable on any
+        // Blueprint compiled since the value was set. Finding 0p.
+        //
+        // The fallback is not a safety net, it is the correct answer in the one
+        // case the CDO cannot give one: before a variable's first full compile
+        // there is no generated property to read.
+        FString DefaultValue;
+        if (!UBlueprintMutatorLibrary::TryReadVariableDefaultFromCDO(Blueprint, V.VarName, DefaultValue))
+        {
+            DefaultValue = V.DefaultValue;
+        }
+        VO->SetStringField(TEXT("default_value"), DefaultValue);
         VO->SetBoolField(TEXT("is_editable"), (V.PropertyFlags & CPF_Edit) != 0);
         VO->SetBoolField(TEXT("is_replicated"), (V.PropertyFlags & CPF_Net) != 0);
 

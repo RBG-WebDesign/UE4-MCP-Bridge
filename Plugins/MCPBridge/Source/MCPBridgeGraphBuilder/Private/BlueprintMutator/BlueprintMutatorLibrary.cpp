@@ -31,6 +31,22 @@ void UBlueprintMutatorLibrary::RevertAndCancelTransaction(FScopedTransaction& Tr
     Transaction.Cancel();
 }
 
+bool UBlueprintMutatorLibrary::TryReadVariableDefaultFromCDO(const UBlueprint* Blueprint, FName VarName, FString& OutDefault)
+{
+    if (!Blueprint) { return false; }
+    UClass* GenClass = Blueprint->GeneratedClass;
+    UObject* CDO = GenClass ? GenClass->GetDefaultObject(/*bCreateIfNeeded=*/false) : nullptr;
+    if (!CDO) { return false; }
+    FProperty* Prop = FindFProperty<FProperty>(CDO->GetClass(), VarName);
+    if (!Prop) { return false; }
+    const void* Addr = Prop->ContainerPtrToValuePtr<void>(CDO);
+    if (!Addr) { return false; }
+
+    OutDefault.Reset();
+    Prop->ExportTextItem(OutDefault, Addr, Addr, nullptr, PPF_SerializedAsImportText);
+    return true;
+}
+
 FString UBlueprintMutatorLibrary::JsonDefaultToImportText(const FString& DefaultValueJson, bool bTextLike)
 {
     FString Trimmed = DefaultValueJson.TrimStartAndEnd();
