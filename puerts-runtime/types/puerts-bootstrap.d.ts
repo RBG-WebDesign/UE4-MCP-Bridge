@@ -119,6 +119,8 @@ declare module "ue" {
     BuildMaterialInstanceJson(specJson: string, outResultJson: $Ref<string>, outError: $Ref<string>): boolean;
     InspectSceneJson(requestJson: string, outResultJson: $Ref<string>, outError: $Ref<string>): boolean;
     ApplySceneBatchJson(specJson: string, outResultJson: $Ref<string>, outError: $Ref<string>): boolean;
+    InspectLevelSequenceJson(requestJson: string, outResultJson: $Ref<string>, outError: $Ref<string>): boolean;
+    BuildLevelSequenceJson(specJson: string, outResultJson: $Ref<string>, outError: $Ref<string>): boolean;
     InspectInputMappingsJson(requestJson: string, outResultJson: $Ref<string>, outError: $Ref<string>): boolean;
     PatchInputMappingsJson(specJson: string, outResultJson: $Ref<string>, outError: $Ref<string>): boolean;
     SetFolderVisibilityJson(specJson: string, outResultJson: $Ref<string>, outError: $Ref<string>): boolean;

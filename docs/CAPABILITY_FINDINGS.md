@@ -1949,3 +1949,56 @@ Live evidence, second consecutive run green, plus no regression in
 `blueprint_member_patch` remains at ONE red check, finding 0q, which is
 unrelated: the patched Blueprint compiles with warnings where a freshly built
 one does not.
+
+### Finding 0s, NOT A DEFECT: `puerts_sequence_render` was not shipped, and why
+
+Lane S built the two Sequencer primitives `docs/VERTICAL_SLICES.md` names first,
+`puerts_sequence_inspect` and `puerts_sequence_build`. It did not build the third,
+`puerts_sequence_render`, and the reason is a property of UE4.27 rather than a
+gap in the lane.
+
+**A native command has at most 30 seconds and holds the game thread.**
+`RequestTimeoutMilliseconds` is clamped to `[100, 30000]`
+(`MCPPuerTSBridgeService.cpp:251`), and commands are serialized on the Unreal
+game thread by `AcceptCommand`. Rendering three seconds of 720p is not a
+30-second job, and a command that times out while the work continues is worse
+than no command: the client reports a failure for work that is still running,
+and the next command is refused with "Bridge is busy" for as long as it takes.
+
+**Neither UE4.27 render path can complete inside one call.** Both were read in
+the engine source rather than assumed:
+
+- **Legacy MovieSceneCapture.** `UAutomatedLevelSequenceCapture` is in the
+  editor-only `MovieSceneTools` module and is driven per frame by
+  `OnTick(float)` (`AutomatedLevelSequenceCapture.h:131`). The editor's own
+  entry point serializes its settings to a JSON manifest and launches a SECOND
+  UE process (`MovieSceneCaptureDialogModule.cpp:705`, `:743-744`), and offers
+  to close the editor while it runs. Out of process and asynchronous.
+- **Movie Render Queue.** It does exist in 4.27, at
+  `Engine/Plugins/MovieScene/MovieRenderPipeline`, and it is
+  `"EnabledByDefault": false`. `UMoviePipelineQueueEngineSubsystem::RenderQueueWithExecutor`
+  starts a render and returns; the pipeline advances through
+  `FCoreDelegates::OnBeginFrame` (`MoviePipeline.cpp:256`) and reports through
+  `OnExecutorFinished()`. `MoviePipeline.h:61` documents its own shutdown as
+  non-blocking. In process, still asynchronous, and behind a disabled plugin.
+
+**What a render command would need, stated so the next lane does not re-derive
+it.** Not a longer timeout: a different command shape. Three commands, or one
+command with three ops:
+
+1. `sequence_render_start` returns a job id immediately and opens no transaction
+   (rendering is not an asset mutation and there is nothing to undo).
+2. `sequence_render_status` reports queued / rendering / finished / failed, the
+   frame count so far, and the output directory.
+3. The editor side holds the job in a small registry keyed by id, subscribes to
+   `OnExecutorFinished`, and survives the client disconnecting.
+
+It also needs a decision the bridge cannot make for a project: MRQ is an
+optional plugin, so the command must report which path it used and refuse
+clearly when neither is available, rather than silently producing nothing.
+
+Until that exists, a cinematic authored by `puerts_sequence_build` is verified by
+`puerts_sequence_inspect` and looked at with `puerts_viewport_screenshot`, which
+captures one editor viewport frame and cannot follow camera cuts. That is the
+honest state of the cinematics domain and it is recorded here rather than
+covered by a command that would time out.

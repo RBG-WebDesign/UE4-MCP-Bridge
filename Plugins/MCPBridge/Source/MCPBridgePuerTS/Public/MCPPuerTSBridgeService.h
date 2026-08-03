@@ -935,6 +935,60 @@ private:
         FString& OutResultJson,
         FString& OutError);
 
+    /** Read a ULevelSequence back as machine-readable JSON: display rate, tick
+        resolution, playback range, every possessable and spawnable, every
+        master and object track with its sections, and every key on every
+        channel with its time, value and interpolation.
+
+        The read half of BuildLevelSequenceJson, and READ ONLY on the same terms
+        as graph_inspect: absent from IsToolMutating, so no transaction opens and
+        the response carries no transaction id; nothing here calls Modify or
+        MarkPackageDirty; and the package's dirty flag is reported before and
+        after the read.
+
+        Binding identity is OBSERVED (identity_kind = "observed"): the id is the
+        FGuid UMovieScene already stores, which survives a rename and a restart.
+
+        Frames are reported in DISPLAY-RATE frames, with the raw tick values
+        beside them, so a caller never has to know that UE4.27 stores key times
+        at 60000 ticks per second to compare a read against a spec.
+
+        Whether a possessable resolves to a live actor is reported under
+        "resolution", which is deliberately OUTSIDE the hashed set: resolution
+        depends on which level the editor has open, and a hash that moved when
+        someone opened a different map would report a change nobody made. */
+    UFUNCTION(BlueprintCallable, Category="MCP PuerTS Bridge")
+    bool InspectLevelSequenceJson(
+        const FString& RequestJson,
+        FString& OutResultJson,
+        FString& OutError) const;
+
+    /** Create or update a ULevelSequence from one desired-state spec: display
+        rate, playback range, actor bindings, tracks, sections and keyframes, in
+        ONE transaction.
+
+        Convergent and ADDITIVE. Every binding, track, section and key is an
+        upsert keyed on its own identity, and each one's satisfied-ness is
+        re-evaluated immediately before it is written rather than read from a
+        plan, because the spec is ordered and an earlier entry can move the
+        state a later one depends on. Nothing is ever removed: pruning a
+        sequence a human authored in Sequencer is a different and more dangerous
+        operation, and it is a stated gap rather than a half-built feature.
+
+        Failure-atomic on the same terms as scene_batch: any refusal cancels the
+        transaction, runs FBridgeAssetRollback over the package, and then decides
+        whether the sequence actually came back by hashing it again rather than
+        trusting the undo.
+
+        The whole spec is validated before an asset exists - actor labels
+        resolved, classes loaded, track types and properties checked, duplicate
+        identities refused - so a rejected request creates nothing at all. */
+    UFUNCTION(BlueprintCallable, Category="MCP PuerTS Bridge")
+    bool BuildLevelSequenceJson(
+        const FString& SpecJson,
+        FString& OutResultJson,
+        FString& OutError);
+
     /** Read the project's input action and axis mappings back as JSON.
         THE MISSING INSPECTOR. UMCPBridgeInputLibrary could add and remove
         mappings and had no reader at all, so a mutation could only ever be

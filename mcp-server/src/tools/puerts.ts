@@ -1183,6 +1183,162 @@ const specs = [
         + "Turning this off removes the only check that distinguishes a change from a report of one.",
       ),
     }).strict()],
+  ["puerts_sequence_inspect", "sequence_inspect",
+    "Read a UE4.27 ULevelSequence back as machine-readable JSON: display rate, tick resolution, "
+    + "playback range, every possessable and spawnable binding, every master and object track with "
+    + "its sections, and every keyframe on every channel with its time, value and interpolation. "
+    + "The independent read half of puerts_sequence_build, and READ ONLY: no transaction is opened, "
+    + "nothing is saved, and the package dirty flag is reported before and after the read "
+    + "(package_dirty_before / package_dirty_after) so the claim is checkable. "
+    + "Binding identity is OBSERVED (identity_kind: \"observed\"): the id is the FGuid UMovieScene "
+    + "already stores, which is stable across renames and across a restart. "
+    + "Frames are reported in DISPLAY-RATE frames, the numbers Sequencer shows and the numbers "
+    + "puerts_sequence_build takes, with the raw tick values beside them under start_tick / "
+    + "end_tick / tick, so a caller never has to know the 60000-per-second tick resolution to "
+    + "compare a read against a spec. "
+    + "Arrays are canonically ordered - bindings by name then guid, tracks by binding then type "
+    + "then property, sections by start frame, channels in engine channel order, keys by time - so "
+    + "two reads of an unchanged sequence produce identical content and an identical "
+    + "structure_hash_sha1. That hash covers keyframe VALUES as well as structure, because for a "
+    + "sequence a key value is the content: a camera that stops moving is a different sequence, not "
+    + "the same sequence with different text. "
+    + "A possessable resolves to a level actor by name when the editor world holds one, and reports "
+    + "resolved false with the stored binding reference when it does not, rather than omitting it. "
+    + "Reading is allowed anywhere under /Game and /Engine.",
+    z.object({
+      asset_path: z.string().describe(
+        "The Level Sequence, as a package path (\"/Game/MCPGenerated/LS_Intro\") or the object "
+        + "path other tools hand back. Limited to /Game and /Engine.",
+      ),
+      include_keys: z.boolean().optional().describe(
+        "Default true. False reports sections and channels with key_count only. It narrows what is "
+        + "REPORTED and never what is hashed, because a hash of a filtered read is a hash of the "
+        + "request.",
+      ),
+    }).strict()],
+  ["puerts_sequence_build", "sequence_build",
+    "Create or update a UE4.27 ULevelSequence from one desired-state spec: display rate, playback "
+    + "range, actor bindings, tracks, sections and keyframes, in ONE transaction. The Sequencer "
+    + "answer to the round-trip problem: a three-second intro that would take a possessable, a "
+    + "spawnable, three tracks and five keys as separate calls is one call. "
+    + "CONVERGENT. Every binding, track, section and key is an upsert keyed on its own identity "
+    + "(a binding by name and kind, a track by binding plus type plus property, a section by its "
+    + "frame range, a key by its channel and frame), and each one's satisfied-ness is re-evaluated "
+    + "immediately before it is written rather than read from the plan - because the spec is "
+    + "ordered and an earlier entry may have moved the state a later one depends on. A rerun of an "
+    + "identical spec writes nothing, reports converged true and applied_operation_count 0, and "
+    + "leaves the structure hash where it was. "
+    + "ADDITIVE. It never removes a binding, track, section or key it did not write in this call. "
+    + "There is no remove_unlisted: pruning a sequence someone hand-authored in Sequencer is a "
+    + "different and more dangerous operation than converging on a spec, and it is not in this "
+    + "tool. Deleting is a gap, stated rather than half-built. "
+    + "FAILURE-ATOMIC. Any refusal cancels the transaction, runs the asset rollback boundary over "
+    + "the package, and then decides whether the sequence actually came back by hashing it again "
+    + "rather than trusting the undo; that answer is rollback_succeeded. A sequence this call "
+    + "created is removed from the Asset Registry and left nothing on disk. "
+    + "Frames are DISPLAY-RATE frames throughout, converted to tick resolution by the engine's own "
+    + "FFrameRate::TransformTime, so a spec written against what Sequencer shows lands where it "
+    + "reads. "
+    + "pre_structure_hash and post_structure_hash are the same value puerts_sequence_inspect "
+    + "returns as structure_hash_sha1, so a caller verifies the result against an independent read "
+    + "instead of against this command's own report. "
+    + "Authoring is limited to /Game/MCPGenerated/.",
+    z.object({
+      asset_path: z.string().describe(
+        "Package path of the Level Sequence to create or update, under /Game/MCPGenerated/.",
+      ),
+      frame_rate: z.number().positive().max(240).optional().describe(
+        "Display rate in frames per second. Default 30 on creation; omitted on an existing "
+        + "sequence keeps its current rate. Changing the rate of an existing sequence does NOT "
+        + "move existing keys (UE4.27 stores key times in ticks), and the response warns when it "
+        + "changed one.",
+      ),
+      playback_range: z.object({
+        start_frame: z.number().int(),
+        end_frame: z.number().int(),
+      }).strict().optional().describe(
+        "Playback range in display-rate frames, end exclusive, the same convention Sequencer uses.",
+      ),
+      bindings: z.array(z.object({
+        id: z.string().min(1).max(64).describe(
+          "Your own id for this binding, used by tracks in this same spec. Not stored in the asset: "
+          + "the asset's identity is the FGuid, which the response maps back to this id under "
+          + "binding_guids.",
+        ),
+        kind: z.enum(["possessable", "spawnable"]),
+        name: z.string().min(1).max(128).describe(
+          "The binding's display name in Sequencer. This IS the convergence key together with "
+          + "kind: a rerun finds the binding by name rather than making a second one.",
+        ),
+        actor_label: z.string().optional().describe(
+          "possessable only. The label of an actor in the editor's current level. A label matching "
+          + "no actor, or more than one, is a refusal that names the matches - never a guess.",
+        ),
+        actor_class: z.string().optional().describe(
+          "spawnable only. Actor class path, limited to /Game/, /Script/Engine. and "
+          + "/Script/CinematicCamera.. The object template is created as an inner of the MovieScene "
+          + "and a UMovieSceneSpawnTrack is added with its default true, which is what makes a "
+          + "spawnable actually spawn.",
+        ),
+      }).strict()).max(100).optional(),
+      tracks: z.array(z.object({
+        binding: z.string().min(1).describe(
+          "A binding id declared in this spec, or \"master\" for a master track. A Camera track is "
+          + "master-only.",
+        ),
+        type: z.enum(["Transform", "Float", "Bool", "Visibility", "Camera"]).describe(
+          "Transform is UMovieScene3DTransformTrack. Float is UMovieSceneFloatTrack and needs "
+          + "property. Bool is UMovieSceneBoolTrack and needs property. Visibility is "
+          + "UMovieSceneVisibilityTrack, which animates bHidden, so value true means HIDDEN. Camera "
+          + "is UMovieSceneCameraCutTrack. Event and Audio tracks are refused by name: an event "
+          + "track needs a director Blueprint this bridge does not author, and there is no tool "
+          + "that can produce a USoundBase to put in an audio section.",
+        ),
+        property: z.string().optional().describe(
+          "Float and Bool only. The property path Sequencer animates, e.g. "
+          + "\"Light.Intensity\". The last segment is the property name and the whole string is the "
+          + "path, matching UMovieScenePropertyTrack::SetPropertyNameAndPath. Part of the track's "
+          + "identity, so two Float tracks on one binding with different properties are two tracks.",
+        ),
+        sections: z.array(z.object({
+          start_frame: z.number().int(),
+          end_frame: z.number().int(),
+          row_index: z.number().int().min(0).max(32).optional(),
+          keys: z.array(z.object({
+            frame: z.number().int(),
+            value: z.union([
+              z.number(),
+              z.boolean(),
+              z.string(),
+              z.object({
+                location: vector.optional(),
+                rotation: rotator.optional(),
+                scale: vector.optional(),
+              }).strict(),
+            ]).describe(
+              "Float: a number. Bool and Visibility: true or false. Transform: "
+              + "{location:{x,y,z}, rotation:{pitch,yaw,roll}, scale:{x,y,z}}, any subset - an "
+              + "omitted component writes no key on those channels rather than writing a zero. "
+              + "Camera: the binding id of the camera to cut to, as a string.",
+            ),
+            interpolation: z.enum(["Linear", "Cubic", "Constant"]).optional().describe(
+              "Default Cubic on float channels, matching Sequencer's own default. Ignored on bool "
+              + "and camera-cut channels, which have no interpolation, and the response warns "
+              + "rather than silently dropping it.",
+            ),
+          }).strict()).max(2000),
+        }).strict()).max(100),
+      }).strict()).max(100).optional(),
+      plan_only: z.boolean().optional().describe(
+        "Default false. Classify the spec against the sequence that exists, report "
+        + "operations_to_apply, unchanged_operations, expected_change_count and "
+        + "pre_structure_hash, and write nothing.",
+      ),
+      save: z.boolean().optional().describe(
+        "Default true. A sequence whose read-back disagreed with the spec is never saved. A "
+        + "converged rerun writes nothing to disk and says so under saved false.",
+      ),
+    }).strict()],
   ["puerts_input_mapping_info", "input_mapping_info",
     "Read the project's input action and axis mappings. The independent read half of "
     + "puerts_input_mapping_patch, and READ ONLY: no transaction is opened, nothing is written, "
@@ -1384,6 +1540,7 @@ const structuredParameters: Readonly<Record<string, readonly string[]>> = {
   puerts_pie_agent_query: ["conditions"],
   puerts_scene_inspect: ["actors", "include_properties"],
   puerts_scene_batch: ["operations"],
+  puerts_sequence_build: ["playback_range", "bindings", "tracks"],
   puerts_material_instance_build: ["scalars", "vectors", "textures", "switches"],
   puerts_behavior_tree_build: ["keys", "root"],
   puerts_anim_blueprint_build: ["variables", "anim_graph", "state_machine", "event_graph"],
@@ -1406,6 +1563,11 @@ const commandTimeouts: Readonly<Record<string, number>> = {
   puerts_input_mapping_patch: 15000,
   puerts_scene_batch: 60000,
   puerts_scene_inspect: 15000,
+  // A sequence build creates the asset, writes every track and every key, reads
+  // the whole thing back for the post hash and then saves. No compile, so it is
+  // cheaper than a Blueprint build, but a hundred-section spec is real work.
+  puerts_sequence_build: 30000,
+  puerts_sequence_inspect: 15000,
   puerts_material_inspect: 15000,
   // A static switch change recompiles the instance's shader permutation, and
   // the command blocks on that compile rather than reporting "requested".

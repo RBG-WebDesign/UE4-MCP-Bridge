@@ -23,12 +23,12 @@
     "native_live_partial": "live acceptance passed, but part of the evidence is the builder own report because no independent reader exists yet",
     "legacy_untested": "no live editor proof of any kind; a non-null test_file covers only the mock listener"
   },
-  "tool_count": 256,
+  "tool_count": 258,
   "by_backend": {
     "legacy_http": 170,
     "native_pipe_alias": 38,
     "server_local": 3,
-    "native_pipe": 45
+    "native_pipe": 47
   },
   "tools": [
     {
@@ -8682,6 +8682,87 @@
       "migration_risk": "low",
       "capability_loss_risk": "low",
       "notes": "canonical read of the editor's current level: actors with class, world transform, folder, tags, bounds, attachment and components, plus PlayerStarts and structure_hash_sha1. Shares one snapshot definition with scene_batch (Private/MCPBridgeSceneSnapshot.h), for the reason graph_inspect and blueprint_member_patch share MCPBridgeBlueprintMembers.h: a batch that measured convergence with a different reader than the inspector a caller verifies with could report a change the inspector cannot see. Actor identity is observed (object name, unique within a level), not derived. The hash always covers the whole level; an actors filter narrows the report only, because a hash of a filter is a hash of the request. Read-only on the same terms as graph_inspect: absent from IsToolMutating, reports package_dirty_before/after. UNCOMPILED: lane L holds no build rights, so no editor has run this code.",
+      "verification": "implemented"
+    },
+    {
+      "name": "puerts_sequence_build",
+      "module": "mcp-server/src/tools/puerts.ts",
+      "backend": "native_pipe",
+      "migration_state": "native_pending_live",
+      "target_replacement": null,
+      "description": "[PRIMARY NATIVE IPC] Create or update a UE4.27 ULevelSequence from one desired-state spec: display rate, playback range, actor bindings, tracks, sections and keyframes, in ONE transaction. The Sequencer answer to the round-trip problem: a three-second intro that would take a possessable, a spawnable, three tracks and five keys as separate calls is one call. CONVERGENT. Every binding, track, section and key is an upsert keyed on its own identity (a binding by name and kind, a track by binding plus type plus property, a section by its frame range, a key by its channel and frame), and each one's satisfied-ness is re-evaluated immediately before it is written rather than read from the plan - because the spec is ordered and an earlier entry may have moved the state a later one depends on. A rerun of an identical spec writes nothing, reports converged true and applied_operation_count 0, and leaves the structure hash where it was. ADDITIVE. It never removes a binding, track, section or key it did not write in this call. There is no remove_unlisted: pruning a sequence someone hand-authored in Sequencer is a different and more dangerous operation than converging on a spec, and it is not in this tool. Deleting is a gap, stated rather than half-built. FAILURE-ATOMIC. Any refusal cancels the transaction, runs the asset rollback boundary over the package, and then decides whether the sequence actually came back by hashing it again rather than trusting the undo; that answer is rollback_succeeded. A sequence this call created is removed from the Asset Registry and left nothing on disk. Frames are DISPLAY-RATE frames throughout, converted to tick resolution by the engine's own FFrameRate::TransformTime, so a spec written against what Sequencer shows lands where it reads. pre_structure_hash and post_structure_hash are the same value puerts_sequence_inspect returns as structure_hash_sha1, so a caller verifies the result against an independent read instead of against this command's own report. Authoring is limited to /Game/MCPGenerated/.",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "asset_path": "string",
+          "frame_rate": "number?",
+          "playback_range": "object?",
+          "bindings": "array?",
+          "tracks": "array?",
+          "plan_only": "boolean?",
+          "save": "boolean?"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": "mcp-server/tests/puerts-tools.test.ts",
+      "capability_category": "cinematics",
+      "canonical_capability": "cinematics.sequence_build",
+      "owner": "MCPBridgePuerTS service",
+      "lifecycle": "active",
+      "migration_action": "KEEP",
+      "replacement_tool": null,
+      "compatibility_alias": false,
+      "cpp_builder": "MCPPuerTSBridgeService",
+      "cpp_entry_point": "BuildLevelSequenceJson",
+      "python_handler": null,
+      "live_evidence": [],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": "desired-state ULevelSequence authoring in one transaction: display rate, playback range, possessable and spawnable bindings, Transform/Float/Bool/Visibility/Camera tracks, sections and keyframes. Modelled on scene_batch and blueprint_graph_patch. Carries the lane A lesson explicitly: every binding, track, section and key asks the live UMovieScene whether it is already satisfied immediately before its own mutation, and no verdict is read from a plan - the playback-range tick conversion in particular happens AFTER the display-rate change in the same call, because converting it earlier would use the rate the sequence had rather than the one it now has. ADDITIVE by design: no remove_unlisted, no clear_existing, nothing is deleted, and that is a stated gap rather than a half-built feature. Failure-atomic: the whole spec is validated before an asset exists (actor labels resolved to exactly one actor, classes loaded and checked against AActor, track types and properties checked, duplicate track identities refused), and any later refusal cancels the transaction, runs FBridgeAssetRollback, and decides rollback_succeeded by re-hashing rather than trusting the undo. Verified by an independent re-read: after applying, every track, section and key is looked up again in the asset as it now is. Four UE4.27 facts this depends on, each confirmed in D:/UE/UE_4.27/Engine/Source: a transform section is nine FMovieSceneFloatChannel (FMovieSceneDoubleChannel does not exist in 4.27); rotation channel order is Roll/Pitch/Yaw at indices 3/4/5, not FRotator member order; the camera binding is UE::MovieScene::FRelativeObjectBindingID, not the removed three-argument FMovieSceneObjectBindingID; and ULevelSequence::BindPossessableObject is a SILENT no-op on a null Context, which the command refuses rather than discovers at playback. ULevelSequenceFactoryNew is private to the LevelSequenceEditor plugin and cannot be included, so creation reproduces its five lines. Needs the LevelSequence, MovieScene and MovieSceneTracks module dependencies, all Runtime. UNCOMPILED and NOT live.",
+      "verification": "implemented"
+    },
+    {
+      "name": "puerts_sequence_inspect",
+      "module": "mcp-server/src/tools/puerts.ts",
+      "backend": "native_pipe",
+      "migration_state": "native_pending_live",
+      "target_replacement": null,
+      "description": "[PRIMARY NATIVE IPC] Read a UE4.27 ULevelSequence back as machine-readable JSON: display rate, tick resolution, playback range, every possessable and spawnable binding, every master and object track with its sections, and every keyframe on every channel with its time, value and interpolation. The independent read half of puerts_sequence_build, and READ ONLY: no transaction is opened, nothing is saved, and the package dirty flag is reported before and after the read (package_dirty_before / package_dirty_after) so the claim is checkable. Binding identity is OBSERVED (identity_kind: \"observed\"): the id is the FGuid UMovieScene already stores, which is stable across renames and across a restart. Frames are reported in DISPLAY-RATE frames, the numbers Sequencer shows and the numbers puerts_sequence_build takes, with the raw tick values beside them under start_tick / end_tick / tick, so a caller never has to know the 60000-per-second tick resolution to compare a read against a spec. Arrays are canonically ordered - bindings by name then guid, tracks by binding then type then property, sections by start frame, channels in engine channel order, keys by time - so two reads of an unchanged sequence produce identical content and an identical structure_hash_sha1. That hash covers keyframe VALUES as well as structure, because for a sequence a key value is the content: a camera that stops moving is a different sequence, not the same sequence with different text. A possessable resolves to a level actor by name when the editor world holds one, and reports resolved false with the stored binding reference when it does not, rather than omitting it. Reading is allowed anywhere under /Game and /Engine.",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "asset_path": "string",
+          "include_keys": "boolean?"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": "mcp-server/tests/puerts-tools.test.ts",
+      "capability_category": "cinematics",
+      "canonical_capability": "cinematics.sequence_inspect",
+      "owner": "MCPBridgePuerTS service",
+      "lifecycle": "active",
+      "migration_action": "KEEP",
+      "replacement_tool": null,
+      "compatibility_alias": false,
+      "cpp_builder": "MCPPuerTSBridgeService",
+      "cpp_entry_point": "InspectLevelSequenceJson",
+      "python_handler": null,
+      "live_evidence": [],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": "the first tool in this bridge that touches Sequencer at all. Reads a ULevelSequence as canonical JSON: display rate, tick resolution, playback range, possessables and spawnables, master and object tracks, sections with their ranges and row indices, and every key on every channel with its time, value and interpolation. Read-only: absent from IsToolMutating, nothing calls Modify or MarkPackageDirty, package_dirty_before/after reported. Binding identity is OBSERVED - the FGuid UMovieScene already stores - unlike the derived identities widget_inspect and behavior_tree_inspect must use. Frames are reported in DISPLAY-RATE frames with the raw ticks beside them, so a caller never has to know the 60000-per-second tick resolution; the conversion is FFrameRate::TransformTime, the engine's own integer path. Canonical order is bindings by name then guid, tracks by binding then type then property, sections by start tick then row, channels in engine channel order. structure_hash_sha1 comes from MCPBridgeBlueprintMembers::StructureHash - the same digest and the same lowercase hex the graph, Behavior Tree, widget and scene inspectors report - and covers keyframe VALUES as well as shape, because for a sequence a key value is the content. Actor resolution is reported under 'resolution' and is deliberately OUTSIDE the hashed set: it depends on which level the editor has open, not on the asset. UNCOMPILED and NOT live: this lane had no build rights and no editor.",
       "verification": "implemented"
     },
     {

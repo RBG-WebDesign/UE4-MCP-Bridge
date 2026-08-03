@@ -131,6 +131,10 @@ export const toolAnnotations: Record<string, ToolAnnotations> = {
   // The read half of puerts_scene_batch: kept out of IsToolMutating on the
   // native side, reports the level package's dirty flag before and after.
   puerts_scene_inspect: readOnly,
+  // The read half of puerts_sequence_build: absent from IsToolMutating on the
+  // native side, so no transaction opens, and it reports the sequence package's
+  // dirty flag before and after the read.
+  puerts_sequence_inspect: readOnly,
   puerts_viewport_screenshot: mutatingIdempotent,
   puerts_set_property: mutatingIdempotent,
   puerts_call_function: mutating,
@@ -183,6 +187,14 @@ export const toolAnnotations: Record<string, ToolAnnotations> = {
   // throughout: a rerun applies nothing, reports converged, and the level does
   // not get dirtier.
   puerts_scene_batch: destructiveIdempotent,
+  // Mutating and idempotent, and deliberately NOT destructive: it is additive
+  // throughout. There is no remove_unlisted, no clear_existing, and a key at the
+  // requested time and value is reported unchanged rather than rewritten, so a
+  // rerun writes nothing and the package does not get dirtier. The one thing it
+  // overwrites is a key that already exists at the same frame on the same
+  // channel with a different value, which is what "converge on this spec" means
+  // and is covered by the transaction.
+  puerts_sequence_build: mutatingIdempotent,
   puerts_delete_actor: destructiveIdempotent,
   puerts_save: destructive,
   puerts_undo: destructive,

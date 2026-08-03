@@ -69,5 +69,21 @@ public class MCPBridgePuerTS : ModuleRules
         // MCPBridgeGraphBuilder is: pie_agent_query re-fronts UPIEAgentLibrary
         // rather than reimplementing the runtime observation it already owns.
         PrivateDependencyModuleNames.AddRange(new string[] { "AIModule", "AssetRegistry", "BlueprintGraph", "GameplayTasks", "InputCore", "Json", "JsonUtilities", "JsEnv", "MCPBridgeGraphBuilder", "MCPBridgePIEAgent", "Projects", "SourceControl", "UMG", "UMGEditor", "UnrealEd" });
+        // LevelSequence, MovieScene and MovieSceneTracks are for sequence_inspect
+        // and sequence_build only, and all three are RUNTIME modules
+        // (Engine/Source/Runtime/...), not plugins and not editor-only. That
+        // matters because the obvious fourth name is not here: ULevelSequenceFactoryNew
+        // lives in the LevelSequenceEditor PLUGIN, in a Private header, so it
+        // cannot be included from this module at all. sequence_build reproduces
+        // the five lines that factory runs instead of depending on it.
+        //
+        // Sequencer, MovieSceneTools and MovieSceneCapture are deliberately NOT
+        // here. They are the render path, and no render command shipped: see the
+        // sequence_render note in docs/CAPABILITY_FINDINGS.md.
+        //
+        // The frame types (FFrameRate, FFrameNumber, FFrameTime) are in Core, so
+        // TimeManagement is not needed and is not added; LevelSequence exports it
+        // publicly anyway.
+        PrivateDependencyModuleNames.AddRange(new string[] { "LevelSequence", "MovieScene", "MovieSceneTracks" });
     }
 }
