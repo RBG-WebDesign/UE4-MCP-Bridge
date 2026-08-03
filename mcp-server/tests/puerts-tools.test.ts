@@ -73,7 +73,7 @@ async function main(): Promise<void> {
     });
     const client = new PuerTSClient();
     const tools = createPuertsTools(client);
-    assert(tools.length === 45, "expected all 45 PuerTS tools");
+    assert(tools.length === 47, "expected all 47 PuerTS tools");
     assert(tools.some((tool) => tool.name === "puerts_behavior_tree_build"), "native Behavior Tree builder tool is missing");
     assert(tools.some((tool) => tool.name === "puerts_behavior_tree_inspect"), "native Behavior Tree inspector tool is missing");
     assert(tools.some((tool) => tool.name === "puerts_sky_shader_create"), "native sky shader tool is missing");
@@ -704,6 +704,105 @@ async function materialSuite(): Promise<void> {
     // Two reads and one write reached the pipe; the two schema rejections did not.
     assert(received.length === 3, "a rejected material request still reached the pipe");
     console.log("  PASS  material inspect and material instance build contract");
+
+    // puerts_material_build is the master material graph write that used to be
+    // a documented gap. What is pinned here is what a client can see: the
+    // annotation says it replaces a graph, the /Game/MCPGenerated/ limit is
+    // enforced before the pipe, the node-and-connection arrays survive the
+    // JSON-text encoding an MCP client applies to structured arguments, and it
+    // carries a compile-sized timeout rather than the 7 second default.
+    const graphAnnotations = toolAnnotations.puerts_material_build;
+    assert(graphAnnotations !== undefined, "puerts_material_build has no annotation");
+    assert(graphAnnotations.readOnlyHint === false, "the material graph builder is annotated read-only");
+    assert(
+      graphAnnotations.destructiveHint === true,
+      "the material graph builder is not annotated destructive; the spec is the whole graph and "
+      + "a build aimed at an existing material replaces it",
+    );
+    assert(
+      graphAnnotations.idempotentHint === true,
+      "the material graph builder is not annotated idempotent; a rerun of the same spec converges",
+    );
+
+    const graph = tools.find((entry) => entry.name === "puerts_material_build");
+    assert(graph !== undefined, "puerts_material_build is missing");
+    const graphOutside = await graph.handler({ asset_path: "/Game/Elsewhere/M_Probe" });
+    assert(
+      JSON.parse(graphOutside.content[0]?.text ?? "null").success === false,
+      "the material graph builder accepted a path outside /Game/MCPGenerated/",
+    );
+    const graphBuilt = await graph.handler({
+      asset_path: "/Game/MCPGenerated/M_Probe",
+      shading_model: "Unlit",
+      parameters: [{ kind: "vector", name: "BeaconColor", default: { r: 1, g: 0.62, b: 0.16 } }],
+      expressions: [{ id: "Glow", type: "Multiply" }],
+      connections: [{ from: "BeaconColor", to: "Glow.A" }],
+      outputs: { EmissiveColor: "Glow" },
+    });
+    assert(
+      JSON.parse(graphBuilt.content[0]?.text ?? "null").success === true,
+      "a valid material graph build was rejected",
+    );
+    const graphSent = received[received.length - 1];
+    assert(graphSent?.__tool === "material_build", "the material build runtime command name is wrong");
+    assert(
+      typeof graphSent?.__timeout === "number" && (graphSent.__timeout as number) > 30000,
+      "the material build did not get a compile-sized timeout budget",
+    );
+    for (const key of ["parameters", "expressions", "connections", "outputs"]) {
+      const value = graphSent?.[key];
+      const decoded = typeof value === "string" ? JSON.parse(value) : value;
+      assert(
+        decoded !== undefined && typeof decoded === "object",
+        `${key} did not survive the MCP argument encoding as a structure`,
+      );
+    }
+    assert(
+      JSON.parse(
+        (await graph.handler({ asset_path: "/Game/MCPGenerated/M_Probe", domain: "Hologram" }))
+          .content[0]?.text ?? "null",
+      ).success === false,
+      "the material graph builder accepted a domain that does not exist in 4.27",
+    );
+
+    // puerts_texture_import is the other half: nothing else in the catalog can
+    // produce a texture for a texture parameter. It generates rather than
+    // imports, so the test pins that source_file is carried to the native
+    // refusal rather than dropped at the client, where the caller would get an
+    // unexplained schema error instead of the reason.
+    const textureAnnotations = toolAnnotations.puerts_texture_import;
+    assert(textureAnnotations !== undefined, "puerts_texture_import has no annotation");
+    assert(textureAnnotations.readOnlyHint === false, "the texture builder is annotated read-only");
+    assert(
+      textureAnnotations.destructiveHint === false,
+      "the texture builder is annotated destructive; it writes one asset and touches nothing else",
+    );
+    const texture = tools.find((entry) => entry.name === "puerts_texture_import");
+    assert(texture !== undefined, "puerts_texture_import is missing");
+    assert(
+      JSON.parse(
+        (await texture.handler({ asset_path: "/Game/Textures/T_Probe" })).content[0]?.text ?? "null",
+      ).success === false,
+      "the texture builder accepted a path outside /Game/MCPGenerated/",
+    );
+    const textureBuilt = await texture.handler({
+      asset_path: "/Game/MCPGenerated/T_Probe",
+      pattern: "checker",
+      width: 128,
+      color: { r: 1, g: 1, b: 1 },
+      source_file: "C:/somewhere/grid.png",
+    });
+    assert(
+      JSON.parse(textureBuilt.content[0]?.text ?? "null").success === true,
+      "a valid texture request was rejected at the client",
+    );
+    const textureSent = received[received.length - 1];
+    assert(textureSent?.__tool === "texture_import", "the texture runtime command name is wrong");
+    assert(
+      textureSent?.source_file === "C:/somewhere/grid.png",
+      "source_file was dropped at the client, so the native refusal could never explain itself",
+    );
+    console.log("  PASS  material graph build and texture generation contract");
   } finally {
     await new Promise<void>((resolve) => server.close(() => resolve()));
     await rm(directory, { recursive: true, force: true });

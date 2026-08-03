@@ -1037,10 +1037,9 @@ const specs = [
     + "response (compile.succeeded, compile.errors, and instance_own_resource, which is false "
     + "when the errors belong to the parent material and were not caused by this request), "
     + "and the save happens only after an independent read-back agrees with every requested "
-    + "value. Verify with puerts_material_inspect. There is deliberately no companion command "
-    + "for master material graphs: UE4.27's graph mutators write outside the undo record, so "
-    + "a failed multi-node build cannot be rolled back, and materials ship read-only on that "
-    + "side. Assets are limited to /Game/MCPGenerated/.",
+    + "value. Verify with puerts_material_inspect. The parent material itself is authored by "
+    + "puerts_material_build, and a texture for the textures map comes from "
+    + "puerts_texture_import. Assets are limited to /Game/MCPGenerated/.",
     z.object({
       asset_path: z.string().regex(/^\/Game\/MCPGenerated\/[A-Za-z0-9_]+(\/[A-Za-z0-9_]+)*$/).describe(
         "Package path under /Game/MCPGenerated/, no asset-name suffix. The native "
@@ -1080,6 +1079,160 @@ const specs = [
       save: z.boolean().optional().describe(
         "Default true. An instance whose read-back disagreed with the request is never saved.",
       ),
+    }).strict()],
+  ["puerts_material_build", "material_build",
+    "Author a UMaterial graph from one desired-state spec: expression nodes, named scalar, "
+    + "vector, texture and static switch parameters, the links between the nodes, and the links "
+    + "into BaseColor, EmissiveColor, Roughness, Normal and the rest. This is the parent that "
+    + "puerts_material_instance_build then overrides, and the tool that used to be a documented "
+    + "gap. "
+    + "The spec is the WHOLE graph. A build aimed at an existing material REPLACES the graph it "
+    + "had, which is what makes a rerun of the same spec converge on the same result. "
+    + "MUTATING, not read-only, and the reason the earlier read-only note is obsolete: UE4.27's "
+    + "UMaterialEditingLibrary graph mutators do not call Modify(), but the engine's own material "
+    + "editor does not rely on them to - it opens a transaction and calls Material->Modify() "
+    + "itself. This command does the same, CHECKS the return value, and refuses before writing "
+    + "anything if it comes back false. One Modify() covers the whole build because every "
+    + "expression this command connects is one it created in the same transaction, so the "
+    + "UMaterial is the only pre-existing object it mutates. On failure the transaction is "
+    + "cancelled, the rollback boundary runs, and whether the material actually came back is "
+    + "decided by re-reading it: the Asset Registry on a create, the structure hash on a replace. "
+    + "The compile result is in the response (compile.succeeded, compile.errors) rather than "
+    + "assumed, and the save happens only after an independent read-back through the "
+    + "puerts_material_inspect reader agrees that every requested link, material output and "
+    + "parameter landed. "
+    + "Node ids are yours and expression names are the engine's, so the response carries a nodes "
+    + "array mapping each spec id to the expression_id puerts_material_inspect will report. "
+    + "Assets are limited to /Game/MCPGenerated/.",
+    z.object({
+      asset_path: z.string().regex(/^\/Game\/MCPGenerated\/[A-Za-z0-9_]+(\/[A-Za-z0-9_]+)*$/).describe(
+        "Package path under /Game/MCPGenerated/, no asset-name suffix. The native command "
+        + "enforces the same limit; this rejects earlier, at the client.",
+      ),
+      domain: z.enum([
+        "Surface", "DeferredDecal", "LightFunction", "Volume", "PostProcess", "UI",
+      ]).optional().describe("Default Surface."),
+      blend_mode: z.enum([
+        "Opaque", "Masked", "Translucent", "Additive", "Modulate", "AlphaComposite", "AlphaHoldout",
+      ]).optional().describe("Default Opaque."),
+      shading_model: z.enum([
+        "Unlit", "DefaultLit", "Subsurface", "PreintegratedSkin", "ClearCoat",
+        "SubsurfaceProfile", "TwoSidedFoliage", "Hair", "Cloth", "Eye",
+      ]).optional().describe("Default DefaultLit. Unlit is the one an emissive-only material wants."),
+      two_sided: z.boolean().optional().describe("Default false."),
+      parameters: z.array(z.object({
+        kind: z.enum(["scalar", "vector", "texture", "switch"]),
+        name: z.string().min(1).describe(
+          "The parameter name a material instance will override. Also the node's id unless id "
+          + "is given, so outputs and connections can name it directly.",
+        ),
+        id: z.string().optional().describe("Node id, if it should differ from name."),
+        default: z.union([
+          z.number(),
+          z.boolean(),
+          z.string(),
+          z.object({ r: z.number(), g: z.number(), b: z.number(), a: z.number().optional() }).strict(),
+        ]).optional().describe(
+          "A number for scalar, {r,g,b,a} for vector, true/false for switch, and a texture asset "
+          + "path for texture. REQUIRED for texture: a texture sample with no texture does not "
+          + "compile, and puerts_texture_import can generate one.",
+        ),
+        group: z.string().optional().describe("Parameter group shown in the instance editor."),
+        x: z.number().optional(),
+        y: z.number().optional(),
+      }).strict()).optional().describe(
+        "Named parameter nodes. Sugar over expressions: a scalar becomes a "
+        + "MaterialExpressionScalarParameter, a switch becomes a StaticSwitchParameter (which "
+        + "also has A and B inputs), and all of them share one id namespace with expressions.",
+      ),
+      expressions: z.array(z.object({
+        id: z.string().min(1).describe("Your id for this node, referenced by connections and outputs."),
+        type: z.string().min(1).describe(
+          "Expression class, short or full: \"Multiply\", \"Constant3Vector\", \"TextureSample\", "
+          + "or \"MaterialExpressionMultiply\". Must resolve to a concrete UMaterialExpression "
+          + "subclass; anything else is refused.",
+        ),
+        params: z.record(z.unknown()).optional().describe(
+          "Property name to value on that node, e.g. {\"ConstA\": 2.0} on a Multiply or "
+          + "{\"Texture\": \"/Game/MCPGenerated/T_Grid\"} on a TextureSample. An unknown property "
+          + "is refused with the node's editable property names; an asset path that loads nothing "
+          + "is an error rather than a silent null.",
+        ),
+        x: z.number().optional(),
+        y: z.number().optional(),
+      }).strict()).optional(),
+      connections: z.array(z.object({
+        from: z.string().min(1).describe("\"nodeId\" for its first output, or \"nodeId.RGB\"."),
+        to: z.string().min(1).describe("\"nodeId.InputName\", e.g. \"Glow.A\". A wrong name is "
+          + "refused with the node's real input names."),
+      }).strict()).optional(),
+      outputs: z.record(z.string()).optional().describe(
+        "Material property to node id: {\"EmissiveColor\": \"Glow\", \"Roughness\": \"Rough\"}. "
+        + "Accepts BaseColor, Metallic, Specular, Roughness, Anisotropy, EmissiveColor, Opacity, "
+        + "OpacityMask, Normal, Tangent, WorldPositionOffset, SubsurfaceColor, AmbientOcclusion, "
+        + "Refraction and PixelDepthOffset - the same names puerts_material_inspect reports.",
+      ),
+      plan_only: z.boolean().optional().describe(
+        "Default false. True validates the whole spec and answers with the planned nodes without "
+        + "creating or touching an asset.",
+      ),
+      save: z.boolean().optional().describe(
+        "Default true. A material whose read-back or compile disagreed is never saved.",
+      ),
+    }).strict()],
+  ["puerts_texture_import", "texture_import",
+    "Generate a UTexture2D asset so a texture parameter has something to point at. "
+    + "puerts_material_instance_build accepts a textures map and puerts_material_build accepts a "
+    + "texture parameter default, and nothing else in the catalog could produce a texture for "
+    + "either. "
+    + "GENERATED, not imported from disk, and the name is the only part of that which is "
+    + "historical. A solid colour or a checker needs no asset on disk and is reproducible from "
+    + "the spec, which is what makes the command convergent: the same spec produces identical "
+    + "source bytes, so a second run compares equal, reports unchanged, writes nothing and "
+    + "reports no changed asset. "
+    + "source_file is REFUSED with a reason rather than quietly ignored. Reading an arbitrary "
+    + "path off disk needs an allowed import root this bridge does not define, and guessing one "
+    + "would be a filesystem escape. "
+    + "The write is wrapped in a transaction, Modify() is called and its return value checked, "
+    + "and the source pixels are read back and compared byte for byte before anything is saved. "
+    + "Assets are limited to /Game/MCPGenerated/.",
+    z.object({
+      asset_path: z.string().regex(/^\/Game\/MCPGenerated\/[A-Za-z0-9_]+(\/[A-Za-z0-9_]+)*$/).describe(
+        "Package path under /Game/MCPGenerated/, no asset-name suffix.",
+      ),
+      pattern: z.enum(["solid", "checker"]).optional().describe("Default solid."),
+      width: z.number().int().optional().describe(
+        "Power of two, 4 to 2048. Default 256. The cap is deliberate: generation runs on the "
+        + "game thread and a placeholder does not need to stall the editor.",
+      ),
+      height: z.number().int().optional().describe(
+        "Power of two, 4 to 2048. Defaults to width.",
+      ),
+      checker_size: z.number().int().optional().describe(
+        "Checker square edge in pixels. Default 32. Ignored for a solid texture.",
+      ),
+      color: z.object({
+        r: z.number(), g: z.number(), b: z.number(), a: z.number().optional(),
+      }).strict().optional().describe(
+        "Linear colour 0..1. The solid colour, or the first checker colour. Default white.",
+      ),
+      color_b: z.object({
+        r: z.number(), g: z.number(), b: z.number(), a: z.number().optional(),
+      }).strict().optional().describe("The second checker colour. Default dark grey."),
+      srgb: z.boolean().optional().describe(
+        "Defaults from compression: true for Default, false for Normalmap, Masks and Grayscale. "
+        + "It changes the bytes written, not just a flag, so the encoding and the setting agree.",
+      ),
+      compression: z.enum(["Default", "Normalmap", "Masks", "Grayscale"]).optional(),
+      source_file: z.string().optional().describe(
+        "Accepted by the schema only so the refusal explains itself. File import is not "
+        + "implemented; use pattern, color and color_b.",
+      ),
+      plan_only: z.boolean().optional().describe(
+        "Default false. True answers with the plan, including whether the asset is already "
+        + "correct, without opening a transaction.",
+      ),
+      save: z.boolean().optional().describe("Default true."),
     }).strict()],
   ["puerts_scene_inspect", "scene_inspect",
     "Read the editor's current level back as machine-readable JSON: every actor with its object "
@@ -1385,6 +1538,8 @@ const structuredParameters: Readonly<Record<string, readonly string[]>> = {
   puerts_scene_inspect: ["actors", "include_properties"],
   puerts_scene_batch: ["operations"],
   puerts_material_instance_build: ["scalars", "vectors", "textures", "switches"],
+  puerts_material_build: ["parameters", "expressions", "connections", "outputs"],
+  puerts_texture_import: ["color", "color_b"],
   puerts_behavior_tree_build: ["keys", "root"],
   puerts_anim_blueprint_build: ["variables", "anim_graph", "state_machine", "event_graph"],
   puerts_blackboard_build: ["keys"],
@@ -1410,6 +1565,13 @@ const commandTimeouts: Readonly<Record<string, number>> = {
   // A static switch change recompiles the instance's shader permutation, and
   // the command blocks on that compile rather than reporting "requested".
   puerts_material_instance_build: 30000,
+  // A master material build blocks on a full shader compile, not one instance
+  // permutation, and FinishCompilation is called on purpose so the response can
+  // report a compile result instead of "requested".
+  puerts_material_build: 90000,
+  // Generation is cheap; the cost is PostEditChange building the platform mip
+  // chain and running the compressor, which a 2048 square can spend seconds in.
+  puerts_texture_import: 30000,
   puerts_behavior_tree_build: 30000,
   puerts_behavior_tree_inspect: 15000,
   puerts_widget_inspect: 15000,

@@ -201,7 +201,7 @@ bool UMCPPuerTSBridgeService::Initialize(FString& OutError)
             TEXT("blueprint_build"), TEXT("blueprint_graph_patch"), TEXT("blueprint_member_patch"), TEXT("widget_build"),
             TEXT("behavior_tree_build"), TEXT("anim_blueprint_build"), TEXT("blackboard_build"), TEXT("ai_perception_build"),
             TEXT("material_instance_build"), TEXT("scene_batch"), TEXT("input_mapping_patch"), TEXT("folder_visibility"),
-            TEXT("camera_shake"),
+            TEXT("camera_shake"), TEXT("material_build"), TEXT("texture_import"),
             // Read only. Deliberately absent from IsToolMutating below, so they
             // open no transaction and return no transaction id.
             TEXT("diagnostic"), TEXT("find_assets"), TEXT("find_actors"), TEXT("read_property"),
@@ -1453,6 +1453,13 @@ bool UMCPPuerTSBridgeService::IsToolMutating(const FString& ToolName) const
         || ToolName == TEXT("blackboard_build")
         || ToolName == TEXT("ai_perception_build")
         || ToolName == TEXT("material_instance_build")
+        // material_build and texture_import both create assets, and both refuse
+        // outright when ActiveTransaction is null rather than writing without a
+        // rollback boundary. texture_import answers an already-correct asset
+        // before it needs the transaction, so a converged rerun costs an empty
+        // undo entry and nothing else.
+        || ToolName == TEXT("material_build")
+        || ToolName == TEXT("texture_import")
         || ToolName == TEXT("scene_batch");
 }
 

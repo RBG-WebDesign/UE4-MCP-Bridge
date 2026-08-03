@@ -1079,6 +1079,117 @@ async function buildMaterialInstance(context: ToolContext, input: JsonObject): P
   return result;
 }
 
+/** Author a UMaterial graph from one desired-state spec. The spec is the whole
+    graph, so a build aimed at an existing material replaces the graph it had
+    and a rerun of the same spec converges. The native side validates every
+    node, link and output before it touches an asset, so a bad spec is one
+    refusal listing everything wrong with it rather than a half-built graph.
+    plan_only answers without creating anything, which is why changed_assets
+    below is conditional on it. */
+async function buildMaterial(context: ToolContext, input: JsonObject): Promise<CommandResponse> {
+  const assetPath = requireString(input, "asset_path");
+  if (!assetPath.startsWith("/Game/MCPGenerated/")) {
+    throw new Error("Materials are limited to /Game/MCPGenerated/");
+  }
+  const planOnly = optionalBoolean(input, "plan_only", false);
+  const spec: JsonObject = {
+    asset_path: assetPath,
+    parameters: objectArray(input, "parameters"),
+    expressions: objectArray(input, "expressions"),
+    connections: objectArray(input, "connections"),
+    outputs: optionalObject(input, "outputs") ?? {},
+    two_sided: optionalBoolean(input, "two_sided", false),
+    plan_only: planOnly,
+    save: optionalBoolean(input, "save", true),
+  };
+  for (const key of ["domain", "blend_mode", "shading_model"] as const) {
+    const value = optionalString(input, key);
+    if (value !== undefined) { spec[key] = value; }
+  }
+
+  const resultJson = puerts.$ref<string>("");
+  const error = puerts.$ref<string>("");
+  if (!context.bridge.BuildMaterialJson(JSON.stringify(spec), resultJson, error)) {
+    throw new Error(puerts.$unref(error));
+  }
+  const parsed = JSON.parse(puerts.$unref(resultJson)) as JsonObject;
+  const warnings = stringArray(parsed, "warnings");
+  delete parsed.warnings;
+
+  const created = parsed.created === true;
+  const result = response(
+    true,
+    planOnly
+      ? "Material planned."
+      : created ? "Material created." : "Material graph replaced.",
+    parsed,
+  );
+  result.warnings.push(...warnings);
+  const objectPath = parsed.object_path;
+  if (!planOnly && typeof objectPath === "string" && objectPath.length > 0) {
+    result.changed_assets.push(objectPath);
+  }
+  return result;
+}
+
+/** Generate a UTexture2D so a texture parameter has something to point at.
+    Convergent: the same spec produces the same source bytes, and an asset that
+    already carries them is reported unchanged and not rewritten, so a rerun
+    dirties nothing and reports no changed asset. */
+async function importTexture(context: ToolContext, input: JsonObject): Promise<CommandResponse> {
+  const assetPath = requireString(input, "asset_path");
+  if (!assetPath.startsWith("/Game/MCPGenerated/")) {
+    throw new Error("Textures are limited to /Game/MCPGenerated/");
+  }
+  const planOnly = optionalBoolean(input, "plan_only", false);
+  const spec: JsonObject = {
+    asset_path: assetPath,
+    width: optionalNumber(input, "width", 256),
+    pattern: optionalString(input, "pattern") ?? "solid",
+    checker_size: optionalNumber(input, "checker_size", 32),
+    plan_only: planOnly,
+    save: optionalBoolean(input, "save", true),
+  };
+  // Absent means square: the native side defaults height to width, and sending
+  // a guessed 256 here would silently override that.
+  if (input.height !== undefined) { spec.height = optionalNumber(input, "height", 256); }
+  for (const key of ["color", "color_b"] as const) {
+    const value = optionalObject(input, key);
+    if (value !== undefined) { spec[key] = value; }
+  }
+  const compression = optionalString(input, "compression");
+  if (compression !== undefined) { spec.compression = compression; }
+  if (input.srgb !== undefined) { spec.srgb = optionalBoolean(input, "srgb", true); }
+  // Passed through rather than dropped so the native refusal is the one the
+  // caller reads: a client-side "unknown key" would not say why.
+  const sourceFile = optionalString(input, "source_file");
+  if (sourceFile !== undefined) { spec.source_file = sourceFile; }
+
+  const resultJson = puerts.$ref<string>("");
+  const error = puerts.$ref<string>("");
+  if (!context.bridge.ImportTextureJson(JSON.stringify(spec), resultJson, error)) {
+    throw new Error(puerts.$unref(error));
+  }
+  const parsed = JSON.parse(puerts.$unref(resultJson)) as JsonObject;
+
+  const created = parsed.created === true;
+  const unchanged = parsed.unchanged === true;
+  const result = response(
+    true,
+    planOnly
+      ? "Texture planned."
+      : created ? "Texture created."
+      : unchanged ? "Texture already matches the spec."
+      : "Texture updated.",
+    parsed,
+  );
+  const objectPath = parsed.object_path;
+  if (!planOnly && !unchanged && typeof objectPath === "string" && objectPath.length > 0) {
+    result.changed_assets.push(objectPath);
+  }
+  return result;
+}
+
 /** Read the editor's current level back as JSON. The read half of scene_batch,
     same shape as inspectGraph and inspectWidget: no transaction, nothing
     dirtied, dirty flag reported both sides. The level is whatever the editor
@@ -1584,6 +1695,10 @@ export const toolDefinitions: readonly ToolDefinition[] = [
   { name: "ai_controller_inspect", inputSchema: schema({ asset_path: { type: "string" } }, ["asset_path"]), outputSchema, permissions: ["assets.read"], executionTimeoutMs: 15000, execute: inspectAIController },
   { name: "material_inspect", inputSchema: schema({ asset_path: { type: "string" } }, ["asset_path"]), outputSchema, permissions: ["assets.read"], executionTimeoutMs: 15000, execute: inspectMaterial },
   { name: "material_instance_build", inputSchema: schema({ asset_path: { type: "string" }, parent_path: { type: "string" }, scalars: { type: "object" }, vectors: { type: "object" }, textures: { type: "object" }, switches: { type: "object" }, clear_unlisted: { type: "boolean" }, plan_only: { type: "boolean" }, save: { type: "boolean" } }, ["asset_path"]), outputSchema, permissions: ["assets.write"], executionTimeoutMs: 30000, execute: buildMaterialInstance },
+  // A master material build blocks on a full shader compile, which is a long
+  // way past the 30s an instance permutation needs.
+  { name: "material_build", inputSchema: schema({ asset_path: { type: "string" }, domain: { type: "string" }, blend_mode: { type: "string" }, shading_model: { type: "string" }, two_sided: { type: "boolean" }, parameters: { type: "array", items: { type: "object" } }, expressions: { type: "array", items: { type: "object" } }, connections: { type: "array", items: { type: "object" } }, outputs: { type: "object" }, plan_only: { type: "boolean" }, save: { type: "boolean" } }, ["asset_path"]), outputSchema, permissions: ["assets.write"], executionTimeoutMs: 90000, execute: buildMaterial },
+  { name: "texture_import", inputSchema: schema({ asset_path: { type: "string" }, pattern: { type: "string" }, width: { type: "number" }, height: { type: "number" }, checker_size: { type: "number" }, color: { type: "object" }, color_b: { type: "object" }, srgb: { type: "boolean" }, compression: { type: "string" }, source_file: { type: "string" }, plan_only: { type: "boolean" }, save: { type: "boolean" } }, ["asset_path"]), outputSchema, permissions: ["assets.write"], executionTimeoutMs: 30000, execute: importTexture },
   { name: "scene_inspect", inputSchema: schema({ level_path: { type: "string" }, actors: { type: "array", items: { type: "string" } }, include_components: { type: "boolean" }, include_properties: { type: "array", items: { type: "string" } } }), outputSchema, permissions: ["actors.read", "reflection.read"], executionTimeoutMs: 15000, execute: inspectScene },
   { name: "scene_batch", inputSchema: schema({ level_path: { type: "string" }, operations: { type: "array", items: { type: "object" } }, plan_only: { type: "boolean" }, verify: { type: "boolean" } }, ["operations"]), outputSchema, permissions: ["actors.spawn", "actors.delete", "reflection.write"], executionTimeoutMs: 60000, execute: applySceneBatch },
   { name: "input_mapping_info", inputSchema: schema({ action_name: { type: "string" }, axis_name: { type: "string" }, key: { type: "string" } }), outputSchema, permissions: ["project.config.read"], executionTimeoutMs: 3000, execute: inspectInputMappings },

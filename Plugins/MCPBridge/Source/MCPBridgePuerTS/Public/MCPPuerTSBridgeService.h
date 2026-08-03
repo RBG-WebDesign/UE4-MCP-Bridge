@@ -803,6 +803,54 @@ private:
         FString& OutResultJson,
         FString& OutError) const;
 
+    /** Author a UMaterial graph from one desired-state spec: expression nodes,
+        named scalar / vector / texture / static switch parameters, the links
+        between them, and the links into BaseColor, EmissiveColor, Roughness,
+        Normal and the rest.
+
+        The spec is the WHOLE graph, so a rerun converges and a build aimed at
+        an existing material replaces the graph it had.
+
+        Failure atomicity, which an earlier note in this header said was
+        impossible: UMaterialEditingLibrary's graph mutators do not call
+        Modify(), but the engine's own material editor does not rely on them to
+        (FMaterialEditor::CreateNewMaterialExpression, MaterialEditor.cpp:4344,
+        opens a transaction and calls Material->Modify() itself). This command
+        does the same and CHECKS the return value, refusing before writing
+        anything if it is false. One Modify() is enough because full replacement
+        means every expression this command connects is one it created inside
+        the same transaction, so the UMaterial is the only pre-existing object
+        it mutates. Whether a rollback worked is decided by re-reading: the
+        Asset Registry on the create path, the structure hash on the update
+        path.
+
+        The compile result is reported rather than assumed, and the save runs
+        only after an independent read-back through the material_inspect reader
+        agrees that every requested link, output and parameter landed. */
+    UFUNCTION(BlueprintCallable, Category="MCP PuerTS Bridge")
+    bool BuildMaterialJson(
+        const FString& SpecJson,
+        FString& OutResultJson,
+        FString& OutError);
+
+    /** Generate a UTexture2D asset so a texture parameter can be set.
+
+        material_instance_build accepts a textures map and material_build
+        accepts a texture parameter default, and nothing in the catalog could
+        produce a texture for either. A solid colour or a checker is enough,
+        needs no asset on disk, and is reproducible from the spec, which is what
+        makes it convergent: identical bytes compare equal and the second run
+        writes nothing.
+
+        Generation only. Importing an arbitrary file needs an allowed import
+        root this bridge does not define, so a spec naming source_file is
+        refused by name rather than reaching past the question. */
+    UFUNCTION(BlueprintCallable, Category="MCP PuerTS Bridge")
+    bool ImportTextureJson(
+        const FString& SpecJson,
+        FString& OutResultJson,
+        FString& OutError);
+
     /** Create or update a UMaterialInstanceConstant and set its scalar, vector,
         texture and static switch parameters from one desired-state spec.
 
@@ -821,33 +869,10 @@ private:
         in the response; the save happens only after an independent read-back
         agrees with every requested value.
 
-        There is deliberately no companion command for master material graphs.
-        UE4.27's graph mutators write outside the undo record, so a failed
-        multi-node build cannot be rolled back; material_inspect is the read
-        half and there is no write half. */
-
-    /** Create or update a UMaterialInstanceConstant and set its scalar, vector,
-        texture and static switch parameters from one desired-state spec.
-
-        A re-front of UMaterialEditingLibrary plus the boundary that library
-        does not have. Every parameter is resolved against the parent and
-        validated before the asset is created or touched, so an unknown name is
-        refused with the closest matching names rather than silently dropped. A
-        parameter already at the requested value and already overridden is
-        reported unchanged and not rewritten, so a rerun dirties nothing.
-
-        Modify() is called before any write because the library's setters do
-        not, which is what makes the failure path atomic: on any failure the
-        transaction is cancelled, the rollback boundary runs, and whether the
-        parameters actually came back is decided by reading them again rather
-        than by trusting the undo. The compile is run and its result reported
-        in the response; the save happens only after an independent read-back
-        agrees with every requested value.
-
-        There is deliberately no companion command for master material graphs.
-        UE4.27's graph mutators write outside the undo record, so a failed
-        multi-node build cannot be rolled back; material_inspect is the read
-        half and there is no write half. */
+        The companion command for master material graphs is BuildMaterialJson,
+        above. This one stays the parameter-override half: an instance is a set
+        of named overrides on a parent, which is a different operation from
+        authoring the parent's graph. */
     UFUNCTION(BlueprintCallable, Category="MCP PuerTS Bridge")
     bool BuildMaterialInstanceJson(
         const FString& SpecJson,

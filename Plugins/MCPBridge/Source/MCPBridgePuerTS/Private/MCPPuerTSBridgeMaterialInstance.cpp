@@ -740,18 +740,23 @@ bool UMCPPuerTSBridgeService::BuildMaterialInstanceJson(
     return true;
 }
 
-// Why there is no material_build or material_patch beside this command.
-//
-// A master material graph write cannot be made failure-atomic in UE4.27 with
-// the APIs that exist. UMaterialEditingLibrary::CreateMaterialExpressionEx
-// (MaterialEditingLibrary.cpp:469) adds to UMaterial::Expressions without ever
+// This note used to say there could be no material_build, because
+// UMaterialEditingLibrary::CreateMaterialExpressionEx
+// (MaterialEditingLibrary.cpp:469) adds to UMaterial::Expressions without
 // calling Material->Modify(), and ConnectMaterialExpressions (:631) writes
-// through FExpressionInput::Connect the same way. Neither mutation is in the
-// undo record, so cancelling a transaction around a half-built graph leaves the
-// half-built graph. The bridge would have to own Modify() for the material AND
-// for every expression before each step, and a failure partway through a
-// multi-node build would still need a hand-rolled inverse because the engine
-// has no snapshot to restore.
+// through FExpressionInput::Connect the same way.
 //
-// Per docs/REFRONT_MAP.md's rule, a builder without failure atomicity ships
-// READ ONLY. material_inspect is the read half and there is no write half.
+// Both of those readings are correct and the conclusion drawn from them was
+// not: the engine's own material editor has the same problem and owns Modify()
+// at the call site (FMaterialEditor::CreateNewMaterialExpression,
+// MaterialEditor.cpp:4344). One checked Modify() on the UMaterial, plus full
+// graph replacement so no pre-existing expression is ever rewritten, is enough
+// to make a multi-node build failure-atomic. See
+// MCPPuerTSBridgeMaterialBuild.cpp and finding 0s in
+// docs/CAPABILITY_FINDINGS.md.
+//
+// What remains true is the split between the two commands. A material instance
+// is a set of named parameter overrides on a parent, which is desired-state by
+// construction and per-parameter recoverable; a master material graph is a
+// whole-asset replacement. They are different operations and stay in different
+// files.
