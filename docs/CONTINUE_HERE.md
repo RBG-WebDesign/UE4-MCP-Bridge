@@ -24,22 +24,34 @@ passed. Every claim below is checkable.
 | `mutator-atomicity` | **2 red, finding 0r** |
 | `bp-member-patch-acceptance` | 1 red, finding 0q |
 
-## Do this first
+## Wave five is IN FLIGHT
 
-**Finding 0r.** A failed member batch does not restore variable defaults.
+Six lanes are running as of this writing. If this session ended mid-wave, their
+branches exist and each was told to commit before stopping. Check them first:
 
-It is not a regression from the merge. It was always broken, and the member
-structure hash could not see it: `default_value` read empty for every compiled
-variable until finding 0p was fixed, so a rollback that failed to restore a
-default produced an identical hash and the check passed. Fixing the reader made
-the harness able to observe a hole it had been reporting green over.
+| Lane | Branch | Domain | Rights |
+|---|---|---|---|
+| R | `lane/r-finding-0q` | finding 0q | editor AND build lock, exclusive |
+| S | `lane/s-sequencer` | Sequencer, the last empty domain | none |
+| T | `lane/t-material-graph` | material_build, texture_import | none |
+| U | `lane/u-level-lighting` | lighting_build, class_defaults_patch, capability regression | none |
+| V | `lane/v-widget-bind` | widget bindings and animations | none |
+| W | `lane/w-domain-gaps` | nav_build, anim_blueprint_patch, audio, cloth | none |
 
-The measurement that settles it is one command: apply `set_variable_default`
-inside a transaction, cancel the transaction, then read the CDO with
-`puerts_read_property`. If the CDO still holds the new value, the write is not
-transacted and the fix belongs at the writer, not at the rollback boundary.
+`git log --oneline HEAD..lane/<name>` tells you whether a lane committed
+anything. A branch level with HEAD did no work worth keeping.
 
-Do that before trusting any atomicity result on any mutator.
+**Merging them: use `node Scripts/merge-lane.mjs lane/<name>`.** It encodes the
+recipe that cost a session to work out, and its header explains why a plain
+union produces broken TypeScript. Run it one lane at a time, resolve the tool
+count assertion it deliberately leaves alone, typecheck BOTH tsconfigs, then
+regenerate the inventory, then verify. Do not start the next merge until verify
+is green.
+
+## Findings 0p and 0r are FIXED and live-verified
+
+Do not reopen them. `mutator-atomicity` is green twice consecutively with its
+control, and the three suites that share the mutator library still pass.
 
 ## Paste this into a fresh session
 
