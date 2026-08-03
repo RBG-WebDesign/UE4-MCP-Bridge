@@ -1184,7 +1184,11 @@ async function inspectAnimBlendSpace(context: ToolContext, input: JsonObject): P
     the builder's rebuild path clears nothing and would append a second state
     machine. A rerun is therefore a refusal, not a no-op, and that is why this
     tool is annotated mutating rather than mutating-idempotent. */
-async function buildAnimBlueprint(context: ToolContext, input: JsonObject): Promise<CommandResponse> {
+/** The spec both anim_blueprint_build and anim_blueprint_patch send to the
+    native side. One builder, because the two commands differ only in which
+    asset_path they accept: a second copy would let a spec that built become a
+    spec that cannot be patched. */
+function animBlueprintSpec(input: JsonObject): JsonObject {
   const assetPath = requireString(input, "asset_path");
   if (!assetPath.startsWith("/Game/MCPGenerated/")) {
     throw new Error("Animation Blueprints are limited to /Game/MCPGenerated/");
@@ -1209,6 +1213,11 @@ async function buildAnimBlueprint(context: ToolContext, input: JsonObject): Prom
   if (eventGraph !== undefined) {
     spec.event_graph = eventGraph;
   }
+  return spec;
+}
+
+async function buildAnimBlueprint(context: ToolContext, input: JsonObject): Promise<CommandResponse> {
+  const spec = animBlueprintSpec(input);
 
   const resultJson = puerts.$ref<string>("");
   const error = puerts.$ref<string>("");
@@ -1226,6 +1235,43 @@ async function buildAnimBlueprint(context: ToolContext, input: JsonObject): Prom
     errors.length > 0
       ? "Animation Blueprint build reported errors and was rolled back."
       : "Animation Blueprint created.",
+    parsed,
+  );
+  result.errors.push(...errors);
+  result.warnings.push(...warnings);
+  const objectPath = parsed.object_path;
+  if (errors.length === 0 && typeof objectPath === "string" && objectPath.length > 0) {
+    result.changed_assets.push(objectPath);
+  }
+  return result;
+}
+
+/** Replace the generated contents of an Animation Blueprint that already
+    exists. The envelope only; the native side owns the refusals, the snapshot,
+    the rebuild, the compile and the read-back.
+
+    Note what is NOT here: no attempt to decide client-side whether the asset
+    exists or is dirty. Both are races from this side, and the native command
+    answers them at the moment it matters with the message the caller needs. */
+async function patchAnimBlueprint(context: ToolContext, input: JsonObject): Promise<CommandResponse> {
+  const spec = animBlueprintSpec(input);
+
+  const resultJson = puerts.$ref<string>("");
+  const error = puerts.$ref<string>("");
+  if (!context.bridge.PatchAnimBlueprintJson(JSON.stringify(spec), resultJson, error)) {
+    throw new Error(puerts.$unref(error));
+  }
+  const parsed = JSON.parse(puerts.$unref(resultJson)) as JsonObject;
+  const errors = stringArray(parsed, "errors");
+  const warnings = stringArray(parsed, "warnings");
+  delete parsed.errors;
+  delete parsed.warnings;
+
+  const result = response(
+    errors.length === 0,
+    errors.length > 0
+      ? "Animation Blueprint patch reported errors and the asset was restored from disk."
+      : "Animation Blueprint patched.",
     parsed,
   );
   result.errors.push(...errors);
@@ -2121,6 +2167,7 @@ export const toolDefinitions: readonly ToolDefinition[] = [
   { name: "behavior_tree_inspect", inputSchema: schema({ asset_path: { type: "string" } }, ["asset_path"]), outputSchema, permissions: ["assets.read"], executionTimeoutMs: 15000, execute: inspectBehaviorTree },
   { name: "widget_inspect", inputSchema: schema({ asset_path: { type: "string" } }, ["asset_path"]), outputSchema, permissions: ["assets.read"], executionTimeoutMs: 15000, execute: inspectWidget },
   { name: "anim_blueprint_build", inputSchema: schema({ asset_path: { type: "string" }, skeleton_path: { type: "string" }, variables: { type: "array", items: { type: "object" } }, anim_graph: { type: "object" }, state_machine: { type: "object" }, event_graph: { type: "object" }, save: { type: "boolean" } }, ["asset_path", "skeleton_path", "anim_graph", "state_machine"]), outputSchema, permissions: ["assets.write"], executionTimeoutMs: 60000, execute: buildAnimBlueprint },
+  { name: "anim_blueprint_patch", inputSchema: schema({ asset_path: { type: "string" }, skeleton_path: { type: "string" }, variables: { type: "array", items: { type: "object" } }, anim_graph: { type: "object" }, state_machine: { type: "object" }, event_graph: { type: "object" }, save: { type: "boolean" } }, ["asset_path", "skeleton_path", "anim_graph", "state_machine"]), outputSchema, permissions: ["assets.write"], executionTimeoutMs: 90000, execute: patchAnimBlueprint },
   { name: "anim_blueprint_inspect", inputSchema: schema({ asset_path: { type: "string" } }, ["asset_path"]), outputSchema, permissions: ["assets.read"], executionTimeoutMs: 15000, execute: inspectAnimBlueprint },
   { name: "anim_montage_inspect", inputSchema: schema({ asset_path: { type: "string" } }, ["asset_path"]), outputSchema, permissions: ["assets.read"], executionTimeoutMs: 15000, execute: inspectAnimMontage },
   { name: "anim_blend_space_inspect", inputSchema: schema({ asset_path: { type: "string" } }, ["asset_path"]), outputSchema, permissions: ["assets.read"], executionTimeoutMs: 15000, execute: inspectAnimBlendSpace },

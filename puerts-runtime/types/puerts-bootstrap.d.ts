@@ -106,6 +106,7 @@ declare module "ue" {
     InspectBehaviorTreeJson(requestJson: string, outResultJson: $Ref<string>, outError: $Ref<string>): boolean;
     InspectWidgetJson(requestJson: string, outResultJson: $Ref<string>, outError: $Ref<string>): boolean;
     BuildAnimBlueprintJson(specJson: string, outResultJson: $Ref<string>, outError: $Ref<string>): boolean;
+    PatchAnimBlueprintJson(specJson: string, outResultJson: $Ref<string>, outError: $Ref<string>): boolean;
     InspectAnimBlueprintJson(requestJson: string, outResultJson: $Ref<string>, outError: $Ref<string>): boolean;
     InspectAnimMontageJson(requestJson: string, outResultJson: $Ref<string>, outError: $Ref<string>): boolean;
     InspectAnimBlendSpaceJson(requestJson: string, outResultJson: $Ref<string>, outError: $Ref<string>): boolean;

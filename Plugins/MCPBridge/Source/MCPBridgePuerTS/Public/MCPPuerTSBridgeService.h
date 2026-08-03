@@ -592,6 +592,33 @@ private:
         FString& OutResultJson,
         FString& OutError);
 
+    /** Replace the generated contents of an Animation Blueprint that already
+        exists, from the same desired-state spec anim_blueprint_build takes.
+
+        The mirror image of BuildAnimBlueprintJson: this one refuses a path with
+        no asset on it, so between the two there is no request where either has
+        to guess whether the caller meant create or edit.
+
+        PRECONDITION, and it is a refusal rather than a warning: the asset must
+        be saved and clean. The rollback boundary here is FBridgeContentSnapshot,
+        whose snapshot is the .uasset on disk, so an asset with unsaved edits has
+        no restore source that represents them and the command declines instead
+        of silently discarding them. Finding 0t asked for a content snapshot; the
+        file already was one.
+
+        Failure-atomic in a stronger sense than the create path. Nothing is
+        written to disk until the compile and the anim_blueprint_inspect
+        read-back have both passed, so at every failure exit the .uasset is
+        exactly what it was; the failure path cancels the transaction, reloads
+        the package, and then re-reads the asset to DECIDE rollback_succeeded
+        rather than assert it - the rule finding 0r settled for variable
+        defaults, applied to whole-asset content. */
+    UFUNCTION(BlueprintCallable, Category="MCP PuerTS Bridge")
+    bool PatchAnimBlueprintJson(
+        const FString& SpecJson,
+        FString& OutResultJson,
+        FString& OutError);
+
     /** Create or update a Blackboard asset from one desired-state spec: keys
         with their types, per-key instance sync, editor description and
         category, and the parent blackboard.
