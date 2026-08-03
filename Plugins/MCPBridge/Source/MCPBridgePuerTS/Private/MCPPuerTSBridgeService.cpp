@@ -191,43 +191,24 @@ bool UMCPPuerTSBridgeService::Initialize(FString& OutError)
     if (AllowedTools.Num() == 0)
     {
         const TCHAR* Defaults[] = {
-            TEXT("diagnostic"), TEXT("find_assets"), TEXT("find_actors"), TEXT("read_property"), TEXT("set_property"),
-            TEXT("call_function"), TEXT("spawn_actor"), TEXT("delete_actor"), TEXT("save"),
-            TEXT("pie_start"), TEXT("pie_stop"), TEXT("get_logs"), TEXT("undo"),
+            // Every native command this build advertises. Deduplicated: five lanes
+            // each appended their own block plus the same read-only entries, and a
+            // set hides that, so the duplicates are removed here rather than left
+            // for the next reader to wonder about.
+            TEXT("set_property"), TEXT("call_function"), TEXT("spawn_actor"), TEXT("delete_actor"),
+            TEXT("save"), TEXT("pie_start"), TEXT("pie_stop"), TEXT("undo"),
             TEXT("physics_build"), TEXT("physics_observe"), TEXT("viewport_screenshot"), TEXT("sky_shader_create"),
-            TEXT("blueprint_build"), TEXT("blueprint_graph_patch"), TEXT("blueprint_member_patch"),
-            TEXT("widget_build"), TEXT("behavior_tree_build"),
-            TEXT("anim_blueprint_build"),
+            TEXT("blueprint_build"), TEXT("blueprint_graph_patch"), TEXT("blueprint_member_patch"), TEXT("widget_build"),
+            TEXT("behavior_tree_build"), TEXT("anim_blueprint_build"), TEXT("blackboard_build"), TEXT("ai_perception_build"),
+            TEXT("material_instance_build"), TEXT("scene_batch"), TEXT("input_mapping_patch"), TEXT("folder_visibility"),
+            TEXT("camera_shake"),
             // Read only. Deliberately absent from IsToolMutating below, so they
             // open no transaction and return no transaction id.
-            TEXT("graph_inspect"), TEXT("behavior_tree_inspect"), TEXT("widget_inspect"),
-            TEXT("anim_blueprint_inspect"), TEXT("anim_montage_inspect"),
-            TEXT("anim_blend_space_inspect")
-            TEXT("blackboard_build"), TEXT("ai_perception_build"),
-            TEXT("blackboard_inspect"), TEXT("eqs_inspect"),
-            TEXT("nav_inspect"), TEXT("nav_query"), TEXT("ai_controller_inspect")
-            TEXT("material_instance_build"),
-            // Read only. Deliberately absent from IsToolMutating below, so they
-            // open no transaction and return no transaction id.
-            TEXT("graph_inspect"), TEXT("behavior_tree_inspect"), TEXT("widget_inspect"),
-            TEXT("material_inspect")
-            TEXT("widget_build"), TEXT("behavior_tree_build"), TEXT("scene_batch"),
-            // Read only. Deliberately absent from IsToolMutating below, so they
-            // open no transaction and return no transaction id.
-            TEXT("graph_inspect"), TEXT("behavior_tree_inspect"), TEXT("widget_inspect"),
-            TEXT("scene_inspect")
-            // Non-asset state: ini-persisted input mappings, ini-persisted
-            // Content Browser folder visibility, and a runtime-only PIE camera
-            // shake. All three write something, and none of them writes a
-            // UObject, so all three are absent from IsToolMutating below for
-            // the same reason viewport commands are: an FScopedTransaction
-            // around an ini write produces an undo that silently does nothing.
-            // input_mapping_patch owns a snapshot-and-restore boundary instead.
-            TEXT("input_mapping_patch"), TEXT("folder_visibility"), TEXT("camera_shake"),
-            // Read only. Deliberately absent from IsToolMutating below, so they
-            // open no transaction and return no transaction id.
-            TEXT("graph_inspect"), TEXT("behavior_tree_inspect"), TEXT("widget_inspect"),
-            TEXT("input_mapping_info"), TEXT("pie_agent_query")
+            TEXT("diagnostic"), TEXT("find_assets"), TEXT("find_actors"), TEXT("read_property"),
+            TEXT("get_logs"), TEXT("graph_inspect"), TEXT("behavior_tree_inspect"), TEXT("widget_inspect"),
+            TEXT("anim_blueprint_inspect"), TEXT("anim_montage_inspect"), TEXT("anim_blend_space_inspect"), TEXT("blackboard_inspect"),
+            TEXT("eqs_inspect"), TEXT("nav_inspect"), TEXT("nav_query"), TEXT("ai_controller_inspect"),
+            TEXT("material_inspect"), TEXT("scene_inspect"), TEXT("input_mapping_info"), TEXT("pie_agent_query")
         };
         for (const TCHAR* Value : Defaults) { AllowedTools.Add(Value); }
     }
@@ -1463,15 +1444,15 @@ bool UMCPPuerTSBridgeService::IsToolMutating(const FString& ToolName) const
         || ToolName == TEXT("behavior_tree_build")
         // anim_blueprint_build only. The two anim inspectors are deliberately
         // absent: they open no transaction and return no transaction id.
-        || ToolName == TEXT("anim_blueprint_build");
+        || ToolName == TEXT("anim_blueprint_build")
         // blackboard_build and ai_perception_build write assets. Their
         // plan_only path returns before the mutation section, so a plan still
         // opens a transaction it never uses; that costs an empty undo entry and
         // is the cheap side of the mistake, because the alternative is a build
         // that reaches the mutation section with no rollback.
         || ToolName == TEXT("blackboard_build")
-        || ToolName == TEXT("ai_perception_build");
-        || ToolName == TEXT("material_instance_build");
+        || ToolName == TEXT("ai_perception_build")
+        || ToolName == TEXT("material_instance_build")
         || ToolName == TEXT("scene_batch");
 }
 

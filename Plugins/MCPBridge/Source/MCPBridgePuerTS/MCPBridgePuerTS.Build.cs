@@ -5,6 +5,25 @@ public class MCPBridgePuerTS : ModuleRules
     public MCPBridgePuerTS(ReadOnlyTargetRules Target) : base(Target)
     {
         PCHUsage = PCHUsageMode.UseExplicitOrSharedPCHs;
+
+        // One command per .cpp, each with its own anonymous-namespace helpers,
+        // is the shape this module has settled into. A unity build concatenates
+        // those files into one translation unit, so two commands that both
+        // define a local ValueToJsonText, StringsToJson or FResolvedOp collide
+        // at C2084 even though neither file is wrong on its own and each
+        // compiles alone.
+        //
+        // That collision is invisible until link time and scales with the
+        // number of commands: it appeared the first time five independently
+        // written command files were compiled together. Renaming the helpers
+        // would fix today's pairs and leave the next command author to
+        // rediscover it. Turning unity off costs compile time and removes the
+        // class of failure.
+        //
+        // ponytail: whole-module opt out, not per-file. If build time becomes
+        // the problem, the upgrade is bUseUnityBuild with explicit
+        // MinSourceFilesForUnityBuild tuning, not reinstating name collisions.
+        bUseUnity = false;
         PublicDependencyModuleNames.AddRange(new string[] { "Core", "CoreUObject", "Engine" });
         // MCPBridgeGraphBuilder is a dependency, not a copy: the blueprint_build
         // command re-fronts the existing Blueprint graph builder rather than

@@ -92,7 +92,7 @@ namespace
         return FVector(static_cast<float>(X), static_cast<float>(Y), static_cast<float>(Z));
     }
 
-    TArray<TSharedPtr<FJsonValue>> StringsToJson(const TArray<FString>& Values)
+    TArray<TSharedPtr<FJsonValue>> AIStringsToJson(const TArray<FString>& Values)
     {
         TArray<TSharedPtr<FJsonValue>> Out;
         Out.Reserve(Values.Num());
@@ -435,7 +435,7 @@ namespace
         return true;
     }
 
-    USCS_Node* FindComponentNode(const UBlueprint* Blueprint, const FString& ComponentName)
+    USCS_Node* AIFindComponentNode(const UBlueprint* Blueprint, const FString& ComponentName)
     {
         if (Blueprint == nullptr || Blueprint->SimpleConstructionScript == nullptr)
         {
@@ -700,11 +700,11 @@ bool UMCPPuerTSBridgeService::BuildBlackboardJson(
         Plan->SetBoolField(TEXT("plan_only"), true);
         Plan->SetStringField(TEXT("asset_path"), AssetPath);
         Plan->SetBoolField(TEXT("asset_exists"), Existing != nullptr);
-        Plan->SetArrayField(TEXT("keys_to_add"), StringsToJson(ToAdd));
-        Plan->SetArrayField(TEXT("keys_to_update"), StringsToJson(ToUpdate));
-        Plan->SetArrayField(TEXT("keys_to_remove"), StringsToJson(ToRemove));
-        Plan->SetArrayField(TEXT("unchanged_keys"), StringsToJson(Unchanged));
-        Plan->SetArrayField(TEXT("protected_keys"), StringsToJson(ProtectedKeys));
+        Plan->SetArrayField(TEXT("keys_to_add"), AIStringsToJson(ToAdd));
+        Plan->SetArrayField(TEXT("keys_to_update"), AIStringsToJson(ToUpdate));
+        Plan->SetArrayField(TEXT("keys_to_remove"), AIStringsToJson(ToRemove));
+        Plan->SetArrayField(TEXT("unchanged_keys"), AIStringsToJson(Unchanged));
+        Plan->SetArrayField(TEXT("protected_keys"), AIStringsToJson(ProtectedKeys));
         Plan->SetBoolField(TEXT("parent_changes"), bParentChanges);
         Plan->SetNumberField(TEXT("expected_change_count"), ExpectedChanges);
         Plan->SetBoolField(TEXT("converged"), ExpectedChanges == 0 && Errors.Num() == 0);
@@ -723,7 +723,7 @@ bool UMCPPuerTSBridgeService::BuildBlackboardJson(
         Refused->SetBoolField(TEXT("created"), false);
         Refused->SetBoolField(TEXT("applied"), false);
         Refused->SetNumberField(TEXT("applied_change_count"), 0);
-        Refused->SetArrayField(TEXT("protected_keys"), StringsToJson(ProtectedKeys));
+        Refused->SetArrayField(TEXT("protected_keys"), AIStringsToJson(ProtectedKeys));
         Refused->SetArrayField(TEXT("errors"), Errors);
         Refused->SetArrayField(TEXT("warnings"), TArray<TSharedPtr<FJsonValue>>());
         OutResultJson = SerializeJson(Refused);
@@ -745,7 +745,7 @@ bool UMCPPuerTSBridgeService::BuildBlackboardJson(
         Converged->SetNumberField(TEXT("applied_change_count"), 0);
         Converged->SetBoolField(TEXT("saved"), false);
         Converged->SetBoolField(TEXT("verified"), true);
-        Converged->SetArrayField(TEXT("unchanged_keys"), StringsToJson(Unchanged));
+        Converged->SetArrayField(TEXT("unchanged_keys"), AIStringsToJson(Unchanged));
         Converged->SetArrayField(TEXT("errors"), Errors);
         Converged->SetArrayField(TEXT("warnings"), Warnings);
         OutResultJson = SerializeJson(Converged);
@@ -946,10 +946,10 @@ bool UMCPPuerTSBridgeService::BuildBlackboardJson(
     Result->SetBoolField(TEXT("applied"), true);
     Result->SetBoolField(TEXT("converged"), false);
     Result->SetNumberField(TEXT("applied_change_count"), ExpectedChanges);
-    Result->SetArrayField(TEXT("keys_added"), StringsToJson(ToAdd));
-    Result->SetArrayField(TEXT("keys_updated"), StringsToJson(ToUpdate));
-    Result->SetArrayField(TEXT("keys_removed"), StringsToJson(ToRemove));
-    Result->SetArrayField(TEXT("unchanged_keys"), StringsToJson(Unchanged));
+    Result->SetArrayField(TEXT("keys_added"), AIStringsToJson(ToAdd));
+    Result->SetArrayField(TEXT("keys_updated"), AIStringsToJson(ToUpdate));
+    Result->SetArrayField(TEXT("keys_removed"), AIStringsToJson(ToRemove));
+    Result->SetArrayField(TEXT("unchanged_keys"), AIStringsToJson(Unchanged));
     // Read back off the asset, not echoed from the spec.
     Result->SetArrayField(TEXT("blackboard_keys"), KeysOnAsset);
     Result->SetBoolField(TEXT("verified"), true);
@@ -1758,7 +1758,7 @@ bool UMCPPuerTSBridgeService::BuildAIPerceptionJson(
 
     // --- Classification against what is there now. ---
 
-    USCS_Node* Node = FindComponentNode(Blueprint, ComponentName);
+    USCS_Node* Node = AIFindComponentNode(Blueprint, ComponentName);
     UAIPerceptionComponent* Template = Node != nullptr
         ? Cast<UAIPerceptionComponent>(Node->ComponentTemplate)
         : nullptr;
@@ -1827,11 +1827,11 @@ bool UMCPPuerTSBridgeService::BuildAIPerceptionJson(
         Plan->SetStringField(TEXT("asset_path"), AssetPath);
         Plan->SetStringField(TEXT("component_name"), ComponentName);
         Plan->SetBoolField(TEXT("component_exists"), !bComponentMissing);
-        Plan->SetArrayField(TEXT("current_senses"), StringsToJson(PresentSenses));
-        Plan->SetArrayField(TEXT("senses_to_add"), StringsToJson(SensesToAdd));
-        Plan->SetArrayField(TEXT("senses_to_update"), StringsToJson(SensesToUpdate));
-        Plan->SetArrayField(TEXT("senses_to_remove"), StringsToJson(SensesToRemove));
-        Plan->SetArrayField(TEXT("unchanged_senses"), StringsToJson(UnchangedSenses));
+        Plan->SetArrayField(TEXT("current_senses"), AIStringsToJson(PresentSenses));
+        Plan->SetArrayField(TEXT("senses_to_add"), AIStringsToJson(SensesToAdd));
+        Plan->SetArrayField(TEXT("senses_to_update"), AIStringsToJson(SensesToUpdate));
+        Plan->SetArrayField(TEXT("senses_to_remove"), AIStringsToJson(SensesToRemove));
+        Plan->SetArrayField(TEXT("unchanged_senses"), AIStringsToJson(UnchangedSenses));
         Plan->SetBoolField(TEXT("dominant_sense_changes"), bDominantChanges);
         Plan->SetNumberField(TEXT("expected_change_count"), ExpectedChanges);
         Plan->SetBoolField(TEXT("converged"), ExpectedChanges == 0);
@@ -1854,7 +1854,7 @@ bool UMCPPuerTSBridgeService::BuildAIPerceptionJson(
         Converged->SetBoolField(TEXT("applied"), false);
         Converged->SetBoolField(TEXT("converged"), true);
         Converged->SetNumberField(TEXT("applied_change_count"), 0);
-        Converged->SetArrayField(TEXT("unchanged_senses"), StringsToJson(UnchangedSenses));
+        Converged->SetArrayField(TEXT("unchanged_senses"), AIStringsToJson(UnchangedSenses));
         Converged->SetStringField(TEXT("dominant_sense"),
             DominantImplementation != nullptr ? DominantSense : TEXT("None"));
         Converged->SetBoolField(TEXT("verified"), true);
@@ -1901,7 +1901,7 @@ bool UMCPPuerTSBridgeService::BuildAIPerceptionJson(
             return FailRolledBack(FString::Printf(
                 TEXT("Component '%s' could not be added to '%s'."), *ComponentName, *ObjectPath));
         }
-        Node = FindComponentNode(Blueprint, ComponentName);
+        Node = AIFindComponentNode(Blueprint, ComponentName);
         Template = Node != nullptr ? Cast<UAIPerceptionComponent>(Node->ComponentTemplate) : nullptr;
         if (Template == nullptr)
         {
@@ -2067,10 +2067,10 @@ bool UMCPPuerTSBridgeService::BuildAIPerceptionJson(
     Result->SetBoolField(TEXT("applied"), true);
     Result->SetBoolField(TEXT("converged"), false);
     Result->SetNumberField(TEXT("applied_change_count"), ExpectedChanges);
-    Result->SetArrayField(TEXT("senses_added"), StringsToJson(SensesToAdd));
-    Result->SetArrayField(TEXT("senses_updated"), StringsToJson(SensesToUpdate));
-    Result->SetArrayField(TEXT("senses_removed"), StringsToJson(SensesToRemove));
-    Result->SetArrayField(TEXT("unchanged_senses"), StringsToJson(UnchangedSenses));
+    Result->SetArrayField(TEXT("senses_added"), AIStringsToJson(SensesToAdd));
+    Result->SetArrayField(TEXT("senses_updated"), AIStringsToJson(SensesToUpdate));
+    Result->SetArrayField(TEXT("senses_removed"), AIStringsToJson(SensesToRemove));
+    Result->SetArrayField(TEXT("unchanged_senses"), AIStringsToJson(UnchangedSenses));
     // Read off the component template, not echoed from the spec.
     Result->SetArrayField(TEXT("senses"), SensesOnAsset);
     Result->SetStringField(TEXT("dominant_sense"),

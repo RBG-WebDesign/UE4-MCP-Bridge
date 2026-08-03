@@ -298,404 +298,6 @@ public:
         FString& OutResultJson,
         FString& OutError) const;
 
-    /** Read an Animation Blueprint back as machine-readable JSON: target
-        skeleton, stored compile status, every anim graph and its nodes, state
-        machines with their entry state, states, conduits and transitions,
-        each transition's rule (an explicit rule graph or the engine's automatic
-        remaining-time rule, which are not interchangeable), cached poses with
-        the nodes that read them, blend nodes, member variables, and a canonical
-        structure hash.
-
-        The independent read half of anim_blueprint_build, and the reason that
-        command can verify instead of assert. READ ONLY: not in IsToolMutating,
-        so no transaction opens and the response carries no transaction id;
-        nothing here calls Modify, MarkPackageDirty or a compile; and the
-        package dirty flag is reported before and after. Node identity is
-        DERIVED from the traversal path and labeled identity_kind = "derived",
-        because the "id" a build spec wrote is not persisted on the node. */
-    UFUNCTION(BlueprintCallable, Category="MCP PuerTS Bridge")
-    bool InspectAnimBlueprintJson(
-    /** Read a UMaterial or a UMaterialInstanceConstant back as machine-readable
-        JSON: for a master material the expression nodes with their class paths,
-        editor positions, per-input connection state, the links between them and
-        the links into the material's own outputs; for either kind the full
-        parameter list with types, effective values and (for an instance) which
-        of them the instance overrides; plus a canonical structure hash.
-
-        The read half material authoring never had. asset_kind says whether a
-        material or an instance answered, and the response uses the same field
-        names for both so a caller does not have to branch on it.
-
-        READ ONLY: not in IsToolMutating, so no transaction opens and the
-        response carries no transaction id; nothing here calls Modify,
-        MarkPackageDirty or a compile; and the package dirty flag is reported
-        before and after. Expression identity is OBSERVED, not derived: a
-        material expression's UObject name is unique within its package and is
-        serialized, unlike a UMG widget or a Behavior Tree node. */
-    UFUNCTION(BlueprintCallable, Category="MCP PuerTS Bridge")
-    bool InspectMaterialJson(
-    /** Read the editor's current level back as machine-readable JSON: every
-        actor with its class, world transform, folder, tags, attachment,
-        components and optionally selected reflected properties, plus every
-        PlayerStart and a canonical structure hash.
-
-        The read half of scene_batch, and READ ONLY on the same terms as
-        graph_inspect: not in IsToolMutating, so no transaction opens and the
-        response carries no transaction id; nothing here calls Modify or
-        MarkPackageDirty; and the level package's dirty flag is reported before
-        and after the read.
-
-        Actor identity is OBSERVED (identity_kind = "observed"): the object name
-        is unique within a level and stable, unlike the label, which a user
-        renames freely and which is not unique at all.
-
-        The structure hash always covers the WHOLE level. An actors filter
-        narrows what is reported and never what is hashed, because a hash of a
-        filter is a hash of the request. */
-    UFUNCTION(BlueprintCallable, Category="MCP PuerTS Bridge")
-    bool InspectSceneJson(
-    /** Read the project's input action and axis mappings back as JSON.
-        THE MISSING INSPECTOR. UMCPBridgeInputLibrary could add and remove
-        mappings and had no reader at all, so a mutation could only ever be
-        confirmed by the mutator's own report. Nothing else in this module
-        would accept that from a Blueprint builder, and input settings are not
-        a lesser kind of state for being an ini rather than a uasset.
-
-        READ ONLY: absent from IsToolMutating, so no transaction opens; it
-        touches only const accessors on UInputSettings. Both arrays are
-        canonically ordered and reduced to mapping_hash_sha1, which is what
-        input_mapping_patch reports as pre_mapping_hash / post_mapping_hash, so
-        a patch can be verified against an independent read. */
-    UFUNCTION(BlueprintCallable, Category="MCP PuerTS Bridge")
-    bool InspectInputMappingsJson(
-        const FString& RequestJson,
-        FString& OutResultJson,
-        FString& OutError) const;
-
-    /** Read an Animation Montage back as machine-readable JSON: sections in
-        montage order with their NextSectionName chain, slot tracks and the
-        animation segments inside them, notifies (read explicitly, because they
-        are UPROPERTY() with no Edit flag and a reflection walk would drop
-        them), blend in/out options, sync group, and a canonical structure hash.
-
-        READ ONLY, on the same terms as the other inspectors. Montages are
-        assets, not graph nodes, so there is no montage half of
-        anim_blueprint_build: section and notify authoring needs
-        FAnimLinkableElement re-linking and a NextSectionName chain rebuild that
-        UE4.27 exposes no atomic operation for, and a half-applied edit would
-        leave a montage that plays the wrong thing. This reads; it never
-        writes. */
-    UFUNCTION(BlueprintCallable, Category="MCP PuerTS Bridge")
-    bool InspectAnimMontageJson(
-        const FString& RequestJson,
-        FString& OutResultJson,
-        FString& OutError) const;
-
-    /** Read a Blend Space, Blend Space 1D or Aim Offset back as
-        machine-readable JSON: the target skeleton, all three blend axes with
-        their display name, range and grid divisions, and every sample with its
-        animation, position and rate scale.
-
-        READ ONLY, on the same terms as the other inspectors, and read-only for
-        the same kind of reason the montage reader is: UE4.27 rebuilds a blend
-        space's triangulation from its sample set, so a partially applied sample
-        edit leaves a space that interpolates wrong rather than one that fails,
-        and there is no atomic sample-set replacement to wrap.
-
-        Samples are sorted by position and animation rather than reported in
-        array order, because a blend space's array order carries no meaning:
-        sorting is what makes two reads of an unchanged asset agree by hash. All
-        three axes are reported because UE4.27 exposes no dimension count; the
-        class is what distinguishes 1D from 2D. */
-    UFUNCTION(BlueprintCallable, Category="MCP PuerTS Bridge")
-    bool InspectAnimBlendSpaceJson(
-        const FString& RequestJson,
-        FString& OutResultJson,
-        FString& OutError) const;
-
-    /** Create a NEW Animation Blueprint from one JSON spec, handed to the
-        existing UAnimBlueprintBuilderLibrary: variables, the anim graph
-        pipeline, a state machine with its states and transitions, and an
-        optional event graph.
-
-        CREATE-ONLY by design. It refuses when the target asset already exists,
-        because the library's rebuild path clears nothing
-        (AnimBlueprintBuilder/ABPBuilder.cpp:147) and would append a second
-        state machine rather than converge - damage no rollback boundary can
-        undo, since restoring the previous contents of a pre-existing asset is
-        not something FBridgeAssetRollback can do. Creating a new asset is
-        failure-atomic: the only state a failure has to undo is state this
-        command created.
-
-        What the command owns: the path limit, the validate-before-create pass,
-        the transaction, the rollback boundary, a compile whose result is
-        returned rather than swallowed, and a read-back through
-        anim_blueprint_inspect that must find every requested state and
-        transition before the asset is saved. */
-    UFUNCTION(BlueprintCallable, Category="MCP PuerTS Bridge")
-    bool BuildAnimBlueprintJson(
-    /** Create or update a Blackboard asset from one desired-state spec: keys
-        with their types, per-key instance sync, editor description and
-        category, and the parent blackboard.
-
-        puerts_behavior_tree_build already creates a blackboard and adds keys to
-        it, and that path is unchanged. This one owns the blackboard as an asset
-        in its own right: it can UPDATE a key, REMOVE one, and set the parent,
-        none of which add-only key creation can express.
-
-        UE4.27 blackboard keys have NO default values. FBlackboardEntry carries
-        EntryName, an instanced UBlackboardKeyType, bInstanceSynced and two
-        editor-only strings, and that is all; a key's value exists only on a
-        running UBlackboardComponent. A spec that asked for a default would be
-        asking for something the asset format cannot hold, so there is no such
-        field and this comment is why.
-
-        Convergent: a rerun that finds everything already in place returns
-        before the mutation section, so no package is dirtied and nothing is
-        saved. Failure-atomic: the transaction is cancelled and the rollback
-        boundary removes an asset this command created. Independently verified:
-        every key is read back off the asset after the write, and a shortfall
-        rolls the whole build back rather than reporting success. */
-    bool BuildBlackboardJson(
-    /** Create or update a UMaterialInstanceConstant and set its scalar, vector,
-        texture and static switch parameters from one desired-state spec.
-
-        A re-front of UMaterialEditingLibrary plus the boundary that library
-        does not have. Every parameter is resolved against the parent and
-        validated before the asset is created or touched, so an unknown name is
-        refused with the closest matching names rather than silently dropped. A
-        parameter already at the requested value and already overridden is
-        reported unchanged and not rewritten, so a rerun dirties nothing.
-
-        Modify() is called before any write because the library's setters do
-        not, which is what makes the failure path atomic: on any failure the
-        transaction is cancelled, the rollback boundary runs, and whether the
-        parameters actually came back is decided by reading them again rather
-        than by trusting the undo. The compile is run and its result reported
-        in the response; the save happens only after an independent read-back
-        agrees with every requested value.
-
-        There is deliberately no companion command for master material graphs.
-        UE4.27's graph mutators write outside the undo record, so a failed
-        multi-node build cannot be rolled back; material_inspect is the read
-        half and there is no write half. */
-    UFUNCTION(BlueprintCallable, Category="MCP PuerTS Bridge")
-    bool BuildMaterialInstanceJson(
-    /** Apply a desired-state description of many actors to the current level in
-        ONE transaction: spawn, modify, delete, reparent, folder, tags, and
-        reflected properties on actors and on the components they already have.
-
-        Two operations, because a desired-state description of a level needs
-        two: upsert_actor and delete_actor. Everything a caller would otherwise
-        do with a dozen single-actor round trips is one of those.
-
-        The command owns the boundary, not the mutation: the whole batch is
-        resolved and refused before the first change, each operation's
-        satisfied-ness is re-evaluated immediately before it runs rather than
-        read from the plan, one rollback boundary wraps the batch, the level is
-        read back independently and every operation re-checked against it, and
-        any failure cancels the transaction and then decides whether the level
-        actually came back by hashing it again.
-
-        It never saves. Writing a level to disk is puerts_save's job, and
-        keeping it out of here is what lets a failed batch leave nothing on
-        disk to clean up.
-
-        Trigger volumes carry the AGENTS.md PlayerStart rule: a volume that
-        contains a PlayerStart refuses the whole batch, and one inside 1.5x its
-        own extent of a PlayerStart warns. The check runs against the actor's
-        real GetActorBounds after it is placed, inside the rollback boundary,
-        because the extent of an unspawned brush volume is a guess. */
-    UFUNCTION(BlueprintCallable, Category="MCP PuerTS Bridge")
-    bool ApplySceneBatchJson(
-    /** Reconcile the project's input mappings against a desired set.
-
-        A re-front of UMCPBridgeInputLibrary, which exists because UE4.27
-        Python cannot construct an FKey. The library's per-mapping validation
-        and exact-duplicate rejection are reused; what this command adds is the
-        boundary the library never had. The whole batch is classified against
-        the mappings that exist before the first write, so a mapping already
-        present is reported unchanged rather than reapplied, and a rerun writes
-        nothing.
-
-        Input mappings live in DefaultInput.ini, not in a UObject, so the asset
-        transaction boundary does not apply and this command is deliberately
-        absent from IsToolMutating. The boundary it owns instead is a snapshot:
-        the full action and axis arrays are copied before the first mutation,
-        restored exactly on any failure, and whether the restore worked is
-        decided by reading the mappings again and comparing the hash, not by
-        trusting the restore. */
-    UFUNCTION(BlueprintCallable, Category="MCP PuerTS Bridge")
-    bool PatchInputMappingsJson(
-        const FString& SpecJson,
-        FString& OutResultJson,
-        FString& OutError);
-
-    /** Read a Blackboard back as JSON: every key with its type, base class,
-        instance-sync flag, description and category, the parent chain and the
-        keys inherited through it, the asset's own IsValid verdict, and a
-        canonical structure hash.
-
-        The read half of blackboard_build. READ ONLY: not in IsToolMutating, so
-        no transaction opens; nothing here calls Modify or MarkPackageDirty; and
-        the package dirty flag is reported before and after.
-
-        Unlike a Behavior Tree node, a blackboard key has an AUTHORED identity:
-        its name is what every FBlackboardKeySelector binds to, so identity_kind
-        is "authored_name" rather than "derived". */
-    UFUNCTION(BlueprintCallable, Category="MCP PuerTS Bridge")
-    bool InspectBlackboardJson(
-        const FString& RequestJson,
-        FString& OutResultJson,
-        FString& OutError) const;
-
-    /** Read an Environment Query back as JSON: query name, options in order,
-        each option's generator and its tests with their scoring and filtering
-        properties, and a canonical structure hash.
-
-        READ ONLY, and there is no matching builder on purpose.
-        UEnvironmentQueryGraph::UpdateAsset resets UEnvQuery::Options and
-        rebuilds them from the editor graph, which makes Options a compiled
-        artifact rather than the source of truth: a command that wrote Options
-        without authoring the matching UEdGraph would verify against its own
-        write and then be wiped the next time a human opened the asset. The
-        response says so in build_unsupported_reason rather than leaving a
-        caller to discover it. */
-    UFUNCTION(BlueprintCallable, Category="MCP PuerTS Bridge")
-    bool InspectEnvQueryJson(
-        const FString& RequestJson,
-        FString& OutResultJson,
-        FString& OutError) const;
-
-    /** Read the editor world's navigation configuration: the navigation system
-        and its build state, nav data actors with their agent and generation
-        settings, NavMeshBoundsVolumes and NavModifierVolumes with world-space
-        boxes, and the bounds the navigation system actually registered.
-
-        The registered bounds are not the same list as the volumes: a volume in
-        an unloaded sublevel is an actor and is not registered, which is the
-        usual reason a navmesh is missing where a level looks like it has one.
-
-        READ ONLY: no transaction, no Modify, no MarkPackageDirty. */
-    UFUNCTION(BlueprintCallable, Category="MCP PuerTS Bridge")
-    bool InspectNavigationJson(
-        const FString& RequestJson,
-        FString& OutResultJson,
-        FString& OutError) const;
-
-    /** Answer a batch of navigation queries against the editor world's navmesh:
-        project a point onto the navmesh, ask whether one point is reachable
-        from another and at what path length and cost, raycast along the
-        navmesh, and pick a random navigable point in a radius.
-
-        Batched because a placement decision needs several of these at once and
-        one round trip per point is the interface this bridge exists to avoid.
-        The whole batch is validated before the first query runs.
-
-        READ ONLY: every one of these is a const query on UNavigationSystemV1.
-        Nothing is spawned, nothing is rebuilt, and no navmesh is generated. */
-    UFUNCTION(BlueprintCallable, Category="MCP PuerTS Bridge")
-    bool QueryNavigationJson(
-        const FString& RequestJson,
-        FString& OutResultJson,
-        FString& OutError) const;
-
-    /** Reconcile the whole AIPerceptionComponent configuration on an existing
-        AIController Blueprint in one call: the senses it has, each sense's
-        properties, and the dominant sense. The component is created if it is
-        missing.
-
-        Desired-state rather than a set of setters, because a perception config
-        is only meaningful as a whole: sight radius without lose-sight radius,
-        or a dominant sense that is not configured, are the states this refuses
-        rather than writes.
-
-        UAIPerceptionComponent declares SensesConfig and DominantSense
-        protected, so the write goes through reflection on the UPROPERTY; the
-        read half uses the public GetSensesConfigIterator. A listed sense is
-        replaced wholesale, so the config that lands is the spec plus class
-        defaults and never the residue of an earlier spec.
-
-        Transactional, compiled, verified by reading the component template
-        again, and saved only after that passes. A failure cancels the
-        transaction and saves nothing.
-
-        Convergent: a rerun compares every property the spec names against the
-        config that is already there and returns before the mutation section
-        when nothing differs, so a satisfied rerun costs no Blueprint compile
-        and no save. The dominant sense counts as a difference in its own
-        right. */
-    UFUNCTION(BlueprintCallable, Category="MCP PuerTS Bridge")
-    bool BuildAIPerceptionJson(
-    /** Hide or show Content Browser folders, or read the hidden set.
-
-        A re-front of UFolderVisibilityLibrary. Display-only editor state
-        persisted in Config/FolderVisibility.ini: hidden folders stay on disk,
-        referenced and cookable. Not a UObject, so no transaction, and absent
-        from IsToolMutating for the same reason viewport commands are.
-
-        Desired-state first: "hidden" is the whole set and the command
-        converges onto it. "hide" and "show" are the delta form the legacy
-        pair used, and the two shapes are mutually exclusive rather than
-        merged, because a request that says both a full set and a delta has no
-        single correct reading. The hidden set is always read back from
-        GetHiddenFolders after the work, never echoed from the request. */
-    UFUNCTION(BlueprintCallable, Category="MCP PuerTS Bridge")
-    bool SetFolderVisibilityJson(
-        const FString& SpecJson,
-        FString& OutResultJson,
-        FString& OutError);
-
-    /** Read an AIController Blueprint back as JSON: parent class, every
-        AIPerceptionComponent it declares with each sense's configuration and
-        the dominant sense, and every RunBehaviorTree call site in its graphs
-        with the Behavior Tree and Blackboard each one names.
-
-        The controller-to-BT wiring is reported as call sites because that is
-        what it is: UE4.27 has no data-driven field for it, a controller starts
-        a tree by calling AAIController::RunBehaviorTree, and a tree chosen
-        through a variable at runtime resolves to nothing and is listed under
-        dynamic_behavior_tree_call_sites instead of being guessed at.
-
-        READ ONLY: not in IsToolMutating, nothing calls Modify or
-        MarkPackageDirty, and the package dirty flag is reported both sides. */
-    UFUNCTION(BlueprintCallable, Category="MCP PuerTS Bridge")
-    bool InspectAIControllerJson(
-    /** Play a camera shake on the running PIE session's player camera.
-
-        A re-front of UAutoPIEHelper::PlayCameraShakeOnPlayer, which owns the
-        PIE World -> PlayerController(0) -> PlayerCameraManager chain. Runtime
-        effect only: nothing is persisted, no asset is touched, and there is
-        nothing to roll back. Refuses with a named reason when PIE is not
-        running, rather than reporting a shake nobody could have seen.
-
-        UE4.27 note: this build uses UCameraShakeBase with StartCameraShake(),
-        which is what AutoPIEHelper already calls. */
-    UFUNCTION(BlueprintCallable, Category="MCP PuerTS Bridge")
-    bool PlayCameraShakeJson(
-        const FString& SpecJson,
-        FString& OutResultJson,
-        FString& OutError) const;
-
-    /** The read-only half of the PIE agent: observe, status, expect.
-
-        A re-front of UPIEAgentLibrary. These three change no asset and no
-        world state; they read the running session, poll an operation, or start
-        an in-engine condition check that only reads. The write half (move_to,
-        look_at, press, record, replay) is deliberately NOT here: AGENTS.md
-        requires the user to ask before any pie_agent_* tool runs, so the read
-        half is both the safe half and the useful one.
-
-        The library answers with its own {success, data, error} JSON; this
-        command forwards that verbatim rather than reshaping it, so the native
-        lane and the legacy listener cannot disagree about what the agent
-        said. */
-    UFUNCTION(BlueprintCallable, Category="MCP PuerTS Bridge")
-    bool QueryPIEAgentJson(
-        const FString& RequestJson,
-        FString& OutResultJson,
-        FString& OutError) const;
-
     UFUNCTION(BlueprintCallable, Category="MCP PuerTS Bridge")
     bool BuildPhysicsSceneJson(
         const FString& SpecJson,
@@ -829,4 +431,635 @@ private:
     int32 ActiveLogMarker = 0;
     double ActiveCommandStartSeconds = 0.0;
     TSharedPtr<FBridgeLogCapture> LogCapture;
+
+    /** Read an Animation Blueprint back as machine-readable JSON: target
+        skeleton, stored compile status, every anim graph and its nodes, state
+        machines with their entry state, states, conduits and transitions,
+        each transition's rule (an explicit rule graph or the engine's automatic
+        remaining-time rule, which are not interchangeable), cached poses with
+        the nodes that read them, blend nodes, member variables, and a canonical
+        structure hash.
+
+        The independent read half of anim_blueprint_build, and the reason that
+        command can verify instead of assert. READ ONLY: not in IsToolMutating,
+        so no transaction opens and the response carries no transaction id;
+        nothing here calls Modify, MarkPackageDirty or a compile; and the
+        package dirty flag is reported before and after. Node identity is
+        DERIVED from the traversal path and labeled identity_kind = "derived",
+        because the "id" a build spec wrote is not persisted on the node. */
+    UFUNCTION(BlueprintCallable, Category="MCP PuerTS Bridge")
+    bool InspectAnimBlueprintJson(
+        const FString& RequestJson,
+        FString& OutResultJson,
+        FString& OutError) const;
+
+    /** Read an Animation Montage back as machine-readable JSON: sections in
+        montage order with their NextSectionName chain, slot tracks and the
+        animation segments inside them, notifies (read explicitly, because they
+        are UPROPERTY() with no Edit flag and a reflection walk would drop
+        them), blend in/out options, sync group, and a canonical structure hash.
+
+        READ ONLY, on the same terms as the other inspectors. Montages are
+        assets, not graph nodes, so there is no montage half of
+        anim_blueprint_build: section and notify authoring needs
+        FAnimLinkableElement re-linking and a NextSectionName chain rebuild that
+        UE4.27 exposes no atomic operation for, and a half-applied edit would
+        leave a montage that plays the wrong thing. This reads; it never
+        writes. */
+
+    /** Read an Animation Montage back as machine-readable JSON: sections in
+        montage order with their NextSectionName chain, slot tracks and the
+        animation segments inside them, notifies (read explicitly, because they
+        are UPROPERTY() with no Edit flag and a reflection walk would drop
+        them), blend in/out options, sync group, and a canonical structure hash.
+
+        READ ONLY, on the same terms as the other inspectors. Montages are
+        assets, not graph nodes, so there is no montage half of
+        anim_blueprint_build: section and notify authoring needs
+        FAnimLinkableElement re-linking and a NextSectionName chain rebuild that
+        UE4.27 exposes no atomic operation for, and a half-applied edit would
+        leave a montage that plays the wrong thing. This reads; it never
+        writes. */
+    UFUNCTION(BlueprintCallable, Category="MCP PuerTS Bridge")
+    bool InspectAnimMontageJson(
+        const FString& RequestJson,
+        FString& OutResultJson,
+        FString& OutError) const;
+
+    /** Read a Blend Space, Blend Space 1D or Aim Offset back as
+        machine-readable JSON: the target skeleton, all three blend axes with
+        their display name, range and grid divisions, and every sample with its
+        animation, position and rate scale.
+
+        READ ONLY, on the same terms as the other inspectors, and read-only for
+        the same kind of reason the montage reader is: UE4.27 rebuilds a blend
+        space's triangulation from its sample set, so a partially applied sample
+        edit leaves a space that interpolates wrong rather than one that fails,
+        and there is no atomic sample-set replacement to wrap.
+
+        Samples are sorted by position and animation rather than reported in
+        array order, because a blend space's array order carries no meaning:
+        sorting is what makes two reads of an unchanged asset agree by hash. All
+        three axes are reported because UE4.27 exposes no dimension count; the
+        class is what distinguishes 1D from 2D. */
+
+    /** Read a Blend Space, Blend Space 1D or Aim Offset back as
+        machine-readable JSON: the target skeleton, all three blend axes with
+        their display name, range and grid divisions, and every sample with its
+        animation, position and rate scale.
+
+        READ ONLY, on the same terms as the other inspectors, and read-only for
+        the same kind of reason the montage reader is: UE4.27 rebuilds a blend
+        space's triangulation from its sample set, so a partially applied sample
+        edit leaves a space that interpolates wrong rather than one that fails,
+        and there is no atomic sample-set replacement to wrap.
+
+        Samples are sorted by position and animation rather than reported in
+        array order, because a blend space's array order carries no meaning:
+        sorting is what makes two reads of an unchanged asset agree by hash. All
+        three axes are reported because UE4.27 exposes no dimension count; the
+        class is what distinguishes 1D from 2D. */
+    UFUNCTION(BlueprintCallable, Category="MCP PuerTS Bridge")
+    bool InspectAnimBlendSpaceJson(
+        const FString& RequestJson,
+        FString& OutResultJson,
+        FString& OutError) const;
+
+    /** Create a NEW Animation Blueprint from one JSON spec, handed to the
+        existing UAnimBlueprintBuilderLibrary: variables, the anim graph
+        pipeline, a state machine with its states and transitions, and an
+        optional event graph.
+
+        CREATE-ONLY by design. It refuses when the target asset already exists,
+        because the library's rebuild path clears nothing
+        (AnimBlueprintBuilder/ABPBuilder.cpp:147) and would append a second
+        state machine rather than converge - damage no rollback boundary can
+        undo, since restoring the previous contents of a pre-existing asset is
+        not something FBridgeAssetRollback can do. Creating a new asset is
+        failure-atomic: the only state a failure has to undo is state this
+        command created.
+
+        What the command owns: the path limit, the validate-before-create pass,
+        the transaction, the rollback boundary, a compile whose result is
+        returned rather than swallowed, and a read-back through
+        anim_blueprint_inspect that must find every requested state and
+        transition before the asset is saved. */
+
+    /** Create a NEW Animation Blueprint from one JSON spec, handed to the
+        existing UAnimBlueprintBuilderLibrary: variables, the anim graph
+        pipeline, a state machine with its states and transitions, and an
+        optional event graph.
+
+        CREATE-ONLY by design. It refuses when the target asset already exists,
+        because the library's rebuild path clears nothing
+        (AnimBlueprintBuilder/ABPBuilder.cpp:147) and would append a second
+        state machine rather than converge - damage no rollback boundary can
+        undo, since restoring the previous contents of a pre-existing asset is
+        not something FBridgeAssetRollback can do. Creating a new asset is
+        failure-atomic: the only state a failure has to undo is state this
+        command created.
+
+        What the command owns: the path limit, the validate-before-create pass,
+        the transaction, the rollback boundary, a compile whose result is
+        returned rather than swallowed, and a read-back through
+        anim_blueprint_inspect that must find every requested state and
+        transition before the asset is saved. */
+    UFUNCTION(BlueprintCallable, Category="MCP PuerTS Bridge")
+    bool BuildAnimBlueprintJson(
+        const FString& SpecJson,
+        FString& OutResultJson,
+        FString& OutError);
+
+    /** Create or update a Blackboard asset from one desired-state spec: keys
+        with their types, per-key instance sync, editor description and
+        category, and the parent blackboard.
+
+        puerts_behavior_tree_build already creates a blackboard and adds keys to
+        it, and that path is unchanged. This one owns the blackboard as an asset
+        in its own right: it can UPDATE a key, REMOVE one, and set the parent,
+        none of which add-only key creation can express.
+
+        UE4.27 blackboard keys have NO default values. FBlackboardEntry carries
+        EntryName, an instanced UBlackboardKeyType, bInstanceSynced and two
+        editor-only strings, and that is all; a key's value exists only on a
+        running UBlackboardComponent. A spec that asked for a default would be
+        asking for something the asset format cannot hold, so there is no such
+        field and this comment is why.
+
+        Convergent: a rerun that finds everything already in place returns
+        before the mutation section, so no package is dirtied and nothing is
+        saved. Failure-atomic: the transaction is cancelled and the rollback
+        boundary removes an asset this command created. Independently verified:
+        every key is read back off the asset after the write, and a shortfall
+        rolls the whole build back rather than reporting success. */
+    UFUNCTION(BlueprintCallable, Category="MCP PuerTS Bridge")
+    bool BuildBlackboardJson(
+        const FString& SpecJson,
+        FString& OutResultJson,
+        FString& OutError);
+
+    /** Read a Blackboard back as JSON: every key with its type, base class,
+        instance-sync flag, description and category, the parent chain and the
+        keys inherited through it, the asset's own IsValid verdict, and a
+        canonical structure hash.
+
+        The read half of blackboard_build. READ ONLY: not in IsToolMutating, so
+        no transaction opens; nothing here calls Modify or MarkPackageDirty; and
+        the package dirty flag is reported before and after.
+
+        Unlike a Behavior Tree node, a blackboard key has an AUTHORED identity:
+        its name is what every FBlackboardKeySelector binds to, so identity_kind
+        is "authored_name" rather than "derived". */
+    UFUNCTION(BlueprintCallable, Category="MCP PuerTS Bridge")
+    bool InspectBlackboardJson(
+        const FString& RequestJson,
+        FString& OutResultJson,
+        FString& OutError) const;
+
+    /** Read an Environment Query back as JSON: query name, options in order,
+        each option's generator and its tests with their scoring and filtering
+        properties, and a canonical structure hash.
+
+        READ ONLY, and there is no matching builder on purpose.
+        UEnvironmentQueryGraph::UpdateAsset resets UEnvQuery::Options and
+        rebuilds them from the editor graph, which makes Options a compiled
+        artifact rather than the source of truth: a command that wrote Options
+        without authoring the matching UEdGraph would verify against its own
+        write and then be wiped the next time a human opened the asset. The
+        response says so in build_unsupported_reason rather than leaving a
+        caller to discover it. */
+
+    /** Read an Environment Query back as JSON: query name, options in order,
+        each option's generator and its tests with their scoring and filtering
+        properties, and a canonical structure hash.
+
+        READ ONLY, and there is no matching builder on purpose.
+        UEnvironmentQueryGraph::UpdateAsset resets UEnvQuery::Options and
+        rebuilds them from the editor graph, which makes Options a compiled
+        artifact rather than the source of truth: a command that wrote Options
+        without authoring the matching UEdGraph would verify against its own
+        write and then be wiped the next time a human opened the asset. The
+        response says so in build_unsupported_reason rather than leaving a
+        caller to discover it. */
+    UFUNCTION(BlueprintCallable, Category="MCP PuerTS Bridge")
+    bool InspectEnvQueryJson(
+        const FString& RequestJson,
+        FString& OutResultJson,
+        FString& OutError) const;
+
+    /** Read the editor world's navigation configuration: the navigation system
+        and its build state, nav data actors with their agent and generation
+        settings, NavMeshBoundsVolumes and NavModifierVolumes with world-space
+        boxes, and the bounds the navigation system actually registered.
+
+        The registered bounds are not the same list as the volumes: a volume in
+        an unloaded sublevel is an actor and is not registered, which is the
+        usual reason a navmesh is missing where a level looks like it has one.
+
+        READ ONLY: no transaction, no Modify, no MarkPackageDirty. */
+
+    /** Read the editor world's navigation configuration: the navigation system
+        and its build state, nav data actors with their agent and generation
+        settings, NavMeshBoundsVolumes and NavModifierVolumes with world-space
+        boxes, and the bounds the navigation system actually registered.
+
+        The registered bounds are not the same list as the volumes: a volume in
+        an unloaded sublevel is an actor and is not registered, which is the
+        usual reason a navmesh is missing where a level looks like it has one.
+
+        READ ONLY: no transaction, no Modify, no MarkPackageDirty. */
+    UFUNCTION(BlueprintCallable, Category="MCP PuerTS Bridge")
+    bool InspectNavigationJson(
+        const FString& RequestJson,
+        FString& OutResultJson,
+        FString& OutError) const;
+
+    /** Answer a batch of navigation queries against the editor world's navmesh:
+        project a point onto the navmesh, ask whether one point is reachable
+        from another and at what path length and cost, raycast along the
+        navmesh, and pick a random navigable point in a radius.
+
+        Batched because a placement decision needs several of these at once and
+        one round trip per point is the interface this bridge exists to avoid.
+        The whole batch is validated before the first query runs.
+
+        READ ONLY: every one of these is a const query on UNavigationSystemV1.
+        Nothing is spawned, nothing is rebuilt, and no navmesh is generated. */
+
+    /** Answer a batch of navigation queries against the editor world's navmesh:
+        project a point onto the navmesh, ask whether one point is reachable
+        from another and at what path length and cost, raycast along the
+        navmesh, and pick a random navigable point in a radius.
+
+        Batched because a placement decision needs several of these at once and
+        one round trip per point is the interface this bridge exists to avoid.
+        The whole batch is validated before the first query runs.
+
+        READ ONLY: every one of these is a const query on UNavigationSystemV1.
+        Nothing is spawned, nothing is rebuilt, and no navmesh is generated. */
+    UFUNCTION(BlueprintCallable, Category="MCP PuerTS Bridge")
+    bool QueryNavigationJson(
+        const FString& RequestJson,
+        FString& OutResultJson,
+        FString& OutError) const;
+
+    /** Reconcile the whole AIPerceptionComponent configuration on an existing
+        AIController Blueprint in one call: the senses it has, each sense's
+        properties, and the dominant sense. The component is created if it is
+        missing.
+
+        Desired-state rather than a set of setters, because a perception config
+        is only meaningful as a whole: sight radius without lose-sight radius,
+        or a dominant sense that is not configured, are the states this refuses
+        rather than writes.
+
+        UAIPerceptionComponent declares SensesConfig and DominantSense
+        protected, so the write goes through reflection on the UPROPERTY; the
+        read half uses the public GetSensesConfigIterator. A listed sense is
+        replaced wholesale, so the config that lands is the spec plus class
+        defaults and never the residue of an earlier spec.
+
+        Transactional, compiled, verified by reading the component template
+        again, and saved only after that passes. A failure cancels the
+        transaction and saves nothing.
+
+        Convergent: a rerun compares every property the spec names against the
+        config that is already there and returns before the mutation section
+        when nothing differs, so a satisfied rerun costs no Blueprint compile
+        and no save. The dominant sense counts as a difference in its own
+        right. */
+
+    /** Reconcile the whole AIPerceptionComponent configuration on an existing
+        AIController Blueprint in one call: the senses it has, each sense's
+        properties, and the dominant sense. The component is created if it is
+        missing.
+
+        Desired-state rather than a set of setters, because a perception config
+        is only meaningful as a whole: sight radius without lose-sight radius,
+        or a dominant sense that is not configured, are the states this refuses
+        rather than writes.
+
+        UAIPerceptionComponent declares SensesConfig and DominantSense
+        protected, so the write goes through reflection on the UPROPERTY; the
+        read half uses the public GetSensesConfigIterator. A listed sense is
+        replaced wholesale, so the config that lands is the spec plus class
+        defaults and never the residue of an earlier spec.
+
+        Transactional, compiled, verified by reading the component template
+        again, and saved only after that passes. A failure cancels the
+        transaction and saves nothing.
+
+        Convergent: a rerun compares every property the spec names against the
+        config that is already there and returns before the mutation section
+        when nothing differs, so a satisfied rerun costs no Blueprint compile
+        and no save. The dominant sense counts as a difference in its own
+        right. */
+    UFUNCTION(BlueprintCallable, Category="MCP PuerTS Bridge")
+    bool BuildAIPerceptionJson(
+        const FString& SpecJson,
+        FString& OutResultJson,
+        FString& OutError);
+
+    /** Read an AIController Blueprint back as JSON: parent class, every
+        AIPerceptionComponent it declares with each sense's configuration and
+        the dominant sense, and every RunBehaviorTree call site in its graphs
+        with the Behavior Tree and Blackboard each one names.
+
+        The controller-to-BT wiring is reported as call sites because that is
+        what it is: UE4.27 has no data-driven field for it, a controller starts
+        a tree by calling AAIController::RunBehaviorTree, and a tree chosen
+        through a variable at runtime resolves to nothing and is listed under
+        dynamic_behavior_tree_call_sites instead of being guessed at.
+
+        READ ONLY: not in IsToolMutating, nothing calls Modify or
+        MarkPackageDirty, and the package dirty flag is reported both sides. */
+    UFUNCTION(BlueprintCallable, Category="MCP PuerTS Bridge")
+    bool InspectAIControllerJson(
+        const FString& RequestJson,
+        FString& OutResultJson,
+        FString& OutError) const;
+
+
+    /** Read a UMaterial or a UMaterialInstanceConstant back as machine-readable
+        JSON: for a master material the expression nodes with their class paths,
+        editor positions, per-input connection state, the links between them and
+        the links into the material's own outputs; for either kind the full
+        parameter list with types, effective values and (for an instance) which
+        of them the instance overrides; plus a canonical structure hash.
+
+        The read half material authoring never had. asset_kind says whether a
+        material or an instance answered, and the response uses the same field
+        names for both so a caller does not have to branch on it.
+
+        READ ONLY: not in IsToolMutating, so no transaction opens and the
+        response carries no transaction id; nothing here calls Modify,
+        MarkPackageDirty or a compile; and the package dirty flag is reported
+        before and after. Expression identity is OBSERVED, not derived: a
+        material expression's UObject name is unique within its package and is
+        serialized, unlike a UMG widget or a Behavior Tree node. */
+    UFUNCTION(BlueprintCallable, Category="MCP PuerTS Bridge")
+    bool InspectMaterialJson(
+        const FString& RequestJson,
+        FString& OutResultJson,
+        FString& OutError) const;
+
+    /** Create or update a UMaterialInstanceConstant and set its scalar, vector,
+        texture and static switch parameters from one desired-state spec.
+
+        A re-front of UMaterialEditingLibrary plus the boundary that library
+        does not have. Every parameter is resolved against the parent and
+        validated before the asset is created or touched, so an unknown name is
+        refused with the closest matching names rather than silently dropped. A
+        parameter already at the requested value and already overridden is
+        reported unchanged and not rewritten, so a rerun dirties nothing.
+
+        Modify() is called before any write because the library's setters do
+        not, which is what makes the failure path atomic: on any failure the
+        transaction is cancelled, the rollback boundary runs, and whether the
+        parameters actually came back is decided by reading them again rather
+        than by trusting the undo. The compile is run and its result reported
+        in the response; the save happens only after an independent read-back
+        agrees with every requested value.
+
+        There is deliberately no companion command for master material graphs.
+        UE4.27's graph mutators write outside the undo record, so a failed
+        multi-node build cannot be rolled back; material_inspect is the read
+        half and there is no write half. */
+
+    /** Create or update a UMaterialInstanceConstant and set its scalar, vector,
+        texture and static switch parameters from one desired-state spec.
+
+        A re-front of UMaterialEditingLibrary plus the boundary that library
+        does not have. Every parameter is resolved against the parent and
+        validated before the asset is created or touched, so an unknown name is
+        refused with the closest matching names rather than silently dropped. A
+        parameter already at the requested value and already overridden is
+        reported unchanged and not rewritten, so a rerun dirties nothing.
+
+        Modify() is called before any write because the library's setters do
+        not, which is what makes the failure path atomic: on any failure the
+        transaction is cancelled, the rollback boundary runs, and whether the
+        parameters actually came back is decided by reading them again rather
+        than by trusting the undo. The compile is run and its result reported
+        in the response; the save happens only after an independent read-back
+        agrees with every requested value.
+
+        There is deliberately no companion command for master material graphs.
+        UE4.27's graph mutators write outside the undo record, so a failed
+        multi-node build cannot be rolled back; material_inspect is the read
+        half and there is no write half. */
+    UFUNCTION(BlueprintCallable, Category="MCP PuerTS Bridge")
+    bool BuildMaterialInstanceJson(
+        const FString& SpecJson,
+        FString& OutResultJson,
+        FString& OutError);
+
+    /** Read the editor's current level back as machine-readable JSON: every
+        actor with its class, world transform, folder, tags, attachment,
+        components and optionally selected reflected properties, plus every
+        PlayerStart and a canonical structure hash.
+
+        The read half of scene_batch, and READ ONLY on the same terms as
+        graph_inspect: not in IsToolMutating, so no transaction opens and the
+        response carries no transaction id; nothing here calls Modify or
+        MarkPackageDirty; and the level package's dirty flag is reported before
+        and after the read.
+
+        Actor identity is OBSERVED (identity_kind = "observed"): the object name
+        is unique within a level and stable, unlike the label, which a user
+        renames freely and which is not unique at all.
+
+        The structure hash always covers the WHOLE level. An actors filter
+        narrows what is reported and never what is hashed, because a hash of a
+        filter is a hash of the request. */
+    UFUNCTION(BlueprintCallable, Category="MCP PuerTS Bridge")
+    bool InspectSceneJson(
+        const FString& RequestJson,
+        FString& OutResultJson,
+        FString& OutError) const;
+
+    /** Apply a desired-state description of many actors to the current level in
+        ONE transaction: spawn, modify, delete, reparent, folder, tags, and
+        reflected properties on actors and on the components they already have.
+
+        Two operations, because a desired-state description of a level needs
+        two: upsert_actor and delete_actor. Everything a caller would otherwise
+        do with a dozen single-actor round trips is one of those.
+
+        The command owns the boundary, not the mutation: the whole batch is
+        resolved and refused before the first change, each operation's
+        satisfied-ness is re-evaluated immediately before it runs rather than
+        read from the plan, one rollback boundary wraps the batch, the level is
+        read back independently and every operation re-checked against it, and
+        any failure cancels the transaction and then decides whether the level
+        actually came back by hashing it again.
+
+        It never saves. Writing a level to disk is puerts_save's job, and
+        keeping it out of here is what lets a failed batch leave nothing on
+        disk to clean up.
+
+        Trigger volumes carry the AGENTS.md PlayerStart rule: a volume that
+        contains a PlayerStart refuses the whole batch, and one inside 1.5x its
+        own extent of a PlayerStart warns. The check runs against the actor's
+        real GetActorBounds after it is placed, inside the rollback boundary,
+        because the extent of an unspawned brush volume is a guess. */
+
+    /** Apply a desired-state description of many actors to the current level in
+        ONE transaction: spawn, modify, delete, reparent, folder, tags, and
+        reflected properties on actors and on the components they already have.
+
+        Two operations, because a desired-state description of a level needs
+        two: upsert_actor and delete_actor. Everything a caller would otherwise
+        do with a dozen single-actor round trips is one of those.
+
+        The command owns the boundary, not the mutation: the whole batch is
+        resolved and refused before the first change, each operation's
+        satisfied-ness is re-evaluated immediately before it runs rather than
+        read from the plan, one rollback boundary wraps the batch, the level is
+        read back independently and every operation re-checked against it, and
+        any failure cancels the transaction and then decides whether the level
+        actually came back by hashing it again.
+
+        It never saves. Writing a level to disk is puerts_save's job, and
+        keeping it out of here is what lets a failed batch leave nothing on
+        disk to clean up.
+
+        Trigger volumes carry the AGENTS.md PlayerStart rule: a volume that
+        contains a PlayerStart refuses the whole batch, and one inside 1.5x its
+        own extent of a PlayerStart warns. The check runs against the actor's
+        real GetActorBounds after it is placed, inside the rollback boundary,
+        because the extent of an unspawned brush volume is a guess. */
+    UFUNCTION(BlueprintCallable, Category="MCP PuerTS Bridge")
+    bool ApplySceneBatchJson(
+        const FString& SpecJson,
+        FString& OutResultJson,
+        FString& OutError);
+
+    /** Read the project's input action and axis mappings back as JSON.
+        THE MISSING INSPECTOR. UMCPBridgeInputLibrary could add and remove
+        mappings and had no reader at all, so a mutation could only ever be
+        confirmed by the mutator's own report. Nothing else in this module
+        would accept that from a Blueprint builder, and input settings are not
+        a lesser kind of state for being an ini rather than a uasset.
+
+        READ ONLY: absent from IsToolMutating, so no transaction opens; it
+        touches only const accessors on UInputSettings. Both arrays are
+        canonically ordered and reduced to mapping_hash_sha1, which is what
+        input_mapping_patch reports as pre_mapping_hash / post_mapping_hash, so
+        a patch can be verified against an independent read. */
+    UFUNCTION(BlueprintCallable, Category="MCP PuerTS Bridge")
+    bool InspectInputMappingsJson(
+        const FString& RequestJson,
+        FString& OutResultJson,
+        FString& OutError) const;
+
+    /** Reconcile the project's input mappings against a desired set.
+
+        A re-front of UMCPBridgeInputLibrary, which exists because UE4.27
+        Python cannot construct an FKey. The library's per-mapping validation
+        and exact-duplicate rejection are reused; what this command adds is the
+        boundary the library never had. The whole batch is classified against
+        the mappings that exist before the first write, so a mapping already
+        present is reported unchanged rather than reapplied, and a rerun writes
+        nothing.
+
+        Input mappings live in DefaultInput.ini, not in a UObject, so the asset
+        transaction boundary does not apply and this command is deliberately
+        absent from IsToolMutating. The boundary it owns instead is a snapshot:
+        the full action and axis arrays are copied before the first mutation,
+        restored exactly on any failure, and whether the restore worked is
+        decided by reading the mappings again and comparing the hash, not by
+        trusting the restore. */
+
+    /** Reconcile the project's input mappings against a desired set.
+
+        A re-front of UMCPBridgeInputLibrary, which exists because UE4.27
+        Python cannot construct an FKey. The library's per-mapping validation
+        and exact-duplicate rejection are reused; what this command adds is the
+        boundary the library never had. The whole batch is classified against
+        the mappings that exist before the first write, so a mapping already
+        present is reported unchanged rather than reapplied, and a rerun writes
+        nothing.
+
+        Input mappings live in DefaultInput.ini, not in a UObject, so the asset
+        transaction boundary does not apply and this command is deliberately
+        absent from IsToolMutating. The boundary it owns instead is a snapshot:
+        the full action and axis arrays are copied before the first mutation,
+        restored exactly on any failure, and whether the restore worked is
+        decided by reading the mappings again and comparing the hash, not by
+        trusting the restore. */
+    UFUNCTION(BlueprintCallable, Category="MCP PuerTS Bridge")
+    bool PatchInputMappingsJson(
+        const FString& SpecJson,
+        FString& OutResultJson,
+        FString& OutError);
+
+    /** Hide or show Content Browser folders, or read the hidden set.
+
+        A re-front of UFolderVisibilityLibrary. Display-only editor state
+        persisted in Config/FolderVisibility.ini: hidden folders stay on disk,
+        referenced and cookable. Not a UObject, so no transaction, and absent
+        from IsToolMutating for the same reason viewport commands are.
+
+        Desired-state first: "hidden" is the whole set and the command
+        converges onto it. "hide" and "show" are the delta form the legacy
+        pair used, and the two shapes are mutually exclusive rather than
+        merged, because a request that says both a full set and a delta has no
+        single correct reading. The hidden set is always read back from
+        GetHiddenFolders after the work, never echoed from the request. */
+    UFUNCTION(BlueprintCallable, Category="MCP PuerTS Bridge")
+    bool SetFolderVisibilityJson(
+        const FString& SpecJson,
+        FString& OutResultJson,
+        FString& OutError);
+
+    /** Play a camera shake on the running PIE session's player camera.
+
+        A re-front of UAutoPIEHelper::PlayCameraShakeOnPlayer, which owns the
+        PIE World -> PlayerController(0) -> PlayerCameraManager chain. Runtime
+        effect only: nothing is persisted, no asset is touched, and there is
+        nothing to roll back. Refuses with a named reason when PIE is not
+        running, rather than reporting a shake nobody could have seen.
+
+        UE4.27 note: this build uses UCameraShakeBase with StartCameraShake(),
+        which is what AutoPIEHelper already calls. */
+    UFUNCTION(BlueprintCallable, Category="MCP PuerTS Bridge")
+    bool PlayCameraShakeJson(
+        const FString& SpecJson,
+        FString& OutResultJson,
+        FString& OutError) const;
+
+    /** The read-only half of the PIE agent: observe, status, expect.
+
+        A re-front of UPIEAgentLibrary. These three change no asset and no
+        world state; they read the running session, poll an operation, or start
+        an in-engine condition check that only reads. The write half (move_to,
+        look_at, press, record, replay) is deliberately NOT here: AGENTS.md
+        requires the user to ask before any pie_agent_* tool runs, so the read
+        half is both the safe half and the useful one.
+
+        The library answers with its own {success, data, error} JSON; this
+        command forwards that verbatim rather than reshaping it, so the native
+        lane and the legacy listener cannot disagree about what the agent
+        said. */
+
+    /** The read-only half of the PIE agent: observe, status, expect.
+
+        A re-front of UPIEAgentLibrary. These three change no asset and no
+        world state; they read the running session, poll an operation, or start
+        an in-engine condition check that only reads. The write half (move_to,
+        look_at, press, record, replay) is deliberately NOT here: AGENTS.md
+        requires the user to ask before any pie_agent_* tool runs, so the read
+        half is both the safe half and the useful one.
+
+        The library answers with its own {success, data, error} JSON; this
+        command forwards that verbatim rather than reshaping it, so the native
+        lane and the legacy listener cannot disagree about what the agent
+        said. */
+    UFUNCTION(BlueprintCallable, Category="MCP PuerTS Bridge")
+    bool QueryPIEAgentJson(
+        const FString& RequestJson,
+        FString& OutResultJson,
+        FString& OutError) const;
+
 };
