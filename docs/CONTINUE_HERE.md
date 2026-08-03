@@ -1,57 +1,23 @@
 # Continue here
 
-Updated 2026-08-03, after all nine wave-four lanes merged and the batch compile
-passed. Every claim below is checkable.
+Updated 2026-08-03, end of the planning session.
 
-## State
+**READ docs/FINAL_IMPLEMENTATION_PLAN.md FIRST.** It supersedes the wave notes
+below, carries every remaining work package with dependencies and merge order,
+and `docs/WORKHORSE_EXECUTION_PROMPT.md` is the self-contained prompt that
+executes it.
 
-- Integration branch `bridge/native-consolidation-2026-07-31`, tree clean.
-- `npm run verify`: green. 256 registrations, frozen count 256.
-- **All nine lanes are MERGED.** Nothing is left unmerged.
-- **The batch compile PASSES.** Zero errors, fresh DLL, install matches the repo.
-- The merged plugin LOADS and serves: `mcp-smoke --require-editor`, 12 passed,
-  0 failed, 0 skipped, 12 actors over the named pipe.
-- 45 native commands in the allowlist: 25 that write, 20 read-only.
+## State at session end
 
-## Live suite status on the merged build
-
-| Suite | Result |
-|---|---|
-| `mcp-smoke --require-editor` | 12 passed, 0 failed, 0 skipped |
-| `graph-inspect-acceptance` | passed |
-| `behavior-tree-acceptance` | passed |
-| `bp-graph-patch-acceptance` | all checks passed |
-| `mutator-atomicity` | **green twice consecutively, control included** (0r fixed) |
-| `bp-member-patch-acceptance` | 1 red, finding 0q |
-
-## Wave five is IN FLIGHT
-
-Six lanes are running as of this writing. If this session ended mid-wave, their
-branches exist and each was told to commit before stopping. Check them first:
-
-| Lane | Branch | Domain | Rights |
-|---|---|---|---|
-| R | `lane/r-finding-0q` | finding 0q | editor AND build lock, exclusive |
-| S | `lane/s-sequencer` | Sequencer, the last empty domain | none |
-| T | `lane/t-material-graph` | material_build, texture_import | none |
-| U | `lane/u-level-lighting` | lighting_build, class_defaults_patch, capability regression | none |
-| V | `lane/v-widget-bind` | widget bindings and animations | none |
-| W | `lane/w-domain-gaps` | nav_build, anim_blueprint_patch, audio, cloth | none |
-
-`git log --oneline HEAD..lane/<name>` tells you whether a lane committed
-anything. A branch level with HEAD did no work worth keeping.
-
-**Merging them: use `node Scripts/merge-lane.mjs lane/<name>`.** It encodes the
-recipe that cost a session to work out, and its header explains why a plain
-union produces broken TypeScript. Run it one lane at a time, resolve the tool
-count assertion it deliberately leaves alone, typecheck BOTH tsconfigs, then
-regenerate the inventory, then verify. Do not start the next merge until verify
-is green.
-
-## Findings 0p and 0r are FIXED and live-verified
-
-Do not reopen them. `mutator-atomicity` is green twice consecutively with its
-control, and the three suites that share the mutator library still pass.
+- Lanes Y (`lane/y-animbp-snapshot`) and Z (`lane/z-async-jobs`) are MERGED.
+  verify green at 273 registrations, 60 native tools. Their C++ is UNCOMPILED.
+- Lane X (`lane/x-slice-green`) was STILL RUNNING at session end. First action
+  next session: `git log HEAD..lane/x-slice-green`; merge whatever it committed
+  with `node Scripts/merge-lane.mjs lane/x-slice-green`, then batch compile
+  (close the editor first), then re-run the seven slices.
+- After X merges: the batch compile covers Y and Z too. Highest compile risk:
+  MovieSceneCapture/MovieSceneTools module deps (lane Z) and the package-reload
+  restore path (lane Y).
 
 ## Paste this into a fresh session
 
