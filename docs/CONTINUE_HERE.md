@@ -21,7 +21,7 @@ passed. Every claim below is checkable.
 | `graph-inspect-acceptance` | passed |
 | `behavior-tree-acceptance` | passed |
 | `bp-graph-patch-acceptance` | all checks passed |
-| `mutator-atomicity` | **2 red, finding 0r** |
+| `mutator-atomicity` | **green twice consecutively, control included** (0r fixed) |
 | `bp-member-patch-acceptance` | 1 red, finding 0q |
 
 ## Wave five is IN FLIGHT
@@ -65,14 +65,12 @@ Read docs/CONTINUE_HERE.md, then docs/CAPABILITY_FINDINGS.md findings 0m to 0r.
 All nine lanes are merged and the batch compile passes. Do not re-merge them and
 do not relaunch those lanes.
 
-1. Settle finding 0r first: apply set_variable_default inside a transaction,
-   cancel it, read the CDO with puerts_read_property. If the CDO still holds the
-   value the write is not transacted, so fix at the writer rather than at the
-   rollback boundary. Then re-run Scripts/mutator-atomicity.mjs.
-2. Give Scripts/mutator-atomicity.mjs a per-run fresh fixture path, the way
-   Scripts/bp-member-patch-acceptance.mjs does. Its control variable survives
-   between runs, so a second run reports a false red.
-3. Settle finding 0q: read compile_status on the FULL member-patch fixture
+1. Merge whatever wave five committed, one lane at a time, with
+   node Scripts/merge-lane.mjs lane/<name>. Findings 0p and 0r are CLOSED; do
+   not reopen them.
+2. Batch compile after the merge set. Roughly every lane carries uncompiled C++
+   and only a real build finds cross-lane collisions.
+3. Settle finding 0q if lane R did not: read compile_status on the FULL member-patch fixture
    immediately after it is built and BEFORE the patch runs. If it is already
    UpToDateWithWarnings the patch is innocent and the assertion is wrong.
 4. Close the capability regression lane P found: puerts_spawn_actor lost name,
@@ -100,10 +98,8 @@ conflicting hunks, so both sides end mid-declaration and share one tail. A union
 closes one and leaves the other open, and it surfaces as an unbalanced brace or
 a UHT "Missing '*' in Expected a pointer type" hundreds of lines away.
 
-Graft whole brace-matched units from the lane's own file instead. Scripts used
-this session are disposable, but the shape is: take the merged file, extract the
-functions or declarations the lane has and the merged file lacks, insert at a
-known anchor, then typecheck before moving on.
+Graft whole brace-matched units from the lane's own file instead. That recipe is
+now `Scripts/merge-lane.mjs`, and its header explains the failure it prevents.
 
 **Also learned:**
 
@@ -120,11 +116,10 @@ known anchor, then typecheck before moving on.
 
 ## Open defects, highest value first
 
-1. **Finding 0r**, above. Blocks trusting any mutator atomicity claim.
-2. **Capability regression** (lane P): `scene_batch`'s inputs shipped in the
+1. **Capability regression** (lane P): `scene_batch`'s inputs shipped in the
    legacy catalog and did not survive the native migration.
-3. **Finding 0q**: `blueprint_member_patch` leaves the Blueprint compiling with
-   warnings where a fresh one does not.
+2. **Finding 0q**: `blueprint_member_patch` leaves the Blueprint compiling with
+   warnings where a fresh one does not. Lane R is on it.
 4. **Compile messages are unreachable.** A caller told `UpToDateWithWarnings`
    cannot find out what the warnings were through any command.
 5. **Packaging: source YES, binaries NO.** Lane N ran `-RunUAT` and proved it
