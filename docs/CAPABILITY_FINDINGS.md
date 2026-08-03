@@ -2489,3 +2489,45 @@ whether an AnimGraph cleared to a bare Root node compiles clean at the point
 `Rebuild` reaches its final compile, or whether anything else in the
 AnimBlueprint holds a reference to the removed state machine graph that
 `RemoveGraph` does not clear.
+
+## Finding 0u: "Failed to start Swarm" is environmental, and lighting_build should say so
+
+Diagnosed 2026-08-03. Not an MCPBridge or PuerTS defect.
+
+Swarm Agent is the UE4 service CPU Lightmass uses to build static lighting. It
+is separate from this plugin entirely. Checked on this machine:
+
+```
+PRESENT  Engine/Binaries/DotNET/SwarmAgent.exe        365,024 bytes
+PRESENT  Engine/Binaries/Win64/UnrealLightmass.exe  1,096,672 bytes
+PRESENT  Engine/Binaries/DotNET/SwarmCommonUtils.dll
+PRESENT  Engine/Binaries/DotNET/AgentInterface.dll
+```
+
+So the binaries are not missing and the engine does not need rebuilding.
+Launched manually, `SwarmAgent.exe` starts and stays up. The failure is
+therefore the editor's auto-start of an agent that was not already running:
+firewall prompt, a stuck previous instance, or a damaged cache under
+`%LOCALAPPDATA%/UnrealEngine/4.27/Saved/Swarm` (5141 files here).
+
+**What this means for the program, which is the actionable half.**
+
+`puerts_lighting_build` currently hands off to Lightmass and reports
+`status: building`. If Swarm cannot start, the build never progresses and the
+command has already returned success. That is the shape of failure this program
+exists to remove: a command that reports what it requested rather than what
+happened.
+
+`lighting_build` should check the precondition and refuse by name, exactly as
+`nav_build` refuses when there is no NavMeshBoundsVolume:
+
+- is `SwarmAgent.exe` present under the engine root
+- is a SwarmAgent process already running, and if not, did starting one work
+- report `swarm_available` in the response either way
+
+**And automated tests should not bake lighting at all.** The level slice needs
+placed lights and correct transforms, not a Lightmass run. Baked lighting
+belongs in the final environment vertical slice, where static lighting is part
+of what is being proven, and there Swarm genuinely must work. Any earlier test
+that triggers a lighting build is buying a multi-minute external dependency for
+a check it does not need.
