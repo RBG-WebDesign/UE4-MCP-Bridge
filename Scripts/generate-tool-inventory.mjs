@@ -43,6 +43,7 @@ const history = new OperationHistory();
 // module file -> [factory export, backend, args]
 const MODULES = [
   ['engine-source', 'createEngineSourceTools', 'server_local', []],
+  ['status', 'createStatusTools', 'server_local', []],
   ['puerts', 'createPuertsTools', 'native_pipe', [puertsClient]],
   // Legacy names kept as router aliases onto the native lane. They reuse the
   // legacy public names on purpose, so an inventory entry is identified by

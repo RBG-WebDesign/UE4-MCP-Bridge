@@ -58,6 +58,7 @@ import { createClothTools } from "./tools/cloth.js";
 import { createOptimizationTools } from "./tools/optimization.js";
 import { createEngineSourceTools } from "./tools/engine-source.js";
 import { createPuertsTools } from "./tools/puerts.js";
+import { createStatusTools } from "./tools/status.js";
 import { registerCompatAliases } from "./tools/compat.js";
 import { toolAnnotations } from "./annotations.js";
 import { loadExtensions } from "./extensions.js";
@@ -94,6 +95,7 @@ async function main(): Promise<void> {
   // Native IPC is the default and contains no automatic fallback.
   const allTools: ToolDefinition[] = [
     ...createEngineSourceTools(),
+    ...createStatusTools(),
     ...createPuertsTools(puertsClient),
   ];
 

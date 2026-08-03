@@ -179,6 +179,8 @@ export const toolAnnotations: Record<string, ToolAnnotations> = {
   cloth_smooth_max_distance: mutatingIdempotent,
   cloth_apply_lower_leg_gradient: mutatingIdempotent,
   bridge_command_manifest: readOnly,
+  // Reads a file the editor wrote. Touches no editor state and no pipe.
+  bridge_command_status: readOnly,
   engine_source_read: readOnly,
   engine_source_search: readOnly,
   gameplay_pattern_search: readOnly,

@@ -42,7 +42,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { requireCurrentInstall } from "./bridge-install.mjs";
 import {
-  buildRunReport, compareRuns, deriveEditorStartupScenario, describeRefusal,
+  buildRunReport, checkShape, compareRuns, deriveEditorStartupScenario, describeRefusal,
   runPieCycleScenario, runScenario, runWorkflowScenario, validateRunReport,
 } from "./perf-stats.mjs";
 
@@ -106,14 +106,58 @@ async function call(name, args = {}) {
   const clientMs = Number(process.hrtime.bigint() - started) / 1e6;
   roundTrips += 1;
   const text = message?.result?.content?.[0]?.text;
-  const result = typeof text === "string" ? JSON.parse(text) : { success: false, errors: ["no JSON content"] };
-  return { result, clientMs, bytes: typeof text === "string" ? Buffer.byteLength(text, "utf-8") : 0 };
+  if (typeof text !== "string") {
+    // A JSON-RPC level failure: an unknown tool, a schema rejection at the
+    // transport, a server crash. Carrying the protocol error through is the
+    // difference between "the editor is slow" and "this tool does not exist".
+    return {
+      result: {
+        success: false,
+        errors: [message?.error
+          ? `MCP protocol error calling ${name}: ${JSON.stringify(message.error)}`
+          : `MCP response for ${name} carried no text content: ${JSON.stringify(message).slice(0, 300)}`],
+      },
+      clientMs,
+      bytes: 0,
+    };
+  }
+  let result;
+  try {
+    result = JSON.parse(text);
+  } catch (error) {
+    result = { success: false, errors: [`${name} returned text that is not JSON (${String(error)}): ${text.slice(0, 300)}`] };
+  }
+  return { result, clientMs, bytes: Buffer.byteLength(text, "utf-8") };
 }
 
 function refuse(refusal, extra = {}) {
   console.error(JSON.stringify({ ...refusal, ...extra }, null, 2));
   console.error("\nNo results file was written. Start the editor for "
     + `${projectRoot}, confirm it advertises a session, and run again.`);
+  child.kill();
+  process.exit(2);
+}
+
+/**
+ * Stop on a response that is not shaped the way this harness reads it.
+ *
+ * Separate from refuse() on purpose: a session refusal means "no editor", and
+ * a shape mismatch means "an editor answered and the contract moved". They are
+ * fixed by different people and must not print the same reason code. Both
+ * write no results file, because a run that guessed at a field it could not
+ * find would report numbers for the wrong work.
+ */
+function refuseShape(problem) {
+  console.error(JSON.stringify({
+    refused: true,
+    measured: false,
+    reason_code: "response_shape_mismatch",
+    reason: "An editor answered, but a response does not carry the fields this harness reads. "
+      + "The benchmark cannot build its scenarios from it. This is a contract change or a bug, "
+      + "not a slow bridge.",
+    problem,
+  }, null, 2));
+  console.error("\nNo results file was written.");
   child.kill();
   process.exit(2);
 }
@@ -142,22 +186,63 @@ try {
   const refusal = describeRefusal(probe.result);
   if (refusal) refuse(refusal, { probe_tool: "puerts_diagnostic", project_root: projectRoot });
 
-  const diagnostics = probe.result.data ?? {};
-  const actorCount = Number(diagnostics.actor_count_total ?? 0);
+  // Everything below reads fields out of live responses. Each read is checked
+  // before it is used: a missing field used to become `undefined` in a scenario
+  // argument, which measures the wrong thing or crashes far from the cause.
+  //
+  // The environment block is checked hardest, because bridge_commit, the
+  // session id and actor_count_total are the fields that decide whether one
+  // results file is comparable to another. A run that records session_id "" is
+  // a file nobody can compare later, and it looks exactly like a good one.
+  const probeShape = checkShape("puerts_diagnostic", probe.result, [
+    ["data.actor_count_total", "number"],
+    ["data.is_game_thread", "boolean"],
+    // Identity lives on the response envelope, not in data: BuildBaseResponse
+    // puts it under "session" for EVERY response including refusals
+    // (MCPPuerTSBridgeService.cpp:1322-1336). Reading it from data silently
+    // produced session_id "" and editor_pid 0 in every results file.
+    ["session.session_id", "string+"],
+    ["session.editor_pid", "number"],
+  ]);
+  if (probeShape) refuseShape(probeShape);
+
+  const diagnostics = probe.result.data;
+  const probeSession = probe.result.session;
+  const actorCount = Number(diagnostics.actor_count_total);
 
   // Pick a live actor for the read and mutate scenarios. Actor.bHidden is on
   // the native writable allowlist and setting it to the value it already has
   // is the smallest honest "simple property mutation": it dirties the package
   // and opens a transaction without changing what the level looks like.
   const found = await call("puerts_find_actors", { limit: 500 });
-  const actors = found.result.data?.actors ?? [];
-  const actorName = actors.length > 0 ? (actors[0].name ?? actors[0].label ?? "") : "";
-  let mutationSkip = actorName ? "" : "no actor in the editor level to read or mutate";
+  const actorsShape = checkShape("puerts_find_actors", found.result, [["data.actors", "array"]]);
+  if (actorsShape) refuseShape(actorsShape);
+  const actors = found.result.data.actors;
+  let mutationSkip = "";
+  let actorName = "";
+  if (actors.length === 0) {
+    mutationSkip = "no actor in the editor level to read or mutate";
+  } else {
+    const nameShape = checkShape("puerts_find_actors", found.result, [["data.actors.0.name", "string+"]]);
+    if (nameShape) refuseShape(nameShape);
+    actorName = actors[0].name;
+  }
   let hiddenValue = false;
   if (actorName) {
     const read = await call("puerts_read_property", { actor: actorName, property: "bHidden" });
-    if (read.result.success === true) hiddenValue = Boolean(read.result.data?.value ?? false);
-    else mutationSkip = `bHidden is not readable on ${actorName}: ${(read.result.errors ?? []).join("; ")}`;
+    if (read.result.success !== true) {
+      mutationSkip = `bHidden is not readable on ${actorName}: ${(read.result.errors ?? []).join("; ")}`;
+    } else {
+      // This one is not cosmetic. set_property_bHidden writes this value back.
+      // The old code did Boolean(data?.value ?? false), so a missing or
+      // non-boolean field became false and the "no-op mutation" scenario
+      // silently UNHID an actor twenty-three times. A property whose read did
+      // not produce a boolean is not something to write back.
+      const valueShape = checkShape("puerts_read_property", read.result, [["data.value", "boolean"]]);
+      if (valueShape) mutationSkip = `bHidden did not read back as a boolean, so writing it back `
+        + `would not be a no-op. ${valueShape}`;
+      else hiddenValue = read.result.data.value;
+    }
   }
 
   // A Blueprint to inspect. Discovery rather than a hardcoded fixture, because
@@ -165,8 +250,17 @@ try {
   // requiring a fixture would skip this scenario on every project that has not
   // run the acceptance scripts.
   const blueprints = await call("puerts_find_assets", { path: "/Game", type: "Blueprint", recursive: true, limit: 1 });
-  const firstBlueprint = String(blueprints.result.data?.assets?.[0]?.path ?? "");
-  const inspectSkip = firstBlueprint ? "" : "no Blueprint under /Game to inspect";
+  const assetsShape = checkShape("puerts_find_assets", blueprints.result, [["data.assets", "array"]]);
+  if (assetsShape) refuseShape(assetsShape);
+  let firstBlueprint = "";
+  let inspectSkip = "";
+  if (blueprints.result.data.assets.length === 0) {
+    inspectSkip = "no Blueprint under /Game to inspect";
+  } else {
+    const pathShape = checkShape("puerts_find_assets", blueprints.result, [["data.assets.0.path", "string+"]]);
+    if (pathShape) refuseShape(pathShape);
+    firstBlueprint = blueprints.result.data.assets[0].path;
+  }
 
   // The compile and authoring scenarios write. blueprint_build is convergent, so
   // re-running the same spec against an existing asset changes nothing, but the
@@ -373,8 +467,8 @@ try {
       bridge_commit: gitCommit(),
       project_root: projectRoot,
       editor: {
-        session_id: String(diagnostics.session_id ?? ""),
-        editor_pid: Number(diagnostics.editor_pid ?? 0),
+        session_id: String(probeSession.session_id),
+        editor_pid: Number(probeSession.editor_pid),
         actor_count_total: actorCount,
         is_game_thread: Boolean(diagnostics.is_game_thread),
       },

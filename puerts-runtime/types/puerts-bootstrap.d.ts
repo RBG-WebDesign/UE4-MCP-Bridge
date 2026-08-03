@@ -1,6 +1,7 @@
 declare function require(id: string): unknown;
 declare const process: {
   chdir(directory: string): void;
+  readonly env: Readonly<Record<string, string | undefined>>;
 };
 
 declare module "puerts" {

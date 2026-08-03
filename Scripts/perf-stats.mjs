@@ -114,6 +114,81 @@ export function validateRunReport(report, schema = runSchema) {
   return { ok: problems.length === 0, problems };
 }
 
+// ------------------------------------------------------------ shape checks
+
+/**
+ * Describe a value the way a diagnosis needs it: its type, and for an object
+ * its keys with their types one level down. A truncated JSON dump alone is a
+ * bad diagnosis for a 200 KB graph_inspect response, because the field that is
+ * missing is exactly the one the truncation cut.
+ */
+export function describeShape(value, depth = 1) {
+  if (value === null) return "null";
+  if (Array.isArray(value)) {
+    return value.length === 0 ? "array(0)" : `array(${value.length}) of ${describeShape(value[0], depth - 1)}`;
+  }
+  if (typeof value !== "object") return typeof value;
+  const keys = Object.keys(value);
+  if (depth <= 0) return `object{${keys.length} keys}`;
+  const inner = keys.slice(0, 24).map((key) => `${key}: ${describeShape(value[key], depth - 1)}`);
+  if (keys.length > 24) inner.push(`... ${keys.length - 24} more`);
+  return `{ ${inner.join(", ")} }`;
+}
+
+/** Read "data.actors.0.name" out of a payload. Missing at any step is undefined. */
+function atPath(payload, path) {
+  let current = payload;
+  for (const segment of path.split(".")) {
+    if (current === null || typeof current !== "object") return undefined;
+    current = Array.isArray(current) ? current[Number(segment)] : current[segment];
+  }
+  return current;
+}
+
+/**
+ * Check that a response really has the fields the harness is about to read out
+ * of it, and produce a diagnosis rather than a stack trace when it does not.
+ *
+ * This exists because every scenario runner in this file was only ever
+ * exercised against a stub whose response shape was guessed from C++ field
+ * names, and because the benchmark's spec-building code reads six different
+ * payloads that nothing had ever checked. A wrong guess used to surface as
+ * `undefined` flowing into a scenario argument, which produces either a
+ * scenario that measures the wrong thing or a crash two hundred lines later.
+ * Now it names the tool, the path, what was expected, what arrived, and the
+ * shape of the payload it arrived in.
+ *
+ * `expectations` is a list of [path, kind] where kind is one of string,
+ * number, boolean, array, object, with a trailing "+" meaning non-empty
+ * (a non-empty string or an array with at least one element).
+ *
+ * Returns null when every expectation holds, otherwise one problem string
+ * carrying all of them plus the payload description.
+ */
+export function checkShape(label, payload, expectations) {
+  const problems = [];
+  for (const [path, kind] of expectations) {
+    const required = kind.endsWith("+");
+    const baseKind = required ? kind.slice(0, -1) : kind;
+    const value = atPath(payload, path);
+    if (!matchesType(value, baseKind)) {
+      problems.push(`${path}: expected ${baseKind}, found ${describeType(value)}`);
+      continue;
+    }
+    if (required && baseKind === "string" && value.length === 0) {
+      problems.push(`${path}: expected a non-empty string, found ""`);
+    }
+    if (required && baseKind === "array" && value.length === 0) {
+      problems.push(`${path}: expected at least one element, found an empty array`);
+    }
+  }
+  if (problems.length === 0) return null;
+  return `${label}: the response does not have the shape this harness reads.\n`
+    + problems.map((problem) => `    - ${problem}`).join("\n")
+    + `\n    payload shape: ${describeShape(payload, 2)}`
+    + `\n    payload head:  ${JSON.stringify(payload).slice(0, 400)}`;
+}
+
 // ----------------------------------------------------------------- report
 
 /** Assemble one results file. Callers supply already-summarized scenarios. */
@@ -314,7 +389,12 @@ export async function runPieCycleScenario(spec, { call, sleep, pollIntervalMs = 
       // A refusal during play is expected for other tools, not this one; if
       // physics_observe itself fails there is nothing left to poll with.
       if (result?.success !== true) return { ok: false, elapsed, reason: why(result) };
-      if (result.data?.world === wanted) return { ok: true, elapsed };
+      // A missing world field is a contract change, not a slow PIE start.
+      // Polling for it for a minute and then reporting a timeout would name
+      // the wrong problem, so it stops here with the payload.
+      const shapeProblem = checkShape("puerts_physics_observe", result, [["data.world", "string+"]]);
+      if (shapeProblem) return { ok: false, elapsed, reason: shapeProblem };
+      if (result.data.world === wanted) return { ok: true, elapsed };
       if (elapsed > timeoutMs) {
         return { ok: false, elapsed, reason: `world stayed "${String(result.data?.world)}" for ${timeoutMs} ms` };
       }
@@ -327,7 +407,9 @@ export async function runPieCycleScenario(spec, { call, sleep, pollIntervalMs = 
   const before = await call("puerts_physics_observe", {});
   roundTrips += 1;
   if (before.result?.success !== true) return fail(`physics_observe is unavailable, so PIE readiness cannot be observed: ${why(before.result)}`);
-  if (before.result.data?.world !== "editor") return fail(`the editor is already in world "${String(before.result.data?.world)}"; a PIE cycle must start from the editor world`);
+  const worldShape = checkShape("puerts_physics_observe", before.result, [["data.world", "string+"]]);
+  if (worldShape) return fail(worldShape);
+  if (before.result.data.world !== "editor") return fail(`the editor is already in world "${String(before.result.data.world)}"; a PIE cycle must start from the editor world`);
 
   const start = await call("puerts_pie_start", {});
   roundTrips += 1;

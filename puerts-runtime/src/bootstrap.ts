@@ -3,6 +3,7 @@ import * as UE from "ue";
 import * as puerts from "puerts";
 import { ToolRegistry, toolDefinitions } from "./registry";
 import { installRuntimeGuards } from "./safety";
+import { createStatusRecorder } from "./status";
 import { CommandRequest, JsonObject, response } from "./types";
 
 interface NativeEnvelope {
@@ -41,10 +42,15 @@ if (bridge === undefined || bridge === null) throw new Error("Native MCP bridge 
 installRuntimeGuards(bridge.GetProjectRoot(), bridge.AreShellCommandsAllowed());
 process.chdir(bridge.GetProjectRoot());
 const registry = new ToolRegistry(toolDefinitions);
+// Written before the runtime hands the game thread to native code, so a client
+// can tell "working" from "hung" while nothing can be read off this pipe. See
+// status.ts for what it can and cannot report.
+const status = createStatusRecorder(bridge.GetProjectRoot());
 let commandQueue: Promise<void> = Promise.resolve();
 
 async function executeLine(line: string, socket: net.Socket): Promise<void> {
   let commandId = "";
+  let commandTool = "";
   try {
     const envelope = JSON.parse(bridge.AcceptCommand(line)) as NativeEnvelope;
     if (!envelope.accepted) {
@@ -53,14 +59,18 @@ async function executeLine(line: string, socket: net.Socket): Promise<void> {
     }
     const request = parseRequest(envelope.request);
     commandId = request.id;
+    commandTool = request.tool;
+    status.begin(commandId, commandTool);
     const result = await registry.execute(
       { bridge, transactionId: request.transaction_id },
       request.tool,
       request.params,
     );
+    status.end(commandId, commandTool, result.success === true);
     result.transaction_id = request.transaction_id;
     socket.end(bridge.CompleteCommand(commandId, JSON.stringify(result)) + "\n");
   } catch (error: unknown) {
+    if (commandId.length > 0) status.end(commandId, commandTool, false);
     const failed = failureJson("Command failed before completion.", error);
     socket.end((commandId.length > 0 ? bridge.CompleteCommand(commandId, failed) : failed) + "\n");
   }

@@ -13,8 +13,9 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
-  buildRunReport, compareRuns, deriveEditorStartupScenario, describeRefusal, percentile,
-  runPieCycleScenario, runSchema, runScenario, runWorkflowScenario, summarize, validateRunReport,
+  buildRunReport, checkShape, compareRuns, deriveEditorStartupScenario, describeRefusal,
+  describeShape, percentile, runPieCycleScenario, runSchema, runScenario, runWorkflowScenario,
+  summarize, validateRunReport,
 } from "./perf-stats.mjs";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
@@ -408,6 +409,54 @@ function pieStub(worlds, { startOk = true, stopOk = true } = {}) {
   assert.equal(notAsked.skip_reason, "not requested; pass --include-pie");
   ok("a refused pie_start does not go on to stop, and an unrequested cycle starts nothing");
 }
+
+{
+  // physics_observe answers but its world field is gone. Polling for it for a
+  // minute and then reporting "PIE never became playable" would name the wrong
+  // problem: the editor is fine, the response contract moved.
+  const call = async () => ({ result: { success: true, data: { actors: [] } }, clientMs: 2, bytes: 1 });
+  const scenario = await runPieCycleScenario({ name: "pie_cycle" }, { call, sleep: async () => {} });
+  assert.equal(scenario.status, "skipped");
+  assert.ok(scenario.skip_reason.includes("data.world"), scenario.skip_reason);
+  assert.ok(scenario.skip_reason.includes("payload shape"), "the payload that arrived is not described");
+  assert.ok(!scenario.skip_reason.includes("never became playable"), "a shape failure was reported as a PIE timeout");
+  ok("physics_observe with no world field stops at once and names the field, not a PIE timeout");
+}
+
+// ------------------------------------------------------------ shape checks
+
+assert.equal(checkShape("x", { data: { a: 1 } }, [["data.a", "number"]]), null);
+assert.equal(checkShape("x", { data: { a: [1, 2] } }, [["data.a", "array+"], ["data.a.0", "number"]]), null);
+ok("a payload that has the fields a caller reads passes the shape check");
+
+const wrongShape = checkShape("puerts_find_actors", { success: true, data: { actors: [] } }, [
+  ["data.actors", "array+"],
+  ["data.actors.0.name", "string+"],
+]);
+assert.ok(wrongShape.includes("puerts_find_actors"), "the tool is named");
+assert.ok(wrongShape.includes("data.actors: expected at least one element"), wrongShape);
+assert.ok(wrongShape.includes("data.actors.0.name: expected string, found undefined"), wrongShape);
+assert.ok(wrongShape.includes("payload shape:"), "the shape of what arrived is described");
+assert.ok(wrongShape.includes("payload head:"), "the payload itself is quoted");
+ok("a bad shape names every failed path, what arrived, and describes the payload");
+
+// The exact defect this check exists for: identity is on the response
+// envelope under "session", not in "data". Reading it from data produced
+// session_id "" and editor_pid 0 in every results file, which validates
+// against the schema and is uncomparable to any other run.
+const identity = { success: true, data: { actor_count_total: 56 }, session: { session_id: "abc", editor_pid: 4242 } };
+assert.equal(checkShape("puerts_diagnostic", identity, [["session.session_id", "string+"], ["session.editor_pid", "number"]]), null);
+assert.ok(checkShape("puerts_diagnostic", identity, [["data.session_id", "string+"]]).includes("found undefined"));
+ok("session identity is read from the response envelope, and reading it from data is caught");
+
+assert.ok(checkShape("t", { data: { value: null } }, [["data.value", "boolean"]]).includes("found null"));
+assert.ok(checkShape("t", {}, [["data.value", "boolean"]]).includes("found undefined"));
+assert.equal(checkShape("t", { data: { value: false } }, [["data.value", "boolean"]]), null);
+ok("a boolean check accepts false and rejects null and absent: set_property writes this value back");
+
+assert.equal(describeShape({ a: 1, b: "x", c: [1], d: null }), "{ a: number, b: string, c: array(1) of number, d: null }");
+assert.equal(describeShape([]), "array(0)");
+ok("describeShape names the keys and their types rather than truncating JSON");
 
 // ------------------------------------------------- editor startup timing
 
