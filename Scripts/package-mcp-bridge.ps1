@@ -191,8 +191,28 @@ $($lock.file_count) files. Verify an install with:
     node Scripts/check-puerts-pin.mjs --strict --bundle <YourProject>/Plugins/Puerts
 
 Source only: no binaries are included. The target must be a C++ project with
-UE4.27 and UnrealBuildTool available. Open the project and accept the rebuild
-prompt, or build the editor target from the command line.
+UE4.27 and UnrealBuildTool available. Build the editor target before opening
+the project:
+
+    <UE4.27>\Engine\Build\BatchFiles\Build.bat <YourProject>Editor Win64 ``
+        Development "<YourProject>\<YourProject>.uproject" -WaitMutex -NoHotReload
+
+-NoHotReload is not optional. Without it UBT gives PuerTS's
+ParamDefaultValueMetas module a hot-reload-suffixed name, and JsEnv then fails
+to link against it:
+
+    LINK : fatal error LNK1181: cannot open input file
+    '...\ParamDefaultValueMetas\UE4Editor-ParamDefaultValueMetas.lib'
+
+Set a pipe name before you start the editor. Every bridge setting has a default
+compiled in, so it runs without configuration, but the default pipe name is one
+constant shared by every project. Two projects installed from a release zip on
+the same machine will ask for the same pipe. Add to Config\DefaultEngine.ini:
+
+    [MCPPuerTSBridge]
+    PipeName=\\.\pipe\UE427PuerTSMCP_<YourProjectName>
+
+MCPBridge\Config\DefaultEngine.ini.example in this archive has the long form.
 
 The MCP server is NOT in this archive. It is Node and lives in the bridge
 repository under mcp-server/. Point your MCP client at that checkout; see
@@ -244,7 +264,19 @@ if ($RunUAT -and -not $SourceZipOnly) {
 
     & $runUATPath BuildPlugin -Plugin="$upluginPath" -Package="$uatPackagePath" -Rocket
     if ($LASTEXITCODE -ne 0) {
-        throw "RunUAT BuildPlugin failed with exit code $LASTEXITCODE"
+        # Expected, and not a defect in this plugin. BuildPlugin writes its own
+        # host project enabling exactly one plugin and copies only that plugin
+        # into it (BuildPluginCommand.Automation.cs CreateHostProject), and the
+        # descriptor it writes has no AdditionalPluginDirectories. MCPBridge
+        # requires Puerts, so UBT has nowhere to resolve it from and stops with
+        # "Unable to find plugin 'Puerts'" (UEBuildTarget.cs). It also wipes the
+        # package directory first, so the dependency cannot be staged in
+        # beforehand. There is no argument that fixes this in 4.27.
+        throw ("RunUAT BuildPlugin failed with exit code $LASTEXITCODE. If the log says " +
+            "`"Unable to find plugin 'Puerts'`", that is the known 4.27 limitation, not a " +
+            "regression: BuildPlugin builds one plugin in a host project it generates itself " +
+            "and cannot be given a plugin dependency. Build in a real host project that has " +
+            "both plugins instead. See docs/RELEASE.md.")
     }
 
     Write-Host "UAT package: $uatPackagePath"

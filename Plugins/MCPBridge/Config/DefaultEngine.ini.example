@@ -1,11 +1,39 @@
-; Add these settings to your project's DefaultEngine.ini
-; to enable the Python plugin and auto-start the MCP Bridge listener.
-; The installer (Scripts/install-mcp-bridge.ps1) writes these for you;
-; use this file only for manual setup. Replace <ProjectRoot> with the
-; absolute path to your project folder.
+; Settings to add to your project's Config/DefaultEngine.ini.
+;
+; Scripts/install-mcp-bridge.ps1 writes these for you. Use this file only when
+; you installed the plugin by hand, which is what you did if you extracted a
+; release zip: the zip carries plugins and no project config.
 
-[/Script/PythonScriptPlugin.PythonScriptPluginSettings]
-bDeveloperMode=True
-bRemoteExecution=True
-+StartupScripts=startup.py
-+AdditionalPaths=(Path="<ProjectRoot>/Plugins/MCPBridge/Content/Python")
+; ---------------------------------------------------------------------------
+; Native bridge. This is the one that matters.
+; ---------------------------------------------------------------------------
+;
+; Every setting here has a default compiled into the plugin, so the bridge
+; starts without this section. PipeName is the one you should still set.
+;
+; The compiled default is the same constant for every project:
+;
+;     \\.\pipe\UE427PuerTSMCP
+;
+; Two projects installed from a release zip on one machine therefore ask for
+; the SAME pipe. Give each project its own name. The installer uses the
+; .uproject name with every character outside [A-Za-z0-9_] replaced by an
+; underscore; match that and a generated client config lines up with it.
+
+[MCPPuerTSBridge]
+PipeName=\\.\pipe\UE427PuerTSMCP_<YourProjectName>
+
+; ---------------------------------------------------------------------------
+; Legacy HTTP/Python listener. Off by default, and it should stay off.
+; ---------------------------------------------------------------------------
+;
+; Migration testing only. It is not a fallback for the native bridge, and it
+; does nothing unless MCP_ENABLE_LEGACY_HTTP=1 is set before both UE4 and the
+; MCP server start. Uncomment only if you were told to.
+; Replace <ProjectRoot> with the absolute path to your project folder.
+
+; [/Script/PythonScriptPlugin.PythonScriptPluginSettings]
+; bDeveloperMode=True
+; bRemoteExecution=True
+; +StartupScripts=startup.py
+; +AdditionalPaths=(Path="<ProjectRoot>/Plugins/MCPBridge/Content/Python")

@@ -1,0 +1,224 @@
+Packaging evidence, 2026-08-03
+==============================
+
+Everything below was run on this machine on 2026-08-03 from the lane/n-packaging
+worktree at D:\Unreal Projects\_bridge_worktrees\lane-n, engine D:\UE\UE_4.27,
+pinned bundle at D:\Unreal Projects\UE4_Bridge\Plugins\Puerts. Outputs are
+copied from the run, not reconstructed.
+
+Nothing here involved a running editor. See "5. Not proven" at the end.
+
+
+1. The packager produces the release zip
+----------------------------------------
+
+$ powershell -File Scripts/package-mcp-bridge.ps1 \
+    -PuertsPath "D:\Unreal Projects\UE4_Bridge\Plugins\Puerts"
+
+OK: staged puerts support files match the pin (Unreal_v1.0.9 @ 838ab762d830, 16 files).
+OK: D:\Unreal Projects\UE4_Bridge\Plugins\Puerts matches the pin (Unreal_v1.0.9 @ 838ab762d830, 1038 files).
+Source plugin zip: D:\Unreal Projects\_bridge_worktrees\lane-n\Releases\MCPBridge_UE4.27.0_v0.5.0.zip
+
+exit 0. 117,846,146 bytes (113 MB). Contents: MCPBridge/ (268 files),
+Puerts/ (1038 files, every file the lock pins), Puerts.lock.json,
+README_INSTALL.txt.
+
+This is the first time a Releases/ directory has existed in this repository.
+
+
+2. The two refusal gates
+------------------------
+
+The staging script used to print SKIP and exit 0 when the bundle was absent,
+which is how an incomplete Content/JavaScript reached a zip unnoticed. It now
+fails, and the packager refuses on either gate.
+
+$ node Scripts/stage-puerts-runtime.mjs --plugin <empty dir> --bundle <missing>
+FAIL: pinned bundle support files not found at ...\nosuchbundle\Content\JavaScript\puerts, and the staged copy is incomplete.
+  missing: ...\emptyplugin\Content\JavaScript\puerts
+Obtain the pinned bundle (see docs/PUERTS.md), or pass --allow-missing-bundle for a server-only checkout that will not be packaged.
+exit 1
+
+$ node Scripts/stage-puerts-runtime.mjs ... --allow-missing-bundle
+WARN: ... The MCP server builds without them; the in-editor PuerTS runtime does not,
+and Scripts/package-mcp-bridge.ps1 will refuse to package this tree.
+exit 0
+
+npm run build passes --allow-missing-bundle, so a server-only checkout still
+builds and still cannot be packaged.
+
+$ node Scripts/package-acceptance.mjs --bundle "D:\Unreal Projects\UE4_Bridge\Plugins\Puerts"
+all checks passed
+
+40 cases. Both refusals, the zip shape, both plugin roots, 1038 bundle files,
+16 staged support files, forward-slash entry names, and 2 remaining GAP cases.
+
+
+3. -RunUAT: run, and it fails
+-----------------------------
+
+$ powershell -File Scripts/package-mcp-bridge.ps1 \
+    -PuertsPath "D:\Unreal Projects\UE4_Bridge\Plugins\Puerts" \
+    -RunUAT "D:\UE\UE_4.27\Engine\Build\BatchFiles\RunUAT.bat"
+
+Running AutomationTool...
+Parsing command line: BuildPlugin -Plugin="...\Plugins\MCPBridge\MCPBridge.uplugin" -Package="...\Releases\MCPBridge_UAT_UE4.27.0_v0.5.0" -Rocket
+Copying 268 file(s) using max 64 thread(s)
+Reading plugin from ...\MCPBridge_UAT_UE4.27.0_v0.5.0\HostProject\Plugins\MCPBridge\MCPBridge.uplugin...
+Building plugin for host platforms: Win64
+Running: D:\UE\UE_4.27\Engine\Binaries\DotNET\UnrealBuildTool.exe UE4Editor Win64 Development -Project="...\HostProject\HostProject.uproject" -plugin="...\HostProject\Plugins\MCPBridge\MCPBridge.uplugin" -iwyu -noubtmakefiles -manifest="..." -nohotreload -log="..."
+  ERROR: Unable to find plugin 'Puerts' (referenced via command line -> MCPBridge.uplugin). Install it and try again, or remove it from the required plugin list.
+Took 1.7359117s to run UnrealBuildTool.exe, ExitCode=6
+UnrealBuildTool failed. See log for more details.
+AutomationTool exiting with ExitCode=6 (6)
+BUILD FAILED
+
+exit 1. This is a structural limit of BuildPlugin in 4.27, read from the engine
+rather than guessed at:
+
+  BuildPluginCommand.Automation.cs:129  CreateHostProject writes the host
+      descriptor as a literal string enabling exactly one plugin, with no
+      AdditionalPluginDirectories field.
+  BuildPluginCommand.Automation.cs:133  and copies only that one plugin's
+      directory into HostProject/Plugins.
+  BuildPluginCommand.Automation.cs:66-69 wipes the package directory before
+      any of that, so the dependency cannot be staged in beforehand.
+  UEBuildTarget.cs:3229                 is where UBT then throws, because the
+      reference is not optional.
+
+No BuildPlugin argument fixes this. The dependency would have to be installed
+into Engine/Plugins, which changes a shared engine install, or the plugin built
+in a host project that has both. Section 4 is the second option.
+
+
+4. The zip installs and compiles in a fresh project
+---------------------------------------------------
+
+D:\Unreal Projects\BridgePackageTest, deleted and recreated for this run: a
+blank C++ project, one empty runtime module, MCPBridge and Puerts enabled in
+the .uproject, nothing else. Install was Expand-Archive of the zip into
+Plugins\, which is what a recipient does.
+
+$ node Scripts/check-puerts-pin.mjs --strict --bundle "D:/Unreal Projects/BridgePackageTest/Plugins/Puerts"
+OK: D:/Unreal Projects/BridgePackageTest/Plugins/Puerts matches the pin (Unreal_v1.0.9 @ 838ab762d830, 1038 files).
+
+$ node Scripts/stage-puerts-runtime.mjs --check --plugin "D:/Unreal Projects/BridgePackageTest/Plugins/MCPBridge"
+OK: staged puerts support files match the pin (Unreal_v1.0.9 @ 838ab762d830, 16 files).
+
+All 1038 bundle files survive the zip round trip byte for byte.
+
+$ Build.bat BridgePackageTestEditor Win64 Development \
+    "D:\Unreal Projects\BridgePackageTest\BridgePackageTest.uproject" \
+    -WaitMutex -NoHotReload
+
+Building 78 actions with 36 processes...
+Total time in Parallel executor: 125.41 seconds
+BUILD_EXIT=0
+
+Produced, from the zip and nothing else:
+
+  Plugins\MCPBridge\Binaries\Win64\
+    UE4Editor-MCPBridgeClothOptimizer.dll
+    UE4Editor-MCPBridgeEditorPanel.dll
+    UE4Editor-MCPBridgeGraphBuilder.dll
+    UE4Editor-MCPBridgePIEAgent.dll
+    UE4Editor-MCPBridgePuerTS.dll
+  Plugins\Puerts\Binaries\Win64\
+    UE4Editor-DeclarationGenerator.dll
+    UE4Editor-JsEnv.dll
+    UE4Editor-ParamDefaultValueMetas.dll
+    UE4Editor-Puerts.dll
+    UE4Editor-PuertsEditor.dll
+    UE4Editor-WasmCore.dll
+    UnrealHeaderTool-ParamDefaultValueMetas.dll
+    libnode.dll            (copied from the bundle's ThirdParty/nodejs_16)
+
+Every module both descriptors declare. Only C4996 deprecation warnings.
+
+4a. -NoHotReload is required, and the first attempt proved it
+------------------------------------------------------------
+
+The same build without -NoHotReload fails:
+
+  [73/78] UE4Editor-JsEnv.dll
+  LINK : fatal error LNK1181: cannot open input file
+  'D:\...\Plugins\Puerts\Intermediate\Build\Win64\UE4Editor\Development\ParamDefaultValueMetas\UE4Editor-ParamDefaultValueMetas.lib'
+  BUILD_EXIT=6
+
+with no editor process running. UBT names ParamDefaultValueMetas with a
+hot-reload suffix and JsEnv links against the unsuffixed import library. This is
+an invocation defect, not a package defect: Scripts/bridge-install.mjs
+buildTarget already passes -NoHotReload. It is now in README_INSTALL.txt,
+because a recipient building by hand will hit it.
+
+4b. install:check on the result
+-------------------------------
+
+$ node Scripts/bridge-install.mjs --check --project "D:\Unreal Projects\BridgePackageTest"
+
+   OK    uplugin             1 file(s)  0c52b9092652
+   OK    build_cs            5 file(s)  a6953739271e
+   OK    native_source       148 file(s)  6fab20f779c1
+   OK    content_javascript  21 file(s)  f87010b2b285
+   OK    content_other       87 file(s)  fcab0c28021a
+   OK    resources           1 file(s)  294b932ce8df
+   OK    plugin_misc         5 file(s)  f635fcc2b8cd
+  FAIL  ... has no MCPBridgeInstall.json: it is an unmanaged plugin copy of unknown provenance.
+  FAIL  dll: no UE4Editor-MCPBridge*.dll in Binaries/Win64; the target project has never been built
+
+Run before the build; the dll line clears afterwards. Every declared file group
+matches this checkout byte for byte, so the zip delivers the same plugin
+install:sync does. The manifest is the only content difference and it cannot be
+written at package time.
+
+
+5. Manifest upgrade path
+------------------------
+
+Run against BridgePackageTest with a hand-written manifest, all three cases.
+The first one crashed before this session:
+
+  bridge install: Cannot read properties of undefined (reading 'slice')
+
+checkInstall gates every manifest field read on schema trust, but the CLI
+printer read manifest.bridge_commit unconditionally. A pre-versioning manifest
+has no such field, so the process died before printing the refusal that
+docs/RELEASE.md quoted. Fixed in Scripts/bridge-install.mjs; all three now
+print:
+
+  FAIL  manifest_schema: MCPBridgeInstall.json in ... has no integer schema_version,
+        so it was written before the manifest was versioned. Its fields are not
+        read. Re-run npm run install:sync -- --project <path> to rewrite it.
+
+  FAIL  manifest_schema: ... is schema version 0; this checkout writes 1. Re-run
+        npm run install:sync -- --project <path>, which rewrites the manifest at
+        the current version.
+
+  FAIL  manifest_schema: ... is schema version 2, which is NEWER than the 1 this
+        checkout understands. The target was installed from a newer bridge
+        checkout; syncing from here would move it backwards. Update this checkout
+        instead.
+
+The summary line under those said "run npm run install:sync" in every case,
+including the third, which contradicted its own refusal on the one path where
+syncing moves a target backwards. It now says each FAIL names its fix.
+
+$ node Scripts/fresh-install-acceptance.mjs
+all checks passed
+
+
+6. Not proven
+-------------
+
+- No editor was launched. Nothing here says the plugin LOADS, that PuerTS
+  initialises, or that session.json is written. Compiling and loading are
+  different claims.
+- Deliberately not attempted: a zip install has no [MCPPuerTSBridge] section
+  and the compiled default pipe name is one constant for every project
+  (MCPPuerTSBridgeService.h:390, \\.\pipe\UE427PuerTSMCP). Starting a bridge
+  in BridgePackageTest would have contended for the same pipe as another
+  editor open on this machine at the time. The scripted procedure for an
+  integrator is in docs/RELEASE.md section 3.
+- The UAT binary-release path remains unavailable, as section 3 shows.
+- The MCP server is not in the archive and no decision about how it ships has
+  been made.

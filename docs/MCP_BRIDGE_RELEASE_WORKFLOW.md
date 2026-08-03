@@ -103,17 +103,29 @@ node Scripts/check-puerts-pin.mjs --strict --bundle "D:\MyGame\Plugins\Puerts"
 .\Scripts\package-mcp-bridge.ps1 -RunUAT "D:\UE\UE_4.27\Engine\Build\BatchFiles\RunUAT.bat"
 ```
 
-Run on 2026-08-02, it failed:
+Run on 2026-08-03 against D:\UE\UE_4.27, it failed:
 
 ```text
 ERROR: Unable to find plugin 'Puerts' (referenced via command line -> MCPBridge.uplugin).
 AutomationTool exiting with ExitCode=6 (6)
 ```
 
-`BuildPlugin` writes its own single-plugin host project and copies only
-MCPBridge into it, so a dependency on a plugin that is not in the engine has
-nowhere to resolve from. Build in a host project instead. Full account, with
-the alternatives, in `docs/RELEASE.md`.
+`BuildPlugin` writes its own host project descriptor as a literal string
+enabling exactly one plugin, copies only that plugin into it, and wipes the
+package directory before doing either. A dependency on a plugin that is not in
+the engine has nowhere to resolve from and cannot be staged in. No argument
+fixes it in 4.27. Build in a host project that has both plugins instead: the
+procedure is `docs/RELEASE.md` section 3a, and the engine line numbers behind
+this paragraph are in blocker 4 of the same document.
+
+### The compile is not validated per release
+
+There is no automated UE4.27 compile in the release path, and nothing in CI
+runs one. The compile that has been done is recorded in
+`docs/evidence/packaging-2026-08-03.txt`: version 0.5.0, extracted from the zip
+into a blank C++ project, all eleven modules across both plugins linked. Repeat
+it per release by following `docs/RELEASE.md` section 3a and appending to that
+evidence file. Do not describe the compile as validated unless a run is recorded.
 
 ## Fab Notes
 

@@ -118,7 +118,7 @@ const added = Object.keys(actual).filter((f) => !(f in expected));
 const changed = Object.keys(expected).filter((f) => f in actual && actual[f] !== expected[f]);
 
 if (missing.length || added.length || changed.length) {
-  console.error(`FAIL: Plugins/Puerts does not match Puerts.lock.json (pinned ${lock.upstream.tag} @ ${lock.upstream.commit.slice(0, 12)}).`);
+  console.error(`FAIL: ${bundleDir} does not match Puerts.lock.json (pinned ${lock.upstream.tag} @ ${lock.upstream.commit.slice(0, 12)}).`);
   for (const f of missing.slice(0, 20)) console.error(`  missing: ${f}`);
   for (const f of added.slice(0, 20)) console.error(`  added:   ${f}`);
   for (const f of changed.slice(0, 20)) console.error(`  changed: ${f}`);
@@ -129,4 +129,4 @@ if (missing.length || added.length || changed.length) {
   process.exit(1);
 }
 
-console.log(`OK: Plugins/Puerts matches the pin (${lock.upstream.tag} @ ${lock.upstream.commit.slice(0, 12)}, ${lock.file_count} files).`);
+console.log(`OK: ${bundleDir} matches the pin (${lock.upstream.tag} @ ${lock.upstream.commit.slice(0, 12)}, ${lock.file_count} files).`);
