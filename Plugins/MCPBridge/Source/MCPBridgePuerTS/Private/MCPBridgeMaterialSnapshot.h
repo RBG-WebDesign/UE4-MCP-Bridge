@@ -55,15 +55,6 @@ namespace MCPBridgeMaterialSnapshot
         }
     }
 
-    inline bool ParseParameterKind(const FString& Name, EParameterKind& OutKind)
-    {
-        if (Name == TEXT("scalar"))        { OutKind = EParameterKind::Scalar;       return true; }
-        if (Name == TEXT("vector"))        { OutKind = EParameterKind::Vector;       return true; }
-        if (Name == TEXT("texture"))       { OutKind = EParameterKind::Texture;      return true; }
-        if (Name == TEXT("static_switch")) { OutKind = EParameterKind::StaticSwitch; return true; }
-        return false;
-    }
-
     /** A function rather than an inline variable: inline variables are C++17
         and UE4.27 builds this module as C++14. */
     inline const TArray<EParameterKind>& AllParameterKinds()

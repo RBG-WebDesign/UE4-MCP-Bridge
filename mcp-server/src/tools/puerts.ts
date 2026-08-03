@@ -597,6 +597,90 @@ const specs = [
         + "object path other tools hand back. Limited to /Game and /Engine.",
       ),
     }).strict()],
+  ["puerts_material_inspect", "material_inspect",
+    "Read an existing UE4.27 Material or Material Instance back as machine-readable JSON. "
+    + "The read half material authoring never had, and READ ONLY: no transaction is opened, "
+    + "nothing is compiled or saved, and the package dirty flag is reported before and after "
+    + "the read (package_dirty_before / package_dirty_after) so the claim is checkable. "
+    + "One tool answers for both kinds because a caller holding an asset path usually does "
+    + "not know which it has; asset_kind says which one answered and the field names are the "
+    + "same either way. Always returns parameters - every scalar, vector, texture and static "
+    + "switch the asset or its parent chain publishes, with type, effective value, and (for "
+    + "an instance) whether the instance overrides it rather than inheriting it. For a master "
+    + "material it also returns domain, blend_mode, two_sided, the expression nodes with "
+    + "class_path, editor position and per-input connection state, the connections between "
+    + "them, and material_inputs - which expression drives BaseColor, Metallic, Roughness, "
+    + "Normal and the rest. For an instance those arrays are present and empty, plus "
+    + "parent_path and base_material_path. Also returns structure_hash_sha1, a canonical hash "
+    + "of the parameter set, override flags, expressions and links, so two reads of an "
+    + "unchanged material compare by hash; parameter VALUES are excluded from it on purpose, "
+    + "so retinting an instance does not read as a reshape of the material. Expression "
+    + "identity is OBSERVED (identity_kind: \"observed\"): a material expression's UObject "
+    + "name is unique in its package and is serialized, unlike a UMG widget or a Behavior "
+    + "Tree node. Reading is allowed anywhere under /Game and /Engine.",
+    z.object({
+      asset_path: z.string().describe(
+        "The Material or Material Instance, as a package path (\"/Game/MCPGenerated/M_Rock\") "
+        + "or the object path other tools hand back. Limited to /Game and /Engine.",
+      ),
+    }).strict()],
+  ["puerts_material_instance_build", "material_instance_build",
+    "Create or update a UMaterialInstanceConstant and set its scalar, vector, texture and "
+    + "static switch parameters from one desired-state spec. Rerunning the same spec "
+    + "converges: a parameter already at the requested value and already overridden is "
+    + "reported unchanged and not rewritten, so a second run dirties nothing. Every "
+    + "parameter is resolved against the parent and validated before the asset is created or "
+    + "touched, so a name the parent does not publish is refused with the closest matching "
+    + "names rather than silently dropped. On any failure the transaction is cancelled, the "
+    + "rollback boundary runs, and whether the parameters actually came back is decided by "
+    + "reading them again rather than by trusting the undo. The compile result is in the "
+    + "response (compile.succeeded, compile.errors, and instance_own_resource, which is false "
+    + "when the errors belong to the parent material and were not caused by this request), "
+    + "and the save happens only after an independent read-back agrees with every requested "
+    + "value. Verify with puerts_material_inspect. There is deliberately no companion command "
+    + "for master material graphs: UE4.27's graph mutators write outside the undo record, so "
+    + "a failed multi-node build cannot be rolled back, and materials ship read-only on that "
+    + "side. Assets are limited to /Game/MCPGenerated/.",
+    z.object({
+      asset_path: z.string().regex(/^\/Game\/MCPGenerated\/[A-Za-z0-9_]+(\/[A-Za-z0-9_]+)*$/).describe(
+        "Package path under /Game/MCPGenerated/, no asset-name suffix. The native "
+        + "command enforces the same limit; this rejects earlier, at the client.",
+      ),
+      parent_path: z.string().optional().describe(
+        "The Material or Material Instance to inherit from, under /Game or /Engine. "
+        + "Required when the instance does not exist yet; on an existing instance, "
+        + "supplying a different one reparents it.",
+      ),
+      scalars: z.record(z.number()).optional().describe(
+        "Scalar parameter name to value, e.g. {\"Roughness\": 0.4}.",
+      ),
+      vectors: z.record(z.object({
+        r: z.number(), g: z.number(), b: z.number(), a: z.number().optional(),
+      }).strict()).optional().describe(
+        "Vector parameter name to linear color. a defaults to 1.",
+      ),
+      textures: z.record(z.string()).optional().describe(
+        "Texture parameter name to texture asset path. A path that loads no texture is "
+        + "refused before anything is written.",
+      ),
+      switches: z.record(z.boolean()).optional().describe(
+        "Static switch parameter name to true or false. A static switch change recompiles "
+        + "the instance's shader permutation, so the whole batch is applied at once.",
+      ),
+      clear_unlisted: z.boolean().optional().describe(
+        "Default false. True makes the spec the whole desired state: overrides this instance "
+        + "carries that the spec does not mention are dropped. The response reports "
+        + "unlisted_overrides either way, so a caller can see what this would remove first.",
+      ),
+      plan_only: z.boolean().optional().describe(
+        "Default false. True answers with the plan (which parameters would be written, which "
+        + "are already correct, whether the asset would be created) without opening a "
+        + "transaction or touching anything.",
+      ),
+      save: z.boolean().optional().describe(
+        "Default true. An instance whose read-back disagreed with the request is never saved.",
+      ),
+    }).strict()],
   ["puerts_physics_build", "physics_build", "Build a validated static-mesh rigid-body scene in one transaction.", z.object({ actors: z.array(physicsActor).min(1).max(200) }).strict()],
   ["puerts_physics_observe", "physics_observe", "Read rigid-body transforms and velocities from the editor or PIE world.", z.object({ actors: z.array(z.string()).max(200).optional() }).strict()],
   ["puerts_viewport_screenshot", "viewport_screenshot", "Fit requested actors and save a PNG of the active editor viewport.", z.object({ actors: z.array(z.string()).max(200).optional(), filename: z.string().optional() }).strict()],
@@ -666,6 +750,7 @@ const structuredParameters: Readonly<Record<string, readonly string[]>> = {
   puerts_blueprint_build: ["components", "variables", "graph"],
   puerts_widget_build: ["tree"],
   puerts_behavior_tree_build: ["keys", "root"],
+  puerts_material_instance_build: ["scalars", "vectors", "textures", "switches"],
 };
 
 /** Round-trip budget per tool, in milliseconds. Absent means the 7 second
@@ -682,6 +767,10 @@ const commandTimeouts: Readonly<Record<string, number>> = {
   puerts_behavior_tree_build: 30000,
   puerts_behavior_tree_inspect: 15000,
   puerts_widget_inspect: 15000,
+  puerts_material_inspect: 15000,
+  // A static switch change recompiles the instance's shader permutation, and
+  // the command blocks on that compile rather than reporting "requested".
+  puerts_material_instance_build: 30000,
   // Reading is cheaper than building, but a 200-node graph with include_pins
   // is a large serialization on the game thread and the 7 second default is
   // close enough to it to report a failure for work that succeeds.

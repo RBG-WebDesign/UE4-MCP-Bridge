@@ -98,6 +98,8 @@ declare module "ue" {
     BuildBehaviorTreeJson(specJson: string, outResultJson: $Ref<string>, outError: $Ref<string>): boolean;
     InspectBehaviorTreeJson(requestJson: string, outResultJson: $Ref<string>, outError: $Ref<string>): boolean;
     InspectWidgetJson(requestJson: string, outResultJson: $Ref<string>, outError: $Ref<string>): boolean;
+    InspectMaterialJson(requestJson: string, outResultJson: $Ref<string>, outError: $Ref<string>): boolean;
+    BuildMaterialInstanceJson(specJson: string, outResultJson: $Ref<string>, outError: $Ref<string>): boolean;
     BuildPhysicsSceneJson(specJson: string, outResultJson: $Ref<string>, outError: $Ref<string>): boolean;
     ObservePhysicsSceneJson(requestJson: string, outResultJson: $Ref<string>, outError: $Ref<string>): boolean;
     CaptureViewportJson(requestJson: string, outResultJson: $Ref<string>, outError: $Ref<string>): boolean;

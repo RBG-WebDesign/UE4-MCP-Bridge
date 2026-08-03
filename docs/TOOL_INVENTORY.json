@@ -23,12 +23,12 @@
     "native_live_partial": "live acceptance passed, but part of the evidence is the builder own report because no independent reader exists yet",
     "legacy_untested": "no live editor proof of any kind; a non-null test_file covers only the mock listener"
   },
-  "tool_count": 209,
+  "tool_count": 211,
   "by_backend": {
     "legacy_http": 170,
     "native_pipe_alias": 12,
     "server_local": 2,
-    "native_pipe": 25
+    "native_pipe": 27
   },
   "tools": [
     {
@@ -6616,6 +6616,88 @@
       "capability_loss_risk": "low",
       "notes": "also reports event_dispatchers and member_structure_hash_sha1, the canonical member snapshot puerts_blueprint_member_patch compares before and after a batch; those two fields are not covered by the recorded live evidence",
       "verification": "live_verified"
+    },
+    {
+      "name": "puerts_material_inspect",
+      "module": "mcp-server/src/tools/puerts.ts",
+      "backend": "native_pipe",
+      "migration_state": "native_pending_live",
+      "target_replacement": null,
+      "description": "[PRIMARY NATIVE IPC] Read an existing UE4.27 Material or Material Instance back as machine-readable JSON. The read half material authoring never had, and READ ONLY: no transaction is opened, nothing is compiled or saved, and the package dirty flag is reported before and after the read (package_dirty_before / package_dirty_after) so the claim is checkable. One tool answers for both kinds because a caller holding an asset path usually does not know which it has; asset_kind says which one answered and the field names are the same either way. Always returns parameters - every scalar, vector, texture and static switch the asset or its parent chain publishes, with type, effective value, and (for an instance) whether the instance overrides it rather than inheriting it. For a master material it also returns domain, blend_mode, two_sided, the expression nodes with class_path, editor position and per-input connection state, the connections between them, and material_inputs - which expression drives BaseColor, Metallic, Roughness, Normal and the rest. For an instance those arrays are present and empty, plus parent_path and base_material_path. Also returns structure_hash_sha1, a canonical hash of the parameter set, override flags, expressions and links, so two reads of an unchanged material compare by hash; parameter VALUES are excluded from it on purpose, so retinting an instance does not read as a reshape of the material. Expression identity is OBSERVED (identity_kind: \"observed\"): a material expression's UObject name is unique in its package and is serialized, unlike a UMG widget or a Behavior Tree node. Reading is allowed anywhere under /Game and /Engine.",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "asset_path": "string"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": "mcp-server/tests/puerts-tools.test.ts",
+      "capability_category": "materials",
+      "canonical_capability": "materials.inspect",
+      "owner": "MCPBridgePuerTS service",
+      "lifecycle": "active",
+      "migration_action": "KEEP",
+      "replacement_tool": null,
+      "compatibility_alias": false,
+      "cpp_builder": "MCPPuerTSBridgeService",
+      "cpp_entry_point": "InspectMaterialJson",
+      "python_handler": null,
+      "live_evidence": [],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": "the read half material authoring never had, for UMaterial and UMaterialInstanceConstant at one tool name; observed expression identity (a material expression's UObject name is unique in its package and is serialized, unlike a UMG widget or a BT node); canonical structure hash over the parameter set, override flags, expressions and links, values excluded so retinting an instance does not read as a reshape. For master material GRAPHS this is the only half: UMaterialEditingLibrary::CreateMaterialExpressionEx (MaterialEditingLibrary.cpp:469) and ConnectMaterialExpressions (:631) both write without calling Modify, so a failed multi-node build cannot be rolled back and no write command was shipped. NOT compiled and NOT run: the lane that added this launched no editor.",
+      "verification": "implemented"
+    },
+    {
+      "name": "puerts_material_instance_build",
+      "module": "mcp-server/src/tools/puerts.ts",
+      "backend": "native_pipe",
+      "migration_state": "native_pending_live",
+      "target_replacement": null,
+      "description": "[PRIMARY NATIVE IPC] Create or update a UMaterialInstanceConstant and set its scalar, vector, texture and static switch parameters from one desired-state spec. Rerunning the same spec converges: a parameter already at the requested value and already overridden is reported unchanged and not rewritten, so a second run dirties nothing. Every parameter is resolved against the parent and validated before the asset is created or touched, so a name the parent does not publish is refused with the closest matching names rather than silently dropped. On any failure the transaction is cancelled, the rollback boundary runs, and whether the parameters actually came back is decided by reading them again rather than by trusting the undo. The compile result is in the response (compile.succeeded, compile.errors, and instance_own_resource, which is false when the errors belong to the parent material and were not caused by this request), and the save happens only after an independent read-back agrees with every requested value. Verify with puerts_material_inspect. There is deliberately no companion command for master material graphs: UE4.27's graph mutators write outside the undo record, so a failed multi-node build cannot be rolled back, and materials ship read-only on that side. Assets are limited to /Game/MCPGenerated/.",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "asset_path": "string",
+          "parent_path": "string?",
+          "scalars": "record?",
+          "vectors": "record?",
+          "textures": "record?",
+          "switches": "record?",
+          "clear_unlisted": "boolean?",
+          "plan_only": "boolean?",
+          "save": "boolean?"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": "mcp-server/tests/puerts-tools.test.ts",
+      "capability_category": "materials",
+      "canonical_capability": "materials.instance_build",
+      "owner": "MCPBridgePuerTS service",
+      "lifecycle": "active",
+      "migration_action": "KEEP",
+      "replacement_tool": null,
+      "compatibility_alias": false,
+      "cpp_builder": "MCPPuerTSBridgeService",
+      "cpp_entry_point": "BuildMaterialInstanceJson",
+      "python_handler": null,
+      "live_evidence": [],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": "re-front of UMaterialEditingLibrary's material instance setters plus the boundary that library does not have: the /Game/MCPGenerated/ limit, whole-request validation against the parent before any asset is created, Modify() so the writes are in the undo record at all (the library's setters call SetScalarParameterValueEditorOnly and friends without it, MaterialEditingLibrary.cpp:966/:987/:1008, which also return a hardcoded false), one rollback boundary, a compile whose result is reported rather than assumed, an independent read-back that decides whether the writes landed, and a save only after that read-back passes. compile.instance_own_resource distinguishes the instance's own static permutation from the parent's inherited resource, so a parent's pre-existing compile errors are not blamed on this request. NOT compiled and NOT run: the lane that added this launched no editor.",
+      "verification": "implemented"
     },
     {
       "name": "puerts_physics_build",

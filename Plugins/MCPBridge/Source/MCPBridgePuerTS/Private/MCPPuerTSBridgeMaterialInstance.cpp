@@ -641,10 +641,17 @@ bool UMCPPuerTSBridgeService::BuildMaterialInstanceJson(
     }
 
     // --- Compile, and report the result rather than assume it. ---
+    TArray<TSharedPtr<FJsonValue>> Warnings;
     TSharedPtr<FJsonObject> Compile = MakeShared<FJsonObject>();
     TArray<TSharedPtr<FJsonValue>> CompileErrors;
     bool bCompileFinished = false;
     FMaterialResource* Resource = Instance->GetMaterialResource(GMaxRHIFeatureLevel);
+    // An instance with no static permutation of its own answers with its
+    // PARENT's resource (MaterialInstance.cpp:1990), so "the compile failed" can
+    // mean "the parent was already broken". Which one answered decides whether a
+    // compile error is this request's fault, and the caller is told either way.
+    const bool bOwnResource =
+        Resource != nullptr && Resource != Parent->GetMaterialResource(GMaxRHIFeatureLevel);
     if (Resource != nullptr)
     {
         // Blocking on purpose: an asynchronous compile that has not finished
@@ -657,21 +664,26 @@ bool UMCPPuerTSBridgeService::BuildMaterialInstanceJson(
         {
             CompileErrors.Add(MakeShared<FJsonValueString>(Error));
         }
-        Compile->SetBoolField(TEXT("resource_found"), true);
     }
-    else
-    {
-        Compile->SetBoolField(TEXT("resource_found"), false);
-    }
+    Compile->SetBoolField(TEXT("resource_found"), Resource != nullptr);
+    Compile->SetBoolField(TEXT("instance_own_resource"), bOwnResource);
     Compile->SetBoolField(TEXT("finished"), bCompileFinished);
     Compile->SetBoolField(TEXT("succeeded"), Resource != nullptr && bCompileFinished && CompileErrors.Num() == 0);
     Compile->SetArrayField(TEXT("errors"), CompileErrors);
 
-    if (Resource != nullptr && CompileErrors.Num() > 0)
+    if (CompileErrors.Num() > 0)
     {
-        return FailWithRollback(FString::Printf(
-            TEXT("The material instance did not compile cleanly: %s"),
-            *FString::Join(Resource->GetCompileErrors(), TEXT(" "))));
+        const FString Joined = FString::Join(Resource->GetCompileErrors(), TEXT(" "));
+        if (bOwnResource)
+        {
+            return FailWithRollback(FString::Printf(
+                TEXT("The material instance did not compile cleanly: %s"), *Joined));
+        }
+        // Not ours to fail on, and not ours to hide either.
+        Warnings.Add(MakeShared<FJsonValueString>(FString::Printf(
+            TEXT("The parent material '%s' has compile errors, which this instance inherits "
+                 "and did not cause: %s"),
+            *Parent->GetPathName(), *Joined)));
     }
 
     // --- Independent read-back. The writes are believed only after the same
@@ -718,6 +730,7 @@ bool UMCPPuerTSBridgeService::BuildMaterialInstanceJson(
     Result->SetBoolField(TEXT("unchanged"), !bChanged);
     Result->SetBoolField(TEXT("saved"), bSaved);
     Result->SetObjectField(TEXT("compile"), Compile);
+    Result->SetArrayField(TEXT("warnings"), Warnings);
     Result->SetStringField(TEXT("structure_hash_sha1"),
         MCPBridgeMaterialSnapshot::StructureHash(Instance));
     Result->SetObjectField(TEXT("rollback"),

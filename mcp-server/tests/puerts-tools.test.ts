@@ -73,7 +73,7 @@ async function main(): Promise<void> {
     });
     const client = new PuerTSClient();
     const tools = createPuertsTools(client);
-    assert(tools.length === 25, "expected all 25 PuerTS tools");
+    assert(tools.length === 27, "expected all 27 PuerTS tools");
     assert(tools.some((tool) => tool.name === "puerts_behavior_tree_build"), "native Behavior Tree builder tool is missing");
     assert(tools.some((tool) => tool.name === "puerts_behavior_tree_inspect"), "native Behavior Tree inspector tool is missing");
     assert(tools.some((tool) => tool.name === "puerts_sky_shader_create"), "native sky shader tool is missing");
@@ -81,6 +81,8 @@ async function main(): Promise<void> {
     assert(tools.some((tool) => tool.name === "puerts_widget_build"), "native widget builder tool is missing");
     assert(tools.some((tool) => tool.name === "puerts_graph_inspect"), "native Blueprint inspector tool is missing");
     assert(tools.some((tool) => tool.name === "puerts_widget_inspect"), "native widget inspector tool is missing");
+    assert(tools.some((tool) => tool.name === "puerts_material_inspect"), "native material inspector tool is missing");
+    assert(tools.some((tool) => tool.name === "puerts_material_instance_build"), "native material instance builder tool is missing");
     assert(tools.some((tool) => tool.name === "puerts_blueprint_member_patch"), "native Blueprint member patch tool is missing");
     const response = await client.call("find_actors", {});
     assert(response.success && response.message === "Actors found.", "valid response was rejected");
@@ -1270,6 +1272,140 @@ async function widgetInspectSuite(): Promise<void> {
   }
 }
 
+/** The material pair. puerts_material_inspect is the read half, with the same
+    contract promises as the other three inspectors: annotated read-only, no
+    transaction id, reads anywhere under /Game and /Engine, its own timeout
+    budget, strict schema. puerts_material_instance_build is the only material
+    WRITE the bridge has, and the test pins the two things that make it safe to
+    ship: it is annotated mutating-but-not-destructive, and its schema refuses
+    an asset_path outside /Game/MCPGenerated/ before anything reaches the pipe. */
+async function materialSuite(): Promise<void> {
+  const { toolAnnotations } = await import("../src/annotations.js");
+  const inspectAnnotations = toolAnnotations.puerts_material_inspect;
+  assert(inspectAnnotations !== undefined, "puerts_material_inspect has no annotation");
+  assert(inspectAnnotations.readOnlyHint === true, "the material inspector is not annotated read-only");
+  const buildAnnotations = toolAnnotations.puerts_material_instance_build;
+  assert(buildAnnotations !== undefined, "puerts_material_instance_build has no annotation");
+  assert(buildAnnotations.readOnlyHint === false, "the material instance builder is annotated read-only");
+  assert(
+    buildAnnotations.destructiveHint === false,
+    "the material instance builder is annotated destructive; it writes only the parameters it was given",
+  );
+  assert(
+    buildAnnotations.idempotentHint === true,
+    "the material instance builder is not annotated idempotent; a rerun of the same spec writes nothing",
+  );
+
+  const directory = await mkdtemp(join(tmpdir(), "ue4-puerts-material-"));
+  const tokenPath = join(directory, "token.txt");
+  const pipeName = `\\\\.\\pipe\\ue4-puerts-material-${process.pid}-${Date.now()}`;
+  await writeFile(tokenPath, "test-token", "utf8");
+  process.env.MCP_PUERTS_TOKEN_PATH = tokenPath;
+  process.env.MCP_PUERTS_PIPE = pipeName;
+  await advertiseSession(pipeName);
+
+  const received: Record<string, unknown>[] = [];
+  const server = createServer((socket) => socket.once("data", (data: Buffer) => {
+    const request = JSON.parse(data.toString("utf8")) as {
+      tool?: string; params?: Record<string, unknown>; timeout_ms?: number;
+    };
+    received.push({ ...request.params, __tool: request.tool, __timeout: request.timeout_ms });
+    const isBuild = request.tool === "material_instance_build";
+    socket.end(JSON.stringify({
+      session: RESPONSE_SESSION,
+      success: true,
+      message: isBuild ? "Material instance updated." : "Material inspected.",
+      data: isBuild
+        ? {
+          asset_path: "/Game/MCPGenerated/MI_Probe",
+          object_path: "/Game/MCPGenerated/MI_Probe.MI_Probe",
+          created: false,
+          unchanged: false,
+          write_count: 1,
+          compile: { resource_found: true, instance_own_resource: true, finished: true, succeeded: true, errors: [] },
+          structure_hash_sha1: "0".repeat(40),
+        }
+        : {
+          asset_path: "/Game/MCPGenerated/M_Probe",
+          asset_kind: "material",
+          identity_kind: "observed",
+          package_dirty_before: false,
+          package_dirty_after: false,
+          parameter_count: 2,
+          structure_hash_sha1: "0".repeat(40),
+        },
+      changed_assets: [], changed_actors: [], warnings: [], errors: [],
+      log_output: [], transaction_id: isBuild ? "tx-material" : "",
+    }) + "\n");
+  }));
+
+  try {
+    await new Promise<void>((resolve, reject) => {
+      server.once("error", reject);
+      server.listen(pipeName, resolve);
+    });
+    const tools = createPuertsTools(new PuerTSClient());
+    const inspect = tools.find((entry) => entry.name === "puerts_material_inspect");
+    assert(inspect !== undefined, "puerts_material_inspect is missing");
+
+    const read = await inspect.handler({ asset_path: "/Game/MCPGenerated/M_Probe" });
+    const payload = JSON.parse(read.content[0]?.text ?? "null") as Record<string, unknown>;
+    assert(payload.success === true, "a valid material inspection request was rejected");
+    assert(payload.transaction_id === "", "a read-only material inspection returned a transaction id");
+    assert(
+      Array.isArray(payload.changed_assets) && (payload.changed_assets as unknown[]).length === 0,
+      "a material read reported a changed asset",
+    );
+    assert(received[0]?.__tool === "material_inspect", "the runtime command name is wrong");
+    assert(
+      typeof received[0]?.__timeout === "number" && (received[0].__timeout as number) > 5000,
+      "material inspection did not get its own timeout budget",
+    );
+
+    const engineRead = await inspect.handler({ asset_path: "/Engine/BasicShapes/BasicShapeMaterial" });
+    assert(
+      JSON.parse(engineRead.content[0]?.text ?? "null").success === true,
+      "the material inspector refused an /Engine path",
+    );
+    const authoringKey = await inspect.handler({ asset_path: "/Game/X/M_Y", scalars: { Roughness: 1 } });
+    assert(
+      JSON.parse(authoringKey.content[0]?.text ?? "null").success === false,
+      "the material inspector accepted an authoring key",
+    );
+
+    const build = tools.find((entry) => entry.name === "puerts_material_instance_build");
+    assert(build !== undefined, "puerts_material_instance_build is missing");
+    const outside = await build.handler({ asset_path: "/Game/Elsewhere/MI_Probe", parent_path: "/Game/M_P" });
+    assert(
+      JSON.parse(outside.content[0]?.text ?? "null").success === false,
+      "the material instance builder accepted a path outside /Game/MCPGenerated/",
+    );
+    const written = await build.handler({
+      asset_path: "/Game/MCPGenerated/MI_Probe",
+      parent_path: "/Game/MCPGenerated/M_Probe",
+      scalars: { Roughness: 0.4 },
+      vectors: { BaseTint: { r: 1, g: 0, b: 0 } },
+      switches: { UseDetail: true },
+    });
+    const writtenPayload = JSON.parse(written.content[0]?.text ?? "null") as Record<string, unknown>;
+    assert(writtenPayload.success === true, "a valid material instance build was rejected");
+    const sent = received[received.length - 1];
+    assert(sent?.__tool === "material_instance_build", "the build runtime command name is wrong");
+    assert(
+      typeof sent?.__timeout === "number" && (sent.__timeout as number) > 15000,
+      "the material instance build did not get a bigger budget than a read; it blocks on a compile",
+    );
+    // Two reads and one write reached the pipe; the two schema rejections did not.
+    assert(received.length === 3, "a rejected material request still reached the pipe");
+    console.log("  PASS  material inspect and material instance build contract");
+  } finally {
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+    await rm(directory, { recursive: true, force: true });
+    delete process.env.MCP_PUERTS_TOKEN_PATH;
+    delete process.env.MCP_PUERTS_PIPE;
+  }
+}
+
 main()
   .then(marshalingSuite)
   .then(blueprintBuildSuite)
@@ -1277,6 +1413,7 @@ main()
   .then(behaviorTreeInspectSuite)
   .then(widgetBuildSuite)
   .then(widgetInspectSuite)
+  .then(materialSuite)
   .then(connectionContractSuite)
   .then(nonActorParentSuite)
   .then(graphInspectSuite)

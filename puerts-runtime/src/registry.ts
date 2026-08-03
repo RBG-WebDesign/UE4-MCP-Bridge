@@ -640,6 +640,89 @@ async function inspectWidget(context: ToolContext, input: JsonObject): Promise<C
   return result;
 }
 
+/** Read a UMaterial or a UMaterialInstanceConstant back as JSON. The read half
+    material authoring never had, same shape as inspectGraph,
+    inspectBehaviorTree and inspectWidget: no transaction, nothing dirtied,
+    dirty flag reported both sides. One tool for both asset kinds because a
+    caller holding an asset path usually does not know which it has;
+    asset_kind in the response says which one answered. */
+async function inspectMaterial(context: ToolContext, input: JsonObject): Promise<CommandResponse> {
+  const assetPath = requireString(input, "asset_path");
+  if (!assetPath.startsWith("/Game/") && !assetPath.startsWith("/Engine/")) {
+    throw new Error("Material inspection is limited to /Game and /Engine");
+  }
+  const request: JsonObject = { asset_path: assetPath };
+
+  const resultJson = puerts.$ref<string>("");
+  const error = puerts.$ref<string>("");
+  if (!context.bridge.InspectMaterialJson(JSON.stringify(request), resultJson, error)) {
+    throw new Error(puerts.$unref(error));
+  }
+  const parsed = JSON.parse(puerts.$unref(resultJson)) as JsonObject;
+  const warnings = stringArray(parsed, "warnings");
+  delete parsed.warnings;
+
+  const result = response(true, "Material inspected.", parsed);
+  result.warnings.push(...warnings);
+  // No changed_assets and no changed_actors on purpose: reading changed nothing.
+  return result;
+}
+
+/** Create or update a UMaterialInstanceConstant and set its parameters from
+    one desired-state spec. The native side validates every parameter against
+    the parent before it touches an asset, so an unknown name is a refusal that
+    names the closest matches rather than a silently dropped write. plan_only
+    answers without opening a transaction, which is why the changed_assets
+    report below is conditional on it. */
+async function buildMaterialInstance(context: ToolContext, input: JsonObject): Promise<CommandResponse> {
+  const assetPath = requireString(input, "asset_path");
+  if (!assetPath.startsWith("/Game/MCPGenerated/")) {
+    throw new Error("Material instances are limited to /Game/MCPGenerated/");
+  }
+  const planOnly = optionalBoolean(input, "plan_only", false);
+  const spec: JsonObject = {
+    asset_path: assetPath,
+    scalars: optionalObject(input, "scalars") ?? {},
+    vectors: optionalObject(input, "vectors") ?? {},
+    textures: optionalObject(input, "textures") ?? {},
+    switches: optionalObject(input, "switches") ?? {},
+    plan_only: planOnly,
+    clear_unlisted: optionalBoolean(input, "clear_unlisted", false),
+    save: optionalBoolean(input, "save", true),
+  };
+  const parentPath = optionalString(input, "parent_path");
+  if (parentPath !== undefined) {
+    spec.parent_path = parentPath;
+  }
+
+  const resultJson = puerts.$ref<string>("");
+  const error = puerts.$ref<string>("");
+  if (!context.bridge.BuildMaterialInstanceJson(JSON.stringify(spec), resultJson, error)) {
+    throw new Error(puerts.$unref(error));
+  }
+  const parsed = JSON.parse(puerts.$unref(resultJson)) as JsonObject;
+  const warnings = stringArray(parsed, "warnings");
+  delete parsed.warnings;
+
+  const created = parsed.created === true;
+  const unchanged = parsed.unchanged === true;
+  const result = response(
+    true,
+    planOnly
+      ? "Material instance planned."
+      : created ? "Material instance created."
+      : unchanged ? "Material instance already matches the spec."
+      : "Material instance updated.",
+    parsed,
+  );
+  result.warnings.push(...warnings);
+  const objectPath = parsed.object_path;
+  if (!planOnly && !unchanged && typeof objectPath === "string" && objectPath.length > 0) {
+    result.changed_assets.push(objectPath);
+  }
+  return result;
+}
+
 async function buildPhysics(context: ToolContext, input: JsonObject): Promise<CommandResponse> {
   const actors = input.actors;
   if (!Array.isArray(actors) || actors.length === 0 || actors.length > 200) {
@@ -772,6 +855,8 @@ export const toolDefinitions: readonly ToolDefinition[] = [
   { name: "behavior_tree_build", inputSchema: schema({ asset_path: { type: "string" }, blackboard_path: { type: "string" }, keys: { type: "array", items: { type: "object" } }, root: { type: "object" }, save: { type: "boolean" } }, ["asset_path", "root"]), outputSchema, permissions: ["assets.write"], executionTimeoutMs: 30000, execute: buildBehaviorTree },
   { name: "behavior_tree_inspect", inputSchema: schema({ asset_path: { type: "string" } }, ["asset_path"]), outputSchema, permissions: ["assets.read"], executionTimeoutMs: 15000, execute: inspectBehaviorTree },
   { name: "widget_inspect", inputSchema: schema({ asset_path: { type: "string" } }, ["asset_path"]), outputSchema, permissions: ["assets.read"], executionTimeoutMs: 15000, execute: inspectWidget },
+  { name: "material_inspect", inputSchema: schema({ asset_path: { type: "string" } }, ["asset_path"]), outputSchema, permissions: ["assets.read"], executionTimeoutMs: 15000, execute: inspectMaterial },
+  { name: "material_instance_build", inputSchema: schema({ asset_path: { type: "string" }, parent_path: { type: "string" }, scalars: { type: "object" }, vectors: { type: "object" }, textures: { type: "object" }, switches: { type: "object" }, clear_unlisted: { type: "boolean" }, plan_only: { type: "boolean" }, save: { type: "boolean" } }, ["asset_path"]), outputSchema, permissions: ["assets.write"], executionTimeoutMs: 30000, execute: buildMaterialInstance },
   { name: "physics_build", inputSchema: schema({ actors: { type: "array", items: { type: "object" } } }, ["actors"]), outputSchema, permissions: ["actors.spawn"], executionTimeoutMs: 10000, execute: buildPhysics },
   { name: "physics_observe", inputSchema: schema({ actors: { type: "array", items: { type: "string" } } }), outputSchema, permissions: ["actors.read"], executionTimeoutMs: 2000, execute: observePhysics },
   { name: "viewport_screenshot", inputSchema: schema({ actors: { type: "array", items: { type: "string" } }, filename: { type: "string" } }), outputSchema, permissions: ["viewport.capture"], executionTimeoutMs: 2000, execute: captureViewport },
