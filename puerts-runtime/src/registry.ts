@@ -640,6 +640,143 @@ async function inspectWidget(context: ToolContext, input: JsonObject): Promise<C
   return result;
 }
 
+/** Read an Animation Blueprint back as JSON. The independent read half of
+    buildAnimBlueprint, same shape as inspectGraph, inspectBehaviorTree and
+    inspectWidget: no transaction, nothing dirtied, dirty flag reported both
+    sides. Reading is wider than authoring on purpose - a caller usually needs
+    to read a project's existing AnimBP before it can author a new one. */
+async function inspectAnimBlueprint(context: ToolContext, input: JsonObject): Promise<CommandResponse> {
+  const assetPath = requireString(input, "asset_path");
+  if (!assetPath.startsWith("/Game/") && !assetPath.startsWith("/Engine/")) {
+    throw new Error("Animation Blueprint inspection is limited to /Game and /Engine");
+  }
+  const request: JsonObject = { asset_path: assetPath };
+
+  const resultJson = puerts.$ref<string>("");
+  const error = puerts.$ref<string>("");
+  if (!context.bridge.InspectAnimBlueprintJson(JSON.stringify(request), resultJson, error)) {
+    throw new Error(puerts.$unref(error));
+  }
+  const parsed = JSON.parse(puerts.$unref(resultJson)) as JsonObject;
+  const warnings = stringArray(parsed, "warnings");
+  delete parsed.warnings;
+
+  const result = response(true, "Animation Blueprint inspected.", parsed);
+  result.warnings.push(...warnings);
+  // No changed_assets and no changed_actors on purpose: reading changed nothing.
+  return result;
+}
+
+/** Read an Animation Montage back as JSON: sections, slot tracks, notifies.
+    Read-only with no write counterpart, and that is the finding rather than an
+    omission - see the montage note on InspectAnimMontageJson. */
+async function inspectAnimMontage(context: ToolContext, input: JsonObject): Promise<CommandResponse> {
+  const assetPath = requireString(input, "asset_path");
+  if (!assetPath.startsWith("/Game/") && !assetPath.startsWith("/Engine/")) {
+    throw new Error("Animation Montage inspection is limited to /Game and /Engine");
+  }
+  const request: JsonObject = { asset_path: assetPath };
+
+  const resultJson = puerts.$ref<string>("");
+  const error = puerts.$ref<string>("");
+  if (!context.bridge.InspectAnimMontageJson(JSON.stringify(request), resultJson, error)) {
+    throw new Error(puerts.$unref(error));
+  }
+  const parsed = JSON.parse(puerts.$unref(resultJson)) as JsonObject;
+  const warnings = stringArray(parsed, "warnings");
+  delete parsed.warnings;
+
+  const result = response(true, "Animation Montage inspected.", parsed);
+  result.warnings.push(...warnings);
+  return result;
+}
+
+/** Read a Blend Space, Blend Space 1D or Aim Offset back as JSON: axes and
+    samples. Read-only with no write counterpart, for the reason recorded on
+    InspectAnimBlendSpaceJson. */
+async function inspectAnimBlendSpace(context: ToolContext, input: JsonObject): Promise<CommandResponse> {
+  const assetPath = requireString(input, "asset_path");
+  if (!assetPath.startsWith("/Game/") && !assetPath.startsWith("/Engine/")) {
+    throw new Error("Blend Space inspection is limited to /Game and /Engine");
+  }
+  const request: JsonObject = { asset_path: assetPath };
+
+  const resultJson = puerts.$ref<string>("");
+  const error = puerts.$ref<string>("");
+  if (!context.bridge.InspectAnimBlendSpaceJson(JSON.stringify(request), resultJson, error)) {
+    throw new Error(puerts.$unref(error));
+  }
+  const parsed = JSON.parse(puerts.$unref(resultJson)) as JsonObject;
+  const warnings = stringArray(parsed, "warnings");
+  delete parsed.warnings;
+
+  const result = response(true, "Blend Space inspected.", parsed);
+  result.warnings.push(...warnings);
+  return result;
+}
+
+/** Create a NEW Animation Blueprint from one JSON spec. The spec grammar
+    belongs to UAnimBlueprintBuilderLibrary, reached through the native
+    service; this function owns nothing but the envelope, exactly as
+    buildWidget does.
+
+    Create-only: the native side refuses an asset that already exists, because
+    the builder's rebuild path clears nothing and would append a second state
+    machine. A rerun is therefore a refusal, not a no-op, and that is why this
+    tool is annotated mutating rather than mutating-idempotent. */
+async function buildAnimBlueprint(context: ToolContext, input: JsonObject): Promise<CommandResponse> {
+  const assetPath = requireString(input, "asset_path");
+  if (!assetPath.startsWith("/Game/MCPGenerated/")) {
+    throw new Error("Animation Blueprints are limited to /Game/MCPGenerated/");
+  }
+  const animGraph = optionalObject(input, "anim_graph");
+  if (animGraph === undefined) {
+    throw new Error("anim_graph is required and must hold the pipeline array");
+  }
+  const stateMachine = optionalObject(input, "state_machine");
+  if (stateMachine === undefined) {
+    throw new Error("state_machine is required and must hold states and transitions");
+  }
+  const spec: JsonObject = {
+    asset_path: assetPath,
+    skeleton_path: requireString(input, "skeleton_path"),
+    anim_graph: animGraph,
+    state_machine: stateMachine,
+    variables: objectArray(input, "variables"),
+    save: optionalBoolean(input, "save", true),
+  };
+  const eventGraph = optionalObject(input, "event_graph");
+  if (eventGraph !== undefined) {
+    spec.event_graph = eventGraph;
+  }
+
+  const resultJson = puerts.$ref<string>("");
+  const error = puerts.$ref<string>("");
+  if (!context.bridge.BuildAnimBlueprintJson(JSON.stringify(spec), resultJson, error)) {
+    throw new Error(puerts.$unref(error));
+  }
+  const parsed = JSON.parse(puerts.$unref(resultJson)) as JsonObject;
+  const errors = stringArray(parsed, "errors");
+  const warnings = stringArray(parsed, "warnings");
+  delete parsed.errors;
+  delete parsed.warnings;
+
+  const result = response(
+    errors.length === 0,
+    errors.length > 0
+      ? "Animation Blueprint build reported errors and was rolled back."
+      : "Animation Blueprint created.",
+    parsed,
+  );
+  result.errors.push(...errors);
+  result.warnings.push(...warnings);
+  const objectPath = parsed.object_path;
+  if (errors.length === 0 && typeof objectPath === "string" && objectPath.length > 0) {
+    result.changed_assets.push(objectPath);
+  }
+  return result;
+}
+
 async function buildPhysics(context: ToolContext, input: JsonObject): Promise<CommandResponse> {
   const actors = input.actors;
   if (!Array.isArray(actors) || actors.length === 0 || actors.length > 200) {
@@ -772,6 +909,10 @@ export const toolDefinitions: readonly ToolDefinition[] = [
   { name: "behavior_tree_build", inputSchema: schema({ asset_path: { type: "string" }, blackboard_path: { type: "string" }, keys: { type: "array", items: { type: "object" } }, root: { type: "object" }, save: { type: "boolean" } }, ["asset_path", "root"]), outputSchema, permissions: ["assets.write"], executionTimeoutMs: 30000, execute: buildBehaviorTree },
   { name: "behavior_tree_inspect", inputSchema: schema({ asset_path: { type: "string" } }, ["asset_path"]), outputSchema, permissions: ["assets.read"], executionTimeoutMs: 15000, execute: inspectBehaviorTree },
   { name: "widget_inspect", inputSchema: schema({ asset_path: { type: "string" } }, ["asset_path"]), outputSchema, permissions: ["assets.read"], executionTimeoutMs: 15000, execute: inspectWidget },
+  { name: "anim_blueprint_build", inputSchema: schema({ asset_path: { type: "string" }, skeleton_path: { type: "string" }, variables: { type: "array", items: { type: "object" } }, anim_graph: { type: "object" }, state_machine: { type: "object" }, event_graph: { type: "object" }, save: { type: "boolean" } }, ["asset_path", "skeleton_path", "anim_graph", "state_machine"]), outputSchema, permissions: ["assets.write"], executionTimeoutMs: 60000, execute: buildAnimBlueprint },
+  { name: "anim_blueprint_inspect", inputSchema: schema({ asset_path: { type: "string" } }, ["asset_path"]), outputSchema, permissions: ["assets.read"], executionTimeoutMs: 15000, execute: inspectAnimBlueprint },
+  { name: "anim_montage_inspect", inputSchema: schema({ asset_path: { type: "string" } }, ["asset_path"]), outputSchema, permissions: ["assets.read"], executionTimeoutMs: 15000, execute: inspectAnimMontage },
+  { name: "anim_blend_space_inspect", inputSchema: schema({ asset_path: { type: "string" } }, ["asset_path"]), outputSchema, permissions: ["assets.read"], executionTimeoutMs: 15000, execute: inspectAnimBlendSpace },
   { name: "physics_build", inputSchema: schema({ actors: { type: "array", items: { type: "object" } } }, ["actors"]), outputSchema, permissions: ["actors.spawn"], executionTimeoutMs: 10000, execute: buildPhysics },
   { name: "physics_observe", inputSchema: schema({ actors: { type: "array", items: { type: "string" } } }), outputSchema, permissions: ["actors.read"], executionTimeoutMs: 2000, execute: observePhysics },
   { name: "viewport_screenshot", inputSchema: schema({ actors: { type: "array", items: { type: "string" } }, filename: { type: "string" } }), outputSchema, permissions: ["viewport.capture"], executionTimeoutMs: 2000, execute: captureViewport },

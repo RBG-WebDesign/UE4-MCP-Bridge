@@ -197,9 +197,12 @@ bool UMCPPuerTSBridgeService::Initialize(FString& OutError)
             TEXT("physics_build"), TEXT("physics_observe"), TEXT("viewport_screenshot"), TEXT("sky_shader_create"),
             TEXT("blueprint_build"), TEXT("blueprint_graph_patch"), TEXT("blueprint_member_patch"),
             TEXT("widget_build"), TEXT("behavior_tree_build"),
+            TEXT("anim_blueprint_build"),
             // Read only. Deliberately absent from IsToolMutating below, so they
             // open no transaction and return no transaction id.
-            TEXT("graph_inspect"), TEXT("behavior_tree_inspect"), TEXT("widget_inspect")
+            TEXT("graph_inspect"), TEXT("behavior_tree_inspect"), TEXT("widget_inspect"),
+            TEXT("anim_blueprint_inspect"), TEXT("anim_montage_inspect"),
+            TEXT("anim_blend_space_inspect")
         };
         for (const TCHAR* Value : Defaults) { AllowedTools.Add(Value); }
     }
@@ -1414,7 +1417,10 @@ bool UMCPPuerTSBridgeService::IsToolMutating(const FString& ToolName) const
         || ToolName == TEXT("blueprint_graph_patch")
         || ToolName == TEXT("blueprint_member_patch")
         || ToolName == TEXT("widget_build")
-        || ToolName == TEXT("behavior_tree_build");
+        || ToolName == TEXT("behavior_tree_build")
+        // anim_blueprint_build only. The two anim inspectors are deliberately
+        // absent: they open no transaction and return no transaction id.
+        || ToolName == TEXT("anim_blueprint_build");
 }
 
 void UMCPPuerTSBridgeService::EndActiveCommand()

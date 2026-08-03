@@ -298,6 +298,93 @@ public:
         FString& OutResultJson,
         FString& OutError) const;
 
+    /** Read an Animation Blueprint back as machine-readable JSON: target
+        skeleton, stored compile status, every anim graph and its nodes, state
+        machines with their entry state, states, conduits and transitions,
+        each transition's rule (an explicit rule graph or the engine's automatic
+        remaining-time rule, which are not interchangeable), cached poses with
+        the nodes that read them, blend nodes, member variables, and a canonical
+        structure hash.
+
+        The independent read half of anim_blueprint_build, and the reason that
+        command can verify instead of assert. READ ONLY: not in IsToolMutating,
+        so no transaction opens and the response carries no transaction id;
+        nothing here calls Modify, MarkPackageDirty or a compile; and the
+        package dirty flag is reported before and after. Node identity is
+        DERIVED from the traversal path and labeled identity_kind = "derived",
+        because the "id" a build spec wrote is not persisted on the node. */
+    UFUNCTION(BlueprintCallable, Category="MCP PuerTS Bridge")
+    bool InspectAnimBlueprintJson(
+        const FString& RequestJson,
+        FString& OutResultJson,
+        FString& OutError) const;
+
+    /** Read an Animation Montage back as machine-readable JSON: sections in
+        montage order with their NextSectionName chain, slot tracks and the
+        animation segments inside them, notifies (read explicitly, because they
+        are UPROPERTY() with no Edit flag and a reflection walk would drop
+        them), blend in/out options, sync group, and a canonical structure hash.
+
+        READ ONLY, on the same terms as the other inspectors. Montages are
+        assets, not graph nodes, so there is no montage half of
+        anim_blueprint_build: section and notify authoring needs
+        FAnimLinkableElement re-linking and a NextSectionName chain rebuild that
+        UE4.27 exposes no atomic operation for, and a half-applied edit would
+        leave a montage that plays the wrong thing. This reads; it never
+        writes. */
+    UFUNCTION(BlueprintCallable, Category="MCP PuerTS Bridge")
+    bool InspectAnimMontageJson(
+        const FString& RequestJson,
+        FString& OutResultJson,
+        FString& OutError) const;
+
+    /** Read a Blend Space, Blend Space 1D or Aim Offset back as
+        machine-readable JSON: the target skeleton, all three blend axes with
+        their display name, range and grid divisions, and every sample with its
+        animation, position and rate scale.
+
+        READ ONLY, on the same terms as the other inspectors, and read-only for
+        the same kind of reason the montage reader is: UE4.27 rebuilds a blend
+        space's triangulation from its sample set, so a partially applied sample
+        edit leaves a space that interpolates wrong rather than one that fails,
+        and there is no atomic sample-set replacement to wrap.
+
+        Samples are sorted by position and animation rather than reported in
+        array order, because a blend space's array order carries no meaning:
+        sorting is what makes two reads of an unchanged asset agree by hash. All
+        three axes are reported because UE4.27 exposes no dimension count; the
+        class is what distinguishes 1D from 2D. */
+    UFUNCTION(BlueprintCallable, Category="MCP PuerTS Bridge")
+    bool InspectAnimBlendSpaceJson(
+        const FString& RequestJson,
+        FString& OutResultJson,
+        FString& OutError) const;
+
+    /** Create a NEW Animation Blueprint from one JSON spec, handed to the
+        existing UAnimBlueprintBuilderLibrary: variables, the anim graph
+        pipeline, a state machine with its states and transitions, and an
+        optional event graph.
+
+        CREATE-ONLY by design. It refuses when the target asset already exists,
+        because the library's rebuild path clears nothing
+        (AnimBlueprintBuilder/ABPBuilder.cpp:147) and would append a second
+        state machine rather than converge - damage no rollback boundary can
+        undo, since restoring the previous contents of a pre-existing asset is
+        not something FBridgeAssetRollback can do. Creating a new asset is
+        failure-atomic: the only state a failure has to undo is state this
+        command created.
+
+        What the command owns: the path limit, the validate-before-create pass,
+        the transaction, the rollback boundary, a compile whose result is
+        returned rather than swallowed, and a read-back through
+        anim_blueprint_inspect that must find every requested state and
+        transition before the asset is saved. */
+    UFUNCTION(BlueprintCallable, Category="MCP PuerTS Bridge")
+    bool BuildAnimBlueprintJson(
+        const FString& SpecJson,
+        FString& OutResultJson,
+        FString& OutError);
+
     UFUNCTION(BlueprintCallable, Category="MCP PuerTS Bridge")
     bool BuildPhysicsSceneJson(
         const FString& SpecJson,

@@ -86,6 +86,27 @@ export const toolAnnotations: Record<string, ToolAnnotations> = {
   // The read half of puerts_widget_build: kept out of IsToolMutating on the
   // native side, reports the package dirty flag before and after the read.
   puerts_widget_inspect: readOnly,
+  // The read half of puerts_anim_blueprint_build, and the reason that command
+  // can verify rather than assert. Kept out of IsToolMutating on the native
+  // side; reports the package dirty flag before and after the read.
+  puerts_anim_blueprint_inspect: readOnly,
+  // Read-only with no write counterpart, and that is a finding rather than an
+  // omission: UE4.27 exposes no atomic way to rebuild a montage's section chain
+  // or re-link its notifies, so a montage writer could not be failure-atomic.
+  puerts_anim_montage_inspect: readOnly,
+  // Read-only for the same shape of reason as the montage reader: UE4.27
+  // rebuilds a blend space's triangulation from its sample set, so there is no
+  // atomic sample-set replacement a writer could be failure-atomic around.
+  puerts_anim_blend_space_inspect: readOnly,
+  // Mutating, NOT idempotent, and not destructive. The distinction is the whole
+  // shape of the command: it creates a new Animation Blueprint and REFUSES an
+  // asset that already exists, because the UE4.27 builder's rebuild path clears
+  // nothing and would append a second state machine rather than converge. So a
+  // rerun changes nothing (idempotentHint would be a fair reading of that), but
+  // it also fails, and a caller that reruns expecting a no-op success would be
+  // misled. Nothing is ever destroyed: on failure the creation is rolled back,
+  // and an existing asset is never touched at all.
+  puerts_anim_blueprint_build: mutating,
   puerts_viewport_screenshot: mutatingIdempotent,
   puerts_set_property: mutatingIdempotent,
   puerts_call_function: mutating,

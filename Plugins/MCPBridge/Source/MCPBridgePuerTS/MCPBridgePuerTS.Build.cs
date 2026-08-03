@@ -21,6 +21,10 @@ public class MCPBridgePuerTS : ModuleRules
         // never adds, checks out, or reverts.
         // BlueprintGraph is for UK2Node_Variable only: remove_unlisted has to find
         // the graph nodes that read or write a variable before it may remove it.
-        PrivateDependencyModuleNames.AddRange(new string[] { "AIModule", "AssetRegistry", "BlueprintGraph", "GameplayTasks", "Json", "JsonUtilities", "JsEnv", "MCPBridgeGraphBuilder", "Projects", "SourceControl", "UMG", "UMGEditor", "UnrealEd" });
+        // AnimGraph is for anim_blueprint_inspect only: UAnimGraphNode_StateMachineBase,
+        // UAnimStateNode and UAnimStateTransitionNode are editor types in that
+        // module, and the state machine structure cannot be read without them.
+        // The AnimBlueprint construction itself stays in MCPBridgeGraphBuilder.
+        PrivateDependencyModuleNames.AddRange(new string[] { "AIModule", "AnimGraph", "AssetRegistry", "BlueprintGraph", "GameplayTasks", "Json", "JsonUtilities", "JsEnv", "MCPBridgeGraphBuilder", "Projects", "SourceControl", "UMG", "UMGEditor", "UnrealEd" });
     }
 }

@@ -293,6 +293,16 @@ Same as Build but skips step 3. Instead:
 - Preserves existing variables (only adds missing ones)
 - Rebuilds from JSON
 
+**The two clear steps above were never implemented.**
+`AnimBlueprintBuilder/ABPBuilder.cpp:147` says so in its own comment: v1 Rebuild
+assumes a clean AnimBlueprint. Running it over an existing graph appends a
+second state machine and a second copy of every state rather than converging,
+and no rollback boundary can restore the previous contents of an asset that
+already existed. This is why `puerts_anim_blueprint_build` is create-only and
+refuses an existing asset, and why there is no `anim_blueprint_patch`. Adding
+the clear pass, plus a content snapshot the rollback boundary can restore, is
+what unblocks a patch command.
+
 ## Data Structures (ABPBuildSpec.h)
 
 ```cpp

@@ -597,6 +597,149 @@ const specs = [
         + "object path other tools hand back. Limited to /Game and /Engine.",
       ),
     }).strict()],
+  ["puerts_anim_blueprint_inspect", "anim_blueprint_inspect",
+    "Read an existing UE4.27 Animation Blueprint back as machine-readable JSON. "
+    + "The read half of puerts_anim_blueprint_build, and READ ONLY: no transaction is opened, "
+    + "nothing is compiled or saved, and the package dirty flag is reported before and after "
+    + "the read (package_dirty_before / package_dirty_after) so the claim is checkable. "
+    + "Returns target_skeleton, generated_class_path, parent_class, blueprint_status (the "
+    + "STORED compile status, since reading never compiles), anim_graphs with every node and "
+    + "its editable properties, state_machines with entry_state, states (and conduits) and "
+    + "their inner pose graphs, transitions keyed by from->to with crossfade_duration, "
+    + "priority_order, bidirectional, blend_mode and logic_type, and per transition a "
+    + "condition object whose kind is \"rule_graph\", \"automatic_time_remaining\" or "
+    + "\"none\" - an automatic rule has no rule graph at all, so reporting only the graph "
+    + "would make it look like a missing condition. Also returns cached_poses with the nodes "
+    + "that read each cache, blend_nodes (blend spaces, blend lists, layered bone blends, "
+    + "two-way blends), member variables, counts, unsupported_fields for anything reflection "
+    + "could not express, and structure_hash_sha1 - a canonical hash of identity, class, "
+    + "state and transition edges, so two reads of an unchanged asset compare by hash and "
+    + "retuning a blend time does not read as a reshape. Asset references (a state's "
+    + "AnimSequence, a blend space, a slot name) arrive inside each node's properties. Node "
+    + "identity is DERIVED (identity_kind: \"derived\"): the id a build spec wrote is not "
+    + "persisted on the node, so a node is addressed by its traversal path. Reading is "
+    + "allowed anywhere under /Game and /Engine.",
+    z.object({
+      asset_path: z.string().describe(
+        "The Animation Blueprint, as a package path (\"/Game/MCPGenerated/ABP_Hero\") or the "
+        + "object path other tools hand back. Limited to /Game and /Engine.",
+      ),
+    }).strict()],
+  ["puerts_anim_montage_inspect", "anim_montage_inspect",
+    "Read an existing UE4.27 Animation Montage back as machine-readable JSON. READ ONLY, on "
+    + "the same terms as the other inspectors: no transaction, no compile, no save, and the "
+    + "package dirty flag reported before and after. Returns sequence_length, the skeleton, "
+    + "sync_group, blend in/out times with blend_out_trigger_time and enable_auto_blend_out, "
+    + "sections IN MONTAGE ORDER with their next_section chain (order is meaningful here and "
+    + "is deliberately not sorted), slot tracks with the animation segments inside them and "
+    + "each segment's source asset and play rate, notifies with trigger_time, "
+    + "end_trigger_time, duration, notify and notify-state classes, is_state and "
+    + "is_branching_point, and structure_hash_sha1. Notifies are read explicitly rather than "
+    + "by reflection because UE4.27 declares them UPROPERTY() with no Edit flag, so a "
+    + "property walk would silently drop them. "
+    + "There is deliberately NO montage write tool: sections and notifies are "
+    + "FAnimLinkableElement values that must be re-linked against slot segments, and UE4.27 "
+    + "exposes no atomic operation for rebuilding the next_section chain, so a half-applied "
+    + "edit would leave a montage that plays the wrong thing. Reading is allowed anywhere "
+    + "under /Game and /Engine.",
+    z.object({
+      asset_path: z.string().describe(
+        "The Animation Montage, as a package path (\"/Game/Anim/AM_Attack\") or the object "
+        + "path other tools hand back. Limited to /Game and /Engine.",
+      ),
+    }).strict()],
+  ["puerts_anim_blend_space_inspect", "anim_blend_space_inspect",
+    "Read an existing UE4.27 Blend Space, Blend Space 1D or Aim Offset back as machine-readable "
+    + "JSON. READ ONLY, on the same terms as the other inspectors: no transaction, no compile, "
+    + "no save, and the package dirty flag reported before and after. Returns the target "
+    + "skeleton, blend_space_class (which is what tells 1D from 2D, since UE4.27 exposes no "
+    + "dimension count), all three axes with display_name, min, max and grid_divisions, and "
+    + "every sample with its animation, x/y/z position and rate_scale. Samples are SORTED by "
+    + "position and animation rather than reported in array order, because a blend space's "
+    + "array order carries no meaning, so structure_hash_sha1 is stable across two reads of an "
+    + "unchanged asset. A sample with no animation is reported as a warning rather than a silent "
+    + "row: it contributes nothing at runtime. "
+    + "There is deliberately no blend space write tool: UE4.27 rebuilds the triangulation from "
+    + "the sample set, so a partly applied sample edit leaves a space that interpolates wrong "
+    + "rather than one that fails, and there is no atomic sample-set replacement to wrap. "
+    + "Reading is allowed anywhere under /Game and /Engine.",
+    z.object({
+      asset_path: z.string().describe(
+        "The Blend Space, as a package path (\"/Game/Anim/BS_Locomotion\") or the object path "
+        + "other tools hand back. Limited to /Game and /Engine.",
+      ),
+    }).strict()],
+  ["puerts_anim_blueprint_build", "anim_blueprint_build",
+    "Create a NEW UE4.27 Animation Blueprint from one JSON spec, in one transaction: member "
+    + "variables, the anim graph pipeline, a state machine with its states and transitions, "
+    + "and an optional event graph. The asset is compiled and the compile result is RETURNED "
+    + "(compile_status, plus compiler errors and warnings) rather than assumed, and before "
+    + "the asset is saved it is read back through puerts_anim_blueprint_inspect and every "
+    + "requested state and transition must be present. A failure at any point cancels the "
+    + "transaction and rolls the creation back: the response carries a cleanup object naming "
+    + "what was created, what was removed, and whether any package is still dirty. "
+    + "CREATE-ONLY, and this is the one thing to know before calling it: the command REFUSES "
+    + "when an asset already exists at asset_path, so a rerun of the same spec is a refusal "
+    + "and not a no-op. The underlying UE4.27 builder's rebuild path clears nothing, so "
+    + "running it over an existing graph would append a second state machine rather than "
+    + "converge, and restoring the previous contents of a pre-existing asset is not "
+    + "something the rollback boundary can do. There is no anim_blueprint_patch for the same "
+    + "reason. To change an existing Animation Blueprint, build to a new path. "
+    + "Spec limits inherited from the builder (v1): variables are type \"bool\" only; "
+    + "pipeline node types are \"StateMachine\" and \"Slot\"; every state plays one "
+    + "AnimSequence; transition conditions are {type:\"bool_variable\", variable, value} or "
+    + "{type:\"time_remaining\", threshold}, and a time_remaining condition sets UE4.27's "
+    + "automatic remaining-time rule, which uses the transition's blend_time as the trigger "
+    + "offset because 4.27 exposes no separate trigger time.",
+    z.object({
+      asset_path: z.string().regex(/^\/Game\/MCPGenerated\/[A-Za-z0-9_]+(\/[A-Za-z0-9_]+)*$/).describe(
+        "AnimBlueprint package path under /Game/MCPGenerated/, no asset-name suffix. Must not "
+        + "already exist.",
+      ),
+      skeleton_path: z.string().min(1).describe(
+        "Object path of the target USkeleton, e.g. \"/Game/Characters/Hero_Skeleton\". "
+        + "Required: an Animation Blueprint has no meaning without one.",
+      ),
+      variables: z.array(z.object({
+        name: z.string().min(1).max(64).regex(/^[A-Za-z0-9_]+$/),
+        type: z.literal("bool").describe("bool is the only type the UE4.27 builder supports today."),
+        default: z.string().optional().describe("\"true\" or \"false\". Defaults to \"false\"."),
+      }).strict()).max(64).optional().describe(
+        "Member variables the transition rules read. Existing names are left alone.",
+      ),
+      anim_graph: z.object({
+        pipeline: z.array(z.object({
+          id: z.string().min(1),
+          type: z.string().describe("\"StateMachine\" or \"Slot\"."),
+          name: z.string().min(1).describe("For a Slot node this is the slot name montages play into."),
+        }).strict()).min(1),
+      }).strict().describe(
+        "The pose pipeline, wired in array order and terminating at the graph's Root node.",
+      ),
+      state_machine: z.object({
+        states: z.array(z.object({
+          id: z.string().min(1).describe("Referenced by transitions. Not persisted on the node."),
+          name: z.string().min(1).describe("The state name the inspector reports back."),
+          animation: z.string().min(1).describe("Object path of the AnimSequence this state plays."),
+          looping: z.boolean().optional(),
+          is_entry: z.boolean().optional().describe("Exactly one state should set this."),
+        }).strict()).min(1),
+        transitions: z.array(z.object({
+          from: z.string().min(1).describe("A state id from states[]."),
+          to: z.string().min(1).describe("A state id from states[]."),
+          blend_time: z.number().optional().describe("Crossfade duration in seconds. Default 0.2."),
+          condition: z.record(z.unknown()).describe(
+            "{type:\"bool_variable\", variable, value} or {type:\"time_remaining\", threshold}.",
+          ),
+        }).strict()),
+      }).strict(),
+      event_graph: z.record(z.unknown()).optional().describe(
+        "Optional event graph, in the same grammar puerts_blueprint_build's graph uses.",
+      ),
+      save: z.boolean().optional().describe(
+        "Default true. An Animation Blueprint that did not compile and read back clean is never saved.",
+      ),
+    }).strict()],
   ["puerts_physics_build", "physics_build", "Build a validated static-mesh rigid-body scene in one transaction.", z.object({ actors: z.array(physicsActor).min(1).max(200) }).strict()],
   ["puerts_physics_observe", "physics_observe", "Read rigid-body transforms and velocities from the editor or PIE world.", z.object({ actors: z.array(z.string()).max(200).optional() }).strict()],
   ["puerts_viewport_screenshot", "viewport_screenshot", "Fit requested actors and save a PNG of the active editor viewport.", z.object({ actors: z.array(z.string()).max(200).optional(), filename: z.string().optional() }).strict()],
@@ -666,6 +809,7 @@ const structuredParameters: Readonly<Record<string, readonly string[]>> = {
   puerts_blueprint_build: ["components", "variables", "graph"],
   puerts_widget_build: ["tree"],
   puerts_behavior_tree_build: ["keys", "root"],
+  puerts_anim_blueprint_build: ["variables", "anim_graph", "state_machine", "event_graph"],
 };
 
 /** Round-trip budget per tool, in milliseconds. Absent means the 7 second
@@ -682,6 +826,14 @@ const commandTimeouts: Readonly<Record<string, number>> = {
   puerts_behavior_tree_build: 30000,
   puerts_behavior_tree_inspect: 15000,
   puerts_widget_inspect: 15000,
+  // An Animation Blueprint build compiles at least twice inside the builder
+  // (once after variables, once at the end), then compiles again for the report
+  // and reads the whole asset back before saving. 30s is a realistic ceiling for
+  // one Blueprint compile and too tight for four passes over a state machine.
+  puerts_anim_blueprint_build: 60000,
+  puerts_anim_blueprint_inspect: 15000,
+  puerts_anim_montage_inspect: 15000,
+  puerts_anim_blend_space_inspect: 15000,
   // Reading is cheaper than building, but a 200-node graph with include_pins
   // is a large serialization on the game thread and the 7 second default is
   // close enough to it to report a failure for work that succeeds.
