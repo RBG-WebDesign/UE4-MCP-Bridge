@@ -1,23 +1,66 @@
 {
-  "generated": "2026-08-03",
+  "generated": "2026-08-03 (rev 2, wave A merged and compiled)",
   "generated_by": "integration lead, from generated inventories and live runs this session; prose counts elsewhere lose to these numbers",
   "finish_line": "Claude or Codex can create, patch, compile, inspect, run, verify and repair ordinary UE4.27 gameplay, Blueprints, UI, AI, animation, materials, level interactions, audio, input, physics, Sequencer content and C++ extensions with minimal manual editor work. Whole-game generation is a stretch goal, not the gate.",
   "measured_state": {
-    "registrations": 268,
+    "registrations": 273,
     "unique_canonical_capabilities": 196,
-    "by_backend": { "native_pipe": 55, "native_pipe_alias": 40, "server_local": 3, "legacy_http": 170 },
-    "by_verification": { "live_verified": 19, "implemented": 30, "live_partial": 8, "pending_live": 1, "untested": 78 },
-    "migration_open": { "REFRONT_genuine": 22, "REFRONT_really_MERGE": 6, "PORT": 39, "MERGE": 10, "RETIRE": 1 },
-    "slices": {
-      "ui": { "verdict": "PRESENT_BUT_FAILING", "passed": 19, "failed": 1 },
-      "ai": { "verdict": "PRESENT_BUT_FAILING", "passed": 16, "failed": 1 },
-      "level": { "verdict": "PRESENT_BUT_FAILING", "passed": 3, "failed": 8 },
-      "materials": { "verdict": "PRESENT_BUT_FAILING", "passed": 2, "failed": 4 },
-      "gameplay": { "verdict": "PRESENT_BUT_FAILING", "passed": 0, "failed": 4 },
-      "animation": { "verdict": "BLOCKED", "blocker": "anim_blueprint_patch (lane Y in flight)" },
-      "cinematics": { "verdict": "BLOCKED", "blocker": "sequence_render sync-impossible (lane Z in flight)" }
+    "by_backend": {
+      "native_pipe": 60,
+      "native_pipe_alias": 40,
+      "server_local": 3,
+      "legacy_http": 170
     },
-    "in_flight_branches": ["lane/x-slice-green", "lane/y-animbp-snapshot", "lane/z-async-jobs"]
+    "by_verification": {
+      "live_verified": 19,
+      "implemented": 30,
+      "live_partial": 8,
+      "pending_live": 1,
+      "untested": 78
+    },
+    "migration_open": {
+      "REFRONT_genuine": 22,
+      "REFRONT_really_MERGE": 6,
+      "PORT": 39,
+      "MERGE": 10,
+      "RETIRE": 1
+    },
+    "slices": {
+      "ui": {
+        "verdict": "PASS",
+        "passed": 20,
+        "failed": 0
+      },
+      "ai": {
+        "verdict": "PASS",
+        "passed": 22,
+        "failed": 0
+      },
+      "gameplay": {
+        "verdict": "PRESENT_BUT_FAILING",
+        "passed": 16,
+        "failed": 1,
+        "note": "remaining red is the convergence/save rule; hidden-pin hash fix compiled and unrun"
+      },
+      "materials": {
+        "verdict": "REWRITTEN_UNRUN",
+        "note": "slice now authors its own master material; never re-run"
+      },
+      "level": {
+        "verdict": "REWRITTEN_UNRUN",
+        "note": "three causes fixed in slice, unrun; lighting no longer bakes"
+      },
+      "animation": {
+        "verdict": "UNBLOCKED_UNRUN",
+        "note": "anim_blueprint_patch merged (lane Y), compiled, never run"
+      },
+      "cinematics": {
+        "verdict": "UNBLOCKED_UNRUN",
+        "note": "sequence_render_start merged (lane Z), compiled, never run; avi dropped (installed engines lack AVIWriter.h)"
+      }
+    },
+    "in_flight_branches": [],
+    "wave_A": "COMPLETE: X, Z, Y merged; batch compile clean after finding-0m intermediate purge and AVI removal; verify green at 273/60"
   },
   "invariants": [
     "one writer per worktree; only the integrator merges, one branch at a time via Scripts/merge-lane.mjs",
@@ -35,39 +78,640 @@
     "public names, schemas, aliases, builders and legacy compatibility are preserved; add, never rename"
   ],
   "work_packages": [
-    { "id": "RB-1", "category": 1, "domain": "integration", "gap": "wave six unmerged", "files": ["Scripts/merge-lane.mjs", "the seven conflict files"], "reuse": "merge-lane.mjs", "deps": [], "conflicts": "registry.ts/puerts.ts/service header between X,Y,Z", "strategy": "merge X then Z then Y; batch compile; smoke; re-run slices", "preserve": "all", "tests": "npm run verify", "acceptance": "mcp-smoke 12/12 + five proven suites green", "rollback": "git merge --abort per lane", "inspector": "n/a", "evidence": "commit per lane + live suite output", "risk": "medium (merge trap)", "lane": "integrator", "merge_order": 1 },
-    { "id": "RB-2", "category": 1, "domain": "gameplay", "gap": "slice 0/4: joins between blueprint_build, member_patch, input, PIE, verification", "files": ["Scripts/slice-gameplay.mjs", "puerts-runtime/src/registry.ts"], "reuse": "all existing commands; no new primitive unless named precisely", "deps": ["RB-1"], "conflicts": "none expected", "strategy": "run workflow by hand step-by-step against live editor; fix each join; product over assertion", "preserve": "slice checks unweakened", "tests": "slice-gameplay", "acceptance": "4/4 warm", "rollback": "n/a (debug lane)", "inspector": "graph_inspect + member hash", "evidence": "slice evidence JSON", "risk": "medium", "lane": "live", "merge_order": 2 },
-    { "id": "RB-3", "category": 1, "domain": "materials+level", "gap": "material_build/texture_import/scene_batch/lighting_build never run live", "files": ["MCPPuerTSBridgeMaterialBuild.cpp", "MCPPuerTSBridgeTexture.cpp", "MCPPuerTSBridgeScene.cpp", "MCPPuerTSBridgeEditorState.cpp"], "reuse": "MCPBridgeMaterialSnapshot.h, MCPBridgeSceneSnapshot.h", "deps": ["RB-1"], "conflicts": "none", "strategy": "first live runs; expect real defects; record findings; fix smallest shared primitive", "preserve": "schemas", "tests": "slice-materials, slice-level", "acceptance": "materials 4/4? level 8/8? or each red named", "rollback": "existing boundaries", "inspector": "material_inspect/scene_inspect hashes", "evidence": "slice JSON + findings entries", "risk": "high (uncompiled-until-recently C++)", "lane": "live", "merge_order": 3 },
-    { "id": "RB-4", "category": 1, "domain": "long-jobs", "gap": "async job API + sequence_render", "files": ["lane Z output", "status.ts", "MCPPuerTSBridgeSequence.cpp"], "reuse": "lane O status record; lighting_build/nav_build shapes", "deps": ["RB-1"], "conflicts": "lighting_build/nav_build schemas (additive only)", "strategy": "merge lane Z; live-prove job lifecycle; render via second process or MRQ per lane S findings", "preserve": "lighting_build and nav_build parameter names", "tests": "job lifecycle unit + live", "acceptance": "cinematics slice attempts; job survives status polling; cancel honest per job", "rollback": "job is lost on editor restart and status says so", "inspector": "job_status", "evidence": "live render output file", "risk": "high", "lane": "live after Z merges", "merge_order": 4 },
-    { "id": "RB-5", "category": 1, "domain": "animation", "gap": "anim_blueprint_patch failure-safe", "files": ["lane Y output", "FAnimBPBuilder", "AnimBlueprintBuilder"], "reuse": "SnapshotVariableDefaults pattern (0r)", "deps": ["RB-1"], "conflicts": "none", "strategy": "content snapshot that survives compile; patch only if restore proven by control-bearing harness; else documented blocker", "preserve": "anim_blueprint_build create-only contract", "tests": "new atomicity harness w/ control", "acceptance": "animation slice unblocked or blocker documented with citation", "rollback": "snapshot restore", "inspector": "anim_blueprint_inspect hash", "evidence": "harness output warm+cold", "risk": "high", "lane": "Y then integrator live", "merge_order": 5 },
-    { "id": "RB-6", "category": 1, "domain": "all", "gap": "30 implemented tools never run live", "files": ["acceptance scripts"], "reuse": "existing suites + slice harness", "deps": ["RB-1"], "conflicts": "none", "strategy": "batch live runs; promote passes; file findings for failures", "preserve": "n/a", "tests": "per-tool acceptance", "acceptance": "verification counts move; no tool left never-run", "rollback": "n/a", "inspector": "per-tool", "evidence": "TOOL_CAPABILITY_METADATA live_evidence paths", "risk": "medium", "lane": "live, batched", "merge_order": 6 },
-    { "id": "FP-1", "category": 2, "domain": "runtime", "gap": "read variable/state off a running PIE actor", "files": ["MCPBridgePIEAgent", "registry.ts"], "reuse": "UPIEAgentLibrary observe half (already re-fronted as pie_agent_query)", "deps": [], "conflicts": "none", "strategy": "join pie_agent_query to slice verification; extend observe if a field is missing", "preserve": "pie_agent_* user-gating (AGENTS.md)", "tests": "unit + live PIE (user-authorized)", "acceptance": "gameplay slice proves BEHAVIOUR not just authoring", "rollback": "read-only", "inspector": "itself", "evidence": "slice", "risk": "medium", "lane": "offline then live", "merge_order": 7 },
-    { "id": "FP-2", "category": 2, "domain": "input", "gap": "input simulation in PIE", "files": ["MCPBridgePIEAgent press/move"], "reuse": "PIE agent write half (REFRONT group 2 remainder)", "deps": ["FP-1"], "conflicts": "none", "strategy": "re-front press/move/look, user-gated", "preserve": "gating", "tests": "live PIE", "acceptance": "scripted input drives a mechanic", "rollback": "n/a runtime", "inspector": "pie_agent_query", "evidence": "recorded run", "risk": "medium", "lane": "offline then live", "merge_order": 8 },
-    { "id": "FP-3", "category": 2, "domain": "assets", "gap": "no delete-asset primitive (finding 0n)", "files": ["new native command"], "reuse": "ObjectTools::DeleteAssets w/ referencer check", "deps": [], "conflicts": "none", "strategy": "refuse when referenced unless force; confirm=true required; destructive annotation", "preserve": "n/a new", "tests": "live create+delete+verify-gone", "acceptance": "fixture cleanup possible in-editor", "rollback": "none (destructive, confirmed)", "inspector": "find_assets absence", "evidence": "acceptance", "risk": "medium", "lane": "offline then live", "merge_order": 9 },
-    { "id": "FP-4", "category": 2, "domain": "blueprint", "gap": "remove_unlisted refuses components scope (0n asymmetry)", "files": ["BlueprintGraphBuilderLibrary"], "reuse": "existing remove_unlisted graph path", "deps": [], "conflicts": "none", "strategy": "extend scope with referencer check like variables", "preserve": "existing scopes", "tests": "bp acceptance extension", "acceptance": "downward convergence on components", "rollback": "existing boundary", "inspector": "member hash", "evidence": "acceptance", "risk": "low", "lane": "offline", "merge_order": 10 },
-    { "id": "FP-5", "category": 2, "domain": "level", "gap": "level create/save/load native", "files": ["new command"], "reuse": "legacy level_save schema; FEditorFileUtils", "deps": [], "conflicts": "none", "strategy": "native front, parameter parity per 0s lesson", "preserve": "legacy names as aliases", "tests": "live", "acceptance": "clean-project slice can make its own map", "rollback": "unsaved refusal", "inspector": "scene_inspect", "evidence": "acceptance", "risk": "low", "lane": "offline then live", "merge_order": 11 },
-    { "id": "FP-6", "category": 2, "domain": "audio", "gap": "sound cue builder", "files": ["MCPPuerTSBridgeAudio*"], "reuse": "FirstNode/ChildNodes truth per lane W; snapshot pattern", "deps": ["RB-5 pattern"], "conflicts": "none", "strategy": "desired-state cue graph; LinkGraphNodesFromSoundNodes derives editor graph", "preserve": "audio_inspect", "tests": "harness w/ control", "acceptance": "cue plays in PIE demo", "rollback": "snapshot", "inspector": "audio_inspect hash", "evidence": "acceptance", "risk": "medium", "lane": "offline then live", "merge_order": 12 },
-    { "id": "DC-LIB", "category": 3, "domain": "all", "gap": "feature acceptance library: health/damage, sprint/stamina, interaction, doors+locks, inventory+equipment, save/load, weapons+projectiles, HUD, pause/settings/main menus, controller navigation, dialogue, AI patrol/chase/search/perception, locomotion AnimBP, montages+notifies, material effects, level interaction, Sequencer events, packaged feature demo", "files": ["Scripts/feature-*.mjs (new)"], "reuse": "slice-harness.mjs, bp-graph-patch-acceptance pattern", "deps": ["RB-2", "FP-1"], "conflicts": "none (new files)", "strategy": "each script is both test and recipe; warm+cold; failures name missing primitives; orchestrator-driven where possible (AO-2)", "preserve": "slice harness shapes", "tests": "themselves", "acceptance": ">=12 pass live for Stage 1; all pass for Stage 2", "rollback": "per-feature boundaries", "inspector": "per-domain inspectors", "evidence": "docs/evidence/feature-*.json", "risk": "medium, volume", "lane": "1 offline author + 1 live runner", "merge_order": 13 },
-    { "id": "LM-1", "category": 4, "domain": "migration", "gap": "22 genuine REFRONT + 39 PORT + 10 MERGE + 1 RETIRE", "files": ["compat.ts", "registry.ts", "per-domain"], "reuse": "compat router; parameter-parity tests per 0s", "deps": [], "conflicts": "tool-count assertions", "strategy": "batches of related tools; alias-with-evidence where native equivalent exists; port where not; execute MERGE/RETIRE in metadata", "preserve": "every legacy name answers", "tests": "compat suite routing assertions", "acceptance": "migration_action table empties except documented blockers", "rollback": "n/a additive", "inspector": "inventory diff", "evidence": "regenerated inventory", "risk": "low each, volume", "lane": "offline batches", "merge_order": 14 },
-    { "id": "AO-1", "category": 5, "domain": "orchestration", "gap": "orchestrator never run live", "files": ["Scripts/bridge-orchestrator.mjs"], "reuse": "as merged (lane O)", "deps": ["RB-1"], "conflicts": "none", "strategy": "live probe->build->inspect->repair->review on example plan; PIE off", "preserve": "stage schema", "tests": "orchestrator.test.mjs", "acceptance": "state file shows resumable green run", "rollback": "per-stage", "inspector": "expect vs inspector answers", "evidence": "state file + evidence JSON", "risk": "medium", "lane": "live", "merge_order": 15 },
-    { "id": "AO-2", "category": 5, "domain": "orchestration", "gap": "member_patch/scene_batch/material stages + FP-1 verify stage", "files": ["bridge-orchestrator.mjs"], "reuse": "existing stage machinery", "deps": ["AO-1", "FP-1"], "conflicts": "none", "strategy": "additive stages", "preserve": "resume fingerprint semantics (document bump)", "tests": "unit + live", "acceptance": "feature library items runnable via orchestrator", "rollback": "per-stage", "inspector": "per-stage", "evidence": "state files", "risk": "medium", "lane": "offline then live", "merge_order": 16 },
-    { "id": "AO-3", "category": 5, "domain": "orchestration", "gap": "one-prompt feature demo", "files": ["plan JSON + docs"], "reuse": "everything", "deps": ["AO-2", "DC-LIB"], "conflicts": "none", "strategy": "one prompt -> working mechanic, recorded", "preserve": "n/a", "tests": "the demo", "acceptance": "release demo passes on clean project", "rollback": "n/a", "inspector": "full chain", "evidence": "recorded artifacts", "risk": "low if deps done", "lane": "live", "merge_order": 17 },
-    { "id": "PJ-1", "category": 6, "domain": "perf", "gap": "no perf evidence file has ever been produced", "files": ["Scripts/perf-benchmark.mjs"], "reuse": "as merged", "deps": ["RB-1"], "conflicts": "none", "strategy": "run against live editor; diagnosis-not-stacktrace already hardened", "preserve": "schema v1", "tests": "perf-stats 41 checks", "acceptance": "docs/evidence/perf-run-*.json validates", "rollback": "n/a read", "inspector": "schema validator", "evidence": "the file", "risk": "low", "lane": "live", "merge_order": 18 },
-    { "id": "RL-1", "category": 7, "domain": "release", "gap": "packaged zip proven to compile, never to LOAD", "files": ["docs/RELEASE.md 3a"], "reuse": "scripted steps 5-7", "deps": [], "conflicts": "one-editor scheduling", "strategy": "run the documented procedure on BridgePackageTest", "preserve": "n/a", "tests": "smoke:editor against packaged install", "acceptance": "session advertised from zip install", "rollback": "n/a", "inspector": "smoke", "evidence": "session.json + smoke output", "risk": "low", "lane": "live slot", "merge_order": 19 },
-    { "id": "RL-2", "category": 7, "domain": "release", "gap": "zip installs share one compiled pipe name", "files": ["MCPPuerTSBridge config", "README_INSTALL"], "reuse": "project-hashed pipe naming already used by installer", "deps": [], "conflicts": "none", "strategy": "default pipe name derives from project path hash; ini override stays", "preserve": "existing installs (manifest bump)", "tests": "two-install collision test", "acceptance": "two zip installs coexist", "rollback": "ini", "inspector": "session.json pipe field", "evidence": "collision test", "risk": "medium (touches session discovery)", "lane": "offline then live", "merge_order": 20 },
-    { "id": "RL-3", "category": 7, "domain": "release", "gap": "teammate proof never executed by a human", "files": ["docs/TEAMMATE_INSTALL_PROOF.md"], "reuse": "the script", "deps": [], "conflicts": "none", "strategy": "a human runs it; failures recorded verbatim", "preserve": "n/a", "tests": "the procedure", "acceptance": "clone-to-working-bridge by a person", "rollback": "n/a", "inspector": "n/a", "evidence": "filled results table", "risk": "low", "lane": "human", "merge_order": 21 },
-    { "id": "RL-4", "category": 7, "domain": "ci", "gap": "workflow never executed on a runner", "files": [".github/workflows/ci.yml"], "reuse": "editor-free suites", "deps": [], "conflicts": "none", "strategy": "push branch or act-run; fix runner-only failures", "preserve": "live-suite list at bottom", "tests": "the workflow", "acceptance": "green Actions run", "rollback": "n/a", "inspector": "n/a", "evidence": "run URL", "risk": "low", "lane": "offline", "merge_order": 22 },
-    { "id": "FA-1..5", "category": 8, "domain": "stage2", "gap": "audits, simplification, full library, freeze, release", "files": ["repo-wide"], "reuse": "Ponytail + strongest model with findings ledger as input", "deps": ["everything above"], "conflicts": "n/a serial", "strategy": "freeze first; audits produce the final repair list; simplify capability-preserving only; known debt: 8 drifted path-resolver copies, member_patch JSON-quoting Unknown, stale AGENTS.md lines, scoreboard regen", "preserve": "all public surface", "tests": "full library on clean project", "acceptance": "release contract", "rollback": "git", "inspector": "audits", "evidence": "audit reports + library green", "risk": "low, serial", "lane": "serial", "merge_order": 23 }
+    {
+      "id": "RB-1",
+      "category": 1,
+      "domain": "integration",
+      "gap": "wave six unmerged",
+      "files": [
+        "Scripts/merge-lane.mjs",
+        "the seven conflict files"
+      ],
+      "reuse": "merge-lane.mjs",
+      "deps": [],
+      "conflicts": "registry.ts/puerts.ts/service header between X,Y,Z",
+      "strategy": "merge X then Z then Y; batch compile; smoke; re-run slices",
+      "preserve": "all",
+      "tests": "npm run verify",
+      "acceptance": "mcp-smoke 12/12 + five proven suites green",
+      "rollback": "git merge --abort per lane",
+      "inspector": "n/a",
+      "evidence": "commit per lane + live suite output",
+      "risk": "medium (merge trap)",
+      "lane": "integrator",
+      "merge_order": 1,
+      "status": "DONE 2026-08-03"
+    },
+    {
+      "id": "RB-2",
+      "category": 1,
+      "domain": "gameplay",
+      "gap": "slice 0/4: joins between blueprint_build, member_patch, input, PIE, verification",
+      "files": [
+        "Scripts/slice-gameplay.mjs",
+        "puerts-runtime/src/registry.ts"
+      ],
+      "reuse": "all existing commands; no new primitive unless named precisely",
+      "deps": [
+        "RB-1"
+      ],
+      "conflicts": "none expected",
+      "strategy": "run workflow by hand step-by-step against live editor; fix each join; product over assertion",
+      "preserve": "slice checks unweakened",
+      "tests": "slice-gameplay",
+      "acceptance": "4/4 warm",
+      "rollback": "n/a (debug lane)",
+      "inspector": "graph_inspect + member hash",
+      "evidence": "slice evidence JSON",
+      "risk": "medium",
+      "lane": "live",
+      "merge_order": 2
+    },
+    {
+      "id": "RB-3",
+      "category": 1,
+      "domain": "materials+level",
+      "gap": "material_build/texture_import/scene_batch/lighting_build never run live",
+      "files": [
+        "MCPPuerTSBridgeMaterialBuild.cpp",
+        "MCPPuerTSBridgeTexture.cpp",
+        "MCPPuerTSBridgeScene.cpp",
+        "MCPPuerTSBridgeEditorState.cpp"
+      ],
+      "reuse": "MCPBridgeMaterialSnapshot.h, MCPBridgeSceneSnapshot.h",
+      "deps": [
+        "RB-1"
+      ],
+      "conflicts": "none",
+      "strategy": "first live runs; expect real defects; record findings; fix smallest shared primitive",
+      "preserve": "schemas",
+      "tests": "slice-materials, slice-level",
+      "acceptance": "materials 4/4? level 8/8? or each red named",
+      "rollback": "existing boundaries",
+      "inspector": "material_inspect/scene_inspect hashes",
+      "evidence": "slice JSON + findings entries",
+      "risk": "high (uncompiled-until-recently C++)",
+      "lane": "live",
+      "merge_order": 3
+    },
+    {
+      "id": "RB-4",
+      "category": 1,
+      "domain": "long-jobs",
+      "gap": "async job API + sequence_render",
+      "files": [
+        "lane Z output",
+        "status.ts",
+        "MCPPuerTSBridgeSequence.cpp"
+      ],
+      "reuse": "lane O status record; lighting_build/nav_build shapes",
+      "deps": [
+        "RB-1"
+      ],
+      "conflicts": "lighting_build/nav_build schemas (additive only)",
+      "strategy": "merge lane Z; live-prove job lifecycle; render via second process or MRQ per lane S findings",
+      "preserve": "lighting_build and nav_build parameter names",
+      "tests": "job lifecycle unit + live",
+      "acceptance": "cinematics slice attempts; job survives status polling; cancel honest per job",
+      "rollback": "job is lost on editor restart and status says so",
+      "inspector": "job_status",
+      "evidence": "live render output file",
+      "risk": "high",
+      "lane": "live after Z merges",
+      "merge_order": 4,
+      "status": "MERGED, compiled, live run outstanding; avi format dropped as engine limit"
+    },
+    {
+      "id": "RB-5",
+      "category": 1,
+      "domain": "animation",
+      "gap": "anim_blueprint_patch failure-safe",
+      "files": [
+        "lane Y output",
+        "FAnimBPBuilder",
+        "AnimBlueprintBuilder"
+      ],
+      "reuse": "SnapshotVariableDefaults pattern (0r)",
+      "deps": [
+        "RB-1"
+      ],
+      "conflicts": "none",
+      "strategy": "content snapshot that survives compile; patch only if restore proven by control-bearing harness; else documented blocker",
+      "preserve": "anim_blueprint_build create-only contract",
+      "tests": "new atomicity harness w/ control",
+      "acceptance": "animation slice unblocked or blocker documented with citation",
+      "rollback": "snapshot restore",
+      "inspector": "anim_blueprint_inspect hash",
+      "evidence": "harness output warm+cold",
+      "risk": "high",
+      "lane": "Y then integrator live",
+      "merge_order": 5,
+      "status": "MERGED, compiled, live run outstanding (lane Y shipped patch; safety = no write until compile+read-back pass)"
+    },
+    {
+      "id": "RB-6",
+      "category": 1,
+      "domain": "all",
+      "gap": "30 implemented tools never run live",
+      "files": [
+        "acceptance scripts"
+      ],
+      "reuse": "existing suites + slice harness",
+      "deps": [
+        "RB-1"
+      ],
+      "conflicts": "none",
+      "strategy": "batch live runs; promote passes; file findings for failures",
+      "preserve": "n/a",
+      "tests": "per-tool acceptance",
+      "acceptance": "verification counts move; no tool left never-run",
+      "rollback": "n/a",
+      "inspector": "per-tool",
+      "evidence": "TOOL_CAPABILITY_METADATA live_evidence paths",
+      "risk": "medium",
+      "lane": "live, batched",
+      "merge_order": 6
+    },
+    {
+      "id": "FP-1",
+      "category": 2,
+      "domain": "runtime",
+      "gap": "read variable/state off a running PIE actor",
+      "files": [
+        "MCPBridgePIEAgent",
+        "registry.ts"
+      ],
+      "reuse": "UPIEAgentLibrary observe half (already re-fronted as pie_agent_query)",
+      "deps": [],
+      "conflicts": "none",
+      "strategy": "join pie_agent_query to slice verification; extend observe if a field is missing",
+      "preserve": "pie_agent_* user-gating (AGENTS.md)",
+      "tests": "unit + live PIE (user-authorized)",
+      "acceptance": "gameplay slice proves BEHAVIOUR not just authoring",
+      "rollback": "read-only",
+      "inspector": "itself",
+      "evidence": "slice",
+      "risk": "medium",
+      "lane": "offline then live",
+      "merge_order": 7
+    },
+    {
+      "id": "FP-2",
+      "category": 2,
+      "domain": "input",
+      "gap": "input simulation in PIE",
+      "files": [
+        "MCPBridgePIEAgent press/move"
+      ],
+      "reuse": "PIE agent write half (REFRONT group 2 remainder)",
+      "deps": [
+        "FP-1"
+      ],
+      "conflicts": "none",
+      "strategy": "re-front press/move/look, user-gated",
+      "preserve": "gating",
+      "tests": "live PIE",
+      "acceptance": "scripted input drives a mechanic",
+      "rollback": "n/a runtime",
+      "inspector": "pie_agent_query",
+      "evidence": "recorded run",
+      "risk": "medium",
+      "lane": "offline then live",
+      "merge_order": 8
+    },
+    {
+      "id": "FP-3",
+      "category": 2,
+      "domain": "assets",
+      "gap": "no delete-asset primitive (finding 0n)",
+      "files": [
+        "new native command"
+      ],
+      "reuse": "ObjectTools::DeleteAssets w/ referencer check",
+      "deps": [],
+      "conflicts": "none",
+      "strategy": "refuse when referenced unless force; confirm=true required; destructive annotation",
+      "preserve": "n/a new",
+      "tests": "live create+delete+verify-gone",
+      "acceptance": "fixture cleanup possible in-editor",
+      "rollback": "none (destructive, confirmed)",
+      "inspector": "find_assets absence",
+      "evidence": "acceptance",
+      "risk": "medium",
+      "lane": "offline then live",
+      "merge_order": 9
+    },
+    {
+      "id": "FP-4",
+      "category": 2,
+      "domain": "blueprint",
+      "gap": "remove_unlisted refuses components scope (0n asymmetry)",
+      "files": [
+        "BlueprintGraphBuilderLibrary"
+      ],
+      "reuse": "existing remove_unlisted graph path",
+      "deps": [],
+      "conflicts": "none",
+      "strategy": "extend scope with referencer check like variables",
+      "preserve": "existing scopes",
+      "tests": "bp acceptance extension",
+      "acceptance": "downward convergence on components",
+      "rollback": "existing boundary",
+      "inspector": "member hash",
+      "evidence": "acceptance",
+      "risk": "low",
+      "lane": "offline",
+      "merge_order": 10
+    },
+    {
+      "id": "FP-5",
+      "category": 2,
+      "domain": "level",
+      "gap": "level create/save/load native",
+      "files": [
+        "new command"
+      ],
+      "reuse": "legacy level_save schema; FEditorFileUtils",
+      "deps": [],
+      "conflicts": "none",
+      "strategy": "native front, parameter parity per 0s lesson",
+      "preserve": "legacy names as aliases",
+      "tests": "live",
+      "acceptance": "clean-project slice can make its own map",
+      "rollback": "unsaved refusal",
+      "inspector": "scene_inspect",
+      "evidence": "acceptance",
+      "risk": "low",
+      "lane": "offline then live",
+      "merge_order": 11
+    },
+    {
+      "id": "FP-6",
+      "category": 2,
+      "domain": "audio",
+      "gap": "sound cue builder",
+      "files": [
+        "MCPPuerTSBridgeAudio*"
+      ],
+      "reuse": "FirstNode/ChildNodes truth per lane W; snapshot pattern",
+      "deps": [
+        "RB-5 pattern"
+      ],
+      "conflicts": "none",
+      "strategy": "desired-state cue graph; LinkGraphNodesFromSoundNodes derives editor graph",
+      "preserve": "audio_inspect",
+      "tests": "harness w/ control",
+      "acceptance": "cue plays in PIE demo",
+      "rollback": "snapshot",
+      "inspector": "audio_inspect hash",
+      "evidence": "acceptance",
+      "risk": "medium",
+      "lane": "offline then live",
+      "merge_order": 12
+    },
+    {
+      "id": "DC-LIB",
+      "category": 3,
+      "domain": "all",
+      "gap": "feature acceptance library: health/damage, sprint/stamina, interaction, doors+locks, inventory+equipment, save/load, weapons+projectiles, HUD, pause/settings/main menus, controller navigation, dialogue, AI patrol/chase/search/perception, locomotion AnimBP, montages+notifies, material effects, level interaction, Sequencer events, packaged feature demo",
+      "files": [
+        "Scripts/feature-*.mjs (new)"
+      ],
+      "reuse": "slice-harness.mjs, bp-graph-patch-acceptance pattern",
+      "deps": [
+        "RB-2",
+        "FP-1"
+      ],
+      "conflicts": "none (new files)",
+      "strategy": "each script is both test and recipe; warm+cold; failures name missing primitives; orchestrator-driven where possible (AO-2)",
+      "preserve": "slice harness shapes",
+      "tests": "themselves",
+      "acceptance": ">=12 pass live for Stage 1; all pass for Stage 2",
+      "rollback": "per-feature boundaries",
+      "inspector": "per-domain inspectors",
+      "evidence": "docs/evidence/feature-*.json",
+      "risk": "medium, volume",
+      "lane": "1 offline author + 1 live runner",
+      "merge_order": 13
+    },
+    {
+      "id": "LM-1",
+      "category": 4,
+      "domain": "migration",
+      "gap": "22 genuine REFRONT + 39 PORT + 10 MERGE + 1 RETIRE",
+      "files": [
+        "compat.ts",
+        "registry.ts",
+        "per-domain"
+      ],
+      "reuse": "compat router; parameter-parity tests per 0s",
+      "deps": [],
+      "conflicts": "tool-count assertions",
+      "strategy": "batches of related tools; alias-with-evidence where native equivalent exists; port where not; execute MERGE/RETIRE in metadata",
+      "preserve": "every legacy name answers",
+      "tests": "compat suite routing assertions",
+      "acceptance": "migration_action table empties except documented blockers",
+      "rollback": "n/a additive",
+      "inspector": "inventory diff",
+      "evidence": "regenerated inventory",
+      "risk": "low each, volume",
+      "lane": "offline batches",
+      "merge_order": 14
+    },
+    {
+      "id": "AO-1",
+      "category": 5,
+      "domain": "orchestration",
+      "gap": "orchestrator never run live",
+      "files": [
+        "Scripts/bridge-orchestrator.mjs"
+      ],
+      "reuse": "as merged (lane O)",
+      "deps": [
+        "RB-1"
+      ],
+      "conflicts": "none",
+      "strategy": "live probe->build->inspect->repair->review on example plan; PIE off",
+      "preserve": "stage schema",
+      "tests": "orchestrator.test.mjs",
+      "acceptance": "state file shows resumable green run",
+      "rollback": "per-stage",
+      "inspector": "expect vs inspector answers",
+      "evidence": "state file + evidence JSON",
+      "risk": "medium",
+      "lane": "live",
+      "merge_order": 15
+    },
+    {
+      "id": "AO-2",
+      "category": 5,
+      "domain": "orchestration",
+      "gap": "member_patch/scene_batch/material stages + FP-1 verify stage",
+      "files": [
+        "bridge-orchestrator.mjs"
+      ],
+      "reuse": "existing stage machinery",
+      "deps": [
+        "AO-1",
+        "FP-1"
+      ],
+      "conflicts": "none",
+      "strategy": "additive stages",
+      "preserve": "resume fingerprint semantics (document bump)",
+      "tests": "unit + live",
+      "acceptance": "feature library items runnable via orchestrator",
+      "rollback": "per-stage",
+      "inspector": "per-stage",
+      "evidence": "state files",
+      "risk": "medium",
+      "lane": "offline then live",
+      "merge_order": 16
+    },
+    {
+      "id": "AO-3",
+      "category": 5,
+      "domain": "orchestration",
+      "gap": "one-prompt feature demo",
+      "files": [
+        "plan JSON + docs"
+      ],
+      "reuse": "everything",
+      "deps": [
+        "AO-2",
+        "DC-LIB"
+      ],
+      "conflicts": "none",
+      "strategy": "one prompt -> working mechanic, recorded",
+      "preserve": "n/a",
+      "tests": "the demo",
+      "acceptance": "release demo passes on clean project",
+      "rollback": "n/a",
+      "inspector": "full chain",
+      "evidence": "recorded artifacts",
+      "risk": "low if deps done",
+      "lane": "live",
+      "merge_order": 17
+    },
+    {
+      "id": "PJ-1",
+      "category": 6,
+      "domain": "perf",
+      "gap": "no perf evidence file has ever been produced",
+      "files": [
+        "Scripts/perf-benchmark.mjs"
+      ],
+      "reuse": "as merged",
+      "deps": [
+        "RB-1"
+      ],
+      "conflicts": "none",
+      "strategy": "run against live editor; diagnosis-not-stacktrace already hardened",
+      "preserve": "schema v1",
+      "tests": "perf-stats 41 checks",
+      "acceptance": "docs/evidence/perf-run-*.json validates",
+      "rollback": "n/a read",
+      "inspector": "schema validator",
+      "evidence": "the file",
+      "risk": "low",
+      "lane": "live",
+      "merge_order": 18
+    },
+    {
+      "id": "RL-1",
+      "category": 7,
+      "domain": "release",
+      "gap": "packaged zip proven to compile, never to LOAD",
+      "files": [
+        "docs/RELEASE.md 3a"
+      ],
+      "reuse": "scripted steps 5-7",
+      "deps": [],
+      "conflicts": "one-editor scheduling",
+      "strategy": "run the documented procedure on BridgePackageTest",
+      "preserve": "n/a",
+      "tests": "smoke:editor against packaged install",
+      "acceptance": "session advertised from zip install",
+      "rollback": "n/a",
+      "inspector": "smoke",
+      "evidence": "session.json + smoke output",
+      "risk": "low",
+      "lane": "live slot",
+      "merge_order": 19
+    },
+    {
+      "id": "RL-2",
+      "category": 7,
+      "domain": "release",
+      "gap": "zip installs share one compiled pipe name",
+      "files": [
+        "MCPPuerTSBridge config",
+        "README_INSTALL"
+      ],
+      "reuse": "project-hashed pipe naming already used by installer",
+      "deps": [],
+      "conflicts": "none",
+      "strategy": "default pipe name derives from project path hash; ini override stays",
+      "preserve": "existing installs (manifest bump)",
+      "tests": "two-install collision test",
+      "acceptance": "two zip installs coexist",
+      "rollback": "ini",
+      "inspector": "session.json pipe field",
+      "evidence": "collision test",
+      "risk": "medium (touches session discovery)",
+      "lane": "offline then live",
+      "merge_order": 20
+    },
+    {
+      "id": "RL-3",
+      "category": 7,
+      "domain": "release",
+      "gap": "teammate proof never executed by a human",
+      "files": [
+        "docs/TEAMMATE_INSTALL_PROOF.md"
+      ],
+      "reuse": "the script",
+      "deps": [],
+      "conflicts": "none",
+      "strategy": "a human runs it; failures recorded verbatim",
+      "preserve": "n/a",
+      "tests": "the procedure",
+      "acceptance": "clone-to-working-bridge by a person",
+      "rollback": "n/a",
+      "inspector": "n/a",
+      "evidence": "filled results table",
+      "risk": "low",
+      "lane": "human",
+      "merge_order": 21
+    },
+    {
+      "id": "RL-4",
+      "category": 7,
+      "domain": "ci",
+      "gap": "workflow never executed on a runner",
+      "files": [
+        ".github/workflows/ci.yml"
+      ],
+      "reuse": "editor-free suites",
+      "deps": [],
+      "conflicts": "none",
+      "strategy": "push branch or act-run; fix runner-only failures",
+      "preserve": "live-suite list at bottom",
+      "tests": "the workflow",
+      "acceptance": "green Actions run",
+      "rollback": "n/a",
+      "inspector": "n/a",
+      "evidence": "run URL",
+      "risk": "low",
+      "lane": "offline",
+      "merge_order": 22
+    },
+    {
+      "id": "FA-1..5",
+      "category": 8,
+      "domain": "stage2",
+      "gap": "audits, simplification, full library, freeze, release",
+      "files": [
+        "repo-wide"
+      ],
+      "reuse": "Ponytail + strongest model with findings ledger as input",
+      "deps": [
+        "everything above"
+      ],
+      "conflicts": "n/a serial",
+      "strategy": "freeze first; audits produce the final repair list; simplify capability-preserving only; known debt: 8 drifted path-resolver copies, member_patch JSON-quoting Unknown, stale AGENTS.md lines, scoreboard regen",
+      "preserve": "all public surface",
+      "tests": "full library on clean project",
+      "acceptance": "release contract",
+      "rollback": "git",
+      "inspector": "audits",
+      "evidence": "audit reports + library green",
+      "risk": "low, serial",
+      "lane": "serial",
+      "merge_order": 23
+    }
   ],
   "waves": [
-    { "id": "A", "state": "in flight", "lanes": { "X": "slices to green (editor+build owner)", "Y": "AnimBP snapshot (offline)", "Z": "async jobs (offline)" }, "merge_order": ["X", "Z", "Y"], "checkpoint": "batch compile, smoke 12/12, slice re-run", "ponytail": "after merge set", "gate": "no regression in five proven suites" },
-    { "id": "B", "lanes": { "B1": "live: RB-2, RB-3, RB-6 batch 1 (editor+build owner)", "B2": "offline: FP-1, FP-2", "B3": "offline: FP-3, FP-4, FP-5" }, "conflict_files": ["registry.ts", "tools/puerts.ts", "service header", "puerts-tools.test.ts"], "checkpoint": "five slices green or reds named as items", "ponytail": "after merge", "gate": "smoke + proven suites" },
-    { "id": "C", "lanes": { "C1": "live: feature library 1-6 via orchestrator", "C2": "offline: library 7-12 authored", "C3": "offline: PORT batch 1" }, "checkpoint": ">=6 features warm+cold", "ponytail": "after merge", "gate": "zero dirty residue, independent hashes" },
-    { "id": "D", "lanes": { "D1": "live: RB-4 render, PJ-1, lighting swarm_available", "D2": "offline: RL-2, RL-4", "D3": "human: RL-1, RL-3" }, "checkpoint": "cinematics attempts; job API live_verified", "ponytail": "after merge", "gate": "job lifecycle proven incl. honest cancel" },
-    { "id": "E", "lanes": { "E1": "live: library 13-18 + promotion sweep remainder", "E2": "offline: PORT batch 2 + REFRONT remainder + MERGE/RETIRE" }, "checkpoint": "Stage 1 definition met", "ponytail": "after merge", "gate": "Stage 1 gate" }
+    {
+      "id": "A",
+      "state": "in flight",
+      "lanes": {
+        "X": "slices to green (editor+build owner)",
+        "Y": "AnimBP snapshot (offline)",
+        "Z": "async jobs (offline)"
+      },
+      "merge_order": [
+        "X",
+        "Z",
+        "Y"
+      ],
+      "checkpoint": "batch compile, smoke 12/12, slice re-run",
+      "ponytail": "after merge set",
+      "gate": "no regression in five proven suites"
+    },
+    {
+      "id": "B",
+      "lanes": {
+        "B1": "live: RB-2, RB-3, RB-6 batch 1 (editor+build owner)",
+        "B2": "offline: FP-1, FP-2",
+        "B3": "offline: FP-3, FP-4, FP-5"
+      },
+      "conflict_files": [
+        "registry.ts",
+        "tools/puerts.ts",
+        "service header",
+        "puerts-tools.test.ts"
+      ],
+      "checkpoint": "five slices green or reds named as items",
+      "ponytail": "after merge",
+      "gate": "smoke + proven suites"
+    },
+    {
+      "id": "C",
+      "lanes": {
+        "C1": "live: feature library 1-6 via orchestrator",
+        "C2": "offline: library 7-12 authored",
+        "C3": "offline: PORT batch 1"
+      },
+      "checkpoint": ">=6 features warm+cold",
+      "ponytail": "after merge",
+      "gate": "zero dirty residue, independent hashes"
+    },
+    {
+      "id": "D",
+      "lanes": {
+        "D1": "live: RB-4 render, PJ-1, lighting swarm_available",
+        "D2": "offline: RL-2, RL-4",
+        "D3": "human: RL-1, RL-3"
+      },
+      "checkpoint": "cinematics attempts; job API live_verified",
+      "ponytail": "after merge",
+      "gate": "job lifecycle proven incl. honest cancel"
+    },
+    {
+      "id": "E",
+      "lanes": {
+        "E1": "live: library 13-18 + promotion sweep remainder",
+        "E2": "offline: PORT batch 2 + REFRONT remainder + MERGE/RETIRE"
+      },
+      "checkpoint": "Stage 1 definition met",
+      "ponytail": "after merge",
+      "gate": "Stage 1 gate"
+    }
   ],
   "stage_1_complete_when": "every domain has callable create/patch/inspect/verify or a cited engine blocker; all seven slices attempt; >=12 library features pass live warm+cold; no implemented tool never run live",
   "stage_2_complete_when": "freeze; Ponytail + strongest-model audits run and blockers repaired; full library green on clean project; packaged zip loads; teammate proof executed by a human; scoreboard accurate for every default capability",
-  "critical_path": ["wave A merge", "RB-2 gameplay join", "FP-1 runtime observation", "AO-1/2 orchestrator live", "DC-LIB", "RB-4 jobs+render", "FA audits", "release"],
-  "max_safe_parallelism": "3 lanes (1 live + 2 offline) while one installed target exists; +1 offline only if it avoids all seven conflict files"
+  "critical_path": [
+    "RB-2 gameplay join",
+    "FP-1 runtime observation",
+    "AO-1/2 orchestrator live",
+    "DC-LIB",
+    "RB-4 jobs+render",
+    "FA audits",
+    "release"
+  ],
+  "max_safe_parallelism": "3 lanes (1 live + 2 offline) while one installed target exists; +1 offline only if it avoids all seven conflict files",
+  "known_external_limits_addendum": [
+    "AVI capture: UVideoCaptureProtocol includes AVIWriter.h, absent from installed engine builds; sequence_render supports png/jpg/bmp/exr only",
+    "Lightmass CAN be cancelled (SetMapBuildCancelled) - earlier claim disproved by lane Z; bCancelBuild must be cleared at start or one cancel poisons later builds"
+  ]
 }

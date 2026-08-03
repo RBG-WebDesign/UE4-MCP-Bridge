@@ -21,9 +21,9 @@ gate, and no item below may be blocked on it.
 
 | Measure | Value |
 |---|---:|
-| Registrations | 268 |
+| Registrations | 273 |
 | Unique canonical capabilities | 196 |
-| Native pipe commands | 55 |
+| Native pipe commands | 60 |
 | Native aliases | 40 |
 | Server-local | 3 |
 | Legacy HTTP (opt-in only) | 170 |
@@ -37,19 +37,19 @@ Vertical slices, last live run (all seven exist; five can attempt):
 
 | Slice | Verdict | Checks |
 |---|---|---|
-| ui | PRESENT_BUT_FAILING | 19 / 1 |
-| ai | PRESENT_BUT_FAILING | 16 / 1 |
-| level | PRESENT_BUT_FAILING | 3 / 8 |
-| materials | PRESENT_BUT_FAILING | 2 / 4 |
-| gameplay | PRESENT_BUT_FAILING | 0 / 4 |
-| animation | BLOCKED on anim_blueprint_patch | 4 / 3 |
-| cinematics | BLOCKED on sequence_render | 0 / 0 |
+| ui | **PASS** | 20 / 0 |
+| ai | **PASS** | 22 / 0 |
+| gameplay | PRESENT_BUT_FAILING | 16 / 1 (hidden-pin hash fix compiled, unrun) |
+| materials | rewritten, UNRUN | authors its own master material now |
+| level | rewritten, UNRUN | three causes fixed; lighting no longer bakes |
+| animation | UNBLOCKED, unrun | anim_blueprint_patch merged and compiled |
+| cinematics | UNBLOCKED, unrun | sequence_render_start merged; png/jpg/bmp/exr only |
 
-Wave six is IN FLIGHT at this writing: lane X (slices to green, holds the only
-editor and build lock), lane Y (AnimBP content snapshot), lane Z (async job
-API). Their branches are `lane/x-slice-green`, `lane/y-animbp-snapshot`,
-`lane/z-async-jobs`. **Check `git log HEAD..lane/<name>` before doing anything
-in their areas; merge whatever they committed FIRST.**
+**Wave A is COMPLETE**: X, Z and Y merged, batch-compiled clean (after a
+finding-0m intermediate purge and dropping AVI capture, whose header installed
+engines do not ship), verify green at 273 registrations / 60 native tools.
+First action now: relaunch the editor and re-run all seven slices, then RB-2's
+one remaining gameplay red and RB-6's promotion sweep.
 
 ## Honest completion estimate
 
