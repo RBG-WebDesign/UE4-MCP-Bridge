@@ -1797,7 +1797,7 @@ through the bridge, only its status. A caller told `UpToDateWithWarnings` cannot
 find out what the warnings were without opening the editor, which defeats the
 point of an independent inspector.
 
-## Finding 0r: a failed member batch does not restore variable DEFAULTS, and the old reader hid it
+## Finding 0r: SETTLED. The default write is outside the transaction, and the fix is at the writer
 
 Found 2026-08-03 by running `Scripts/mutator-atomicity.mjs` against the merged
 build, immediately after finding 0p was fixed. This is the important one on the
@@ -1855,3 +1855,59 @@ Two smaller items from the same run:
   lane O's server-local `bridge_command_status` failed a native-only check it
   was never meant to be part of. Fixed by naming server-local tools explicitly,
   the same rule `mcp-smoke.mjs` already used.
+
+### Finding 0r, settled 2026-08-03
+
+Measured with `Scripts/member-rollback-diagnosis.mjs`, which reads the CDO
+through `puerts_read_property`, a different tool and a different native entry
+point, so it shares no comparator with the writer or the member inspector.
+
+```
+                        before      after a FAILED batch
+CDO Ratio               0.5         0.75
+member hash             b08e437e    80332fb0
+```
+
+**Verdict: the writer.** The value the batch wrote survives a cancelled
+transaction. This is not the rollback boundary failing to run; it is a write the
+rollback never covered.
+
+Mechanism, and the surprising part is that `Modify()` IS called.
+`BPVariableOps.cpp:203` calls `CDO->Modify()` before `ImportText`. But
+`UObject::Modify` (`CoreUObject/Private/UObject/Obj.cpp:1208-1230`) delegates to
+`SaveToTransactionBuffer`, whose own comment says it "will fail if there isn't a
+valid transactor, the object isn't transactional, etc." The return value says
+whether the object actually reached the undo buffer, and **the call site
+discards it**. A class default object that is not `RF_Transactional` is silently
+skipped, so `Cancel()` has nothing to restore and the write stands.
+
+There is a second, independent reason the transaction cannot help: every
+mutator entry point recompiles the Blueprint after writing, and a cancelled
+transaction cannot un-run a compile. That is already known from 0p.
+
+**The fix is small and the writer already computes half of it.** Line 200 to 201
+exports the old value into `OldExported` before the write, and today that
+snapshot is used only to decide which child CDOs should follow the new default.
+Restoring `OldExported` on the failure path gives the operation a rollback that
+does not depend on the transaction buffer at all, which is the right shape here
+because the transaction buffer provably does not cover this write.
+
+Recommended, not applied, because it belongs with a compile and a re-run of
+`Scripts/mutator-atomicity.mjs`:
+
+1. Capture `OldExported` for every variable a batch will touch, before the first
+   mutation.
+2. On any failure, re-import those snapshots into the CDO and restore the
+   descriptions, then re-read the member hash to decide `rollback_succeeded`
+   rather than trusting the undo.
+3. Check `CDO->Modify()`'s return value and warn when it is false, so the next
+   command that assumes the transaction covers a CDO write finds out at the
+   call site rather than in an acceptance three months later.
+
+**Why this went unnoticed for so long, which is the reusable lesson.** The
+member structure hash covers `ListVariables`, and `default_value` read empty for
+every compiled variable until 0p was fixed. The atomicity check compared two
+hashes that were both blind to the field that was not being rolled back, and
+passed. A check that cannot observe the thing it asserts about is not a check,
+and it is indistinguishable from a passing one until something makes the field
+visible.
