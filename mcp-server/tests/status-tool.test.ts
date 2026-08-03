@@ -12,7 +12,14 @@
  * Run: npx tsx mcp-server/tests/status-tool.test.ts
  */
 
+import { existsSync } from "fs";
+import { createRequire } from "module";
+import { dirname, join } from "path";
+import { fileURLToPath } from "url";
 import { createStatusTools, readStatus, statusRecordPath } from "../src/tools/status.js";
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const require = createRequire(import.meta.url);
 
 let passed = 0;
 let failed = 0;
@@ -125,6 +132,53 @@ check("the record path sits beside the session manifest for the addressed projec
   const path = statusRecordPath({ MCP_UNREAL_PROJECT_ROOT: "C:\\Proj" } as NodeJS.ProcessEnv);
   assert(path.includes("Saved") && path.includes("MCPPuerTSBridge") && path.endsWith("status.json"), path);
   assert(path.startsWith("C:\\Proj"), path);
+});
+
+// The one check that catches writer/reader drift. Everything above feeds the
+// reader a record this test wrote, which proves the reader agrees with the
+// test, not with the editor. statusRecord() is the function the PuerTS runtime
+// actually calls, so this reads its real compiled output and puts it through
+// the real reader. Skipped rather than failed when the runtime has not been
+// built, because `npm test` can be run alone; `npm run verify` builds first.
+check("what the runtime writes is what the reader accepts", () => {
+  const emitted = join(__dirname, "..", "..", "Plugins", "MCPBridge", "Content", "JavaScript", "status.js");
+  if (!existsSync(emitted)) {
+    console.log("        SKIP: run npm run build first; the runtime is not compiled");
+    return;
+  }
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const runtime = require(emitted) as {
+    statusRecord: (
+      stage: string,
+      active: { tool: string; command_id: string; started_at_ms: number } | null,
+      last: unknown,
+      nowMs: number,
+    ) => Record<string, unknown>;
+  };
+
+  const running = runtime.statusRecord(
+    "native_call",
+    { tool: "blueprint_build", command_id: "cmd-11", started_at_ms: NOW - 5_000 },
+    null,
+    NOW - 5_000,
+  );
+  const readBack = readStatus(JSON.stringify(running), session, NOW);
+  assert(readBack.success === true, `the reader rejected the runtime's own record: ${JSON.stringify(readBack.errors)}`);
+  const data = readBack.data as Record<string, unknown>;
+  assert(data.running === true, "the runtime's native_call record must read back as running");
+  assert(data.tool === "blueprint_build", `tool was ${String(data.tool)}`);
+  assert(data.running_ms === 5_000, `running_ms was ${String(data.running_ms)}`);
+
+  const idle = runtime.statusRecord("idle", null, null, NOW);
+  const idleBack = readStatus(JSON.stringify(idle), session, NOW).data as Record<string, unknown>;
+  assert(idleBack.running === false, "the runtime's idle record must read back as not running");
+
+  // The stage/percent contract, asserted against the writer rather than the
+  // reader: a percent field appearing on the record is the failure this whole
+  // design exists to prevent.
+  assert(!("percent" in running) && !("progress" in running),
+    `the runtime record must carry no percent: ${Object.keys(running).join(", ")}`);
+  assert(running.stage === "native_call", `stage was ${String(running.stage)}`);
 });
 
 console.log(`\n${passed} passed, ${failed} failed`);

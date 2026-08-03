@@ -27,7 +27,7 @@ import {
   copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync,
 } from 'node:fs';
 import { dirname, join, relative } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 export const MANIFEST_NAME = 'MCPBridgeInstall.json';
 
@@ -472,8 +472,13 @@ export function assertInstallCurrent(projectRoot) {
     'Run: npm run install:sync -- --project <path>');
 }
 
-if (import.meta.url === `file://${process.argv[1].replaceAll('\\', '/')}`
-  || process.argv[1].endsWith('bridge-install.mjs')) {
+// pathToFileURL, not a hand-built `file://${path}`: import.meta.url
+// percent-encodes the spaces in "D:\Unreal Projects", so the hand-built form
+// never matched on Windows and only the endsWith() fallback below it was ever
+// doing the work. That fallback fired on ANY argv[1] ending in the same
+// basename, so it is gone too.
+if (process.argv[1]
+  && pathToFileURL(process.argv[1]).href.toLowerCase() === import.meta.url.toLowerCase()) {
   const argv = process.argv.slice(2);
   const at = argv.indexOf('--project');
   const project = at >= 0 ? argv[at + 1] : undefined;

@@ -47,8 +47,9 @@
 import { spawn } from "node:child_process";
 import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { dirname, join, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { dirname, join } from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
+import { requireCurrentInstall } from "./bridge-install.mjs";
 import { checkShape, describeRefusal } from "./perf-stats.mjs";
 
 export const STATE_SCHEMA_VERSION = 1;
@@ -89,6 +90,17 @@ export function evaluateBuild(result) {
     problems.push(`the build command failed: ${(result?.errors ?? []).join("; ") || "no error reported"}`);
     return { ok: false, problems, observed: {} };
   }
+  // A success whose payload is not shaped like a build report reads, further
+  // down, as "the Blueprint did not compile: status unknown". That names the
+  // wrong problem to whoever has to fix it, so the shape is asserted first and
+  // the payload is printed.
+  const shape = checkShape("puerts_blueprint_build", result, [
+    ["data.compile_status", "string"],
+    ["data.compiled", "boolean"],
+    ["data.graph", "object"],
+  ]);
+  if (shape) return { ok: false, problems: [shape], observed: {} };
+
   const unresolved = Array.isArray(data.graph?.unresolved_connections) ? data.graph.unresolved_connections : [];
   if (unresolved.length > 0) {
     problems.push(`${unresolved.length} connection(s) did not resolve to real pins: ${unresolved.slice(0, 5).join("; ")}`);
@@ -112,7 +124,12 @@ export function evaluateBuild(result) {
       node_count: data.graph?.node_count ?? null,
       connection_count: data.graph?.connection_count ?? null,
       converged: data.convergence?.converged ?? null,
-      warnings: (data.warnings ?? []).slice(0, 10),
+      // Envelope, not data. buildBlueprint deletes errors and warnings out of
+      // the native result and pushes them onto the response envelope
+      // (registry.ts:310-314) precisely so there is one place to read them.
+      // Reading data.warnings here reported an empty list on every build that
+      // had warnings, which is the failure mode where nothing looks wrong.
+      warnings: (result?.warnings ?? []).slice(0, 10),
     },
   };
 }
@@ -125,11 +142,33 @@ export function evaluateBuild(result) {
  */
 export function evaluateInspection(data, expect = {}) {
   const gaps = [];
-  const shape = checkShape("puerts_graph_inspect", { data }, [["data.graph", "object"]]);
+  // components, variables and graph are each an ARRAY OR AN ERROR OBJECT. The
+  // member readers answer with a bare array on success and `{error: "..."}`
+  // when they cannot do the job, and the inspector passes both through
+  // unchanged on purpose (MCPBridgeBlueprintMembers.h:26-39,
+  // MCPPuerTSBridgeInspect.cpp:156-164). `(data.components ?? []).map(...)`
+  // over the error shape throws TypeError, which is a stack trace where a
+  // diagnosis belongs, so the shape is checked before anything reads it.
+  const shape = checkShape("puerts_graph_inspect", { data }, [
+    ["data.graph", "object"],
+    ["data.components", "array"],
+    ["data.variables", "array"],
+  ]);
   if (shape) return { ok: false, gaps: [shape], observed: {} };
 
-  const componentNames = (data.components ?? []).map((c) => c?.name).filter((n) => typeof n === "string");
-  const variableNames = (data.variables ?? []).map((v) => v?.name).filter((n) => typeof n === "string");
+  // A graph the inspector could not find is reported inside the graph object
+  // rather than as a failed command. Without this it reads as node_count 0 and
+  // the run says "the graph has 0 nodes" about a graph that was never opened.
+  if (typeof data.graph.error === "string" && data.graph.error.length > 0) {
+    return {
+      ok: false,
+      gaps: [`the inspector could not read the graph: ${data.graph.error}`],
+      observed: { graph_error: data.graph.error },
+    };
+  }
+
+  const componentNames = data.components.map((c) => c?.name).filter((n) => typeof n === "string");
+  const variableNames = data.variables.map((v) => v?.name).filter((n) => typeof n === "string");
   const nodeCount = Number(data.graph.node_count ?? 0);
   const unmapped = Array.isArray(data.graph.unmapped_nodes) ? data.graph.unmapped_nodes : [];
 
@@ -205,6 +244,14 @@ async function main() {
   if (plan.blueprint === undefined || typeof plan.blueprint?.asset_path !== "string") {
     throw new Error("the plan needs a blueprint object with an asset_path");
   }
+  // Checked here rather than discovered on the first call. Native authoring is
+  // limited to this root (registry.ts:279-281) and the patch tool's MCP schema
+  // rejects anything else at the transport, which surfaces as a JSON-RPC error
+  // three stages in rather than as a bad plan.
+  if (!/^\/Game\/MCPGenerated\/[A-Za-z0-9_]+(\/[A-Za-z0-9_]+)*$/.test(plan.blueprint.asset_path)) {
+    throw new Error(`asset_path "${plan.blueprint.asset_path}" is not somewhere the bridge can author. `
+      + "Blueprint creation and patching are limited to /Game/MCPGenerated/<Name>.");
+  }
   const planName = String(plan.name ?? "run").replace(/[^A-Za-z0-9_-]/g, "_");
   const resume = argv.includes("--resume");
   const includePie = argv.includes("--pie");
@@ -216,6 +263,12 @@ async function main() {
 
   const serverPath = join(root, "mcp-server", "dist", "index.js");
   if (!existsSync(serverPath)) throw new Error("Run npm run build first");
+
+  // The same gate every live script here passes before connecting. This one
+  // authors and compiles Blueprints in the target project, so running it
+  // against a stale MCPBridge install would exercise a different build and
+  // report the result as if it described this checkout. Refuses, never writes.
+  const projectRoot = requireCurrentInstall();
 
   const fingerprint = planFingerprint(plan);
   let priorState = null;
@@ -348,8 +401,8 @@ async function main() {
     const probe = await call("puerts_diagnostic", { actor_limit: 1 });
     const refusal = describeRefusal(probe);
     if (refusal) {
-      console.error(JSON.stringify({ ...refusal, stage: "probe" }, null, 2));
-      console.error("\nNo state file was written. Start the editor for this project and run again.");
+      console.error(JSON.stringify({ ...refusal, stage: "probe", project_root: projectRoot }, null, 2));
+      console.error(`\nNo state file was written. Start the editor for ${projectRoot} and run again.`);
       child.kill();
       process.exit(2);
     }
@@ -474,11 +527,24 @@ async function main() {
         return { ok: logs?.success === true, observed: { ...observed, screenshot: "not requested; pass --screenshot" }, changed };
       }
       const shot = await call("puerts_viewport_screenshot", {});
+      if (shot?.success !== true) {
+        return {
+          ok: false,
+          observed: { ...observed, screenshot: null },
+          changed,
+          errors: shot?.errors ?? ["the screenshot failed and reported no error"],
+        };
+      }
+      // filepath, checked. CaptureViewportJson writes "filepath"
+      // (MCPPuerTSBridgeViewport.cpp:110); this used to read data.path and fall
+      // back to data.filename, neither of which exists, so a successful capture
+      // was recorded as screenshot: null and the review stage still said ok.
+      const shotShape = checkShape("puerts_viewport_screenshot", shot, [["data.filepath", "string+"]]);
       return {
-        ok: logs?.success === true && shot?.success === true,
-        observed: { ...observed, screenshot: shot?.data?.path ?? shot?.data?.filename ?? null },
+        ok: shotShape === null,
+        observed: { ...observed, screenshot: shotShape === null ? shot.data.filepath : null },
         changed: [...changed, ...changesOf(shot)],
-        errors: shot?.success === true ? [] : (shot?.errors ?? ["the screenshot failed"]),
+        errors: shotShape === null ? [] : [shotShape],
       };
     });
 
@@ -520,19 +586,27 @@ async function main() {
       // Observe the running session, then always try to stop it. A play
       // session left running by a failed observation is worse than the
       // failure: every editor-only command after it is refused.
+      //
+      // get_logs only. AcceptCommand accepts exactly pie_stop, get_logs and
+      // physics_observe while a play world exists or a play request is queued
+      // (MCPPuerTSBridgeService.cpp:495-500). viewport_screenshot is not one of
+      // them, so asking for one here would spend a round trip on a guaranteed
+      // refusal and then record a null as if the capture had merely been empty.
       const logs = await call("puerts_get_logs", { maximum_lines: 100 });
-      const shot = includeScreenshot ? await call("puerts_viewport_screenshot", {}) : null;
       const stop = await call("puerts_pie_stop", {});
       const down = stop?.success === true ? await waitFor("editor") : { error: "pie_stop refused" };
       return {
-        ok: stop?.success === true && !down.error,
+        ok: stop?.success === true && !down.error && logs?.success === true,
         observed: {
           play_log_lines: (logs?.log_output ?? []).length,
-          screenshot: shot?.data?.path ?? null,
+          screenshot: "not captured: viewport_screenshot is refused during Play In Editor",
           returned_to_editor_world: !down.error,
         },
         changed: changesOf(stop),
-        errors: down.error ? [down.error] : [],
+        errors: [
+          ...(logs?.success === true ? [] : [`get_logs failed during play: ${(logs?.errors ?? []).join("; ")}`]),
+          ...(down.error ? [down.error] : []),
+        ],
       };
     });
   } finally {
@@ -551,8 +625,23 @@ async function main() {
 }
 
 // Only run when invoked directly, so the pure helpers above are importable by
-// the test without spawning a server. resolve() on both sides because Windows
-// hands argv[1] back with the separators it feels like using.
-if (process.argv[1] && resolve(process.argv[1]) === resolve(fileURLToPath(import.meta.url))) {
-  await main();
+// the test without spawning a server.
+//
+// pathToFileURL, not a hand-built `file://${path}` string: on Windows the hand
+// built form never matches, because import.meta.url percent-encodes the spaces
+// in "D:\Unreal Projects" and uses forward slashes. A harness in this
+// repository once exited 0 having run nothing for exactly that reason. The
+// case fold covers the other Windows trap, argv[1] arriving with a lower-case
+// drive letter. orchestrator.test.mjs asserts a bare invocation exits non-zero,
+// which is what fails if this guard stops matching.
+if (process.argv[1]
+  && pathToFileURL(process.argv[1]).href.toLowerCase() === import.meta.url.toLowerCase()) {
+  // A setup problem is not a run that failed, and a V8 stack trace is not a
+  // diagnosis. Refusals that already exited (the probe's exit 2) never reach
+  // here; what does is a bad plan, a missing build or a stale install.
+  await main().catch((error) => {
+    console.error(`\nbridge-orchestrator refused to run: ${error instanceof Error ? error.message : String(error)}`);
+    console.error("Nothing was sent to the editor and no state file was written.");
+    process.exit(1);
+  });
 }

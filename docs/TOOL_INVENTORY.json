@@ -23,11 +23,11 @@
     "native_live_partial": "live acceptance passed, but part of the evidence is the builder own report because no independent reader exists yet",
     "legacy_untested": "no live editor proof of any kind; a non-null test_file covers only the mock listener"
   },
-  "tool_count": 209,
+  "tool_count": 210,
   "by_backend": {
     "legacy_http": 170,
     "native_pipe_alias": 12,
-    "server_local": 2,
+    "server_local": 3,
     "native_pipe": 25
   },
   "tools": [
@@ -2203,6 +2203,41 @@
       "capability_loss_risk": "low",
       "notes": "transport plumbing for the legacy listener, not a capability; shares one canonical name so it never inflates the unique count",
       "verification": "untested"
+    },
+    {
+      "name": "bridge_command_status",
+      "module": "mcp-server/src/tools/status.ts",
+      "backend": "server_local",
+      "migration_state": "server_local",
+      "target_replacement": null,
+      "description": "[SERVER LOCAL] Report which native command the editor is executing right now, and for how long, by reading the status record from disk. Does not contact the editor, so it answers while the game thread is blocked and the command pipe cannot be serviced. Reports a stage, never a percent: there is no observable progress inside a single native call. Requires MCP_PUERTS_STATUS=1 in the editor's environment at launch; without it this refuses with status_error_code status_record_absent rather than reporting an idle editor.",
+      "schema": {
+        "kind": "object",
+        "params": {}
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": null,
+      "capability_category": "status",
+      "canonical_capability": "bridge.command_status",
+      "owner": "mcp-server (engine source on disk)",
+      "lifecycle": "active",
+      "migration_action": "KEEP",
+      "replacement_tool": null,
+      "compatibility_alias": false,
+      "cpp_builder": null,
+      "cpp_entry_point": null,
+      "python_handler": null,
+      "live_evidence": [],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": "reads Saved/MCPPuerTSBridge/status.json off disk; never contacts the editor. Needs MCP_PUERTS_STATUS=1 in the editor environment at launch, so the live half is unproven until an editor runs with it set",
+      "verification": "pending_live"
     },
     {
       "name": "camera_rig_create",

@@ -102,15 +102,30 @@ export function statusRecord(
  * that succeeded and could not be announced still succeeded.
  */
 export function createStatusRecorder(projectRoot: string): StatusRecorder {
-  if (process.env.MCP_PUERTS_STATUS !== "1") return inert;
+  // Runs during bootstrap, before a session is published. Anything that throws
+  // here takes the bridge down entirely, so the flag is read defensively and
+  // "I could not tell" resolves to off.
+  if (process.env === undefined || process.env.MCP_PUERTS_STATUS !== "1") return inert;
 
   // Required lazily, so these go through the project-root guard that
-  // safety.ts installs on module._load rather than around it.
-  const fs = require("fs") as FileSystem;
-  const path = require("path") as PathModule;
-  const directory = path.join(projectRoot, "Saved", "MCPPuerTSBridge");
-  const finalPath = path.join(directory, "status.json");
-  const stagedPath = path.join(directory, "status.json.staged");
+  // safety.ts installs on module._load rather than around it. Still inside a
+  // try: an opt-in convenience must not be able to stop the editor's bridge
+  // from starting, and "status is off" is a recoverable state while "the
+  // runtime threw during bootstrap" is not.
+  let fs: FileSystem;
+  let directory: string;
+  let finalPath: string;
+  let stagedPath: string;
+  try {
+    fs = require("fs") as FileSystem;
+    const path = require("path") as PathModule;
+    directory = path.join(projectRoot, "Saved", "MCPPuerTSBridge");
+    finalPath = path.join(directory, "status.json");
+    stagedPath = path.join(directory, "status.json.staged");
+  } catch (error: unknown) {
+    console.error("MCP status record disabled; it could not be set up: " + String(error));
+    return inert;
+  }
 
   let active: { tool: string; command_id: string; started_at_ms: number } | null = null;
   let last: Completed | null = null;

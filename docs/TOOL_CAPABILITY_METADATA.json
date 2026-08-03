@@ -88,6 +88,7 @@
     "puerts_sky_shader_create": { "canonical_capability": "materials.sky_demo", "capability_category": "materials", "verification": "live_verified", "live_evidence": ["docs/UE427_PUERST_MCP_HANDOFF_2026-07-31.md"], "notes": "specialized demo, not generic material editing" },
     "engine_source_search": { "canonical_capability": "engine_source.search", "capability_category": "engine-source", "verification": "live_verified", "notes": "no editor involved; unit tests run against the real installed engine source" },
     "engine_source_read": { "canonical_capability": "engine_source.read", "capability_category": "engine-source", "verification": "live_verified", "notes": "no editor involved; unit tests run against the real installed engine source" },
+    "bridge_command_status": { "canonical_capability": "bridge.command_status", "capability_category": "status", "verification": "pending_live", "notes": "reads Saved/MCPPuerTSBridge/status.json off disk; never contacts the editor. Needs MCP_PUERTS_STATUS=1 in the editor environment at launch, so the live half is unproven until an editor runs with it set" },
 
     "actor_spawn": { "canonical_capability": "actors.spawn", "migration_action": "ALIAS", "replacement_tool": "puerts_spawn_actor" },
     "actor_delete": { "canonical_capability": "actors.delete", "migration_action": "ALIAS", "replacement_tool": "puerts_delete_actor" },
