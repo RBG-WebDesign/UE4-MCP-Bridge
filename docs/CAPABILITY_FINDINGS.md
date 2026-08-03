@@ -1724,3 +1724,75 @@ Compile, empties again.
   cause. Not investigated.
 - The run leaves its fixtures behind under `/Game/MCPGenerated/BP_DefaultProbe_*`.
   There is no delete-asset primitive, and each run uses a fresh path.
+
+## Finding 0p: RESOLVED, and it was the reader
+
+Fixed 2026-08-03. Lane Q's diagnosis was correct and is worth keeping as the
+method, not just the answer.
+
+`FBPVariableDescription::DefaultValue` is editor scratch.
+`KismetCompiler.cpp:776-783` copies it into the CDO on a Full compile and then
+calls `Empty()` on it deliberately, with a comment saying why. The CDO is
+storage. `BPMemberReader.cpp` reported the scratch, so `default_value` read `""`
+for every variable on any Blueprint compiled since the value was set, which is
+every variable set through a command that compiles afterwards.
+
+Fixed at the READER. `UBlueprintMutatorLibrary::TryReadVariableDefaultFromCDO`
+is one shared read-only helper; `SyncDefaultValueFromCDO` is now that helper
+plus a write rather than a second copy of the same reflection walk. The
+description remains the fallback, correctly: before a variable's first full
+compile there is no generated property and the description is the only answer.
+
+Verified live, the same five-way table lane Q built:
+
+```
+phase                requested  description  cdo   inspector  on disk
+patch compile:false  0.75       "0.750000"   0.75  "0.750000" true
+after compile        0.75       "0.750000"   0.75  "0.750000" true
+after compile+save   0.75       "0.750000"   0.75  "0.750000" false
+```
+
+Rows 2 and 3 previously read `""` in the inspector column.
+
+The instruction that made this cheap was refusing to touch the writer until the
+reader was proven correct. The writer was innocent and an obvious "fix" there
+would have added a second source of truth that the next compile empties again.
+
+## Finding 0q: blueprint_member_patch leaves the Blueprint compiling with warnings
+
+Open, found 2026-08-03. The last red check in
+`Scripts/bp-member-patch-acceptance.mjs`:
+`batch apply: the patched Blueprint compiles (UpToDateWithWarnings)`.
+
+The assertion wants `UpToDate`. Measured control, so this is not a strict
+assertion on a normal state: a freshly built Blueprint that has never been
+patched reports `compile_status: UpToDate`, both from `blueprint_build` and from
+an independent `graph_inspect`. The patched one reports
+`UpToDateWithWarnings`.
+
+Not yet established, and the fresh control is deliberately SIMPLER than the
+acceptance fixture, so it does not settle this on its own:
+
+- whether the warnings come from the patch operations or from the fixture's own
+  event graph, which the control did not have
+- what the warnings actually say. `graph_inspect`'s `log_output` and
+  `puerts_get_logs` both returned no matching warning lines, so the Blueprint
+  compile log is not reachable through any current command. That is its own gap.
+
+The decisive next measurement is one line of work: read `compile_status` on the
+FULL acceptance fixture immediately after it is built and before the patch runs.
+If it is already `UpToDateWithWarnings`, the patch is innocent and the assertion
+is checking the wrong thing. If it is `UpToDate`, the patch introduces the
+warnings and the likely cause is named below.
+
+Likely cause if the patch is at fault: the batch does `remove_component Muzzle`
+and `rename_component Lamp -> Beacon`, and the fixture's graph references those
+components. Removing or renaming a component out from under a graph node leaves
+an orphaned reference, which is exactly a compile warning rather than an error.
+If so, this is a real capability gap and not a test problem: a member patch that
+silently orphans graph references is not convergent in the way a caller assumes.
+
+Second gap this exposed: there is no way to read a Blueprint's compile MESSAGES
+through the bridge, only its status. A caller told `UpToDateWithWarnings` cannot
+find out what the warnings were without opening the editor, which defeats the
+point of an independent inspector.
