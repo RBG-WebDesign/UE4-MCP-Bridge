@@ -1812,6 +1812,103 @@ async function queryPIEAgent(context: ToolContext, input: JsonObject): Promise<C
   return result;
 }
 
+/** Read a ULevelSequence back as JSON. The independent read half of
+    buildSequence, same shape as inspectGraph, inspectWidget and inspectScene:
+    no transaction, nothing dirtied, dirty flag reported both sides. Reading is
+    wider than authoring on purpose - a caller usually needs to read a project's
+    existing sequences before it can author one. */
+async function inspectSequence(context: ToolContext, input: JsonObject): Promise<CommandResponse> {
+  const assetPath = requireString(input, "asset_path");
+  if (!assetPath.startsWith("/Game/") && !assetPath.startsWith("/Engine/")) {
+    throw new Error("Level Sequence inspection is limited to /Game and /Engine");
+  }
+  const request: JsonObject = { asset_path: assetPath };
+  if (input.include_keys !== undefined) {
+    request.include_keys = optionalBoolean(input, "include_keys", true);
+  }
+
+  const resultJson = puerts.$ref<string>("");
+  const error = puerts.$ref<string>("");
+  if (!context.bridge.InspectLevelSequenceJson(JSON.stringify(request), resultJson, error)) {
+    throw new Error(puerts.$unref(error));
+  }
+  const parsed = JSON.parse(puerts.$unref(resultJson)) as JsonObject;
+  const warnings = stringArray(parsed, "warnings");
+  delete parsed.warnings;
+
+  const result = response(true, "Level Sequence inspected.", parsed);
+  result.warnings.push(...warnings);
+  // No changed_assets and no changed_actors on purpose: reading changed nothing.
+  return result;
+}
+
+/** Create or update a ULevelSequence from one desired-state spec.
+
+    The envelope is all this function owns. Binding resolution, track and
+    section identity, per-operation convergence, the transaction, the rollback
+    boundary and the independent read-back are the native command's - the same
+    split applySceneBatch and patchBlueprintGraph make.
+
+    A refused build carries structure worth keeping (which actor label matched
+    nothing or matched twice, how far the applier got, whether the rollback
+    restored the asset), so a failure with a body is returned rather than
+    thrown. */
+async function buildSequence(context: ToolContext, input: JsonObject): Promise<CommandResponse> {
+  const assetPath = requireString(input, "asset_path");
+  if (!assetPath.startsWith("/Game/MCPGenerated/")) {
+    throw new Error("Level Sequence authoring is limited to /Game/MCPGenerated/");
+  }
+  const planOnly = optionalBoolean(input, "plan_only", false);
+  const spec: JsonObject = {
+    asset_path: assetPath,
+    bindings: objectArray(input, "bindings") as unknown as JsonValue,
+    tracks: objectArray(input, "tracks") as unknown as JsonValue,
+    plan_only: planOnly,
+    save: optionalBoolean(input, "save", true),
+  };
+  // Forwarded only when the caller actually set them, so the native side keeps
+  // its own defaults rather than having this layer restate them in a second
+  // place where the two can drift apart. An omitted frame_rate on an existing
+  // sequence means "leave it alone", which a default of 30 here would silently
+  // turn into a rate change.
+  if (input.frame_rate !== undefined) {
+    spec.frame_rate = optionalNumber(input, "frame_rate", 30);
+  }
+  const playbackRange = optionalObject(input, "playback_range");
+  if (playbackRange !== undefined) { spec.playback_range = playbackRange; }
+
+  const resultJson = puerts.$ref<string>("");
+  const error = puerts.$ref<string>("");
+  if (!context.bridge.BuildLevelSequenceJson(JSON.stringify(spec), resultJson, error)) {
+    const failureBody = puerts.$unref(resultJson);
+    if (failureBody.length > 0) {
+      return commandFailure(new Error(puerts.$unref(error)), JSON.parse(failureBody) as JsonObject);
+    }
+    throw new Error(puerts.$unref(error));
+  }
+  const parsed = JSON.parse(puerts.$unref(resultJson)) as JsonObject;
+  const warnings = stringArray(parsed, "warnings");
+  delete parsed.warnings;
+
+  const applied = typeof parsed.applied_operation_count === "number" ? parsed.applied_operation_count : 0;
+  const created = parsed.created === true;
+  const result = response(
+    true,
+    planOnly
+      ? "Level Sequence build planned."
+      : created ? "Level Sequence created."
+      : applied === 0 ? "Level Sequence already matches the spec."
+      : "Level Sequence updated.",
+    parsed,
+  );
+  result.warnings.push(...warnings);
+  const objectPath = parsed.object_path;
+  if (!planOnly && applied > 0 && typeof objectPath === "string" && objectPath.length > 0) {
+    result.changed_assets.push(objectPath);
+  }
+  return result;
+}
+
 async function buildPhysics(context: ToolContext, input: JsonObject): Promise<CommandResponse> {
   const actors = input.actors;
   if (!Array.isArray(actors) || actors.length === 0 || actors.length > 200) {
@@ -1982,6 +2079,8 @@ export const toolDefinitions: readonly ToolDefinition[] = [
   { name: "folder_visibility", inputSchema: schema({ hidden: { type: "array", items: { type: "string" } }, hide: { type: "array", items: { type: "string" } }, show: { type: "array", items: { type: "string" } }, plan_only: { type: "boolean" } }), outputSchema, permissions: ["project.config.read", "project.config.write"], executionTimeoutMs: 5000, execute: setFolderVisibility },
   { name: "camera_shake", inputSchema: schema({ shake_class: { type: "string" }, scale: { type: "number" } }, ["shake_class"]), outputSchema, permissions: ["editor.pie"], executionTimeoutMs: 3000, execute: playCameraShake },
   { name: "pie_agent_query", inputSchema: schema({ op: { type: "string" }, radius: { type: "number" }, class_filter: { type: "string" }, log_lines: { type: "number" }, operation_id: { type: "number" }, conditions: { type: "array", items: { type: "string" } }, within_seconds: { type: "number" } }, ["op"]), outputSchema, permissions: ["pie.observe"], executionTimeoutMs: 5000, execute: queryPIEAgent },
+  { name: "sequence_inspect", inputSchema: schema({ asset_path: { type: "string" }, include_keys: { type: "boolean" } }, ["asset_path"]), outputSchema, permissions: ["assets.read"], executionTimeoutMs: 15000, execute: inspectSequence },
+  { name: "sequence_build", inputSchema: schema({ asset_path: { type: "string" }, frame_rate: { type: "number" }, playback_range: { type: "object" }, bindings: { type: "array", items: { type: "object" } }, tracks: { type: "array", items: { type: "object" } }, plan_only: { type: "boolean" }, save: { type: "boolean" } }, ["asset_path"]), outputSchema, permissions: ["assets.write", "actors.read"], executionTimeoutMs: 30000, execute: buildSequence },
   { name: "physics_build", inputSchema: schema({ actors: { type: "array", items: { type: "object" } } }, ["actors"]), outputSchema, permissions: ["actors.spawn"], executionTimeoutMs: 10000, execute: buildPhysics },
   { name: "physics_observe", inputSchema: schema({ actors: { type: "array", items: { type: "string" } } }), outputSchema, permissions: ["actors.read"], executionTimeoutMs: 2000, execute: observePhysics },
   { name: "viewport_screenshot", inputSchema: schema({ actors: { type: "array", items: { type: "string" } }, filename: { type: "string" } }), outputSchema, permissions: ["viewport.capture"], executionTimeoutMs: 2000, execute: captureViewport },

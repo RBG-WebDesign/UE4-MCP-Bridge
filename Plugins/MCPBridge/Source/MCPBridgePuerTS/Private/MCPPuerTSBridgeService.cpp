@@ -209,13 +209,15 @@ bool UMCPPuerTSBridgeService::Initialize(FString& OutError)
             // commands are. A lighting build is not something a transaction can
             // take back.
             TEXT("lighting_build"),
+            TEXT("camera_shake"), TEXT("sequence_build"),
             // Read only. Deliberately absent from IsToolMutating below, so they
             // open no transaction and return no transaction id.
             TEXT("diagnostic"), TEXT("find_assets"), TEXT("find_actors"), TEXT("read_property"),
             TEXT("get_logs"), TEXT("graph_inspect"), TEXT("behavior_tree_inspect"), TEXT("widget_inspect"),
             TEXT("anim_blueprint_inspect"), TEXT("anim_montage_inspect"), TEXT("anim_blend_space_inspect"), TEXT("blackboard_inspect"),
             TEXT("eqs_inspect"), TEXT("nav_inspect"), TEXT("nav_query"), TEXT("ai_controller_inspect"),
-            TEXT("material_inspect"), TEXT("scene_inspect"), TEXT("input_mapping_info"), TEXT("pie_agent_query")
+            TEXT("material_inspect"), TEXT("scene_inspect"), TEXT("input_mapping_info"), TEXT("pie_agent_query"),
+            TEXT("sequence_inspect")
         };
         for (const TCHAR* Value : Defaults) { AllowedTools.Add(Value); }
     }
@@ -1484,6 +1486,10 @@ bool UMCPPuerTSBridgeService::IsToolMutating(const FString& ToolName) const
         // envelope - the transaction id, the undo entry, the changed_assets
         // report - belongs to a mutating command.
         || ToolName == TEXT("class_defaults_patch")
+        // sequence_build writes a ULevelSequence asset. sequence_inspect is
+        // deliberately absent: it opens no transaction and returns no
+        // transaction id, like every other inspector here.
+        || ToolName == TEXT("sequence_build")
         || ToolName == TEXT("scene_batch");
 }
 

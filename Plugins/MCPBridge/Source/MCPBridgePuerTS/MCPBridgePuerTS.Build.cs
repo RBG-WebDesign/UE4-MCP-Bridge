@@ -44,30 +44,49 @@ public class MCPBridgePuerTS : ModuleRules
         // UAnimStateNode and UAnimStateTransitionNode are editor types in that
         // module, and the state machine structure cannot be read without them.
         // The AnimBlueprint construction itself stays in MCPBridgeGraphBuilder.
-        PrivateDependencyModuleNames.AddRange(new string[] { "AIModule", "AnimGraph", "AssetRegistry", "BlueprintGraph", "GameplayTasks", "Json", "JsonUtilities", "JsEnv", "MCPBridgeGraphBuilder", "Projects", "SourceControl", "UMG", "UMGEditor", "UnrealEd" });
-        // BlueprintGraph is for UK2Node_Variable and UK2Node_CallFunction:
-        // remove_unlisted has to find the graph nodes that read or write a
-        // variable before it may remove it, and ai_controller_inspect finds the
-        // RunBehaviorTree call sites that wire a controller to its tree.
-        // NavigationSystem is for nav_inspect and nav_query only, both read
-        // only: UNavigationSystemV1, ANavigationData, ANavMeshBoundsVolume and
-        // ANavModifierVolume live there. AIModule already covers the blackboard,
+        // NavigationSystem is for nav_inspect, nav_query and nav_build, all of
+        // them reading UNavigationSystemV1, ANavigationData, ANavMeshBoundsVolume
+        // and ANavModifierVolume. AIModule already covers blackboard,
         // Environment Query and AIPerception types.
-        PrivateDependencyModuleNames.AddRange(new string[] { "AIModule", "AssetRegistry", "BlueprintGraph", "GameplayTasks", "Json", "JsonUtilities", "JsEnv", "MCPBridgeGraphBuilder", "NavigationSystem", "Projects", "SourceControl", "UMG", "UMGEditor", "UnrealEd" });
-        // MaterialEditor is for material_inspect and material_instance_build:
-        // UMaterialEditingLibrary is the only 4.27 API that reads and writes
-        // material instance parameters by plain FName, and it is an editor-only
-        // module, which this one already is.
-        // RenderCore and RHI are for the compile report: GMaxRHIFeatureLevel
-        // selects the FMaterialResource whose compile errors are reported
-        // instead of assumed.
-        PrivateDependencyModuleNames.AddRange(new string[] { "AIModule", "AssetRegistry", "BlueprintGraph", "GameplayTasks", "Json", "JsonUtilities", "JsEnv", "MaterialEditor", "MCPBridgeGraphBuilder", "Projects", "RenderCore", "RHI", "SourceControl", "UMG", "UMGEditor", "UnrealEd" });
+        // MaterialEditor is for material_inspect, material_instance_build and
+        // material_build: UMaterialEditingLibrary is the only 4.27 API that reads
+        // and writes material instance parameters by plain FName, and it is
+        // editor-only, which this module already is.
+        // RenderCore and RHI are for the material compile report:
+        // GMaxRHIFeatureLevel selects the FMaterialResource whose compile errors
+        // are reported instead of assumed.
         // InputCore is for input_mapping_info and input_mapping_patch: an input
-        // mapping is identified by its FKey, which is that module's type, and
-        // reading one back requires resolving and printing it.
+        // mapping is identified by its FKey, which is that module's type.
         // MCPBridgePIEAgent is a dependency for the same reason
         // MCPBridgeGraphBuilder is: pie_agent_query re-fronts UPIEAgentLibrary
         // rather than reimplementing the runtime observation it already owns.
-        PrivateDependencyModuleNames.AddRange(new string[] { "AIModule", "AssetRegistry", "BlueprintGraph", "GameplayTasks", "InputCore", "Json", "JsonUtilities", "JsEnv", "MCPBridgeGraphBuilder", "MCPBridgePIEAgent", "Projects", "SourceControl", "UMG", "UMGEditor", "UnrealEd" });
+        //
+        // ONE list, not one per lane. Five lanes each appended their own
+        // AddRange carrying a copy of the base set, which UBT tolerates because
+        // AddRange is additive and duplicates are harmless, but which left five
+        // lines each reading as though it were the whole list. Consolidated at
+        // integration; add to this list rather than beside it.
+        PrivateDependencyModuleNames.AddRange(new string[] {
+            "AIModule", "AnimGraph", "AssetRegistry", "BlueprintGraph", "GameplayTasks",
+            "InputCore", "Json", "JsonUtilities", "JsEnv", "MaterialEditor",
+            "MCPBridgeGraphBuilder", "MCPBridgePIEAgent", "NavigationSystem", "Projects",
+            "RenderCore", "RHI", "SourceControl", "UMG", "UMGEditor", "UnrealEd",
+        });
+        // LevelSequence, MovieScene and MovieSceneTracks are for sequence_inspect
+        // and sequence_build only, and all three are RUNTIME modules
+        // (Engine/Source/Runtime/...), not plugins and not editor-only. That
+        // matters because the obvious fourth name is not here: ULevelSequenceFactoryNew
+        // lives in the LevelSequenceEditor PLUGIN, in a Private header, so it
+        // cannot be included from this module at all. sequence_build reproduces
+        // the five lines that factory runs instead of depending on it.
+        //
+        // Sequencer, MovieSceneTools and MovieSceneCapture are deliberately NOT
+        // here. They are the render path, and no render command shipped: see the
+        // sequence_render note in docs/CAPABILITY_FINDINGS.md.
+        //
+        // The frame types (FFrameRate, FFrameNumber, FFrameTime) are in Core, so
+        // TimeManagement is not needed and is not added; LevelSequence exports it
+        // publicly anyway.
+        PrivateDependencyModuleNames.AddRange(new string[] { "LevelSequence", "MovieScene", "MovieSceneTracks" });
     }
 }

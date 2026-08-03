@@ -72,7 +72,7 @@ async function main(): Promise<void> {
       server.listen(pipeName, resolve);
     });
     const client = new PuerTSClient();
-    const tools = createPuertsTools(client);    assert(tools.length === 50, "expected all 50 PuerTS tools");
+    const tools = createPuertsTools(client);    assert(tools.length === 52, "expected all 52 PuerTS tools");
     assert(tools.some((tool) => tool.name === "puerts_behavior_tree_build"), "native Behavior Tree builder tool is missing");
     assert(tools.some((tool) => tool.name === "puerts_behavior_tree_inspect"), "native Behavior Tree inspector tool is missing");
     assert(tools.some((tool) => tool.name === "puerts_sky_shader_create"), "native sky shader tool is missing");
@@ -1041,6 +1041,140 @@ async function levelCompletionSuite(): Promise<void> {
       "properties arrived as text rather than an object; the structured-parameter decode is missing",
     );
     console.log("  PASS  restored legacy parameters, lighting build and class defaults contract");
+  } finally {
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+    await rm(directory, { recursive: true, force: true });
+    delete process.env.MCP_PUERTS_TOKEN_PATH;
+    delete process.env.MCP_PUERTS_PIPE;
+  }
+}
+
+/** The Sequencer pair. Everything below the schema is C++ no unit test can
+    reach, so what is checked here is the contract the two tools make: the
+    inspector is annotated read-only and returns no transaction id, the builder
+    is mutating-and-idempotent and NOT destructive (it removes nothing), the
+    authoring root is enforced at the client rather than at the editor, and
+    bindings and tracks survive the JSON-text encoding an MCP client applies to
+    structured parameters. That last one is the failure this suite exists for: a
+    track list that arrives as a string reaches Unreal as a string and dies in
+    the validator with no useful message. */
+async function sequenceSuite(): Promise<void> {
+  const { toolAnnotations } = await import("../src/annotations.js");
+  assert(
+    toolAnnotations.puerts_sequence_inspect?.readOnlyHint === true,
+    "the sequence inspector is not annotated read-only",
+  );
+  assert(
+    toolAnnotations.puerts_sequence_build?.readOnlyHint === false
+      && toolAnnotations.puerts_sequence_build?.idempotentHint === true
+      && toolAnnotations.puerts_sequence_build?.destructiveHint === false,
+    "sequence_build must be mutating, idempotent and non-destructive: it is desired-state and "
+    + "additive, so a rerun changes nothing and nothing is ever removed",
+  );
+
+  const directory = await mkdtemp(join(tmpdir(), "ue4-puerts-sequence-"));
+  const tokenPath = join(directory, "token.txt");
+  const pipeName = `\\\\.\\pipe\\ue4-puerts-sequence-${process.pid}-${Date.now()}`;
+  await writeFile(tokenPath, "test-token", "utf8");
+  process.env.MCP_PUERTS_TOKEN_PATH = tokenPath;
+  process.env.MCP_PUERTS_PIPE = pipeName;
+  await advertiseSession(pipeName);
+
+  const received: Record<string, unknown>[] = [];
+  const server = createServer((socket) => socket.once("data", (data: Buffer) => {
+    const request = JSON.parse(data.toString("utf8")) as {
+      tool?: string; params?: Record<string, unknown>;
+    };
+    received.push({ ...request.params, __tool: request.tool });
+    socket.end(JSON.stringify({
+      session: RESPONSE_SESSION,
+      success: true,
+      message: "Level Sequence inspected.",
+      data: {
+        asset_path: "/Game/MCPGenerated/LS_Probe",
+        identity_kind: "observed",
+        package_dirty_before: false,
+        package_dirty_after: false,
+        binding_count: 2,
+        track_count: 3,
+        key_count: 5,
+        structure_hash_sha1: "0".repeat(40),
+      },
+      changed_assets: [], changed_actors: [], warnings: [], errors: [],
+      log_output: [], transaction_id: "",
+    }) + "\n");
+  }));
+
+  try {
+    await new Promise<void>((resolve, reject) => {
+      server.once("error", reject);
+      server.listen(pipeName, resolve);
+    });
+    const tools = createPuertsTools(new PuerTSClient());
+    const inspect = tools.find((entry) => entry.name === "puerts_sequence_inspect");
+    const build = tools.find((entry) => entry.name === "puerts_sequence_build");
+    assert(inspect !== undefined, "puerts_sequence_inspect is missing");
+    assert(build !== undefined, "puerts_sequence_build is missing");
+
+    const read = await inspect.handler({ asset_path: "/Game/MCPGenerated/LS_Probe" });
+    const payload = JSON.parse(read.content[0]?.text ?? "null") as Record<string, unknown>;
+    assert(payload.success === true, "a sequence inspection was rejected");
+    assert(payload.transaction_id === "", "a read-only sequence inspection returned a transaction id");
+    assert(received[0]?.__tool === "sequence_inspect", "the runtime command name is wrong");
+
+    const unknownKey = await build.handler({
+      asset_path: "/Game/MCPGenerated/LS_Probe",
+      remove_unlisted: true,
+    });
+    assert(
+      JSON.parse(unknownKey.content[0]?.text ?? "null").success === false,
+      "sequence_build accepted remove_unlisted; it removes nothing, and silently ignoring the key "
+      + "would promise a prune it never performs",
+    );
+    const badTrackType = await build.handler({
+      asset_path: "/Game/MCPGenerated/LS_Probe",
+      tracks: [{ binding: "master", type: "Audio", sections: [] }],
+    });
+    assert(
+      JSON.parse(badTrackType.content[0]?.text ?? "null").success === false,
+      "sequence_build accepted an Audio track; nothing in this bridge can produce a USoundBase",
+    );
+    assert(received.length === 1, "a rejected sequence build still reached the pipe");
+
+    // An MCP client with no type information sends arrays and objects as JSON
+    // text. decodeStructuredParams has to turn them back before they reach
+    // Unreal, or the native validator sees a string where a spec should be.
+    await build.handler({
+      asset_path: "/Game/MCPGenerated/LS_Probe",
+      frame_rate: 30,
+      playback_range: JSON.stringify({ start_frame: 0, end_frame: 90 }),
+      bindings: JSON.stringify([
+        { id: "cam", kind: "spawnable", name: "IntroCamera", actor_class: "/Script/CinematicCamera.CineCameraActor" },
+      ]),
+      tracks: JSON.stringify([{
+        binding: "cam",
+        type: "Transform",
+        sections: [{
+          start_frame: 0,
+          end_frame: 90,
+          keys: [{ frame: 0, value: { location: { x: 1200, y: 0, z: 300 } }, interpolation: "Cubic" }],
+        }],
+      }]),
+    });
+    const sent = received[1];
+    assert(sent?.__tool === "sequence_build", "the build runtime command name is wrong");
+    assert(
+      Array.isArray(sent?.tracks) && Array.isArray(sent?.bindings),
+      "bindings or tracks arrived as text rather than arrays; the structured-parameter decode is missing",
+    );
+    const sentRange = sent?.playback_range as { end_frame?: number } | undefined;
+    assert(sentRange?.end_frame === 90, "playback_range was flattened on the way to the pipe");
+    const sentTracks = sent?.tracks as { sections?: { keys?: unknown[] }[] }[];
+    assert(
+      sentTracks[0]?.sections?.[0]?.keys?.length === 1,
+      "the nested key list did not survive as structure",
+    );
+    console.log("  PASS  sequence inspect and build contract");
   } finally {
     await new Promise<void>((resolve) => server.close(() => resolve()));
     await rm(directory, { recursive: true, force: true });
@@ -2104,6 +2238,7 @@ main()
   .then(materialSuite)
   .then(sceneSuite)
   .then(levelCompletionSuite)
+  .then(sequenceSuite)
   .then(connectionContractSuite)
   .then(nonActorParentSuite)
   .then(graphInspectSuite)
