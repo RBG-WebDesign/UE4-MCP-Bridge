@@ -252,6 +252,19 @@ public:
 
     static FString PackageFilename(const FString& PackagePath)
     {
+        // A package that is already on disk answers with its real extension.
+        // This matters for levels: a map is a .umap, and appending
+        // GetAssetPackageExtension() to one produces a .uasset path that never
+        // exists, so bFileExisted reads false for a file that is right there
+        // and the source-control status reports "not tracked" for a file that
+        // is. Asset builders are unaffected: they Snapshot() before creating
+        // anything, so the package does not exist yet and the fallback below is
+        // what runs, exactly as before.
+        FString Existing;
+        if (FPackageName::DoesPackageExist(PackagePath, nullptr, &Existing))
+        {
+            return Existing;
+        }
         FString Filename;
         if (!FPackageName::TryConvertLongPackageNameToFilename(
                 PackagePath, Filename, FPackageName::GetAssetPackageExtension()))

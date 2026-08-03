@@ -1081,6 +1081,108 @@ const specs = [
         "Default true. An instance whose read-back disagreed with the request is never saved.",
       ),
     }).strict()],
+  ["puerts_scene_inspect", "scene_inspect",
+    "Read the editor's current level back as machine-readable JSON: every actor with its object "
+    + "name, label, class, world transform, folder, tags, bounds, attachment and components, plus "
+    + "every PlayerStart and a canonical structure_hash_sha1. The read half of puerts_scene_batch, "
+    + "and READ ONLY: no transaction is opened, the response carries no transaction id, nothing is "
+    + "saved, and the level package's dirty flag is reported before and after the read "
+    + "(package_dirty_before / package_dirty_after) so the claim is checkable. "
+    + "Actor identity is OBSERVED (identity_kind: \"observed\"): the id is the actor's object "
+    + "name, which is unique within a level and stable, unlike the label, which is neither. "
+    + "Transforms are WORLD transforms, the same space puerts_scene_batch writes, so the read and "
+    + "the write cannot disagree about what a location means. "
+    + "Arrays are canonically ordered - actors by object name, components by component name - so "
+    + "two reads of an unchanged level produce the same content and the same hash. The hash always "
+    + "covers the WHOLE level: an actors filter narrows what is reported and never what is hashed, "
+    + "because a hash of a filter is a hash of the request. "
+    + "level_path is an assertion, not a target: it refuses when the editor has a different level "
+    + "open rather than loading one, because an empty success against the wrong map cannot be told "
+    + "apart from an empty map.",
+    z.object({
+      level_path: z.string().optional().describe(
+        "The level you believe is loaded (\"/Game/Maps/Test\"). Refuses on a mismatch. Omit to "
+        + "read whatever the editor has open.",
+      ),
+      actors: z.array(z.string()).max(500).optional().describe(
+        "Object names, labels or object paths. Narrows what is reported; never narrows the hash.",
+      ),
+      include_components: z.boolean().optional().describe(
+        "Default true. Attach each actor's components with their class, attach parent, relative "
+        + "transform and mobility.",
+      ),
+      include_properties: z.array(z.string()).max(32).optional().describe(
+        "Reflected property names to read on every reported actor, returned under properties. A "
+        + "property the actor does not have is absent rather than null, because null would say it "
+        + "exists and holds nothing.",
+      ),
+    }).strict()],
+  ["puerts_scene_batch", "scene_batch",
+    "Apply a desired-state description of many actors to the editor's current level in ONE "
+    + "transaction: spawn, modify, delete, reparent, set folders, tags and reflected properties on "
+    + "actors and on the components they already have. This is the level-authoring answer to the "
+    + "round-trip problem: a scene that would take fifty puerts_spawn_actor and puerts_set_property "
+    + "calls is one call. "
+    + "operations is an ordered batch of exactly two op kinds, because a desired-state description "
+    + "of a level needs two: {op:\"upsert_actor\", ...} and {op:\"delete_actor\", select}. Lights, "
+    + "post-process volumes, trigger volumes, blocking volumes and nav mesh bounds volumes are all "
+    + "upsert_actor with a class path and properties; there is no separate lighting or volume tool. "
+    + "An actor is addressed by select {name} (the object name, unique within a level), {path}, or "
+    + "{label}; a selector matching more than one actor is a refusal that NAMES the matches with "
+    + "their classes, never a guess. An upsert with no select uses its label as the identity and "
+    + "spawns when no actor has it, so one operation covers spawn and modify. Two operations on the "
+    + "same actor in one batch is a refusal: there is no single desired state to converge on. "
+    + "The whole batch resolves and refuses before the first mutation, and then each operation's "
+    + "satisfied-ness is re-evaluated immediately before it runs rather than read from the plan, "
+    + "because a batch is ordered and an earlier operation may have moved the state a later one "
+    + "depends on. "
+    + "Trigger volumes carry the AGENTS.md PlayerStart rule automatically: a volume that CONTAINS a "
+    + "PlayerStart refuses the whole batch, because OnBeginOverlap never fires for a player who "
+    + "spawns already inside; one within 1.5x its own extent warns. The check runs against the "
+    + "actor's real bounds after placement, inside the rollback boundary. player_starts is reported "
+    + "either way so a caller can pre-check. "
+    + "plan_only is read-only and returns operations_to_apply, unchanged_operations, "
+    + "expected_change_count, pre_structure_hash and player_starts; predicted_structure_hash is "
+    + "given only for a no-op batch, where it is the current hash by definition. "
+    + "Any failure cancels the transaction, runs the rollback boundary, and decides whether the "
+    + "level actually came back by hashing it again rather than trusting the undo; that answer is "
+    + "rollback_succeeded. Rerunning the same batch applies nothing and reports converged true. "
+    + "pre_structure_hash and post_structure_hash are the same value puerts_scene_inspect returns "
+    + "as structure_hash_sha1, so a caller verifies against an independent read. "
+    + "IT NEVER SAVES. The level is left dirty in the editor and level_package_dirty says so; "
+    + "writing it to disk is puerts_save's call, and keeping it out of here is what lets a failed "
+    + "batch leave nothing on disk to clean up.",
+    z.object({
+      level_path: z.string().optional().describe(
+        "The level you believe is loaded. Refuses on a mismatch; never loads a level.",
+      ),
+      operations: z.array(z.record(z.unknown())).min(1).max(500).describe(
+        "Ordered batch. "
+        + "{op:\"upsert_actor\", select?:{name|path|label}, label?, class?, location?, rotation?, "
+        + "scale?, folder?, tags?, attach_to?, properties?, components?} and "
+        + "{op:\"delete_actor\", select:{name|path|label}}. "
+        + "class is an actor class path, limited to /Game/, /Script/Engine., "
+        + "/Script/NavigationSystem. and /Script/CinematicCamera.CineCameraActor; it is required "
+        + "when the operation has to spawn, and an existing actor of a different class is a "
+        + "refusal, never a silent replacement. location and scale are {x,y,z} and rotation is "
+        + "{pitch,yaw,roll}, all WORLD space, and an omitted component keeps its current value. "
+        + "folder is an Outliner path (\"Lighting/Interior\"). tags replaces the whole tag array. "
+        + "attach_to names a parent actor, or \"\" to detach; an attachment cycle is refused. "
+        + "properties is {propertyName: value} on the actor and components is "
+        + "{componentName: {propertyName: value}} on components the actor ALREADY has - this "
+        + "command adds no components. Every property write is gated by the same "
+        + "AllowedWritableProperties allowlist puerts_set_property uses; one that is not on it is a "
+        + "refusal before anything is spawned. A delete_actor whose actor is already gone is "
+        + "satisfied, not an error.",
+      ),
+      plan_only: z.boolean().optional().describe(
+        "Default false. Classify the batch and change nothing.",
+      ),
+      verify: z.boolean().optional().describe(
+        "Default true. Re-read every operation's own condition from the level after applying. "
+        + "Turning this off removes the only check that distinguishes a change from a report of one.",
+      ),
+    }).strict()],
   ["puerts_physics_build", "physics_build", "Build a validated static-mesh rigid-body scene in one transaction.", z.object({ actors: z.array(physicsActor).min(1).max(200) }).strict()],
   ["puerts_physics_observe", "physics_observe", "Read rigid-body transforms and velocities from the editor or PIE world.", z.object({ actors: z.array(z.string()).max(200).optional() }).strict()],
   ["puerts_viewport_screenshot", "viewport_screenshot", "Fit requested actors and save a PNG of the active editor viewport.", z.object({ actors: z.array(z.string()).max(200).optional(), filename: z.string().optional() }).strict()],
@@ -1149,6 +1251,8 @@ const structuredParameters: Readonly<Record<string, readonly string[]>> = {
   puerts_save: ["assets"],
   puerts_blueprint_build: ["components", "variables", "graph"],
   puerts_widget_build: ["tree"],
+  puerts_scene_inspect: ["actors", "include_properties"],
+  puerts_scene_batch: ["operations"],
   puerts_material_instance_build: ["scalars", "vectors", "textures", "switches"],
   puerts_behavior_tree_build: ["keys", "root"],
   puerts_anim_blueprint_build: ["variables", "anim_graph", "state_machine", "event_graph"],
@@ -1168,6 +1272,8 @@ const commandTimeouts: Readonly<Record<string, number>> = {
   // build and too tight for a ten-operation member batch.
   puerts_blueprint_member_patch: 60000,
   puerts_widget_build: 30000,
+  puerts_scene_batch: 60000,
+  puerts_scene_inspect: 15000,
   puerts_material_inspect: 15000,
   // A static switch change recompiles the instance's shader permutation, and
   // the command blocks on that compile rather than reporting "requested".

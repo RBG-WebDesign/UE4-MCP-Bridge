@@ -334,6 +334,26 @@ public:
         serialized, unlike a UMG widget or a Behavior Tree node. */
     UFUNCTION(BlueprintCallable, Category="MCP PuerTS Bridge")
     bool InspectMaterialJson(
+    /** Read the editor's current level back as machine-readable JSON: every
+        actor with its class, world transform, folder, tags, attachment,
+        components and optionally selected reflected properties, plus every
+        PlayerStart and a canonical structure hash.
+
+        The read half of scene_batch, and READ ONLY on the same terms as
+        graph_inspect: not in IsToolMutating, so no transaction opens and the
+        response carries no transaction id; nothing here calls Modify or
+        MarkPackageDirty; and the level package's dirty flag is reported before
+        and after the read.
+
+        Actor identity is OBSERVED (identity_kind = "observed"): the object name
+        is unique within a level and stable, unlike the label, which a user
+        renames freely and which is not unique at all.
+
+        The structure hash always covers the WHOLE level. An actors filter
+        narrows what is reported and never what is hashed, because a hash of a
+        filter is a hash of the request. */
+    UFUNCTION(BlueprintCallable, Category="MCP PuerTS Bridge")
+    bool InspectSceneJson(
         const FString& RequestJson,
         FString& OutResultJson,
         FString& OutError) const;
@@ -447,6 +467,33 @@ public:
         half and there is no write half. */
     UFUNCTION(BlueprintCallable, Category="MCP PuerTS Bridge")
     bool BuildMaterialInstanceJson(
+    /** Apply a desired-state description of many actors to the current level in
+        ONE transaction: spawn, modify, delete, reparent, folder, tags, and
+        reflected properties on actors and on the components they already have.
+
+        Two operations, because a desired-state description of a level needs
+        two: upsert_actor and delete_actor. Everything a caller would otherwise
+        do with a dozen single-actor round trips is one of those.
+
+        The command owns the boundary, not the mutation: the whole batch is
+        resolved and refused before the first change, each operation's
+        satisfied-ness is re-evaluated immediately before it runs rather than
+        read from the plan, one rollback boundary wraps the batch, the level is
+        read back independently and every operation re-checked against it, and
+        any failure cancels the transaction and then decides whether the level
+        actually came back by hashing it again.
+
+        It never saves. Writing a level to disk is puerts_save's job, and
+        keeping it out of here is what lets a failed batch leave nothing on
+        disk to clean up.
+
+        Trigger volumes carry the AGENTS.md PlayerStart rule: a volume that
+        contains a PlayerStart refuses the whole batch, and one inside 1.5x its
+        own extent of a PlayerStart warns. The check runs against the actor's
+        real GetActorBounds after it is placed, inside the rollback boundary,
+        because the extent of an unspawned brush volume is a guess. */
+    UFUNCTION(BlueprintCallable, Category="MCP PuerTS Bridge")
+    bool ApplySceneBatchJson(
         const FString& SpecJson,
         FString& OutResultJson,
         FString& OutError);
