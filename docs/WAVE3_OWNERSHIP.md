@@ -52,3 +52,48 @@ REFRONT group 1, the 18 Blueprint editing tools, is blocked on lane G. That
 library commits on failure today, so re-fronting onto it would ship 18 mutations
 that cannot roll back. Lane M is designing group 1 on paper and landing groups 2
 and 4 instead.
+
+# Wave four ownership, 2026-08-03
+
+Resumption wave. Every lane continues its OWN salvaged branch; none starts over.
+
+## Verification before launch, all six gates
+
+| Gate | Result |
+|---|---|
+| No orphan agents | One claude-code session alive, which is this one. Clean. |
+| Salvaged branches exist | All eight at exactly the commits `docs/CONTINUE_HERE.md` names. No drift. |
+| One writer per worktree | All eight clean, correct branch checked out. |
+| Integration tree clean | Yes, at `cb88f4c`. |
+| No editor before rebuilds | One editor alive, PID 38608, deliberately kept for lane Q's read-only diagnosis. NO lane may rebuild while it runs. |
+| `install:check` | Current. The running editor's plugin carries the ValueToJsonText fix. |
+
+## Lanes
+
+| Lane | Branch | Resumes from | Build rights | Editor |
+|---|---|---|---|---|
+| Q | `lane/q-finding-0p` | new, off `cb88f4c` | no | **read-only on the live editor, may not launch or close it** |
+| I | `lane/i-material` | `a5053a7` | no | no |
+| J | `lane/j-animation` | `19a4c31` | no | no |
+| K | `lane/k-ai-gameplay` | `4ba3cf6` | no | no |
+| L | `lane/l-level-scene` | `ce5983b` | no | no |
+| M | `lane/m-refront2` | `5e5b91e` | no | no |
+| N | `lane/n-packaging` | `ef7257a` | **own fresh project only** | no |
+| O | `lane/o-perf-live` | `5962855` | no | no |
+| P | `lane/p-slices` | `32c2161` | no | no |
+
+## The dependency that changed
+
+REFRONT group 1, the 18 Blueprint editing tools, was blocked and is now
+UNBLOCKED. `BPMutatorHelpers` cancels on its failure path and that is proven
+live by `Scripts/mutator-atomicity.mjs`, all checks plus the control. Lane M was
+previously told to design group 1 on paper; it may now land it. No lane may
+modify `BPMutatorHelpers.cpp`.
+
+## Compile scheduling
+
+No lane rebuilds `BridgeInstallTest` this wave. Lanes I, J, K, L and M all carry
+C++ that needs UHT and UBT; they finish everything else, report READY TO BUILD,
+and stop. The integrator batches those compiles after merging, because five
+lanes building into one shared project is the collision that cost lane A two
+sessions. Lane N builds only its own throwaway project and cannot collide.
