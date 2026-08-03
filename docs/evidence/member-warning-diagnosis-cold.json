@@ -1,0 +1,27 @@
+{
+  "phase": "cold",
+  "run_id": "msdda18y",
+  "patched": "/Game/MCPGenerated/BP_WarnPatched_msdda18y",
+  "clean": "/Game/MCPGenerated/BP_WarnClean_msdda18y",
+  "readings": [
+    {
+      "step": "cold inspect",
+      "asset": "/Game/MCPGenerated/BP_WarnPatched_msdda18y",
+      "status": "UpToDate"
+    },
+    {
+      "step": "cold inspect",
+      "asset": "/Game/MCPGenerated/BP_WarnClean_msdda18y",
+      "status": "UpToDate"
+    },
+    {
+      "step": "cold recompile",
+      "asset": "/Game/MCPGenerated/BP_WarnPatched_msdda18y",
+      "ok": true,
+      "applied": 0,
+      "status": "UpToDate",
+      "warnings": [],
+      "errors": []
+    }
+  ]
+}

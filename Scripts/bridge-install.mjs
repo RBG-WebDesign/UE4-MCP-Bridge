@@ -40,7 +40,12 @@ export const MANIFEST_NAME = 'MCPBridgeInstall.json';
 // need a bump.
 export const MANIFEST_SCHEMA_VERSION = 1;
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), '..');
-const SKIP_DIRS = new Set(['Binaries', 'Intermediate', 'Saved', '.vs']);
+// __pycache__ is here for the same reason Binaries is: the editor's Python
+// regenerates it on startup, inside the TARGET's plugin copy, so a gate that
+// counted those .pyc files as undeclared extras went stale every time the editor
+// launched. It reported 39 "extra" files on an install that was otherwise
+// byte-identical to the repository.
+const SKIP_DIRS = new Set(['Binaries', 'Intermediate', 'Saved', '.vs', '__pycache__']);
 
 // The declared plugin files, split so that a stale group names itself. Native
 // sources and Content/JavaScript are separate on purpose: they come from

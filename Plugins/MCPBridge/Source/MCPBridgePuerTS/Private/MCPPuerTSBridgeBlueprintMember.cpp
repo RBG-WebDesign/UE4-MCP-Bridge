@@ -11,6 +11,7 @@
 #include "Engine/SCS_Node.h"
 #include "Engine/SimpleConstructionScript.h"
 #include "EdGraph/EdGraph.h"
+#include "EdGraphSchema_K2.h"
 #include "Json.h"
 #include "Misc/PackageName.h"
 #include "UObject/UnrealType.h"
@@ -522,6 +523,19 @@ bool UMCPPuerTSBridgeService::PatchBlueprintMembersJson(
                              "this command's to remove."), Index, *Name));
                     continue;
                 }
+                // An event dispatcher is a multicast delegate member variable
+                // PLUS a signature graph, so remove_variable would take away the
+                // property and leave the graph, which compiles with "No delegate
+                // property found for @@" forever after. That is the exact defect
+                // finding 0q was opened on, one command over.
+                if (Existing != nullptr && Existing->VarType.PinCategory == UEdGraphSchema_K2::PC_MCDelegate)
+                {
+                    Refusals.Add(FString::Printf(
+                        TEXT("operation %d (remove_variable %s): that member is an event dispatcher, "
+                             "which is a delegate property and a signature graph together. Use "
+                             "remove_event_dispatcher, which removes both."), Index, *Name));
+                    continue;
+                }
             }
             else
             {
@@ -896,6 +910,14 @@ bool UMCPPuerTSBridgeService::PatchBlueprintMembersJson(
     // --- Compile. The mutator compiles on every entry point already; this is the
     //     one that produces a status a caller can read and refuse on. ---
     FString CompileStatus = TEXT("Skipped");
+    // The MESSAGES, not just the status. CompileAndReport has always collected
+    // them off the FCompilerResultsLog and this call site read two scalar fields
+    // out of the report and dropped the rest, so a caller told
+    // UpToDateWithWarnings had no way to find out what the warnings said without
+    // opening the editor. That is finding 0q's second gap, and blueprint_build
+    // already surfaces the same two arrays from the same report.
+    TArray<TSharedPtr<FJsonValue>> CompileWarnings;
+    TArray<TSharedPtr<FJsonValue>> CompileErrors;
     if (bCompile)
     {
         TSharedPtr<FJsonObject> CompileReport;
@@ -906,16 +928,29 @@ bool UMCPPuerTSBridgeService::PatchBlueprintMembersJson(
         {
             CompileReport->TryGetBoolField(TEXT("success"), bCompileSucceeded);
             CompileReport->TryGetStringField(TEXT("status"), CompileStatus);
+            const TArray<TSharedPtr<FJsonValue>>* Reported = nullptr;
+            if (CompileReport->TryGetArrayField(TEXT("warnings"), Reported)) { CompileWarnings = *Reported; }
+            if (CompileReport->TryGetArrayField(TEXT("errors"), Reported)) { CompileErrors = *Reported; }
         }
         if (!bCompileSucceeded)
         {
+            // The messages go into the error text here rather than the result,
+            // because the failure path returns the failure envelope and its data
+            // is empty: a caller refused for a compile it cannot read is exactly
+            // the gap this change closes.
+            TArray<FString> ErrorText;
+            for (const TSharedPtr<FJsonValue>& E : CompileErrors) { ErrorText.Add(E->AsString()); }
             return FailWithRollback(FString::Printf(
                 TEXT("The patched Blueprint did not compile (status %s). The patch is rolled back "
                      "rather than saved: a Blueprint that will not compile is not the one the "
-                     "caller asked for."), *CompileStatus));
+                     "caller asked for. Compiler errors: %s"),
+                *CompileStatus,
+                ErrorText.Num() > 0 ? *FString::Join(ErrorText, TEXT(" | ")) : TEXT("(none reported)")));
         }
     }
     Result->SetStringField(TEXT("compile_status"), CompileStatus);
+    Result->SetArrayField(TEXT("compile_warnings"), CompileWarnings);
+    Result->SetArrayField(TEXT("compile_errors"), CompileErrors);
 
     // --- Read the members back independently and verify. ---
     const FString PostHash = ReadMemberHash();

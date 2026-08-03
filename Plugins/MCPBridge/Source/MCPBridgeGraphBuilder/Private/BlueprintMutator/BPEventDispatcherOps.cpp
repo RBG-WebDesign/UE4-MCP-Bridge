@@ -119,32 +119,73 @@ FString FBPEventDispatcherOps::AddEventDispatcher(UBlueprint* Blueprint, const F
     if (!ParseSignature(SignatureJson, Params)) return FString();
 
     FString ResultName;
+    const FName DispatcherFName(*DispatcherName);
     const bool bOk = FBPMutatorHelpers::RunMutation(
         Blueprint,
         LOCTEXT("AddEventDispatcher", "Soul Juice: Add Event Dispatcher"),
         [&]() -> bool
         {
+            const UEdGraphSchema_K2* K2Schema = GetDefault<UEdGraphSchema_K2>();
+
+            // The delegate PROPERTY, first, and this is the whole of finding 0q.
+            // An event dispatcher is two objects: a multicast delegate member
+            // variable and a signature graph. This op created only the graph, so
+            // KismetCompiler::PrecompileFunction reached
+            // FindFProperty<FMulticastDelegateProperty>(NewClass, GraphName),
+            // found nothing, and warned "No delegate property found for @@"
+            // (KismetCompiler.cpp:2038-2045) on that compile and on every compile
+            // of that Blueprint afterwards. The warning was the visible half; the
+            // invisible half is that the dispatcher was not bindable, callable or
+            // even listed as a member, because there was no property to bind.
+            // Order and steps mirror FBlueprintEditor::OnAddNewDelegate
+            // (BlueprintEditor.cpp:8729-8775), which is the editor's own path.
+            FEdGraphPinType DelegateType;
+            DelegateType.PinCategory = UEdGraphSchema_K2::PC_MCDelegate;
+            if (!FBlueprintEditorUtils::AddMemberVariable(Blueprint, DispatcherFName, DelegateType))
+            {
+                UE_LOG(LogBlueprintMutator, Error,
+                    TEXT("AddEventDispatcher: AddMemberVariable failed for '%s'; the name is most likely "
+                         "already a variable or an inherited property"), *DispatcherName);
+                return false;
+            }
+
             UEdGraph* NewGraph = FBlueprintEditorUtils::CreateNewGraph(
-                Blueprint, FName(*DispatcherName),
+                Blueprint, DispatcherFName,
                 UEdGraph::StaticClass(), UEdGraphSchema_K2::StaticClass());
             if (!NewGraph)
             {
+                FBlueprintEditorUtils::RemoveMemberVariable(Blueprint, DispatcherFName);
                 UE_LOG(LogBlueprintMutator, Error,
                     TEXT("AddEventDispatcher: CreateNewGraph failed for '%s'"), *DispatcherName);
                 return false;
             }
 
+            // bEditable false: a signature graph is edited through its entry
+            // node's parameters, never by dropping nodes into it.
+            NewGraph->bEditable = false;
+            K2Schema->CreateDefaultNodesForGraph(*NewGraph);
+            K2Schema->CreateFunctionGraphTerminators(*NewGraph, (UClass*)nullptr);
+            K2Schema->AddExtraFunctionFlags(NewGraph, (FUNC_BlueprintCallable | FUNC_BlueprintEvent | FUNC_Public));
+            K2Schema->MarkFunctionEntryAsEditable(NewGraph, true);
+
             Blueprint->DelegateSignatureGraphs.Add(NewGraph);
 
-            FGraphNodeCreator<UK2Node_FunctionEntry> Creator(*NewGraph);
-            UK2Node_FunctionEntry* EntryNode = Creator.CreateNode();
-            EntryNode->FunctionReference.SetSelfMember(FName(*DispatcherName));
-            EntryNode->bIsEditable = true;
-            Creator.Finalize();
+            // The entry node the schema just made, rather than a second one of
+            // our own. Two entry nodes in one signature graph is a compile error.
+            TArray<UK2Node_FunctionEntry*> EntryNodes;
+            NewGraph->GetNodesOfClass(EntryNodes);
+            if (EntryNodes.Num() != 1)
+            {
+                UE_LOG(LogBlueprintMutator, Error,
+                    TEXT("AddEventDispatcher: '%s' has %d function entry nodes after "
+                         "CreateFunctionGraphTerminators; expected exactly 1"),
+                    *DispatcherName, EntryNodes.Num());
+                return false;
+            }
 
             for (const FDispatcherParamSpec& P : Params)
             {
-                UEdGraphPin* Pin = EntryNode->CreateUserDefinedPin(
+                UEdGraphPin* Pin = EntryNodes[0]->CreateUserDefinedPin(
                     FName(*P.Name), P.Type, EGPD_Output, /*bUseUniqueName=*/true);
                 if (!Pin)
                 {
@@ -186,6 +227,12 @@ bool FBPEventDispatcherOps::RemoveEventDispatcher(UBlueprint* Blueprint, const F
         LOCTEXT("RemoveEventDispatcher", "Soul Juice: Remove Event Dispatcher"),
         [&]() -> bool
         {
+            // Both halves, because add now creates both. Removing only the graph
+            // would leave a multicast delegate property whose signature function
+            // no longer exists, which is the same shape of half-object the add
+            // side used to produce. SMyBlueprint::OnDeleteDelegate
+            // (SMyBlueprint.cpp:2700-2701) does these two in this order.
+            FBlueprintEditorUtils::RemoveMemberVariable(Blueprint, Graph->GetFName());
             FBlueprintEditorUtils::RemoveGraph(Blueprint, Graph, EGraphRemoveFlags::Recompile);
             return true;
         });

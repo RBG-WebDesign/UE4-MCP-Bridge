@@ -9,6 +9,7 @@
 #include "Engine/SCS_Node.h"
 #include "Components/ActorComponent.h"
 #include "EdGraph/EdGraph.h"
+#include "EdGraphSchema_K2.h"
 #include "Dom/JsonObject.h"
 #include "Dom/JsonValue.h"
 #include "Serialization/JsonSerializer.h"
@@ -134,6 +135,14 @@ FString FBPMemberReader::ListVariables(UBlueprint* Blueprint)
     TArray<TSharedPtr<FJsonValue>> Out;
     for (const FBPVariableDescription& V : Blueprint->NewVariables)
     {
+        // An event dispatcher IS a member variable: a multicast delegate one,
+        // paired with a signature graph. ListEventDispatchers already reports
+        // them, and reporting the same member in both lists would offer a caller
+        // remove_variable on something only remove_event_dispatcher can correctly
+        // take apart. SMyBlueprint.cpp:1232-1236 excludes delegate properties
+        // from the editor's own variable list for the same reason.
+        if (V.VarType.PinCategory == UEdGraphSchema_K2::PC_MCDelegate) continue;
+
         TSharedPtr<FJsonObject> VO = MakeShared<FJsonObject>();
         VO->SetStringField(TEXT("name"), V.VarName.ToString());
         VO->SetObjectField(TEXT("type"), FBPTypeDescriptor::ToJson(V.VarType));
