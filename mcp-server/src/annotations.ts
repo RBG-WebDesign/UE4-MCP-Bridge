@@ -144,6 +144,11 @@ export const toolAnnotations: Record<string, ToolAnnotations> = {
   // before and after the read. See the tool description for why a cue builder
   // is feasible where an EQS builder is not, and what still blocks it.
   puerts_audio_inspect: readOnly,
+  // The read half of MCPBridgeClothOptimizer, and the only half fronted. Its
+  // three writers are not here on purpose: they do not cancel their transaction
+  // on failure and they mutate cloth paint, which is authored data a re-run
+  // cannot regenerate. Absent from IsToolMutating on the native side.
+  puerts_cloth_inspect: readOnly,
   // The read half of puerts_scene_batch: kept out of IsToolMutating on the
   // native side, reports the level package's dirty flag before and after.
   puerts_scene_inspect: readOnly,
@@ -474,6 +479,8 @@ export const compatAliasAnnotations: Record<string, ToolAnnotations> = {
   folder_hidden_list: readOnly,           // -> puerts_folder_visibility (read path)
 
   camera_shake_play: mutating,            // -> puerts_camera_shake (runtime only, nothing persisted)
+
+  cloth_inspect_asset: readOnly,          // -> puerts_cloth_inspect (the only cloth half fronted)
 
   // -> puerts_nav_build with wait: true, which is the legacy blocking shape.
   // Same classification as the native tool: idempotent because a rebuild

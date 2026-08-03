@@ -415,17 +415,33 @@ double-application reachable from further away.
 - Convergent: content-hash guard, no no-op path
 - **Ships as: READ-ONLY**
 
-| Legacy tool | Native command | Pass-through or wrapper |
-|---|---|---|
-| `cloth_inspect_asset` | `cloth_inspect` | pass-through, read only |
-| `cloth_apply_fabric_profile` | `cloth_apply_profile` | pass-through (the module owns its own transaction) |
-| `cloth_apply_lower_leg_gradient` | `cloth_apply_gradient` | pass-through |
-| `cloth_smooth_max_distance` | `cloth_smooth` | pass-through |
+| Legacy tool | Native command | Pass-through or wrapper | Status |
+|---|---|---|---|
+| `cloth_inspect_asset` | `cloth_inspect` | pass-through, read only | ALIAS landed, lane W, uncompiled |
+| `cloth_apply_fabric_profile` | `cloth_apply_profile` | pass-through (the module owns its own transaction) | **not fronted** |
+| `cloth_apply_lower_leg_gradient` | `cloth_apply_gradient` | pass-through | **not fronted** |
+| `cloth_smooth_max_distance` | `cloth_smooth` | pass-through | **not fronted** |
 
 The three writers need `cloth_inspect_asset` as their independent read-back and
 it is in the same group, so the pairing is free; the rollback boundary is not.
 **Ship `cloth_inspect_asset` first**, then the writers once a failed apply
 provably restores the mask.
+
+**The read half landed.** `puerts_cloth_inspect` fronts
+`UClothOptimizerLibrary::InspectClothAsset` as a straight pass-through, with
+`cloth_inspect_asset` aliased onto it. The snapshot is the library's own and the
+module's editor panel reads the same function, so an MCP read and what a human
+sees in the panel cannot disagree. One thing the command does add: the library
+reports its failures INSIDE the snapshot as `success: false` with an error
+string, so the command lifts that into a refusal rather than returning a success
+envelope wrapping a failure.
+
+The three writers stay where they are. What separates this group from
+navigation, where a non-transactional write shipped anyway, is what the write
+costs: a navmesh is derived from the level and the recovery from a bad build is
+another build, while cloth paint is AUTHORED and a half-applied mask is lost
+work. That is the line, and it is why `write_unsupported_reason` is in every
+`cloth_inspect` response rather than only in this document.
 
 ---
 

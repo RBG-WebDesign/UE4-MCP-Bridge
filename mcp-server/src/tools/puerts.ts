@@ -829,6 +829,34 @@ const specs = [
         + "different type and is refused by name.",
       ),
     }).strict()],
+  ["puerts_cloth_inspect", "cloth_inspect",
+    "Read a UE4.27 skeletal mesh's cloth setup as machine-readable JSON: every render section with "
+    + "whether it has cloth bound and which clothing asset, every clothing asset with its GUID, "
+    + "topology content hash and Physics Asset, per-LOD physical vertex, triangle and fixed-vertex "
+    + "counts, the authoring masks with their targets and value ranges, and the full NvCloth "
+    + "config (solver and stiffness frequency, collision thickness, friction, self-collision "
+    + "radius, stiffness and cull scale, tether stiffness and limit). "
+    + "A re-front of MCPBridgeClothOptimizer, which was already compiled into the plugin and "
+    + "reachable only through the legacy Python listener. Straight pass-through: the snapshot is "
+    + "UClothOptimizerLibrary::InspectClothAsset's, unchanged, and the module's own in-editor "
+    + "panel reads the same function, so an MCP read and what a human sees in that panel are the "
+    + "same output rather than two implementations that can disagree. "
+    + "THE READ HALF ONLY, and that is a deliberate refusal rather than a gap in this wave. The "
+    + "module's three writers (cloth_apply_fabric_profile, cloth_smooth_max_distance, "
+    + "cloth_apply_lower_leg_gradient) open a UE4 transaction and do not cancel it on the failure "
+    + "path, and what they mutate is a skeletal mesh's cloth PAINT: authored data that a re-run "
+    + "cannot regenerate, unlike a navmesh or a shader. A half-applied mask is lost work, not lost "
+    + "time. They ship when a failed apply provably restores the mask; until then they are "
+    + "reachable only through their legacy names, which carry a confirm parameter for the same "
+    + "reason. The response repeats this in write_unsupported_reason. "
+    + "A mesh with no clothing assets is answered, not refused, with a warning naming it as a mesh "
+    + "with no cloth rather than a failed read. "
+    + "READ ONLY: no transaction, nothing dirtied. Limited to /Game and /Engine.",
+    z.object({
+      skeletal_mesh: z.string().describe(
+        "The skeletal mesh, as a package path or the object path other tools hand back.",
+      ),
+    }).strict()],
   ["puerts_ai_perception_build", "ai_perception_build",
     "Reconcile the whole AIPerceptionComponent configuration on an existing AIController Blueprint "
     + "in one call: which senses it has, each sense's properties, and the dominant sense. The "
@@ -1518,6 +1546,10 @@ const commandTimeouts: Readonly<Record<string, number>> = {
   // Blueprint, but the 7 second default is close enough to a large cue on a
   // cold asset load to report a failure for work that succeeds.
   puerts_audio_inspect: 15000,
+  // Walks every LOD's render sections and every clothing asset's physical mesh.
+  // A character mesh with several cloth LODs is a much larger read than a
+  // Blueprint graph.
+  puerts_cloth_inspect: 25000,
   // Reading is cheaper than building, but a 200-node graph with include_pins
   // is a large serialization on the game thread and the 7 second default is
   // close enough to it to report a failure for work that succeeds.

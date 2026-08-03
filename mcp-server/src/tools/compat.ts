@@ -626,6 +626,20 @@ const aliases: readonly CompatAlias[] = [
     inputSchema: z.object({}),
     translate: () => routed({}),
   },
+  // --- Cloth, read half only ------------------------------------------------
+  {
+    name: "cloth_inspect_asset",
+    canonical: "puerts_cloth_inspect",
+    description:
+      "Inspect a skeletal mesh's cloth setup: render-section bindings, physical cloth LOD counts, " +
+      "authoring masks, NvCloth config, topology hash and Physics Asset coverage. The parameter " +
+      "passes through unchanged. Only the READ half of the cloth optimizer is native; its three " +
+      "writers keep their legacy names because a failed apply does not yet restore the mask.",
+    inputSchema: z.object({
+      skeletal_mesh: z.string().describe("Path to the skeletal mesh"),
+    }),
+    translate: (params) => routed({ skeletal_mesh: params.skeletal_mesh }),
+  },
   // --- Navigation build -----------------------------------------------------
   {
     name: "ai_nav_rebuild",

@@ -768,6 +768,27 @@ private:
         FString& OutResultJson,
         FString& OutError) const;
 
+    /** Read a skeletal mesh's cloth setup: render-section cloth bindings,
+        physical cloth LOD counts, authoring masks, NvCloth config, topology
+        hash and Physics Asset coverage.
+
+        A straight pass-through to UClothOptimizerLibrary::InspectClothAsset,
+        which the module's own editor panel also reads, so an MCP read and what
+        a human sees in the panel are the same function's output.
+
+        THE READ HALF ONLY. The module's three writers open a transaction and do
+        not cancel it on the failure path, and what they mutate is cloth paint:
+        authored data a re-run cannot regenerate. They are not fronted here and
+        the response says why in write_unsupported_reason.
+
+        READ ONLY: not in IsToolMutating, nothing calls Modify or
+        MarkPackageDirty. */
+    UFUNCTION(BlueprintCallable, Category="MCP PuerTS Bridge")
+    bool InspectClothJson(
+        const FString& RequestJson,
+        FString& OutResultJson,
+        FString& OutError) const;
+
     /** Reconcile the whole AIPerceptionComponent configuration on an existing
         AIController Blueprint in one call: the senses it has, each sense's
         properties, and the dominant sense. The component is created if it is

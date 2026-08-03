@@ -776,6 +776,28 @@ async function inspectAudioAsset(context: ToolContext, input: JsonObject): Promi
   return result;
 }
 
+/** Read a skeletal mesh's cloth setup. Read-only, and the read half only: the
+    cloth optimizer's three writers are not fronted, because they do not cancel
+    their transaction on failure and cloth paint is authored data. */
+async function inspectCloth(context: ToolContext, input: JsonObject): Promise<CommandResponse> {
+  const skeletalMesh = requireString(input, "skeletal_mesh");
+  if (!skeletalMesh.startsWith("/Game/") && !skeletalMesh.startsWith("/Engine/")) {
+    throw new Error("Cloth inspection is limited to /Game and /Engine");
+  }
+  const resultJson = puerts.$ref<string>("");
+  const error = puerts.$ref<string>("");
+  if (!context.bridge.InspectClothJson(
+    JSON.stringify({ skeletal_mesh: skeletalMesh }), resultJson, error)) {
+    throw new Error(puerts.$unref(error));
+  }
+  const parsed = JSON.parse(puerts.$unref(resultJson)) as JsonObject;
+  const warnings = stringArray(parsed, "warnings");
+  delete parsed.warnings;
+  const result = response(true, "Cloth setup inspected.", parsed);
+  result.warnings.push(...warnings);
+  return result;
+}
+
 /** Rebuild the editor world's navigation. Mutating and deliberately outside a
     transaction: navmesh tiles are derived data the transaction buffer does not
     record, and the editor's own Build Paths resets the transaction buffer
@@ -1638,6 +1660,10 @@ export const toolDefinitions: readonly ToolDefinition[] = [
   { name: "ai_controller_inspect", inputSchema: schema({ asset_path: { type: "string" } }, ["asset_path"]), outputSchema, permissions: ["assets.read"], executionTimeoutMs: 15000, execute: inspectAIController },
   { name: "material_inspect", inputSchema: schema({ asset_path: { type: "string" } }, ["asset_path"]), outputSchema, permissions: ["assets.read"], executionTimeoutMs: 15000, execute: inspectMaterial },
   { name: "audio_inspect", inputSchema: schema({ asset_path: { type: "string" } }, ["asset_path"]), outputSchema, permissions: ["assets.read"], executionTimeoutMs: 15000, execute: inspectAudioAsset },
+  // 25000: the snapshot walks every LOD's render sections and every clothing
+  // asset's physical mesh, and a character mesh with several cloth LODs is a
+  // much larger read than a Blueprint graph.
+  { name: "cloth_inspect", inputSchema: schema({ skeletal_mesh: { type: "string" } }, ["skeletal_mesh"]), outputSchema, permissions: ["assets.read"], executionTimeoutMs: 25000, execute: inspectCloth },
   { name: "material_instance_build", inputSchema: schema({ asset_path: { type: "string" }, parent_path: { type: "string" }, scalars: { type: "object" }, vectors: { type: "object" }, textures: { type: "object" }, switches: { type: "object" }, clear_unlisted: { type: "boolean" }, plan_only: { type: "boolean" }, save: { type: "boolean" } }, ["asset_path"]), outputSchema, permissions: ["assets.write"], executionTimeoutMs: 30000, execute: buildMaterialInstance },
   { name: "scene_inspect", inputSchema: schema({ level_path: { type: "string" }, actors: { type: "array", items: { type: "string" } }, include_components: { type: "boolean" }, include_properties: { type: "array", items: { type: "string" } } }), outputSchema, permissions: ["actors.read", "reflection.read"], executionTimeoutMs: 15000, execute: inspectScene },
   { name: "scene_batch", inputSchema: schema({ level_path: { type: "string" }, operations: { type: "array", items: { type: "object" } }, plan_only: { type: "boolean" }, verify: { type: "boolean" } }, ["operations"]), outputSchema, permissions: ["actors.spawn", "actors.delete", "reflection.write"], executionTimeoutMs: 60000, execute: applySceneBatch },

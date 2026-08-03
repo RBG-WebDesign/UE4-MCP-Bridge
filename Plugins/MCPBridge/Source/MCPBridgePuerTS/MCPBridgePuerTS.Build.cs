@@ -69,5 +69,13 @@ public class MCPBridgePuerTS : ModuleRules
         // MCPBridgeGraphBuilder is: pie_agent_query re-fronts UPIEAgentLibrary
         // rather than reimplementing the runtime observation it already owns.
         PrivateDependencyModuleNames.AddRange(new string[] { "AIModule", "AssetRegistry", "BlueprintGraph", "GameplayTasks", "InputCore", "Json", "JsonUtilities", "JsEnv", "MCPBridgeGraphBuilder", "MCPBridgePIEAgent", "Projects", "SourceControl", "UMG", "UMGEditor", "UnrealEd" });
+        // MCPBridgeClothOptimizer is a dependency for the same reason
+        // MCPBridgePIEAgent is: cloth_inspect re-fronts
+        // UClothOptimizerLibrary::InspectClothAsset rather than reimplementing
+        // the NvCloth snapshot that module already owns and that its editor
+        // panel already reads. Only the READ entry point is called; the three
+        // writers stay behind the legacy listener until a failed apply provably
+        // restores the mask.
+        PrivateDependencyModuleNames.AddRange(new string[] { "MCPBridgeClothOptimizer" });
     }
 }

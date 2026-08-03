@@ -115,6 +115,7 @@ declare module "ue" {
     QueryNavigationJson(requestJson: string, outResultJson: $Ref<string>, outError: $Ref<string>): boolean;
     BuildNavigationJson(requestJson: string, outResultJson: $Ref<string>, outError: $Ref<string>): boolean;
     InspectAudioAssetJson(requestJson: string, outResultJson: $Ref<string>, outError: $Ref<string>): boolean;
+    InspectClothJson(requestJson: string, outResultJson: $Ref<string>, outError: $Ref<string>): boolean;
     BuildAIPerceptionJson(specJson: string, outResultJson: $Ref<string>, outError: $Ref<string>): boolean;
     InspectAIControllerJson(requestJson: string, outResultJson: $Ref<string>, outError: $Ref<string>): boolean;
     InspectMaterialJson(requestJson: string, outResultJson: $Ref<string>, outError: $Ref<string>): boolean;

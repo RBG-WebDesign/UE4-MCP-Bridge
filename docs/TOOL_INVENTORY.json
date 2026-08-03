@@ -23,12 +23,12 @@
     "native_live_partial": "live acceptance passed, but part of the evidence is the builder own report because no independent reader exists yet",
     "legacy_untested": "no live editor proof of any kind; a non-null test_file covers only the mock listener"
   },
-  "tool_count": 259,
+  "tool_count": 261,
   "by_backend": {
     "legacy_http": 170,
-    "native_pipe_alias": 39,
+    "native_pipe_alias": 40,
     "server_local": 3,
-    "native_pipe": 47
+    "native_pipe": 48
   },
   "tools": [
     {
@@ -3313,8 +3313,8 @@
       "name": "cloth_inspect_asset",
       "module": "mcp-server/src/tools/cloth.ts",
       "backend": "legacy_http",
-      "migration_state": "legacy_untested",
-      "target_replacement": null,
+      "migration_state": "hybrid_candidate",
+      "target_replacement": "puerts_cloth_inspect",
       "description": "Inspect a UE4.27 skeletal mesh and return render-section cloth bindings, physical cloth LOD counts, authoring masks, applied weight maps, NvCloth config, topology hash, and Physics Asset coverage.",
       "schema": {
         "kind": "object",
@@ -3336,7 +3336,7 @@
       "lifecycle": "active",
       "migration_action": "REFRONT",
       "replacement_tool": null,
-      "compatibility_alias": false,
+      "compatibility_alias": true,
       "cpp_builder": "MCPBridgeClothOptimizer",
       "cpp_entry_point": null,
       "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/cloth_optimizer.py",
@@ -3345,6 +3345,43 @@
       "capability_loss_risk": "low",
       "notes": null,
       "verification": "untested"
+    },
+    {
+      "name": "cloth_inspect_asset",
+      "module": "mcp-server/src/tools/compat.ts",
+      "backend": "native_pipe_alias",
+      "migration_state": "wrap",
+      "target_replacement": "puerts_cloth_inspect",
+      "description": "[COMPAT ALIAS -> puerts_cloth_inspect] Inspect a skeletal mesh's cloth setup: render-section bindings, physical cloth LOD counts, authoring masks, NvCloth config, topology hash and Physics Asset coverage. The parameter passes through unchanged. Only the READ half of the cloth optimizer is native; its three writers keep their legacy names because a failed apply does not yet restore the mask.",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "skeletal_mesh": "string"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": "mcp-server/tests/compat-tools.test.ts",
+      "capability_category": "compat",
+      "canonical_capability": "cloth.inspect",
+      "owner": "compat alias router",
+      "lifecycle": "active",
+      "migration_action": "ALIAS",
+      "replacement_tool": "puerts_cloth_inspect",
+      "compatibility_alias": true,
+      "cpp_builder": null,
+      "cpp_entry_point": null,
+      "python_handler": null,
+      "live_evidence": [],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": null,
+      "verification": "mock_only"
     },
     {
       "name": "cloth_smooth_max_distance",
@@ -7841,6 +7878,43 @@
       "migration_risk": "low",
       "capability_loss_risk": "low",
       "notes": "re-front of UAutoPIEHelper::PlayCameraShakeOnPlayer, which owns the PIE World to PlayerController(0) to PlayerCameraManager chain. Runtime only: nothing persisted, nothing to undo. Refuses by name when PIE is not running rather than reporting a shake nobody could have seen. UE4.27 note: UCameraShakeBase with StartCameraShake, not the older names. NOT COMPILED and NOT run.",
+      "verification": "implemented"
+    },
+    {
+      "name": "puerts_cloth_inspect",
+      "module": "mcp-server/src/tools/puerts.ts",
+      "backend": "native_pipe",
+      "migration_state": "native_pending_live",
+      "target_replacement": null,
+      "description": "[PRIMARY NATIVE IPC] Read a UE4.27 skeletal mesh's cloth setup as machine-readable JSON: every render section with whether it has cloth bound and which clothing asset, every clothing asset with its GUID, topology content hash and Physics Asset, per-LOD physical vertex, triangle and fixed-vertex counts, the authoring masks with their targets and value ranges, and the full NvCloth config (solver and stiffness frequency, collision thickness, friction, self-collision radius, stiffness and cull scale, tether stiffness and limit). A re-front of MCPBridgeClothOptimizer, which was already compiled into the plugin and reachable only through the legacy Python listener. Straight pass-through: the snapshot is UClothOptimizerLibrary::InspectClothAsset's, unchanged, and the module's own in-editor panel reads the same function, so an MCP read and what a human sees in that panel are the same output rather than two implementations that can disagree. THE READ HALF ONLY, and that is a deliberate refusal rather than a gap in this wave. The module's three writers (cloth_apply_fabric_profile, cloth_smooth_max_distance, cloth_apply_lower_leg_gradient) open a UE4 transaction and do not cancel it on the failure path, and what they mutate is a skeletal mesh's cloth PAINT: authored data that a re-run cannot regenerate, unlike a navmesh or a shader. A half-applied mask is lost work, not lost time. They ship when a failed apply provably restores the mask; until then they are reachable only through their legacy names, which carry a confirm parameter for the same reason. The response repeats this in write_unsupported_reason. A mesh with no clothing assets is answered, not refused, with a warning naming it as a mesh with no cloth rather than a failed read. READ ONLY: no transaction, nothing dirtied. Limited to /Game and /Engine.",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "skeletal_mesh": "string"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": "mcp-server/tests/puerts-tools.test.ts",
+      "capability_category": "technical-art",
+      "canonical_capability": "cloth.inspect",
+      "owner": "MCPBridgePuerTS service",
+      "lifecycle": "active",
+      "migration_action": "KEEP",
+      "replacement_tool": null,
+      "compatibility_alias": false,
+      "cpp_builder": "MCPBridgeClothOptimizer",
+      "cpp_entry_point": "InspectClothAsset",
+      "python_handler": null,
+      "live_evidence": [],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": "UNCOMPILED. REFRONT of MCPBridgeClothOptimizer, read half only. Straight pass-through to UClothOptimizerLibrary::InspectClothAsset (Public/ClothOptimizerLibrary.h:20), which the module's own SClothOptimizerPanel also reads, so an MCP read and what a human sees in the panel are one function's output rather than two implementations that can disagree. The command adds path resolution (a bare package path grows its asset name, because the library loads by object path), the standard envelope, and one lift: the library reports its own failures INSIDE the snapshot as success:false with an error string rather than by returning nothing, so an unsuccessful read is raised to a refusal instead of being passed through as a success envelope carrying success:false, which is the shape a caller is least likely to check. A mesh with no clothAssets is answered with a warning naming it as a mesh with no cloth, not refused. WRITE HALF DELIBERATELY NOT FRONTED, per docs/REFRONT_MAP.md group 3: ApplyFabricProfile, SmoothMaxDistanceTransition and ApplyLowerLegGradient open an FScopedTransaction and never cancel it on the failure path, and what they mutate is cloth PAINT, authored data a re-run cannot regenerate, so a half-applied mask is lost work rather than lost time. They ship when a failed apply provably restores the mask; until then cloth_apply_fabric_profile, cloth_smooth_max_distance and cloth_apply_lower_leg_gradient stay on the legacy listener with their confirm parameter. write_unsupported_reason says so in every response. READ ONLY: absent from IsToolMutating, nothing calls Modify or MarkPackageDirty. Reports one package_dirty_after_read flag rather than a before/after pair, because InspectClothAsset loads the mesh itself and there is no moment at which this command could observe the package before the read. NOT COMPILED and NOT run: this lane holds no build rights.",
       "verification": "implemented"
     },
     {
