@@ -413,7 +413,13 @@ public:
 
         Transactional, compiled, verified by reading the component template
         again, and saved only after that passes. A failure cancels the
-        transaction and saves nothing. */
+        transaction and saves nothing.
+
+        Convergent: a rerun compares every property the spec names against the
+        config that is already there and returns before the mutation section
+        when nothing differs, so a satisfied rerun costs no Blueprint compile
+        and no save. The dominant sense counts as a difference in its own
+        right. */
     UFUNCTION(BlueprintCallable, Category="MCP PuerTS Bridge")
     bool BuildAIPerceptionJson(
         const FString& SpecJson,

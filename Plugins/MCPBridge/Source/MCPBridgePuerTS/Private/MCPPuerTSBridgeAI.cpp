@@ -405,6 +405,36 @@ namespace
         return Defaults != nullptr ? Defaults->GetSenseImplementation().Get() : nullptr;
     }
 
+    /** Whether an existing sense config already holds every property the spec
+        names. Only the named properties are compared, because the spec is a
+        partial description of a config that also carries class defaults.
+
+        This is what makes ai_perception_build convergent rather than merely
+        idempotent: without it a rerun of a satisfied spec rebuilds the config
+        objects, recompiles the Blueprint and rewrites the .uasset, which is
+        real cost in a loop that reruns specs to check them.
+
+        A float the spec wrote as a decimal that no float represents exactly
+        compares unequal and is reported as a change. That direction is the safe
+        one: it does work that was not needed, never skips work that was. */
+    bool SenseMatchesSpec(const UAISenseConfig* Config, const TSharedPtr<FJsonObject>& Properties)
+    {
+        if (Config == nullptr || !Properties.IsValid()) { return false; }
+        for (const auto& Pair : Properties->Values)
+        {
+            FProperty* Property = FindFProperty<FProperty>(Config->GetClass(), *Pair.Key);
+            if (Property == nullptr) { return false; }
+            const TSharedPtr<FJsonValue> Current = FJsonObjectConverter::UPropertyToJsonValue(
+                Property, Property->ContainerPtrToValuePtr<void>(Config), 0, 0);
+            if (!Current.IsValid() || !Pair.Value.IsValid()
+                || !FJsonValue::CompareEqual(*Current, *Pair.Value))
+            {
+                return false;
+            }
+        }
+        return true;
+    }
+
     USCS_Node* FindComponentNode(const UBlueprint* Blueprint, const FString& ComponentName)
     {
         if (Blueprint == nullptr || Blueprint->SimpleConstructionScript == nullptr)
@@ -1753,13 +1783,26 @@ bool UMCPPuerTSBridgeService::BuildAIPerceptionJson(
     TArray<FString> SensesToAdd;
     TArray<FString> SensesToUpdate;
     TArray<FString> SensesToRemove;
+    TArray<FString> UnchangedSenses;
     for (const FDesiredSense& Sense : Desired)
     {
-        // Properties are reapplied whenever the sense is listed. A config
-        // object's values cannot be compared field for field without
-        // duplicating every default, and reapplying an identical value is a
-        // no-op, so this over-reports change rather than under-reporting it.
-        (PresentSenses.Contains(Sense.Sense) ? SensesToUpdate : SensesToAdd).Add(Sense.Sense);
+        const UAISenseConfig* Present = nullptr;
+        if (Template != nullptr)
+        {
+            for (auto It = Template->GetSensesConfigIterator(); It; ++It)
+            {
+                if (*It != nullptr && (*It)->GetClass() == Sense.ConfigClass) { Present = *It; break; }
+            }
+        }
+        if (Present == nullptr)
+        {
+            SensesToAdd.Add(Sense.Sense);
+        }
+        else
+        {
+            (SenseMatchesSpec(Present, Sense.Properties) ? UnchangedSenses : SensesToUpdate)
+                .Add(Sense.Sense);
+        }
     }
     if (bRemoveUnlisted)
     {
@@ -1769,8 +1812,13 @@ bool UMCPPuerTSBridgeService::BuildAIPerceptionJson(
         }
     }
     const bool bComponentMissing = Template == nullptr;
+    // The dominant sense is a change in its own right. Without this a spec that
+    // only moved the dominant sense would classify as converged and be skipped.
+    const UClass* const CurrentDominant =
+        Template != nullptr ? Template->GetDominantSense().Get() : nullptr;
+    const bool bDominantChanges = CurrentDominant != DominantImplementation;
     const int32 ExpectedChanges = SensesToAdd.Num() + SensesToUpdate.Num()
-        + SensesToRemove.Num() + (bComponentMissing ? 1 : 0);
+        + SensesToRemove.Num() + (bComponentMissing ? 1 : 0) + (bDominantChanges ? 1 : 0);
 
     if (bPlanOnly)
     {
@@ -1783,10 +1831,37 @@ bool UMCPPuerTSBridgeService::BuildAIPerceptionJson(
         Plan->SetArrayField(TEXT("senses_to_add"), StringsToJson(SensesToAdd));
         Plan->SetArrayField(TEXT("senses_to_update"), StringsToJson(SensesToUpdate));
         Plan->SetArrayField(TEXT("senses_to_remove"), StringsToJson(SensesToRemove));
+        Plan->SetArrayField(TEXT("unchanged_senses"), StringsToJson(UnchangedSenses));
+        Plan->SetBoolField(TEXT("dominant_sense_changes"), bDominantChanges);
         Plan->SetNumberField(TEXT("expected_change_count"), ExpectedChanges);
+        Plan->SetBoolField(TEXT("converged"), ExpectedChanges == 0);
         Plan->SetArrayField(TEXT("errors"), TArray<TSharedPtr<FJsonValue>>());
         Plan->SetArrayField(TEXT("warnings"), TArray<TSharedPtr<FJsonValue>>());
         OutResultJson = SerializeJson(Plan);
+        return true;
+    }
+
+    if (ExpectedChanges == 0 && Template != nullptr)
+    {
+        // Already converged. Returning before the mutation section is what makes
+        // a rerun free: no Modify, no Blueprint compile, no dirty package, no
+        // save. blackboard_build has the same early exit for the same reason.
+        TSharedPtr<FJsonObject> Converged = MakeShared<FJsonObject>();
+        Converged->SetStringField(TEXT("asset_path"), AssetPath);
+        Converged->SetStringField(TEXT("object_path"), Blueprint->GetPathName());
+        Converged->SetStringField(TEXT("component_name"), ComponentName);
+        Converged->SetBoolField(TEXT("component_created"), false);
+        Converged->SetBoolField(TEXT("applied"), false);
+        Converged->SetBoolField(TEXT("converged"), true);
+        Converged->SetNumberField(TEXT("applied_change_count"), 0);
+        Converged->SetArrayField(TEXT("unchanged_senses"), StringsToJson(UnchangedSenses));
+        Converged->SetStringField(TEXT("dominant_sense"),
+            DominantImplementation != nullptr ? DominantSense : TEXT("None"));
+        Converged->SetBoolField(TEXT("verified"), true);
+        Converged->SetBoolField(TEXT("saved"), false);
+        Converged->SetArrayField(TEXT("errors"), TArray<TSharedPtr<FJsonValue>>());
+        Converged->SetArrayField(TEXT("warnings"), TArray<TSharedPtr<FJsonValue>>());
+        OutResultJson = SerializeJson(Converged);
         return true;
     }
 
@@ -1990,10 +2065,12 @@ bool UMCPPuerTSBridgeService::BuildAIPerceptionJson(
     Result->SetStringField(TEXT("component_name"), ComponentName);
     Result->SetBoolField(TEXT("component_created"), bComponentMissing);
     Result->SetBoolField(TEXT("applied"), true);
+    Result->SetBoolField(TEXT("converged"), false);
     Result->SetNumberField(TEXT("applied_change_count"), ExpectedChanges);
     Result->SetArrayField(TEXT("senses_added"), StringsToJson(SensesToAdd));
     Result->SetArrayField(TEXT("senses_updated"), StringsToJson(SensesToUpdate));
     Result->SetArrayField(TEXT("senses_removed"), StringsToJson(SensesToRemove));
+    Result->SetArrayField(TEXT("unchanged_senses"), StringsToJson(UnchangedSenses));
     // Read off the component template, not echoed from the spec.
     Result->SetArrayField(TEXT("senses"), SensesOnAsset);
     Result->SetStringField(TEXT("dominant_sense"),

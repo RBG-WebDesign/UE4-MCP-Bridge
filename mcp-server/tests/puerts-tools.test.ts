@@ -73,7 +73,7 @@ async function main(): Promise<void> {
     });
     const client = new PuerTSClient();
     const tools = createPuertsTools(client);
-    assert(tools.length === 25, "expected all 25 PuerTS tools");
+    assert(tools.length === 32, "expected all 32 PuerTS tools");
     assert(tools.some((tool) => tool.name === "puerts_behavior_tree_build"), "native Behavior Tree builder tool is missing");
     assert(tools.some((tool) => tool.name === "puerts_behavior_tree_inspect"), "native Behavior Tree inspector tool is missing");
     assert(tools.some((tool) => tool.name === "puerts_sky_shader_create"), "native sky shader tool is missing");
@@ -82,6 +82,17 @@ async function main(): Promise<void> {
     assert(tools.some((tool) => tool.name === "puerts_graph_inspect"), "native Blueprint inspector tool is missing");
     assert(tools.some((tool) => tool.name === "puerts_widget_inspect"), "native widget inspector tool is missing");
     assert(tools.some((tool) => tool.name === "puerts_blueprint_member_patch"), "native Blueprint member patch tool is missing");
+    for (const name of [
+      "puerts_blackboard_build",
+      "puerts_blackboard_inspect",
+      "puerts_eqs_inspect",
+      "puerts_nav_inspect",
+      "puerts_nav_query",
+      "puerts_ai_perception_build",
+      "puerts_ai_controller_inspect",
+    ]) {
+      assert(tools.some((tool) => tool.name === name), `${name} is missing`);
+    }
     const response = await client.call("find_actors", {});
     assert(response.success && response.message === "Actors found.", "valid response was rejected");
     const actorTool = tools.find((tool) => tool.name === "puerts_find_actors");
