@@ -40,7 +40,6 @@
     "slice:level": "node Scripts/slice-level.mjs",
     "slice:cinematics": "node Scripts/slice-cinematics.mjs",
     "slice:summary": "node Scripts/slice-summary.mjs",
-    "verify": "npm run build && npm test && npm run test:perf && npm run check:puerts && npm run check:inventory && npm run smoke",
     "verify": "npm run build && npm test && npm run test:perf && npm run test:orchestrator && npm run check:puerts && npm run check:inventory && npm run smoke",
     "inspect": "mcp-inspector node mcp-server/dist/index.js",
     "inspect:list": "mcp-inspector --cli node mcp-server/dist/index.js --method tools/list"
