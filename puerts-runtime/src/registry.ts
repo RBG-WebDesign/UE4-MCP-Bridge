@@ -501,6 +501,73 @@ async function buildWidget(context: ToolContext, input: JsonObject): Promise<Com
   return result;
 }
 
+/** Bind widget properties to Blueprint functions or variables, and expose
+    widgets as members of the generated class. The write half of what
+    widget_inspect could already read: without it every widget this bridge
+    authors is static and unreachable from a graph by name.
+
+    Like every builder here, this function owns the envelope and nothing else.
+    Which delegate a property name resolves to, whether a source can drive it,
+    and what a failed compile restores are all the native side's, because they
+    are UE4.27's rules and not this layer's. */
+async function bindWidget(context: ToolContext, input: JsonObject): Promise<CommandResponse> {
+  const assetPath = requireString(input, "asset_path");
+  if (!assetPath.startsWith("/Game/MCPGenerated/")) {
+    throw new Error("Widget binding is limited to /Game/MCPGenerated/");
+  }
+  const bindings = input.bindings === undefined ? undefined : objectArray(input, "bindings");
+  const exposeAsVariable = input.expose_as_variable === undefined
+    ? undefined
+    : stringArray(input, "expose_as_variable");
+  if (bindings === undefined && exposeAsVariable === undefined) {
+    throw new Error("widget_bind needs bindings, expose_as_variable, or both");
+  }
+
+  const spec: JsonObject = {
+    asset_path: assetPath,
+    remove_unlisted: optionalBoolean(input, "remove_unlisted", false),
+    plan_only: optionalBoolean(input, "plan_only", false),
+    save: optionalBoolean(input, "save", true),
+  };
+  // Absent and empty are different: an absent section is one the caller did not
+  // state, and remove_unlisted must never prune a section nobody described.
+  if (bindings !== undefined) { spec.bindings = bindings; }
+  if (exposeAsVariable !== undefined) { spec.expose_as_variable = exposeAsVariable; }
+
+  const resultJson = puerts.$ref<string>("");
+  const error = puerts.$ref<string>("");
+  if (!context.bridge.BindWidgetJson(JSON.stringify(spec), resultJson, error)) {
+    throw new Error(puerts.$unref(error));
+  }
+  const parsed = JSON.parse(puerts.$unref(resultJson)) as JsonObject;
+  const errors = stringArray(parsed, "errors");
+  const warnings = stringArray(parsed, "warnings");
+  delete parsed.errors;
+  delete parsed.warnings;
+
+  const applied = typeof parsed.applied_change_count === "number" ? parsed.applied_change_count : 0;
+  const result = response(
+    errors.length === 0,
+    errors.length > 0
+      ? "Widget binding reported errors."
+      : parsed.plan_only === true
+        ? "Widget binding planned, nothing applied."
+        : applied === 0
+          ? "Widget bindings already matched the spec."
+          : `Widget bindings applied: ${applied}.`,
+    parsed,
+  );
+  result.errors.push(...errors);
+  result.warnings.push(...warnings);
+  // A plan and a converged rerun changed nothing, so neither reports a changed
+  // asset. Claiming one would make an idempotency check meaningless.
+  const objectPath = parsed.object_path;
+  if (applied > 0 && typeof objectPath === "string" && objectPath.length > 0) {
+    result.changed_assets.push(objectPath);
+  }
+  return result;
+}
+
 /** Read a Blueprint back as JSON. The inverse of blueprint_build, and the
     only Blueprint command that is not a build: it opens no transaction, marks
     nothing dirty, and answers with the asset's own dirty flag read before and
@@ -1565,6 +1632,7 @@ export const toolDefinitions: readonly ToolDefinition[] = [
   { name: "blueprint_graph_patch", inputSchema: schema({ asset_path: { type: "string" }, graph: { type: "string" }, operations: { type: "array", items: { type: "object" } }, plan_only: { type: "boolean" }, compile: { type: "boolean" }, save: { type: "boolean" }, verify: { type: "boolean" } }, ["asset_path", "operations"]), outputSchema, permissions: ["assets.write"], executionTimeoutMs: 30000, execute: patchBlueprintGraph },
   { name: "blueprint_member_patch", inputSchema: schema({ asset_path: { type: "string" }, operations: { type: "array", items: { type: "object" } }, plan_only: { type: "boolean" }, compile: { type: "boolean" }, save: { type: "boolean" }, verify: { type: "boolean" } }, ["asset_path", "operations"]), outputSchema, permissions: ["assets.write"], executionTimeoutMs: 60000, execute: patchBlueprintMembers },
   { name: "widget_build", inputSchema: schema({ asset_path: { type: "string" }, tree: { type: "object" }, save: { type: "boolean" } }, ["asset_path", "tree"]), outputSchema, permissions: ["assets.write"], executionTimeoutMs: 30000, execute: buildWidget },
+  { name: "widget_bind", inputSchema: schema({ asset_path: { type: "string" }, bindings: { type: "array" }, expose_as_variable: { type: "array" }, remove_unlisted: { type: "boolean" }, plan_only: { type: "boolean" }, save: { type: "boolean" } }, ["asset_path"]), outputSchema, permissions: ["assets.write"], executionTimeoutMs: 30000, execute: bindWidget },
   { name: "graph_inspect", inputSchema: schema({ asset_path: { type: "string" }, graph_name: { type: "string" }, include_pins: { type: "boolean" } }, ["asset_path"]), outputSchema, permissions: ["assets.read"], executionTimeoutMs: 15000, execute: inspectGraph },
   { name: "behavior_tree_build", inputSchema: schema({ asset_path: { type: "string" }, blackboard_path: { type: "string" }, keys: { type: "array", items: { type: "object" } }, root: { type: "object" }, save: { type: "boolean" } }, ["asset_path", "root"]), outputSchema, permissions: ["assets.write"], executionTimeoutMs: 30000, execute: buildBehaviorTree },
   { name: "behavior_tree_inspect", inputSchema: schema({ asset_path: { type: "string" } }, ["asset_path"]), outputSchema, permissions: ["assets.read"], executionTimeoutMs: 15000, execute: inspectBehaviorTree },

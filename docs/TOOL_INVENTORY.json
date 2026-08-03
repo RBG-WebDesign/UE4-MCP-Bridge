@@ -23,12 +23,12 @@
     "native_live_partial": "live acceptance passed, but part of the evidence is the builder own report because no independent reader exists yet",
     "legacy_untested": "no live editor proof of any kind; a non-null test_file covers only the mock listener"
   },
-  "tool_count": 256,
+  "tool_count": 257,
   "by_backend": {
     "legacy_http": 170,
     "native_pipe_alias": 38,
     "server_local": 3,
-    "native_pipe": 45
+    "native_pipe": 46
   },
   "tools": [
     {
@@ -8887,6 +8887,40 @@
       "verification": "live_verified"
     },
     {
+      "name": "puerts_widget_bind",
+      "module": "mcp-server/src/tools/puerts.ts",
+      "backend": "native_pipe",
+      "migration_state": "native_pending_live",
+      "target_replacement": null,
+      "description": "[PRIMARY NATIVE IPC] Bind widget properties to Blueprint functions or variables, and expose widgets as members of the generated class. This is what makes a UMG widget show live data: a tree from puerts_widget_build displays the constants its spec gave it and cannot be reached from a graph by name, because the Blueprint holds no bindings and no widget is a variable. Desired state, not a sequence of edits: rerunning an identical spec applies nothing, compiles nothing and saves nothing, and reports converged. UE4.27 drives the delegate named \"<property>Delegate\", falling back to the bare name for an event delegate, so you write \"Percent\" on a ProgressBar and the engine binds PercentDelegate; the response names the delegate each entry resolved to. A property binding may only target a pure (BlueprintPure or const) function. The source function or variable must already exist on the Widget Blueprint: author it with puerts_blueprint_graph_patch or puerts_blueprint_member_patch first. Every entry is validated by UE4.27's own binding validator before anything is written, so an unknown widget, an unbindable property, a missing source or an incompatible type is a refusal with the closest matching names rather than a half-bound asset; and a compile that comes back Error restores the previous bindings and variable flags and recompiles. Binding a widget implies exposing it, because the runtime resolves a binding's widget against the generated class members; the response lists which exposures that rule added. Verify with puerts_widget_inspect, which reports bindings and variables read off the asset.",
+      "schema": {
+        "kind": "ZodEffects"
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": "mcp-server/tests/puerts-tools.test.ts",
+      "capability_category": "ui",
+      "canonical_capability": "ui.widget_bind",
+      "owner": "MCPBridgePuerTS service",
+      "lifecycle": "active",
+      "migration_action": "KEEP",
+      "replacement_tool": null,
+      "compatibility_alias": false,
+      "cpp_builder": "MCPPuerTSBridgeService",
+      "cpp_entry_point": "BindWidgetJson",
+      "python_handler": null,
+      "live_evidence": [],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": "UNCOMPILED and never run: written in an isolated worktree with no editor and no UBT pass, so even the compile is unproven. Write half of the bindings and is_variable that widget_inspect could already READ and nothing could author, which is what makes a UMG widget show live data rather than a constant. Writes UWidgetBlueprint::Bindings (FDelegateEditorBinding: ObjectName, PropertyName, FunctionName, SourceProperty, SourcePath, MemberGuid, Kind) and UWidget::bIsVariable. UE4.27 drives the delegate named PropertyName+\"Delegate\", falling back to the bare name for an event delegate, confirmed at Editor/UMGEditor/Private/WidgetBlueprint.cpp:413 and :440; the caller writes \"Percent\" and the response reports the delegate it resolved to. A property-kind binding needs a non-empty SourcePath or validation falls through to a FunctionName that is not there, so the path is built with FEditorPropertyPath(TArray<FFieldVariant>), the same public constructor the UMG details panel uses at Customizations/UMGDetailCustomizations.cpp:313, and refused with FEditorPropertyPath::Validate, the engine's own check. Everything validates before anything is written; a compile that returns Error restores the captured Bindings array and bIsVariable flags by value and recompiles, because a Blueprint compile is not an undo record. Convergent: satisfied-ness is re-read immediately before each mutation rather than decided at plan time, so an earlier entry in the same batch cannot make a later one report a false no-op. Widget ANIMATIONS are deliberately NOT authorable here: a UWidgetAnimation wraps a UMovieScene, so track and keyframe authoring is Sequencer's data model and belongs with that work, not duplicated here.",
+      "verification": "implemented"
+    },
+    {
       "name": "puerts_widget_build",
       "module": "mcp-server/src/tools/puerts.ts",
       "backend": "native_pipe",
@@ -8964,7 +8998,7 @@
       ],
       "migration_risk": "low",
       "capability_loss_risk": "low",
-      "notes": "read half of widget_build; derived widget identity (UE4.27 UMG widgets have no GUIDs); reports CanvasPanelSlot anchors/offsets/alignment/z_order, named-slot content that panel-child traversal cannot reach, exposed variables, bindings and animations; read-only proven by package_dirty_before/after, unchanged file hash and mtime, and identical structure hash across two reads and across a restart",
+      "notes": "read half of widget_build; derived widget identity (UE4.27 UMG widgets have no GUIDs); reports CanvasPanelSlot anchors/offsets/alignment/z_order, named-slot content that panel-child traversal cannot reach, exposed variables, bindings and animations; read-only proven by package_dirty_before/after, unchanged file hash and mtime, and identical structure hash across two reads and across a restart. Extended 2026-08-03 (lane V) with two ADDITIVE fields, both UNCOMPILED: source_property and source_path per binding entry, and an animation_details array beside the unchanged animations string array. The structure hash basis is unchanged (bindings still hash on widget|property|function|kind, animations still hash on name), so the live evidence above still describes the hash this tool produces.",
       "verification": "live_verified"
     },
     {

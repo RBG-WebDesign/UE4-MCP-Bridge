@@ -100,6 +100,7 @@ declare module "ue" {
     PatchBlueprintGraphJson(specJson: string, outResultJson: $Ref<string>, outError: $Ref<string>): boolean;
     PatchBlueprintMembersJson(specJson: string, outResultJson: $Ref<string>, outError: $Ref<string>): boolean;
     BuildWidgetJson(specJson: string, outResultJson: $Ref<string>, outError: $Ref<string>): boolean;
+    BindWidgetJson(specJson: string, outResultJson: $Ref<string>, outError: $Ref<string>): boolean;
     InspectBlueprintJson(requestJson: string, outResultJson: $Ref<string>, outError: $Ref<string>): boolean;
     BuildBehaviorTreeJson(specJson: string, outResultJson: $Ref<string>, outError: $Ref<string>): boolean;
     InspectBehaviorTreeJson(requestJson: string, outResultJson: $Ref<string>, outError: $Ref<string>): boolean;

@@ -24,6 +24,7 @@
 
 #include "AssetRegistryModule.h"
 #include "Animation/WidgetAnimation.h"
+#include "Animation/WidgetAnimationBinding.h"
 #include "Blueprint/WidgetTree.h"
 #include "Components/CanvasPanelSlot.h"
 #include "Components/NamedSlotInterface.h"
@@ -35,6 +36,12 @@
 #include "Misc/PackageName.h"
 #include "Misc/SecureHash.h"
 #include "Modules/ModuleManager.h"
+// MovieScene is a public dependency of UMG (UWidgetAnimation derives from
+// UMovieSceneSequence), so these need no Build.cs change. Read only: the track
+// list is counted and named, never opened.
+#include "MovieScene.h"
+#include "MovieSceneBinding.h"
+#include "MovieSceneTrack.h"
 #include "UObject/Package.h"
 #include "UObject/UnrealType.h"
 #include "WidgetBlueprint.h"
@@ -386,47 +393,126 @@ bool UMCPPuerTSBridgeService::InspectWidgetJson(
     // Property and event bindings, where UE4.27 exposes them on the Blueprint.
     TArray<TSharedPtr<FJsonValue>> Bindings;
     {
+        // Two suffix fields were added when widget_bind gave this array a write
+        // half, and they are deliberately outside the hashed prefix: the first
+        // four fields are the hash basis this tool shipped with, so a widget
+        // that predates the addition hashes to exactly what it hashed before.
+        // (ObjectName, PropertyName) is unique per UE4.27's own binding rule, so
+        // appending to the line cannot reorder the sort either.
         TArray<FString> BindingLines;
         for (const FDelegateEditorBinding& Binding : WidgetBlueprint->Bindings)
         {
-            // SourcePath is an FEditorPropertyPath, which UE4.27 exposes only as
-            // a segment array with no stable text form, so the kind is reported
-            // instead of a path that would differ between engine versions.
-            BindingLines.Add(FString::Printf(TEXT("%s|%s|%s|%s"),
+            BindingLines.Add(FString::Printf(TEXT("%s|%s|%s|%s|%s|%s"),
                 *Binding.ObjectName,
                 *Binding.PropertyName.ToString(),
                 *Binding.FunctionName.ToString(),
-                Binding.Kind == EBindingKind::Function ? TEXT("function") : TEXT("property")));
+                Binding.Kind == EBindingKind::Function ? TEXT("function") : TEXT("property"),
+                *Binding.SourceProperty.ToString(),
+                // FEditorPropertyPath has no serialized text form, but
+                // GetDisplayText() joins its segment member names with dots and
+                // is what the UMG details panel shows, so it is stable for the
+                // same path rather than an invented spelling.
+                *Binding.SourcePath.GetDisplayText().ToString()));
         }
         BindingLines.Sort();
         for (const FString& Line : BindingLines)
         {
             TArray<FString> Parts;
             Line.ParseIntoArray(Parts, TEXT("|"), false);
+            Parts.SetNum(6, false);
             TSharedPtr<FJsonObject> Entry = MakeShared<FJsonObject>();
-            Entry->SetStringField(TEXT("widget_name"), Parts.IsValidIndex(0) ? Parts[0] : FString());
-            Entry->SetStringField(TEXT("property_name"), Parts.IsValidIndex(1) ? Parts[1] : FString());
-            Entry->SetStringField(TEXT("function_name"), Parts.IsValidIndex(2) ? Parts[2] : FString());
-            Entry->SetStringField(TEXT("kind"), Parts.IsValidIndex(3) ? Parts[3] : FString());
+            Entry->SetStringField(TEXT("widget_name"), Parts[0]);
+            Entry->SetStringField(TEXT("property_name"), Parts[1]);
+            Entry->SetStringField(TEXT("function_name"), Parts[2]);
+            Entry->SetStringField(TEXT("kind"), Parts[3]);
+            Entry->SetStringField(TEXT("source_property"), Parts[4]);
+            Entry->SetStringField(TEXT("source_path"), Parts[5]);
             Bindings.Add(MakeShared<FJsonValueObject>(Entry));
-            Context.HashLines += TEXT("binding|") + Line + TEXT("\n");
+            Context.HashLines += FString::Printf(TEXT("binding|%s|%s|%s|%s\n"),
+                *Parts[0], *Parts[1], *Parts[2], *Parts[3]);
         }
     }
 
     // Animations, when the Blueprint carries any.
+    //
+    // Two shapes on purpose. "animations" is the string array this tool shipped
+    // with and stays a string array, because it is what live evidence and the UI
+    // slice already read. "animation_details" is the same set described, added
+    // when widget_bind made the binding half authorable and the animation half
+    // still is not: a caller that wants to know whether an animation has any
+    // tracks at all should not have to open the editor.
+    //
+    // Read only, and shallow on purpose. A UWidgetAnimation wraps a UMovieScene,
+    // so anything below the track list is Sequencer's data model and belongs to
+    // whoever owns MovieScene track code, not here. Track counts and class names
+    // are a read of the same array Sequencer displays; keyframes are not read.
     TArray<TSharedPtr<FJsonValue>> Animations;
+    TArray<TSharedPtr<FJsonValue>> AnimationDetails;
     {
-        TArray<FString> AnimationNames;
+        TArray<const UWidgetAnimation*> SortedAnimations;
         for (const UWidgetAnimation* Animation : WidgetBlueprint->Animations)
         {
-            if (Animation == nullptr) { continue; }
-            AnimationNames.Add(Animation->GetName());
+            if (Animation != nullptr) { SortedAnimations.Add(Animation); }
         }
-        AnimationNames.Sort();
-        for (const FString& Name : AnimationNames)
+        SortedAnimations.Sort([](const UWidgetAnimation& A, const UWidgetAnimation& B)
         {
+            return A.GetName() < B.GetName();
+        });
+        for (const UWidgetAnimation* Animation : SortedAnimations)
+        {
+            const FString Name = Animation->GetName();
             Animations.Add(MakeShared<FJsonValueString>(Name));
             Context.HashLines += TEXT("animation|") + Name + TEXT("\n");
+
+            TSharedPtr<FJsonObject> Entry = MakeShared<FJsonObject>();
+            Entry->SetStringField(TEXT("name"), Name);
+            Entry->SetStringField(TEXT("display_label"), Animation->GetDisplayLabel());
+            Entry->SetNumberField(TEXT("start_time"), Animation->GetStartTime());
+            Entry->SetNumberField(TEXT("end_time"), Animation->GetEndTime());
+
+            // Which widgets the animation possesses. A binding whose widget was
+            // renamed or deleted still sits in this array, which is exactly the
+            // case a read-back is for.
+            TArray<TSharedPtr<FJsonValue>> AnimationBindings;
+            for (const FWidgetAnimationBinding& Binding : Animation->GetBindings())
+            {
+                TSharedPtr<FJsonObject> BindingJson = MakeShared<FJsonObject>();
+                BindingJson->SetStringField(TEXT("widget_name"), Binding.WidgetName.ToString());
+                BindingJson->SetStringField(TEXT("slot_widget_name"), Binding.SlotWidgetName.ToString());
+                BindingJson->SetStringField(TEXT("guid"), Binding.AnimationGuid.ToString());
+                BindingJson->SetBoolField(TEXT("is_root_widget"), Binding.bIsRootWidget);
+                AnimationBindings.Add(MakeShared<FJsonValueObject>(BindingJson));
+            }
+            Entry->SetArrayField(TEXT("animation_bindings"), AnimationBindings);
+
+            int32 TrackCount = 0;
+            TArray<TSharedPtr<FJsonValue>> TrackClasses;
+            if (const UMovieScene* MovieScene = Animation->GetMovieScene())
+            {
+                for (const UMovieSceneTrack* Track : MovieScene->GetMasterTracks())
+                {
+                    if (Track == nullptr) { continue; }
+                    TrackCount++;
+                    TrackClasses.Add(MakeShared<FJsonValueString>(Track->GetClass()->GetName()));
+                }
+                for (const FMovieSceneBinding& SceneBinding : MovieScene->GetBindings())
+                {
+                    for (const UMovieSceneTrack* Track : SceneBinding.GetTracks())
+                    {
+                        if (Track == nullptr) { continue; }
+                        TrackCount++;
+                        TrackClasses.Add(MakeShared<FJsonValueString>(Track->GetClass()->GetName()));
+                    }
+                }
+            }
+            else
+            {
+                Warnings.Add(MakeShared<FJsonValueString>(FString::Printf(
+                    TEXT("Widget animation '%s' has no MovieScene, so it can hold no tracks."), *Name)));
+            }
+            Entry->SetNumberField(TEXT("track_count"), TrackCount);
+            Entry->SetArrayField(TEXT("track_classes"), TrackClasses);
+            AnimationDetails.Add(MakeShared<FJsonValueObject>(Entry));
         }
     }
 
@@ -465,6 +551,7 @@ bool UMCPPuerTSBridgeService::InspectWidgetJson(
     Result->SetArrayField(TEXT("variables"), Variables);
     Result->SetArrayField(TEXT("bindings"), Bindings);
     Result->SetArrayField(TEXT("animations"), Animations);
+    Result->SetArrayField(TEXT("animation_details"), AnimationDetails);
     Result->SetArrayField(TEXT("unsupported_fields"), Context.UnsupportedFields);
     Result->SetStringField(TEXT("structure_hash_sha1"), BytesToHex(Sha1, FSHA1::DigestSize));
     Result->SetArrayField(TEXT("warnings"), Warnings);
