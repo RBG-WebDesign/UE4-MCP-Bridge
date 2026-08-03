@@ -143,6 +143,57 @@ because they launch the server from their own working directory, and both set
 MCP servers connect at client startup. After `npm run build`, restart the client
 or the new tools will not appear.
 
+### `ue427`: one command for all three clients
+
+The templates above are still the manual path. `Scripts/ue427.py` automates
+the same result and adds diagnostics:
+
+```bash
+python Scripts/ue427.py install --agent all --scope user   # or: npm run ue427 -- install
+python Scripts/ue427.py doctor      # build, skill install, MCP config, project version, live session
+python Scripts/ue427.py repair      # fix what is safe to fix, then re-run doctor
+python Scripts/ue427.py update      # git pull, rebuild, reinstall
+python Scripts/ue427.py verify      # prove each client actually discovers the skill
+python Scripts/ue427.py start claude|codex|gemini
+```
+
+The repository root also ships `ue427.cmd` (Windows) and `ue427` (POSIX)
+as shims for the same CLI.
+
+`install` links the canonical skill at `skills/unreal-engine-4-27` into
+`~/.claude/skills` and the shared `~/.agents/skills` that Codex and Gemini both
+read, and registers **the existing `unreal-bridge` server** with each client
+through that client's own configuration mechanism. Links, not copies, so
+editing the skill in this repository reaches every agent with no reinstall.
+
+It configures no second server and no HTTP transport. Editor traffic stays on
+the authenticated named pipe, per the strict protocol above.
+
+`doctor` catches the failure that is otherwise silent: `MCP_UNREAL_PROJECT_ROOT`
+pointing at a project that has no editor running, which surfaces to tools only
+as a `session_missing` refusal. It compares the configured project against the
+session manifests actually advertised on disk and names both paths. It also
+delegates repository health to `Scripts/bridge-doctor.mjs` rather than
+duplicating it.
+
+Acceptance: `npm run test:ue427-skill` (editor-free, included in
+`npm run test:editor-free`).
+
+## The `unreal-engine-4-27` skill (`skills/unreal-engine-4-27/`)
+
+The canonical, client-agnostic interface guide for this bridge. One source,
+installed to every agent. It documents the required session workflow, the real
+tool catalog with safety classifications, batching over round trips, PIE rules,
+failure codes, and the rule that a missing capability is a bridge gap to fix
+rather than a reason to reach for another transport.
+
+`references/tool-catalog.md` is generated from `mcp-server/src/annotations.ts`
+by `python Scripts/ue427.py catalog`. The acceptance suite fails when it drifts,
+so adding a tool means regenerating it.
+
+Do not confuse this with the scenario prompt templates that are flat `.md` files
+directly inside `skills/`; those feed the orchestrator and PromptBrush.
+
 ## MCP server internals (`mcp-server/src/`)
 
 - `index.ts` - registers the native catalog by default, starts stdio, and warns at startup

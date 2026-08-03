@@ -55,6 +55,10 @@ const ALLOWED_ROOT = new Set([
   "tests",
   "orchestrator.mjs", "package.json", "package-lock.json",
   "node_modules", "_releases",
+  // ue427 launcher shims. These are user-facing entry points, not automation
+  // internals: the whole point is `ue427 doctor` from the repo root on either
+  // platform. The implementation itself lives in Scripts/ue427.py.
+  "ue427", "ue427.cmd",
 ]);
 
 if (isHostProject) for (const e of HOST_PROJECT_ROOT) ALLOWED_ROOT.add(e);

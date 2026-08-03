@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+# ue427 launcher shim. Forwards to Scripts/ue427.py with this repo as root.
+set -euo pipefail
+here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PYTHON="${PYTHON:-python3}"
+command -v "$PYTHON" >/dev/null 2>&1 || PYTHON=python
+exec "$PYTHON" "$here/Scripts/ue427.py" "$@"

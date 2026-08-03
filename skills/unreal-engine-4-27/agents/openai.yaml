@@ -1,0 +1,9 @@
+# OpenAI (Codex) client metadata for the unreal-engine-4-27 skill.
+# The instruction body is SKILL.md in the parent directory. This file adds
+# nothing to it and exists only for clients that read agents/openai.yaml.
+interface:
+  display_name: Unreal Engine 4.27 Bridge
+  short_description: >-
+    Drive a live Unreal Engine 4.27 editor through the UE4_Bridge MCP server
+    using its puerts_* tools. Unreal Engine 4.27 only; stop for any other
+    engine version.

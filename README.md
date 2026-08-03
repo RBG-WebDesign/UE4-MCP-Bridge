@@ -1,399 +1,338 @@
-# UE4 Bridge
+<div align="center">
 
-UE4 Bridge is a local automation bridge for Unreal Engine 4.27. One MCP server exposes the existing HTTP/Python editor tools plus an authenticated native PuerTS named-pipe lane.
+# UE4 MCP Bridge
 
-This repository contains:
+**Drive the Unreal Engine 4.27 editor from Claude Code, OpenAI Codex, and Google Gemini.**
 
-- One TypeScript MCP server for Claude Code, Codex, Gemini, and other MCP clients
-- A UE4 Python listener that executes the existing HTTP tools
-- A PuerTS Node.js runtime and native C++ module for approved reflection and physics operations
-- C++ UE4 plugin code for Blueprint, Widget Blueprint, Behavior Tree, animation, effects, and gameplay generation helpers
-- PromptBrush, a prompt-driven gameplay generation workflow
-- Agent and skill documents for repeatable Unreal automation work
-- Setup, architecture, troubleshooting, and tool reference docs
+A local Model Context Protocol server that reaches into a running UE4.27 editor
+over an authenticated named pipe, so an agent can build, inspect, and verify real
+game content instead of telling you how to do it by hand.
 
-## What You Can Do
+[![Engine](https://img.shields.io/badge/Unreal%20Engine-4.27%20only-0E1128?style=for-the-badge&logo=unrealengine&logoColor=white)](https://www.unrealengine.com/)
+[![Node](https://img.shields.io/badge/Node.js-18%2B-339933?style=for-the-badge&logo=node.js&logoColor=white)](https://nodejs.org/)
+[![MCP](https://img.shields.io/badge/Protocol-MCP-6E56CF?style=for-the-badge)](https://modelcontextprotocol.io/)
+[![Transport](https://img.shields.io/badge/Transport-Named%20Pipe-1F6FEB?style=for-the-badge)](#architecture)
 
-With Unreal open and the bridge running, Claude Code can help with:
+[![Claude Code](https://img.shields.io/badge/Claude%20Code-supported-D97757?style=flat-square)](#-multi-client-support)
+[![Codex](https://img.shields.io/badge/OpenAI%20Codex-supported-000000?style=flat-square&logo=openai&logoColor=white)](#-multi-client-support)
+[![Gemini](https://img.shields.io/badge/Gemini%20CLI-supported-4285F4?style=flat-square)](#-multi-client-support)
 
-- Spawning, moving, duplicating, organizing, and deleting actors
-- Listing, inspecting, creating, compiling, and documenting Blueprints
-- Editing Blueprint internals: variables, functions, event dispatchers,
-  interfaces, components, graph nodes, and pin connections (schema-validated;
-  every mutation compiles and saves, and failures are reported explicitly)
-- Generating whole game skeletons: GameMode/Character/PlayerController/HUD
-  with class defaults wired, camera rig presets, and input control schemes
-- Creating AI assets: Blackboards with typed keys and Behavior Trees built
-  from JSON (26 node types)
-- Generating C++ classes and compiling with UnrealBuildTool as a background
-  job with structured compiler errors
-- Creating materials, material instances with parameter overrides,
-  DataTables, and audio components
-- Capturing viewport screenshots and moving the editor camera
-- Creating maps and placing actors
-- Searching the project with a cached intelligence index and gameplay
-  pattern heuristics
-- Running Python inside UE4
-- Generating gameplay scaffolds with PromptBrush
-- Saving levels and validating generated content
+[Quick start](#-quick-start) · [The `ue427` command](#-the-ue427-command) ·
+[Architecture](#architecture) · [Safety](#-safety) · [Docs](#-documentation)
 
-The full tool list (150+ tools) is documented in `docs/TOOL_REFERENCE.md`.
+</div>
 
-## Requirements
+---
 
-- Unreal Engine 4.27
-- Node.js 18 or newer
-- npm 9 or newer
-- Python Editor Script Plugin enabled in UE4
-- PuerTS Unreal_v1.0.9 with the Node.js backend at Plugins/Puerts
-- Claude Code or another MCP-compatible client
+## Why this exists
 
-Optional, depending on the workflow:
+Most editor automation dies at the round trip. Create a node, inspect, connect a
+pin, inspect, set a property, inspect. This bridge optimizes for the opposite:
+plan in one pass, send one desired-state call, run it inside a UE4 transaction,
+then read it back with an independent inspector to prove it worked.
 
-- `uvx` for the `unreal-api` MCP server listed in `.mcp.json`
-- Visual Studio with UE4 C++ build tools if you are compiling the C++ plugin
+> **Engine target is Unreal Engine 4.27, and only 4.27.**
+> If an API exists in a later engine but is not confirmed in 4.27, it is not used
+> here. The skill and its tooling refuse other versions rather than guessing.
 
-## Quick Start
+---
 
-From this repository root:
+## Architecture
+
+```mermaid
+flowchart LR
+    A["Agent client<br/>Claude Code · Codex · Gemini"]
+    B["MCP server<br/>TypeScript"]
+    C["PuerTS runtime<br/>Node.js inside UE4"]
+    D["MCPBridgePuerTS<br/>native C++ module"]
+    E["UE4.27 game thread"]
+
+    A -- "stdio (MCP)" --> B
+    B -- "authenticated named pipe" --> C
+    C -- "approved calls" --> D
+    D --> E
+
+    style A fill:#6E56CF,stroke:#4C3BA6,color:#fff
+    style B fill:#1F6FEB,stroke:#144A9E,color:#fff
+    style C fill:#2EA043,stroke:#1A7431,color:#fff
+    style D fill:#BF8700,stroke:#8A6100,color:#fff
+    style E fill:#0E1128,stroke:#000,color:#fff
+```
+
+Each editor publishes a session manifest containing its process identity, project
+path, pipe name, and a nonce. Every request carries that nonce and every response
+carries the editor identity, so the client talks to exactly one editor and refuses
+a reply from anywhere else. With two editors open, guessing would mean authoring
+assets in the wrong project and reporting success. It refuses instead.
+
+---
+
+## Highlights
+
+| | |
+|---|---|
+| **One transport, no fallbacks** | Editor traffic goes through `puerts_*` tools over an authenticated pipe. No HTTP, no sockets, no shell workarounds. A failing tool reports its error rather than silently switching lanes. |
+| **A first-class agent skill** | One canonical skill, installed to all three clients, that teaches tool discovery, workflow selection, safety checks, and failure recovery. |
+| **Diagnostics that name the fix** | `ue427 doctor` checks the build, skill install, MCP config, project version, and whether a live editor actually advertises a session. |
+| **Transactional and reversible** | Every state-changing tool runs inside a UE4 transaction and returns a transaction id. Failed mutators roll back rather than leaving partial state. |
+| **Inspectors for every builder** | `blueprint_build` pairs with `graph_inspect`, `behavior_tree_build` with `behavior_tree_inspect`, so desired state can be diffed against actual state without opening the editor. |
+| **Batch over chatter** | `puerts_scene_batch` and the `*_build` family express whole desired states in one call instead of hundreds of small ones. |
+
+---
+
+## Quick start
+
+### 1. Build the server
+
+```bash
+npm install
+npm run build
+```
+
+### 2. Install the plugin into your UE4.27 project
 
 ```powershell
 .\Scripts\install-mcp-bridge.ps1 "D:\Unreal Projects\MyGame\MyGame.uproject"
 ```
 
-The installer builds the MCP server, installs and enables MCPBridge and the local pinned PuerTS plugin, patches DefaultEngine.ini, and writes the MCP client config into the target project. Rerun the same command later to update that project. See docs/PUERTS.md, docs/MCP_BRIDGE_INSTALLER.md, and docs/MCP_BRIDGE_RELEASE_WORKFLOW.md.
+This builds the MCP server, installs and enables `MCPBridge` plus the pinned
+PuerTS plugin, patches `DefaultEngine.ini`, and writes the client config into the
+target project. Rerun it later to update that project.
 
-Manual server build:
-
-```bash
-npm install
-npm run build
-```
-
-Open your UE4 project, then make sure the Python listener is installed and active. Once the editor is running, test the listener:
+### 3. Wire up your agents
 
 ```bash
-curl -X POST http://localhost:8080 -H "Content-Type: application/json" -d "{\"command\":\"ping\"}"
+python Scripts/ue427.py install --agent all --scope user
 ```
 
-Then open Claude Code in this repository folder. The `.mcp.json` file starts the bridge server automatically:
-
-```json
-{
-  "mcpServers": {
-    "unreal-bridge": {
-      "command": "node",
-      "args": ["mcp-server/dist/index.js"],
-      "cwd": "."
-    },
-    "unreal-api": {
-      "command": "uvx",
-      "args": ["unreal-api-mcp"],
-      "env": {
-        "UNREAL_VERSION": "4.27"
-      }
-    }
-  }
-}
-```
-
-Ask Claude Code:
-
-```text
-Test the connection to Unreal Engine.
-```
-
-If the bridge is working, Claude should be able to report the engine version, project name, and project paths.
-
-## Unreal Setup (manual)
-
-The installer above is the recommended path. The steps below do the same thing by hand.
-
-### 1. Enable Python in UE4
-
-1. Open the UE4 editor.
-2. Go to `Edit > Plugins`.
-3. Search for `Python Editor Script Plugin`.
-4. Enable it.
-5. Restart the editor.
-
-### 2. Install the MCPBridge Plugin
-
-Copy this folder:
-
-```text
-Plugins/MCPBridge/
-```
-
-Into your UE4 project:
-
-```text
-YourProject/Plugins/MCPBridge/
-```
-
-Then enable the `MCPBridge` plugin in `Edit > Plugins` (or add it to your `.uproject`). The C++ modules compile the next time you build the project.
-
-### 3. Configure Startup
-
-Add this to your project `Config/DefaultEngine.ini`, replacing `<ProjectRoot>` with your project's absolute path:
-
-```ini
-[/Script/PythonScriptPlugin.PythonScriptPluginSettings]
-bDeveloperMode=True
-bRemoteExecution=True
-+StartupScripts=startup.py
-+AdditionalPaths=(Path="<ProjectRoot>/Plugins/MCPBridge/Content/Python")
-```
-
-There is also an example file here:
-
-```text
-Plugins/MCPBridge/Config/DefaultEngine.ini.example
-```
-
-### 4. Restart Unreal
-
-After restart, the listener should start automatically on:
-
-```text
-http://localhost:8080
-```
-
-## Claude Code Setup
-
-Claude Code reads `.mcp.json` from the repository root. After running `npm run build`, open Claude Code in this folder and use the bridge tools directly.
-
-Default UE Bridge workflow for authoring tasks:
-
-- Make the requested editor change.
-- Run only lightweight editor-side sanity checks when useful.
-- Let the user test the result in Unreal before starting PIE.
-- Do not ask what the user wants next unless there is a blocker or required choice.
-
-Good first requests:
-
-```text
-Test the Unreal connection.
-List actors in the current level.
-Take a viewport screenshot.
-List Blueprints under /Game.
-Run unreal.SystemLibrary.get_engine_version() in Unreal.
-```
-
-If Claude cannot find the MCP server, rebuild it:
+Then open the project in `UE4Editor` and start your agent from the project
+directory:
 
 ```bash
-npm run build
+python Scripts/ue427.py start claude
 ```
 
-If Claude can find the MCP server but Unreal commands fail, make sure the UE4 editor is open and the listener is responding on `localhost:8080`.
+<details>
+<summary><b>Verify it is working</b></summary>
 
-## PromptBrush
-
-PromptBrush generates Unreal gameplay scaffolding from natural language prompts.
-
-Example prompts:
-
-```text
-Make me gameplay like Puzzle Fighter.
-Create a main menu, HUD, pause screen, and game over flow.
-Generate a simple enemy patrol system with triggers and UI feedback.
-```
-
-PromptBrush can create:
-
-- Blueprint classes
-- Widget Blueprints
-- Materials
-- Data assets
-- Curves
-- Maps
-- Input mappings
-- JSON build specs and manifests
-
-Generated output is written to:
-
-```text
-/Game/Generated/<FeatureName>/
-PromptBrushOutput/
-```
-
-For the full PromptBrush guide, see:
-
-```text
-README_PROMPTBRUSH.md
-```
-
-## Common Commands
-
-Install dependencies:
+<br>
 
 ```bash
-npm install
+python Scripts/ue427.py doctor    # full health report
+python Scripts/ue427.py verify    # prove each client discovers the skill
 ```
 
-Build the MCP server:
+Then ask your agent: *"Run puerts_diagnostic and tell me the result."* It should
+report the PuerTS context, the game thread, the pipe transport, and actor query
+timing. If it reports `session_missing`, `doctor` will tell you which project the
+bridge is pointed at versus which editor is actually running.
+
+</details>
+
+---
+
+## The `ue427` command
+
+One entry point for installing, diagnosing, and launching across every client.
 
 ```bash
-npm run build
+python Scripts/ue427.py <command>      # or: npm run ue427 -- <command>
 ```
 
-Run the server in development mode:
+The repository root also ships `ue427.cmd` (Windows) and `ue427` (POSIX).
 
-```bash
-npm run dev
-```
+| Command | What it does |
+|---|---|
+| `install` | Links the canonical skill into each agent and registers the `unreal-bridge` server |
+| `uninstall` | Removes the skill and the MCP registration |
+| `doctor` | Diagnoses build, skill install, MCP config, project version, and live editor session |
+| `repair` | Fixes what is safe to fix automatically, then re-runs `doctor` |
+| `update` | `git pull`, rebuild, reinstall |
+| `verify` | Asks each client whether it genuinely discovers the skill |
+| `start <agent>` | Verifies the project is 4.27, then launches the agent in it |
+| `catalog` | Regenerates the tool catalog from `annotations.ts` |
 
-Run tests:
+Useful flags: `--agent claude|codex|gemini|all`, `--scope user|project`,
+`--project <path>`, `--copy`, `--dry-run`.
 
-```bash
-npm test
-```
+> [!TIP]
+> `install` creates **links**, not copies. Editing `skills/unreal-engine-4-27/`
+> in this repository updates every agent at once, with no reinstall. `doctor`
+> warns if a copy has crept in and can drift.
 
-Run integration tests:
+---
 
-```bash
-npm run test:integration
-```
+## Multi-client support
 
-## Repository Layout
+One skill source, installed everywhere.
+
+| Client | Skill location | MCP registration |
+|---|---|---|
+| **Claude Code** | `~/.claude/skills/unreal-engine-4-27` | `claude mcp add` |
+| **OpenAI Codex** | `~/.agents/skills/unreal-engine-4-27` | `codex mcp add`, falling back to `~/.codex/config.toml` |
+| **Google Gemini** | `~/.agents/skills/unreal-engine-4-27` | `~/.gemini/settings.json` |
+
+Codex and Gemini share the `.agents/skills` location, so both read the same file.
+Project scope uses `.claude/skills` and `.agents/skills` under the project.
+
+> [!NOTE]
+> Gemini disables MCP servers in untrusted folders. Start `gemini` once inside
+> your Unreal project directory and approve the trust prompt. Do not use a trust
+> bypass flag; trust the specific folder.
+
+---
+
+## What the agent can do
+
+<details open>
+<summary><b>Authoring</b></summary>
+
+<br>
+
+- Blueprints from JSON with schema validation, then compile and verify
+- Widget Blueprints, Behavior Trees (26 node types), Blackboards, Anim Blueprints
+- Materials, material instances, textures, sky shaders
+- Level Sequences, camera rigs, and render jobs
+- Actors: spawn, transform, organize, batch, delete
+
+</details>
+
+<details>
+<summary><b>Inspection</b></summary>
+
+<br>
+
+- Graph, widget, material, sequence, animation, navigation, and physics inspectors
+- Actor and asset search, property reads, editor log capture
+- Engine C++ source search and read, which work with the editor closed
+
+</details>
+
+<details>
+<summary><b>Verification</b></summary>
+
+<br>
+
+- Blueprint compile with structured errors that name the asset, graph, node, and pin
+- Viewport screenshots and camera control
+- Play In Editor control and runtime agent queries
+- Navigation and lighting builds as background jobs with pollable status
+
+</details>
+
+The native catalog is **65 tools**, each classified read-only, mutating, or
+destructive in a single auditable file. The generated summary lives in
+[`references/tool-catalog.md`](skills/unreal-engine-4-27/references/tool-catalog.md),
+and the complete reference is [`docs/TOOL_REFERENCE.md`](docs/TOOL_REFERENCE.md).
+
+---
+
+## Safety
+
+> [!IMPORTANT]
+> Connecting an agent gives it live access to a running editor and the project on
+> disk. Save and commit before a long agent-driven session, and review the diff.
+
+**Transport.** Editor traffic uses an authenticated local named pipe into the
+in-process PuerTS runtime. There is no HTTP listener and no port in this path.
+The legacy Python HTTP listener still exists for migration testing and stays
+disabled unless a human sets `MCP_ENABLE_LEGACY_HTTP=1` before both the editor
+and the server start. It is never an automatic fallback.
+
+**Privilege.** Privileged operations are delegated to the native C++ boundary,
+and each native tool must appear in the C++ allowlist with narrow permissions.
+Property writes go through an allowlist rather than arbitrary reflection writes,
+and path handling refuses escapes outside the project.
+
+**Recoverability.** State-changing tools run inside UE4 transactions. Make a
+source control checkpoint before anything destructive: deleting assets or source,
+renaming public classes, changing serialization formats, replacing project
+config, or migrating large content groups.
+
+**Version.** The skill and its tooling verify Unreal Engine 4.27 from the
+`.uproject` and from `Build.version` for source builds. There is no environment
+variable that switches the check off.
+
+---
+
+## Repository layout
 
 ```text
-mcp-server/
-  TypeScript MCP server used by Claude Code.
-
-Plugins/MCPBridge/
-  The unified UE4 plugin: Python listener and command handlers
-  (Content/Python/), plus C++ modules for the status panel and the
-  Blueprint, Widget Blueprint, Behavior Tree, animation, effects,
-  and gameplay generation tools (Source/).
-
-docs/
-  Setup, architecture, troubleshooting, tool reference, specs, and plans.
-
-agents/
-  Agent role documents for Unreal automation workflows.
-
-skills/
-  Reusable procedure files for generating, validating, and repairing content.
-
-tests/
-  Integration and workflow tests.
-
-PromptBrushOutput/
-  Generated PromptBrush specs and manifests.
+mcp-server/src/                 MCP server: tool definitions and the pipe client
+puerts-runtime/                 TypeScript executed inside UE4
+Plugins/MCPBridge/Source/       Editor C++ modules, built by UnrealBuildTool
+Plugins/MCPBridge/Content/      Legacy Python listener, opt-in only
+skills/unreal-engine-4-27/      The canonical agent skill (installed to clients)
+Scripts/                        Repo automation, acceptance tests, ue427 CLI
+clients/                        Ready-to-paste MCP configs
+docs/                           Specs, playbooks, references
 ```
 
-In this local project workspace you may also see Unreal project folders such as `Content`, `Config`, `Source`, `Plugins`, `Saved`, `Intermediate`, and `Binaries`. Those are the live UE project folders and may not all be tracked by Git.
+These boundaries are enforced by `npm run check:layout`.
 
-## How It Works
+---
 
-```text
-Claude Code
-  |
-  | MCP over stdio
-  v
-mcp-server
-  |
-  | HTTP POST to localhost:8080
-  v
-UE4 Python listener
-  |
-  | UE4 Python API on the editor game thread
-  v
-Unreal Editor
+## Testing
+
+```bash
+npm run verify            # build + unit tests + perf + smoke. The gate for the TS side.
+npm test                  # unit suites against a mock listener, no UE4 needed
+npm run test:editor-free  # every acceptance CI can run without an editor
+npm run doctor            # repo health: stale build, divergent clones, doc drift
 ```
 
-The MCP server validates tool calls and forwards structured requests to the Python listener. The listener queues work safely onto the UE4 editor thread, executes the command, and sends results back to Claude Code.
+Anything touching a real editor has a second gate, because `npm run verify` knows
+nothing about which plugin a target project is running:
 
-## Useful Workflows
+```bash
+npm run install:check -- --project "D:\Unreal Projects\MyGame"
+npm run install:sync  -- --project "D:\Unreal Projects\MyGame"
+```
 
-### Inspect a Level
+A plugin copy goes stale silently. It did once: two projects carried an install,
+one was a day behind, and a live run against it passed while proving nothing.
+`install:check` compares by content and refuses on any difference.
 
-1. Open the level in UE4.
-2. Ask Claude to list actors.
-3. Ask for a viewport screenshot.
-4. Ask Claude to summarize the current layout.
-
-### Create or Modify Actors
-
-1. Ask Claude to spawn or move actors.
-2. Use viewport focus or screenshot tools to inspect the result.
-3. Ask Claude to adjust placement, scale, rotation, folder organization, or materials.
-4. Test the result in Unreal when the edit is complete.
-5. Save the level when the result is correct.
-
-### Build Gameplay Content
-
-1. Describe the gameplay feature.
-2. Ask Claude to generate a build spec or use PromptBrush.
-3. Create Blueprints, widgets, maps, and supporting assets.
-4. Compile and validate.
-5. Capture screenshots or inspect assets.
-6. Test the result in Unreal.
-7. Save the level and generated assets.
+---
 
 ## Troubleshooting
 
-### Claude cannot see the bridge tools
+| Symptom | Fix |
+|---|---|
+| No `puerts_*` tools in the client | `mcp-server/dist` is missing. `npm run build`, then restart the client. |
+| Tools behave like an older version | Stale build. Rebuild and restart: MCP servers connect at startup. |
+| `session_missing` | No editor advertises a session for the configured project. Run `ue427 doctor`; it names both paths. |
+| Calls hang | The game thread is busy compiling, loading, or in PIE. Wait, then read `puerts_get_logs`. |
+| Connect then timeout, repeatedly | Zombie editor processes and stale pipes. Launch through `Scripts/start-ue4-project.ps1`. |
+| Skill not offered by an agent | `ue427 verify` asks each client directly rather than assuming a file on disk means discovery. |
 
-Run:
+Full matrix: [`references/troubleshooting.md`](skills/unreal-engine-4-27/references/troubleshooting.md).
 
-```bash
-npm run build
-```
+---
 
-Then reopen Claude Code in the repository root.
+## Documentation
 
-### Bridge tools exist but Unreal commands fail
+| Document | Contents |
+|---|---|
+| [`AGENTS.md`](AGENTS.md) | Canonical instructions for every AI agent working here. Start here. |
+| [`SKILL.md`](skills/unreal-engine-4-27/SKILL.md) | The agent-facing interface guide |
+| [`references/setup.md`](skills/unreal-engine-4-27/references/setup.md) | Installing the skill and MCP config per client |
+| [`references/operations.md`](skills/unreal-engine-4-27/references/operations.md) | Session model, transactions, batching, UE4.27 API safety |
+| [`references/security.md`](skills/unreal-engine-4-27/references/security.md) | What the bridge exposes and where the boundaries are |
+| [`docs/playbooks/`](docs/playbooks/) | Verified recipes for solved UE4.27 systems |
+| [`docs/SETUP.md`](docs/SETUP.md) | Manual setup, step by step |
+| [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | How the layers fit together |
+| [`docs/TOOL_REFERENCE.md`](docs/TOOL_REFERENCE.md) | Complete tool reference |
+| [`README_PROMPTBRUSH.md`](README_PROMPTBRUSH.md) | Prompt-driven gameplay generation |
 
-Check that:
+> [!TIP]
+> Before any structural engine or Blueprint generation task, read
+> `docs/playbooks/` for an existing recipe instead of re-deriving the solution.
 
-- UE4 editor is open
-- Python Editor Script Plugin is enabled
-- `Content/Python/startup.py` exists in the UE project
-- The listener responds on `localhost:8080`
+---
 
-Test:
+<div align="center">
 
-```bash
-curl -X POST http://localhost:8080 -H "Content-Type: application/json" -d "{\"command\":\"ping\"}"
-```
+**Built for Unreal Engine 4.27.** Not affiliated with Epic Games.
 
-### Listener does not start
-
-Check `Config/DefaultEngine.ini` and confirm these settings exist:
-
-```ini
-+StartupScripts=startup.py
-+AdditionalPaths=(Path="<ProjectRoot>/Plugins/MCPBridge/Content/Python")
-```
-
-Restart the editor after changing Python plugin settings or startup scripts.
-
-### C++ plugin tools are missing
-
-Make sure `Plugins/MCPBridge/` has been copied into your UE project's `Plugins` folder, compiled, enabled in the editor, and loaded after restart.
-
-## More Documentation
-
-- `docs/SETUP.md`
-- `docs/ARCHITECTURE.md`
-- `docs/TOOL_REFERENCE.md`
-- `docs/TROUBLESHOOTING.md`
-- `README_PROMPTBRUSH.md`
-- `Plugins/MCPBridge/Docs/QuickStart.md`
-
-## Current Project Notes
-
-This repository is configured to use:
-
-```text
-https://github.com/RBG-WebDesign/UE4_Bridge.git
-```
-
-The default branch is:
-
-```text
-main
-```
+</div>
