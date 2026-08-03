@@ -315,11 +315,50 @@ const perceptionSense = z.object({
 const specs = [
   ["puerts_diagnostic", "diagnostic", "Prove the in-process PuerTS context, game thread, named-pipe transport, and actor-query timing.", z.object({ actor_limit: z.number().optional() }).strict()],
   ["puerts_find_assets", "find_assets", "Find UE4.27 assets by path, type, or name.", z.object({ path: z.string().optional(), type: z.string().optional(), name: z.string().optional(), recursive: z.boolean().optional(), limit: z.number().optional() }).strict()],
-  ["puerts_find_actors", "find_actors", "Find actors in the current editor level.", z.object({ name: z.string().optional(), type: z.string().optional(), limit: z.number().optional() }).strict()],
+  ["puerts_find_actors", "find_actors",
+    "Find actors in the current editor level. name and type are case-insensitive SUBSTRING "
+    + "matches, not wildcards. "
+    + "folder_filter and include_transforms are the legacy level_actors parameters, restored: "
+    + "either one reads the level through the same snapshot puerts_scene_inspect reports, so the "
+    + "answer cannot disagree with the inspector, and both are absent by default so the ordinary "
+    + "read stays the cheap actor iteration it always was. "
+    + "For bounds, components, attachment or a structure hash, use puerts_scene_inspect: this tool "
+    + "is the quick lookup, not the level inspector.",
+    z.object({
+      name: z.string().optional().describe("Object name or label substring."),
+      type: z.string().optional().describe("Class name substring."),
+      folder_filter: z.string().optional().describe(
+        "World Outliner folder PREFIX, the same match the legacy level_actors made: "
+        + "\"Courtyard\" takes \"Courtyard/Lighting\" and does not take \"OldCourtyard\".",
+      ),
+      include_transforms: z.boolean().optional().describe(
+        "Default false. Add each actor's world location, rotation and scale under transform. "
+        + "location is reported either way.",
+      ),
+      limit: z.number().optional(),
+    }).strict()],
   ["puerts_read_property", "read_property", "Read an Unreal reflected property.", z.object({ ...target, property: z.string() }).strict()],
   ["puerts_set_property", "set_property", "Set an approved Unreal reflected property in a transaction.", z.object({ ...target, property: z.string(), value: reflectedValue }).strict()],
   ["puerts_call_function", "call_function", "Call a native-approved Unreal function.", z.object({ actor: z.string(), function: z.string(), arguments: z.array(z.unknown()).optional() }).strict()],
-  ["puerts_spawn_actor", "spawn_actor", "Spawn an actor in a transaction.", z.object({ class_path: z.string(), location: vector.optional(), rotation: rotator.optional() }).strict()],
+  ["puerts_spawn_actor", "spawn_actor",
+    "Spawn one actor in a transaction. "
+    + "name, folder and scale are the legacy actor_spawn parameters, restored: the spawn is "
+    + "finished through the same desired-state path puerts_scene_batch uses, inside the one "
+    + "transaction this command opens, so a label that already belongs to another actor is a "
+    + "refusal and the whole spawn is rolled back rather than left half-applied. "
+    + "For more than one actor, or to change an actor that already exists, use "
+    + "puerts_scene_batch: it takes the whole scene in one call and this one takes one actor.",
+    z.object({
+      class_path: z.string(),
+      location: vector.optional(),
+      rotation: rotator.optional(),
+      scale: vector.optional().describe("World scale. Omitted means unit scale."),
+      name: z.string().optional().describe(
+        "Actor LABEL for the spawned actor, the same thing legacy actor_spawn's name set. Refused "
+        + "when another actor in the level already carries it.",
+      ),
+      folder: z.string().optional().describe("World Outliner folder path, such as \"Courtyard/Lighting\"."),
+    }).strict()],
   ["puerts_delete_actor", "delete_actor", "Delete an actor in a transaction. Requires confirm=true.", z.object({ actor: z.string(), confirm: z.literal(true) }).strict()],
   ["puerts_sky_shader_create", "sky_shader_create", "Create an animated native HLSL aurora sky material and apply it to a sky sphere in one transaction.", z.object({ asset_path: z.string().optional(), sky_actor: z.string().optional() }).strict()],
   ["puerts_blueprint_build", "blueprint_build",
@@ -1183,6 +1222,83 @@ const specs = [
         + "Turning this off removes the only check that distinguishes a change from a report of one.",
       ),
     }).strict()],
+  ["puerts_lighting_build", "lighting_build",
+    "Build lighting for the level the editor has open, so placed lights are baked rather than "
+    + "preview-only and the level stops showing Unreal's \"Lighting needs to be rebuilt\" banner. "
+    + "IT DOES NOT WAIT FOR THE BUILD. A Lightmass build runs for minutes at the higher quality "
+    + "levels, far past any request budget this bridge allows, so action=\"start\" starts it and "
+    + "returns; the response carries waited:false and a completion note saying exactly that. Poll "
+    + "with action=\"status\" until build_running is false, and read lighting_unbuilt_objects - the "
+    + "counter behind the editor's own banner - to see whether the level still needs a rebuild. "
+    + "Screenshotting or saving before build_running goes false captures the state mid-build. "
+    + "What the start DOES block on is the scene gather and the Lightmass export, which is seconds "
+    + "on a small level and longer on a large one. "
+    + "started is read back from the editor rather than assumed: UE4.27 swallows a refused build, "
+    + "so a start that Lightmass declined answers started:false with the reason, and the two common "
+    + "causes (World Settings bForceNoPrecomputedLighting, and r.AllowStaticLighting=0) are refused "
+    + "by name before the build is asked for. "
+    + "Refused during Play In Editor: Lightmass reads GWorld, which is the play world while play is "
+    + "running, so a build started then would gather the wrong scene. "
+    + "There is no cancel: UE4.27 exposes no public entry point for aborting a build.",
+    z.object({
+      action: z.enum(["start", "status"]).optional().describe("Default start. status changes nothing."),
+      quality: z.enum(["Preview", "Medium", "High", "Production"]).optional().describe(
+        "Default Preview, which is the quality to use when the point is to see the scene lit at "
+        + "all. Production is minutes to hours and is a deliberate choice, not a default.",
+      ),
+      only_current_level: z.boolean().optional().describe(
+        "Default true: build the current level rather than every loaded sublevel.",
+      ),
+      level_path: z.string().optional().describe(
+        "The level you believe is loaded. Refuses on a mismatch; never loads a level.",
+      ),
+    }).strict()],
+  ["puerts_class_defaults_patch", "class_defaults_patch",
+    "Set INHERITED class-default (CDO) values on a generated Blueprint as desired state: "
+    + "AIControllerClass and AutoPossessAI on a pawn, and anything else on the bridge's "
+    + "writable-property allowlist. puerts_blueprint_build writes component template properties and "
+    + "member variable defaults and has no section for the actor's own class defaults, which is why "
+    + "an authored pawn could not be possessed by an authored AIController until this existed. "
+    + "A variable the Blueprint ITSELF declares is refused here and pointed at "
+    + "puerts_blueprint_member_patch: its default lives on the variable description as well as on "
+    + "the CDO, and writing only one of the two leaves them disagreeing until the next compile "
+    + "picks a winner. "
+    + "The transaction is deliberately NOT the rollback. UObject::Modify does nothing for an object "
+    + "that is not RF_Transactional and a class default object is not one, so a cancelled "
+    + "transaction leaves a CDO write standing - measured, not assumed (finding 0r). This command "
+    + "snapshots every property it will touch, restores them on any failure, decides "
+    + "rollback_succeeded by reading the values again, and reports Modify()'s own return value as "
+    + "transaction_covers_cdo. When that is false, editor undo will NOT take this change back. "
+    + "Convergent: a value already equal to the request is reported in unchanged_properties and not "
+    + "rewritten, so a rerun dirties nothing and saves nothing. An invalid value is rejected on a "
+    + "scratch copy before the CDO is touched, and an unknown property name is answered with the "
+    + "closest names on the class. "
+    + "It writes the CLASS default: actors already placed in a level keep the value they were "
+    + "placed with, and puerts_scene_batch is what changes those.",
+    z.object({
+      asset_path: z.string().regex(/^\/Game\/MCPGenerated\/[A-Za-z0-9_]+(\/[A-Za-z0-9_]+)*$/).describe(
+        "Package path under /Game/MCPGenerated/, no asset-name suffix. Patching never creates a "
+        + "Blueprint; author it with puerts_blueprint_build first.",
+      ),
+      properties: z.record(z.unknown()).describe(
+        "{propertyName: value} applied to the generated class default object, each value in its own "
+        + "reflected shape. A class reference is a class object path ending in _C, such as "
+        + "\"/Game/MCPGenerated/BP_Guard.BP_Guard_C\"; an enum is its entry name, such as "
+        + "\"PlacedInWorldOrSpawned\". Every write is gated by the same AllowedWritableProperties "
+        + "allowlist puerts_set_property uses.",
+      ),
+      plan_only: z.boolean().optional().describe(
+        "Default false. Return properties_to_apply, unchanged_properties and expected_change_count, "
+        + "and change nothing.",
+      ),
+      verify: z.boolean().optional().describe(
+        "Default true. Read every patched value back off the CDO after writing it. Turning this off "
+        + "removes the only check that distinguishes a change from a report of one.",
+      ),
+      save: z.boolean().optional().describe(
+        "Default true. The save happens only after the read-back agrees with every requested value.",
+      ),
+    }).strict()],
   ["puerts_input_mapping_info", "input_mapping_info",
     "Read the project's input action and axis mappings. The independent read half of "
     + "puerts_input_mapping_patch, and READ ONLY: no transaction is opened, nothing is written, "
@@ -1372,7 +1488,8 @@ export function nativeFailureEnvelope(
 const structuredParameters: Readonly<Record<string, readonly string[]>> = {
   puerts_set_property: ["value"],
   puerts_call_function: ["arguments"],
-  puerts_spawn_actor: ["location", "rotation"],
+  puerts_spawn_actor: ["location", "rotation", "scale"],
+  puerts_class_defaults_patch: ["properties"],
   puerts_physics_build: ["actors"],
   puerts_physics_observe: ["actors"],
   puerts_viewport_screenshot: ["actors"],
@@ -1406,6 +1523,18 @@ const commandTimeouts: Readonly<Record<string, number>> = {
   puerts_input_mapping_patch: 15000,
   puerts_scene_batch: 60000,
   puerts_scene_inspect: 15000,
+  // Not a wait on the build: this budget covers the scene gather and the
+  // Lightmass export that starting one costs. The build itself outlives the
+  // call by design, which is what action="status" is for.
+  puerts_lighting_build: 60000,
+  puerts_class_defaults_patch: 20000,
+  // folder_filter or include_transforms routes the read through the scene
+  // snapshot, which walks the level twice; the 7 second default is close enough
+  // to that on a large level to report a failure for work that succeeds.
+  puerts_find_actors: 15000,
+  // The spawn finishes through a one-operation scene batch when name, folder or
+  // scale is given, and that batch verifies by reading the level back.
+  puerts_spawn_actor: 15000,
   puerts_material_inspect: 15000,
   // A static switch change recompiles the instance's shader permutation, and
   // the command blocks on that compile rather than reporting "requested".

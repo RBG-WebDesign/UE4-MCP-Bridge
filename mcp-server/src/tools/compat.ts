@@ -190,31 +190,32 @@ const aliases: readonly CompatAlias[] = [
     name: "actor_spawn",
     canonical: "puerts_spawn_actor",
     description:
-      "Spawn an actor from an asset path at a given location/rotation. asset_path becomes class_path. " +
-      "scale, name and folder have no native equivalent and are refused rather than dropped.",
+      "Spawn an actor from an asset path at a given location/rotation/scale. asset_path becomes class_path. " +
+      "scale, name and folder pass straight through: puerts_spawn_actor takes all three again.",
     inputSchema: z.object({
       asset_path: z.string().describe("Asset or class path (e.g. /Game/Meshes/SM_Cube, /Script/Engine.StaticMeshActor)"),
       location: vector.optional().describe("World location"),
       rotation: rotation.optional().describe("Rotation"),
-      scale: vector.optional().describe("Not supported natively; supplying it fails the call"),
-      name: z.string().optional().describe("Not supported natively; supplying it fails the call"),
-      folder: z.string().optional().describe("Not supported natively; supplying it fails the call"),
+      scale: vector.optional().describe("World scale"),
+      name: z.string().optional().describe("Actor label for the spawned actor"),
+      folder: z.string().optional().describe("World Outliner folder path"),
       validate: z.boolean().optional().describe("Native spawn always validates; only true is accepted"),
     }),
+    // scale, name and folder were refused here until 2026-08-03, because the
+    // native spawn had dropped all three in the migration. They are native
+    // parameters again, under the same names, so the alias is a pass-through
+    // rather than a refusal with advice.
     translate: (params) => {
-      const rejected = rejectSupplied(params, [
-        ["scale", "puerts_spawn_actor spawns at unit scale. Set the scale afterwards with puerts_set_property on the root SceneComponent (RelativeScale3D)."],
-        ["name", "puerts_spawn_actor does not label the spawned actor. Rename it with puerts_call_function Actor.SetActorLabel."],
-        ["folder", "puerts_spawn_actor cannot place the actor in a World Outliner folder. There is no native folder command."],
-      ]);
       if (params.validate === false) {
-        rejected.parameters.push("validate");
-        rejected.reasons.push("validate: puerts_spawn_actor always validates the spawn; validation cannot be disabled.");
+        return unmappable(
+          ["validate"],
+          ["validate: puerts_spawn_actor always validates the spawn; validation cannot be disabled."],
+        );
       }
-      if (rejected.parameters.length > 0) return unmappable(rejected.parameters, rejected.reasons);
       const translated: Params = { class_path: params.asset_path };
-      if (params.location !== undefined) translated.location = params.location;
-      if (params.rotation !== undefined) translated.rotation = params.rotation;
+      for (const key of ["location", "rotation", "scale", "name", "folder"] as const) {
+        if (params[key] !== undefined) translated[key] = params[key];
+      }
       return routed(translated);
     },
   },
@@ -289,27 +290,26 @@ const aliases: readonly CompatAlias[] = [
     name: "level_actors",
     canonical: "puerts_find_actors",
     description:
-      "List actors in the current level. class_filter becomes type, name_filter becomes name, limit passes through. " +
-      "Native filters are substring matches, so wildcard patterns and folder filtering are refused.",
+      "List actors in the current level. class_filter becomes type, name_filter becomes name, " +
+      "folder_filter, include_transforms and limit pass through. " +
+      "Native filters are substring matches, so wildcard patterns are refused.",
     inputSchema: z.object({
       class_filter: z.string().optional().describe("Class name substring. Wildcards (* ?) are not supported natively."),
       name_filter: z.string().optional().describe("Actor label substring. Wildcards (* ?) are not supported natively."),
-      folder_filter: z.string().optional().describe("Not supported natively; supplying it fails the call"),
-      include_transforms: z.boolean().optional().describe("Native results always include transforms; only true is accepted"),
+      folder_filter: z.string().optional().describe("World Outliner folder prefix"),
+      include_transforms: z.boolean().optional().describe("Include location, rotation and scale. Defaults to true, as it did legacy-side."),
       include_components: z.boolean().optional().describe("Not supported natively; supplying it fails the call"),
       limit: z.number().int().min(1).optional().describe("Max actors to return"),
     }),
+    // folder_filter was refused and include_transforms was accepted only as
+    // true, because the native find_actors had dropped both in the migration.
+    // Both are native parameters again, under the same names. include_components
+    // is still refused: puerts_scene_inspect is the tool that reports components.
     translate: (params) => {
-      const rejected = rejectSupplied(params, [
-        ["folder_filter", "puerts_find_actors has no folder filter. Filter the returned actors client-side."],
-      ]);
+      const rejected = rejectSupplied(params, []);
       if (params.include_components === true) {
         rejected.parameters.push("include_components");
-        rejected.reasons.push("include_components: puerts_find_actors returns no component list. Read components with puerts_read_property.");
-      }
-      if (params.include_transforms === false) {
-        rejected.parameters.push("include_transforms");
-        rejected.reasons.push("include_transforms: puerts_find_actors always returns the native actor snapshot; transforms cannot be excluded.");
+        rejected.reasons.push("include_components: puerts_find_actors returns no component list. Read the level with puerts_scene_inspect (include_components) instead.");
       }
       for (const key of ["class_filter", "name_filter"] as const) {
         const value = params[key];
@@ -322,6 +322,11 @@ const aliases: readonly CompatAlias[] = [
       const translated: Params = {};
       if (params.class_filter !== undefined) translated.type = params.class_filter;
       if (params.name_filter !== undefined) translated.name = params.name_filter;
+      if (params.folder_filter !== undefined) translated.folder_filter = params.folder_filter;
+      // The legacy default was true and the native default is false, so the
+      // alias states it rather than inheriting it: a legacy caller that never
+      // passed the flag still gets the transforms it always got.
+      translated.include_transforms = params.include_transforms !== false;
       if (params.limit !== undefined) translated.limit = params.limit;
       return routed(translated);
     },

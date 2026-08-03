@@ -73,7 +73,7 @@ async function main(): Promise<void> {
     });
     const client = new PuerTSClient();
     const tools = createPuertsTools(client);
-    assert(tools.length === 45, "expected all 45 PuerTS tools");
+    assert(tools.length === 47, "expected all 47 PuerTS tools");
     assert(tools.some((tool) => tool.name === "puerts_behavior_tree_build"), "native Behavior Tree builder tool is missing");
     assert(tools.some((tool) => tool.name === "puerts_behavior_tree_inspect"), "native Behavior Tree inspector tool is missing");
     assert(tools.some((tool) => tool.name === "puerts_sky_shader_create"), "native sky shader tool is missing");
@@ -815,6 +815,133 @@ async function sceneSuite(): Promise<void> {
       "scene_batch did not get a batch-sized timeout budget",
     );
     console.log("  PASS  scene inspect and batch contract");
+  } finally {
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+    await rm(directory, { recursive: true, force: true });
+    delete process.env.MCP_PUERTS_TOKEN_PATH;
+    delete process.env.MCP_PUERTS_PIPE;
+  }
+}
+
+/** Level completion: the restored legacy parameters, the lighting build and the
+    class-default patch.
+
+    The first half is a REGRESSION test and is the reason this suite exists. The
+    legacy actor_spawn took name, folder and scale and the legacy level_actors
+    took folder_filter and include_transforms; none of the five survived the
+    native migration, and nothing failed when they went, because a dropped
+    parameter is only visible to a test that names it. These assertions fail if
+    any of them is dropped again.
+
+    The second half is contract only, as everywhere else in this file:
+    everything below the schema is C++ no unit test can reach. What is checkable
+    here is that lighting_build carries no wait parameter to promise something it
+    does not do, and that class_defaults_patch's properties object survives the
+    JSON-text encoding an MCP client applies to structured parameters. */
+async function levelCompletionSuite(): Promise<void> {
+  const { toolAnnotations } = await import("../src/annotations.js");
+  assert(
+    toolAnnotations.puerts_lighting_build?.readOnlyHint === false
+      && toolAnnotations.puerts_lighting_build?.idempotentHint === true,
+    "lighting_build must be mutating and idempotent",
+  );
+  assert(
+    toolAnnotations.puerts_class_defaults_patch?.readOnlyHint === false
+      && toolAnnotations.puerts_class_defaults_patch?.destructiveHint === false,
+    "class_defaults_patch must be mutating and not destructive: it clears nothing",
+  );
+
+  const directory = await mkdtemp(join(tmpdir(), "ue4-puerts-level-"));
+  const tokenPath = join(directory, "token.txt");
+  const pipeName = `\\\\.\\pipe\\ue4-puerts-level-${process.pid}-${Date.now()}`;
+  await writeFile(tokenPath, "test-token", "utf8");
+  process.env.MCP_PUERTS_TOKEN_PATH = tokenPath;
+  process.env.MCP_PUERTS_PIPE = pipeName;
+  await advertiseSession(pipeName);
+
+  const received: Record<string, unknown>[] = [];
+  const server = createServer((socket) => socket.once("data", (data: Buffer) => {
+    const request = JSON.parse(data.toString("utf8")) as {
+      tool?: string; params?: Record<string, unknown>;
+    };
+    received.push({ ...request.params, __tool: request.tool });
+    socket.end(JSON.stringify({
+      session: RESPONSE_SESSION,
+      success: true,
+      message: "ok",
+      data: { started: true, waited: false },
+      changed_assets: [], changed_actors: [], warnings: [], errors: [],
+      log_output: [], transaction_id: "",
+    }) + "\n");
+  }));
+
+  try {
+    await new Promise<void>((resolve, reject) => {
+      server.once("error", reject);
+      server.listen(pipeName, resolve);
+    });
+    const tools = createPuertsTools(new PuerTSClient());
+    const named = (name: string) => {
+      const tool = tools.find((entry) => entry.name === name);
+      assert(tool !== undefined, `${name} is missing`);
+      return tool;
+    };
+
+    // --- the restored legacy parameters reach the runtime ------------------
+    await named("puerts_spawn_actor").handler({
+      class_path: "/Script/Engine.StaticMeshActor",
+      name: "Pillar_NE",
+      folder: "Courtyard/Structure",
+      scale: { x: 1, y: 1, z: 4 },
+    });
+    const spawn = received[0];
+    assert(spawn?.__tool === "spawn_actor", "the spawn runtime command name is wrong");
+    assert(spawn?.name === "Pillar_NE", "spawn_actor dropped the legacy name parameter");
+    assert(spawn?.folder === "Courtyard/Structure", "spawn_actor dropped the legacy folder parameter");
+    assert(
+      JSON.stringify(spawn?.scale) === JSON.stringify({ x: 1, y: 1, z: 4 }),
+      "spawn_actor dropped the legacy scale parameter, or sent it as text",
+    );
+
+    await named("puerts_find_actors").handler({ folder_filter: "Courtyard", include_transforms: true });
+    const find = received[1];
+    assert(find?.__tool === "find_actors", "the find runtime command name is wrong");
+    assert(find?.folder_filter === "Courtyard", "find_actors dropped the legacy folder_filter parameter");
+    assert(find?.include_transforms === true, "find_actors dropped the legacy include_transforms parameter");
+
+    // --- lighting_build promises nothing it does not do --------------------
+    const waited = await named("puerts_lighting_build").handler({ wait_for_completion: true });
+    assert(
+      JSON.parse(waited.content[0]?.text ?? "null").success === false,
+      "lighting_build accepted wait_for_completion; it never waits, and accepting the key would "
+      + "promise a completed build",
+    );
+    await named("puerts_lighting_build").handler({ action: "status" });
+    assert(received[2]?.__tool === "lighting_build", "the lighting runtime command name is wrong");
+    assert(received[2]?.action === "status", "the lighting action did not reach the runtime");
+
+    // --- class_defaults_patch: path limit and structured properties --------
+    const outsidePath = await named("puerts_class_defaults_patch").handler({
+      asset_path: "/Game/Elsewhere/BP_Guard",
+      properties: { AutoPossessAI: "PlacedInWorldOrSpawned" },
+    });
+    assert(
+      JSON.parse(outsidePath.content[0]?.text ?? "null").success === false,
+      "class_defaults_patch accepted a path outside /Game/MCPGenerated/",
+    );
+    assert(received.length === 3, "a rejected class-defaults patch still reached the pipe");
+
+    await named("puerts_class_defaults_patch").handler({
+      asset_path: "/Game/MCPGenerated/BP_SliceGuardPawn",
+      properties: JSON.stringify({ AIControllerClass: "/Game/MCPGenerated/BP_A.BP_A_C" }),
+    });
+    const patch = received[3];
+    assert(patch?.__tool === "class_defaults_patch", "the class-defaults runtime command name is wrong");
+    assert(
+      typeof patch?.properties === "object" && patch?.properties !== null,
+      "properties arrived as text rather than an object; the structured-parameter decode is missing",
+    );
+    console.log("  PASS  restored legacy parameters, lighting build and class defaults contract");
   } finally {
     await new Promise<void>((resolve) => server.close(() => resolve()));
     await rm(directory, { recursive: true, force: true });
@@ -1737,6 +1864,7 @@ main()
   .then(animationSuite)
   .then(materialSuite)
   .then(sceneSuite)
+  .then(levelCompletionSuite)
   .then(connectionContractSuite)
   .then(nonActorParentSuite)
   .then(graphInspectSuite)

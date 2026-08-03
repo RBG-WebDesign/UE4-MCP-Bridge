@@ -11,6 +11,7 @@ import {
   optionalBoolean,
   optionalNumber,
   optionalString,
+  requireObject,
   requireString,
   response,
 } from "./types";
@@ -64,27 +65,92 @@ async function findAssets(context: ToolContext, input: JsonObject): Promise<Comm
   const parsed = JSON.parse(puerts.$unref(assetsJson)) as JsonObject;
   return response(true, "Assets found.", parsed);
 }
+function jsonObjectAt(value: JsonValue | undefined): JsonObject | undefined {
+  return value !== null && value !== undefined && typeof value === "object" && !Array.isArray(value)
+    ? value
+    : undefined;
+}
+
+/**
+ * The actor rows find_actors filters, in one shape whichever reader produced
+ * them.
+ *
+ * GetLevelActorsJson is the default and stays the default: object name, path,
+ * class, label and world location, which is exactly what every existing caller
+ * already reads, from a plain actor iteration.
+ *
+ * folder_filter and include_transforms cannot be answered from it, and those
+ * two shipped in the legacy level_actors and did not survive the native
+ * migration. A request that uses either reads the level through
+ * InspectSceneJson instead - the SAME snapshot scene_inspect reports and
+ * scene_batch converges against, rather than a third reader that could disagree
+ * with both. Its extra cost (bounds per actor, a whole-level hash) is paid only
+ * by the requests that need what it knows.
+ */
+function levelActorRows(context: ToolContext, useSnapshot: boolean, includeTransforms: boolean): JsonObject[] {
+  if (!useSnapshot) {
+    const parsed = JSON.parse(context.bridge.GetLevelActorsJson()) as { actors?: JsonValue };
+    const raw = Array.isArray(parsed.actors) ? parsed.actors : [];
+    return raw.map(jsonObjectAt).filter((row): row is JsonObject => row !== undefined);
+  }
+
+  const resultJson = puerts.$ref<string>("");
+  const error = puerts.$ref<string>("");
+  if (!context.bridge.InspectSceneJson(
+    JSON.stringify({ include_components: false }), resultJson, error)) {
+    throw new Error(puerts.$unref(error));
+  }
+  const parsed = JSON.parse(puerts.$unref(resultJson)) as { actors?: JsonValue };
+  const raw = Array.isArray(parsed.actors) ? parsed.actors : [];
+  const rows: JsonObject[] = [];
+  for (const entry of raw) {
+    const actor = jsonObjectAt(entry);
+    if (actor === undefined) { continue; }
+    const transform = jsonObjectAt(actor.transform);
+    // Renamed into the reader the default path uses, never the other way round:
+    // an existing caller reads name, class_name and location, and a response
+    // that changed those keys because a filter was added would be a second
+    // regression fixing the first.
+    const row: JsonObject = {
+      name: typeof actor.id === "string" ? actor.id : "",
+      path: typeof actor.path === "string" ? actor.path : "",
+      class_name: typeof actor.class === "string" ? actor.class : "",
+      label: typeof actor.label === "string" ? actor.label : "",
+      location: transform?.location ?? null,
+      folder: typeof actor.folder === "string" ? actor.folder : "",
+    };
+    if (includeTransforms && transform !== undefined) {
+      row.transform = transform;
+    }
+    rows.push(row);
+  }
+  return rows;
+}
+
 async function findActors(context: ToolContext, input: JsonObject): Promise<CommandResponse> {
   const nameFilter = optionalString(input, "name")?.toLowerCase();
   const typeFilter = optionalString(input, "type")?.toLowerCase();
+  // Prefix, not substring, because that is what the legacy level_actors did:
+  // folder.startswith(folder_filter), so "Courtyard" takes "Courtyard/Lighting"
+  // and does not take "OldCourtyard".
+  const folderFilter = optionalString(input, "folder_filter");
+  const includeTransforms = optionalBoolean(input, "include_transforms", false);
   const limit = Math.max(1, Math.min(500, Math.trunc(optionalNumber(input, "limit", 200))));
   const actors: JsonValue[] = [];
-  const parsed = JSON.parse(context.bridge.GetLevelActorsJson()) as { actors?: unknown };
-  const snapshots = Array.isArray(parsed.actors) ? parsed.actors : [];
-  for (const snapshot of snapshots) {
-    if (snapshot === null || Array.isArray(snapshot) || typeof snapshot !== "object") {
-      continue;
-    }
-    const actor = snapshot as JsonObject;
+  for (const actor of levelActorRows(context, folderFilter !== undefined || includeTransforms, includeTransforms)) {
     const name = typeof actor.name === "string" ? actor.name : "";
     const label = typeof actor.label === "string" ? actor.label : name;
     const className = typeof actor.class_name === "string" ? actor.class_name : "";
+    const folder = typeof actor.folder === "string" ? actor.folder : "";
     if (nameFilter !== undefined
       && !name.toLowerCase().includes(nameFilter)
       && !label.toLowerCase().includes(nameFilter)) {
       continue;
     }
     if (typeFilter !== undefined && !className.toLowerCase().includes(typeFilter)) {
+      continue;
+    }
+    if (folderFilter !== undefined && !folder.startsWith(folderFilter)) {
       continue;
     }
     actors.push(actor);
@@ -215,8 +281,44 @@ async function spawnActor(context: ToolContext, input: JsonObject): Promise<Comm
   if (actor === null || Array.isArray(actor) || typeof actor !== "object" || typeof actor.path !== "string") {
     throw new Error("Native spawn returned invalid actor JSON");
   }
+
+  // name, folder and scale shipped in the legacy actor_spawn and did not
+  // survive the native migration; the compat alias refuses all three today.
+  // They are restored here by finishing the spawn through scene_batch rather
+  // than by teaching the native spawn three more parameters: that command
+  // already labels, folders and scales an actor, verifies the result by reading
+  // the level back, and refuses a label that belongs to someone else. Both
+  // calls are inside the one transaction this command opened, so a finish that
+  // fails takes the spawn with it.
+  const label = optionalString(input, "name");
+  const folder = optionalString(input, "folder");
+  const scale = optionalObject(input, "scale");
   const result = response(true, "Actor spawned.", parsed);
   result.changed_actors.push(actor.path);
+  if (label === undefined && folder === undefined && scale === undefined) {
+    return result;
+  }
+  if (typeof actor.name !== "string" || actor.name.length === 0) {
+    throw new Error("Native spawn returned no object name, so the spawned actor cannot be addressed");
+  }
+
+  const operation: JsonObject = { op: "upsert_actor", select: { name: actor.name } };
+  if (label !== undefined) { operation.label = label; }
+  if (folder !== undefined) { operation.folder = folder; }
+  if (scale !== undefined) { operation.scale = scale; }
+  const finishJson = puerts.$ref<string>("");
+  const finishError = puerts.$ref<string>("");
+  if (!context.bridge.ApplySceneBatchJson(
+    JSON.stringify({ operations: [operation], verify: true }), finishJson, finishError)) {
+    const body = puerts.$unref(finishJson);
+    return commandFailure(
+      new Error(puerts.$unref(finishError)),
+      body.length > 0 ? (JSON.parse(body) as JsonObject) : {},
+    );
+  }
+  // The batch's own report, verbatim: which of the three actually changed, the
+  // verification read-back, and the structure hashes either side of it.
+  parsed.finish = JSON.parse(puerts.$unref(finishJson)) as JsonObject;
   return result;
 }
 async function deleteActor(context: ToolContext, input: JsonObject): Promise<CommandResponse> {
@@ -1173,6 +1275,101 @@ async function applySceneBatch(context: ToolContext, input: JsonObject): Promise
   return result;
 }
 
+/** Start a Lightmass lighting build for the level the editor has open, or
+    report the state of one.
+
+    This function is an envelope and nothing else, deliberately: the decision
+    that matters, that the command returns as soon as the build has STARTED and
+    never blocks on it finishing, is the native side's and is documented there.
+    The response says so in `waited` and `completion` rather than leaving a
+    caller to assume a returned success means baked lighting. */
+async function buildLighting(context: ToolContext, input: JsonObject): Promise<CommandResponse> {
+  const spec: JsonObject = {};
+  for (const key of ["action", "quality", "level_path"]) {
+    const value = optionalString(input, key);
+    if (value !== undefined) { spec[key] = value; }
+  }
+  if (input.only_current_level !== undefined) {
+    spec.only_current_level = optionalBoolean(input, "only_current_level", true);
+  }
+
+  const resultJson = puerts.$ref<string>("");
+  const error = puerts.$ref<string>("");
+  if (!context.bridge.BuildLightingJson(JSON.stringify(spec), resultJson, error)) {
+    const body = puerts.$unref(resultJson);
+    if (body.length > 0) {
+      return commandFailure(new Error(puerts.$unref(error)), JSON.parse(body) as JsonObject);
+    }
+    throw new Error(puerts.$unref(error));
+  }
+  const parsed = JSON.parse(puerts.$unref(resultJson)) as JsonObject;
+  const started = parsed.started === true;
+  const result = response(
+    true,
+    started
+      ? "Lighting build started. It is NOT finished: poll with action=\"status\"."
+      : "Lighting status read.",
+    parsed,
+  );
+  if (started) {
+    // No changed_assets. The build has not written anything yet, and naming the
+    // level here would tell a client there is something to save when there is
+    // not; the map build data changes when the build completes, minutes later.
+    result.warnings.push(
+      "lighting_build does not wait for the build to finish. Poll it with action=\"status\" until "
+      + "build_running is false before screenshotting or saving.");
+  }
+  return result;
+}
+
+/** Set inherited class-default (CDO) values on a generated Blueprint.
+
+    The envelope only. The validate-before-mutate pass, the snapshot-and-restore
+    boundary that exists because a transaction provably does not cover a CDO
+    write (finding 0r), the convergence test and the read-back are the native
+    command's. */
+async function patchClassDefaults(context: ToolContext, input: JsonObject): Promise<CommandResponse> {
+  const spec: JsonObject = {
+    asset_path: requireString(input, "asset_path"),
+    properties: requireObject(input, "properties") as JsonValue,
+  };
+  for (const flag of ["plan_only", "verify", "save"]) {
+    if (input[flag] !== undefined) { spec[flag] = optionalBoolean(input, flag, false); }
+  }
+
+  const resultJson = puerts.$ref<string>("");
+  const error = puerts.$ref<string>("");
+  if (!context.bridge.PatchClassDefaultsJson(JSON.stringify(spec), resultJson, error)) {
+    // A refused patch carries the closest property names, which of the requested
+    // values were already satisfied, and whether the restore put the class
+    // defaults back. Throwing here would discard all of it.
+    const body = puerts.$unref(resultJson);
+    if (body.length > 0) {
+      return commandFailure(new Error(puerts.$unref(error)), JSON.parse(body) as JsonObject);
+    }
+    throw new Error(puerts.$unref(error));
+  }
+  const parsed = JSON.parse(puerts.$unref(resultJson)) as JsonObject;
+  const applied = typeof parsed.applied_property_count === "number" ? parsed.applied_property_count : 0;
+  const result = response(
+    true,
+    parsed.plan_only === true
+      ? "Class default patch planned."
+      : applied === 0 ? "Class defaults already match the request." : "Class defaults changed.",
+    parsed,
+  );
+  if (parsed.transaction_covers_cdo === false) {
+    result.warnings.push(
+      "CDO->Modify() returned false: this class default object did not reach the undo buffer, so "
+      + "editor undo will not revert the write. The command's own restore boundary is what makes a "
+      + "failure atomic.");
+  }
+  if (applied > 0 && typeof parsed.asset_path === "string") {
+    result.changed_assets.push(parsed.asset_path);
+  }
+  return result;
+}
+
 /** Read the project's input mappings. The missing inspector for
     UMCPBridgeInputLibrary: the library could add and remove bindings and had no
     reader, so every mutation was only ever confirmed by the mutator's own
@@ -1554,11 +1751,17 @@ async function undo(context: ToolContext, input: JsonObject): Promise<CommandRes
 export const toolDefinitions: readonly ToolDefinition[] = [
   { name: "diagnostic", inputSchema: schema({ actor_limit: { type: "number" } }), outputSchema, permissions: ["actors.read"], executionTimeoutMs: 2000, execute: diagnostic },
   { name: "find_assets", inputSchema: schema({ path: { type: "string" }, type: { type: "string" }, name: { type: "string" }, recursive: { type: "boolean" }, limit: { type: "number" } }), outputSchema, permissions: ["assets.read"], executionTimeoutMs: 4000, execute: findAssets },
-  { name: "find_actors", inputSchema: schema({ name: { type: "string" }, type: { type: "string" }, limit: { type: "number" } }), outputSchema, permissions: ["actors.read"], executionTimeoutMs: 2000, execute: findActors },
+  // folder_filter and include_transforms are the legacy level_actors parameters
+  // restored. Either one routes the read through the scene snapshot, which is a
+  // heavier read than the default actor iteration, hence the larger budget.
+  { name: "find_actors", inputSchema: schema({ name: { type: "string" }, type: { type: "string" }, folder_filter: { type: "string" }, include_transforms: { type: "boolean" }, limit: { type: "number" } }), outputSchema, permissions: ["actors.read"], executionTimeoutMs: 15000, execute: findActors },
   { name: "read_property", inputSchema: schema({ ...targetProperties, property: { type: "string" } }, ["property"]), outputSchema, permissions: ["reflection.read"], executionTimeoutMs: 2000, execute: readProperty },
   { name: "set_property", inputSchema: schema({ ...targetProperties, property: { type: "string" }, value: {} }, ["property", "value"]), outputSchema, permissions: ["reflection.write"], executionTimeoutMs: 2000, execute: setProperty },
   { name: "call_function", inputSchema: schema({ actor: { type: "string" }, function: { type: "string" }, arguments: { type: "array" } }, ["actor", "function"]), outputSchema, permissions: ["functions.call"], executionTimeoutMs: 2000, execute: callApprovedFunction },
-  { name: "spawn_actor", inputSchema: schema({ class_path: { type: "string" }, location: { type: "object" }, rotation: { type: "object" } }, ["class_path"]), outputSchema, permissions: ["actors.spawn"], executionTimeoutMs: 3000, execute: spawnActor },
+  // name, folder and scale are the legacy actor_spawn parameters restored. They
+  // are finished through scene_batch inside the same transaction, so the budget
+  // covers a spawn plus a one-operation batch with its verification read.
+  { name: "spawn_actor", inputSchema: schema({ class_path: { type: "string" }, location: { type: "object" }, rotation: { type: "object" }, scale: { type: "object" }, name: { type: "string" }, folder: { type: "string" } }, ["class_path"]), outputSchema, permissions: ["actors.spawn", "reflection.write"], executionTimeoutMs: 15000, execute: spawnActor },
   { name: "delete_actor", inputSchema: schema({ actor: { type: "string" }, confirm: { type: "boolean" } }, ["actor", "confirm"]), outputSchema, permissions: ["actors.delete"], executionTimeoutMs: 2000, execute: deleteActor },
   { name: "sky_shader_create", inputSchema: schema({ asset_path: { type: "string" }, sky_actor: { type: "string" } }), outputSchema, permissions: ["assets.write", "reflection.write"], executionTimeoutMs: 10000, execute: createSkyShader },
   { name: "blueprint_build", inputSchema: schema({ asset_path: { type: "string" }, parent_class: { type: "string" }, components: { type: "array", items: { type: "object" } }, variables: { type: "array", items: { type: "object" } }, graph: { type: "object" }, compile: { type: "boolean" }, save: { type: "boolean" }, clear_existing_graph: { type: "boolean" }, remove_unlisted: { type: "object" }, plan_only: { type: "boolean" }, force_remove_referenced: { type: "boolean" } }, ["asset_path"]), outputSchema, permissions: ["assets.write"], executionTimeoutMs: 30000, execute: buildBlueprint },
@@ -1586,6 +1789,11 @@ export const toolDefinitions: readonly ToolDefinition[] = [
   { name: "material_instance_build", inputSchema: schema({ asset_path: { type: "string" }, parent_path: { type: "string" }, scalars: { type: "object" }, vectors: { type: "object" }, textures: { type: "object" }, switches: { type: "object" }, clear_unlisted: { type: "boolean" }, plan_only: { type: "boolean" }, save: { type: "boolean" } }, ["asset_path"]), outputSchema, permissions: ["assets.write"], executionTimeoutMs: 30000, execute: buildMaterialInstance },
   { name: "scene_inspect", inputSchema: schema({ level_path: { type: "string" }, actors: { type: "array", items: { type: "string" } }, include_components: { type: "boolean" }, include_properties: { type: "array", items: { type: "string" } } }), outputSchema, permissions: ["actors.read", "reflection.read"], executionTimeoutMs: 15000, execute: inspectScene },
   { name: "scene_batch", inputSchema: schema({ level_path: { type: "string" }, operations: { type: "array", items: { type: "object" } }, plan_only: { type: "boolean" }, verify: { type: "boolean" } }, ["operations"]), outputSchema, permissions: ["actors.spawn", "actors.delete", "reflection.write"], executionTimeoutMs: 60000, execute: applySceneBatch },
+  // Starts a Lightmass build and returns without waiting for it. The budget is
+  // for the synchronous half, the scene gather and Lightmass export, which is
+  // the only part this command blocks on.
+  { name: "lighting_build", inputSchema: schema({ action: { type: "string" }, quality: { type: "string" }, only_current_level: { type: "boolean" }, level_path: { type: "string" } }), outputSchema, permissions: ["assets.write"], executionTimeoutMs: 60000, execute: buildLighting },
+  { name: "class_defaults_patch", inputSchema: schema({ asset_path: { type: "string" }, properties: { type: "object" }, plan_only: { type: "boolean" }, verify: { type: "boolean" }, save: { type: "boolean" } }, ["asset_path", "properties"]), outputSchema, permissions: ["assets.write", "reflection.write"], executionTimeoutMs: 20000, execute: patchClassDefaults },
   { name: "input_mapping_info", inputSchema: schema({ action_name: { type: "string" }, axis_name: { type: "string" }, key: { type: "string" } }), outputSchema, permissions: ["project.config.read"], executionTimeoutMs: 3000, execute: inspectInputMappings },
   { name: "input_mapping_patch", inputSchema: schema({ preset: { type: "string" }, actions: { type: "array", items: { type: "object" } }, axes: { type: "array", items: { type: "object" } }, remove_actions: { type: "array", items: { type: "object" } }, remove_axes: { type: "array", items: { type: "object" } }, remove_unlisted: { type: "boolean" }, plan_only: { type: "boolean" } }), outputSchema, permissions: ["project.config.read", "project.config.write"], executionTimeoutMs: 10000, execute: patchInputMappings },
   { name: "folder_visibility", inputSchema: schema({ hidden: { type: "array", items: { type: "string" } }, hide: { type: "array", items: { type: "string" } }, show: { type: "array", items: { type: "string" } }, plan_only: { type: "boolean" } }), outputSchema, permissions: ["project.config.read", "project.config.write"], executionTimeoutMs: 5000, execute: setFolderVisibility },

@@ -147,22 +147,54 @@ await runSlice({
     variables: [{ name: "PatrolRadius", type: "float", default: 800 }],
   }, { label: "6. author the pawn the controller will possess" });
 
-  h.request("puerts_class_defaults_patch",
-    "set class-default (CDO) properties on a generated Blueprint. The AI slice needs AIControllerClass and "
-    + "AutoPossessAI on the pawn; puerts_blueprint_build writes component template properties and member variable "
-    + "defaults, and has no section for the actor's own class defaults, so an authored pawn can never be possessed "
-    + "by an authored controller",
-    {
-      tool: "puerts_class_defaults_patch",
-      alternative: "add a `defaults: {PropertyName: value}` section to puerts_blueprint_build",
-      params: {
-        asset_path: "/Game/MCPGenerated/...",
-        properties: "{PropertyName: reflected value} applied to the generated class default object",
-        plan_only: "boolean",
-        verify: "boolean",
-        save: "boolean",
+  // The class defaults. AIControllerClass and AutoPossessAI live on the actor
+  // CDO, not on a component template and not in NewVariables, so
+  // blueprint_build's schema cannot reach them. Without this the controller
+  // never possesses anything.
+  const defaults = await h.call("puerts_class_defaults_patch", {
+    asset_path: PAWN,
+    properties: {
+      AIControllerClass: `${CTRL}.BP_SliceGuardAI_C`,
+      AutoPossessAI: "PlacedInWorldOrSpawned",
+    },
+  }, {
+    label: "7. point the pawn's class defaults at the authored controller",
+    why: "an authored pawn that names no controller class is never possessed, and the tree never ticks",
+  });
+  if (defaults?.success === true) {
+    h.check((defaults.data?.verification_mismatches ?? []).length === 0,
+      "7. every class default read back as requested",
+      JSON.stringify(defaults.data?.verification_mismatches ?? []).slice(0, 300));
+    h.note("7. did the transaction cover the CDO write",
+      `transaction_covers_cdo=${defaults.data?.transaction_covers_cdo}. Finding 0r: a class default `
+      + "object is not RF_Transactional, so Modify() can return false and editor undo does not take "
+      + "the write back. The command's own snapshot-and-restore boundary is the way back.");
+
+    // Independent read: a different tool, a different native entry point, and
+    // the CDO addressed by the object path the patch reported rather than one
+    // this script guessed at.
+    const cdoPath = defaults.data?.class_default_object;
+    if (typeof cdoPath === "string" && cdoPath.length > 0) {
+      const back = await h.call("puerts_read_property", {
+        object_path: cdoPath,
+        property: "AIControllerClass",
+      }, { label: "8. read AIControllerClass back off the class default object" });
+      h.check(JSON.stringify(back?.data?.value ?? "").includes("BP_SliceGuardAI"),
+        "8. the pawn's class default really names the authored controller",
+        JSON.stringify(back?.data?.value ?? null).slice(0, 200));
+    }
+
+    const rerun = await h.call("puerts_class_defaults_patch", {
+      asset_path: PAWN,
+      properties: {
+        AIControllerClass: `${CTRL}.BP_SliceGuardAI_C`,
+        AutoPossessAI: "PlacedInWorldOrSpawned",
       },
-    });
+    }, { label: "9. rerunning the identical class defaults converges" });
+    h.check(rerun?.data?.applied_property_count === 0,
+      "9. the rerun wrote nothing and saved nothing",
+      `applied_property_count=${rerun?.data?.applied_property_count}`);
+  }
 
   // Navigation. MoveTo needs a NavMeshBoundsVolume in the level and a built
   // navmesh. Lane K ships nav_inspect and nav_query, both read-only, and lane L
@@ -182,7 +214,7 @@ await runSlice({
     },
     ["ai_nav_rebuild"]);
 
-  h.policy("7. watch the guard patrol",
+  h.policy("10. watch the guard patrol",
     "a Behavior Tree only ticks in a running game. PIE is reserved for the user to ask for, and the only runtime "
     + "observation surface is the pie_agent_* family, which is legacy-only and also user-gated.");
 
