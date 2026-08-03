@@ -9,15 +9,27 @@ executes it.
 
 ## State at session end
 
-- Lanes Y (`lane/y-animbp-snapshot`) and Z (`lane/z-async-jobs`) are MERGED.
-  verify green at 273 registrations, 60 native tools. Their C++ is UNCOMPILED.
-- Lane X (`lane/x-slice-green`) was STILL RUNNING at session end. First action
-  next session: `git log HEAD..lane/x-slice-green`; merge whatever it committed
-  with `node Scripts/merge-lane.mjs lane/x-slice-green`, then batch compile
-  (close the editor first), then re-run the seven slices.
-- After X merges: the batch compile covers Y and Z too. Highest compile risk:
-  MovieSceneCapture/MovieSceneTools module deps (lane Z) and the package-reload
-  restore path (lane Y).
+- ALL lanes merged: X, Y and Z are ancestors of HEAD. Every worktree clean,
+  every branch merged, no editor running, integration tree clean.
+- The batch compile PASSED: fresh DLLs, install matches the repository,
+  verify green at 273 registrations / 60 native tools.
+- UI slice PASS 20/0 and AI slice PASS 22/0, both run live. Gameplay 16/1.
+- UNCOMPILED: nothing. UNRUN despite compiling: the hidden-pin hash fix
+  (finding 0z), anim_blueprint_patch, sequence_render_start, the job API,
+  materials and level slices as rewritten, and 30 implemented tools that have
+  never been run live (RB-6).
+
+## Exact next commands
+
+Launch the editor with Scripts/start-ue4-project.ps1 -Confirm:$false against
+D:/Unreal Projects/BridgeInstallTest, wait for session.json, then:
+
+    npm run slice:ui ; npm run slice:ai ; npm run slice:gameplay
+    npm run slice:materials ; npm run slice:level
+    npm run slice:animation ; npm run slice:cinematics
+
+Then RB-2's last gameplay red, then the RB-6 promotion sweep, per
+docs/FINAL_IMPLEMENTATION_PLAN.md.
 
 ## Paste this into a fresh session
 
