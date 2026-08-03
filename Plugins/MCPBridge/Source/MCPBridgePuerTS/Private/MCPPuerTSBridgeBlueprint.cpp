@@ -1287,16 +1287,29 @@ bool UMCPPuerTSBridgeService::BuildBlueprintJson(
                 TEXT("not the graph they specified. Partial graph creation is not a success mode."),
                 FailedNodes.Num(), RequestedNodeTypes.Num(), *JoinStrings(FailedNodes))));
         }
-        if (ConnectionsMade != ConnectionCount)
+        // Every connection the builder could not make is recorded, so made plus
+        // unresolved equals requested until the not-whole discard zeroes the
+        // made count. Keying off the unresolved list rather than off that
+        // arithmetic keeps this message about connections: a graph discarded
+        // because a NODE was refused has its own error and does not need a
+        // second one blaming twelve links that were fine.
+        if (UnresolvedConnections.Num() > 0)
         {
             Errors.Add(MakeShared<FJsonValueString>(FString::Printf(
-                TEXT("%d of %d graph connection(s) could not be wired and were dropped: %s. ")
+                // The numerator is the number of connections that could not be
+                // RESOLVED, not the shortfall in links made. Those differ:
+                // a graph that is not whole is discarded entirely, which zeroes
+                // the made count, and reporting "12 of 12 dropped" for one bad
+                // endpoint sends the reader looking for eleven problems that do
+                // not exist.
+                TEXT("%d of %d graph connection(s) could not be wired, so the whole graph was ")
+                TEXT("discarded: %s. ")
                 TEXT("A connection endpoint is nodeId.pinRole, and a role that names no pin of ")
                 TEXT("that direction is silently discarded by the graph editor, so the build is ")
                 TEXT("failed rather than saved. A pure node has no exec pins: a const ")
                 TEXT("BlueprintCallable UFUNCTION with a return value is promoted to ")
                 TEXT("BlueprintPure by UHT."),
-                ConnectionCount - ConnectionsMade, ConnectionCount,
+                UnresolvedConnections.Num(), ConnectionCount,
                 *JoinStrings(UnresolvedConnections))));
         }
     }

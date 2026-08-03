@@ -3,8 +3,8 @@
   "title": "a Behavior Tree plus Blackboard driving an AIController on a pawn",
   "proves": "author the tree, the blackboard, the controller wiring and the pawn, then prove the wiring by reading it back",
   "phase": "warm",
-  "generated_at": "2026-08-03T15:42:01.100Z",
-  "verdict": "PRESENT_BUT_FAILING",
+  "generated_at": "2026-08-03T18:14:18.939Z",
+  "verdict": "PASS",
   "editor": {
     "available": true,
     "reason": "puerts_diagnostic answered"
@@ -152,23 +152,64 @@
       "n": 23,
       "label": "7. point the pawn's class defaults at the authored controller",
       "tool": "puerts_class_defaults_patch",
-      "status": "FAIL",
-      "detail": "PRESENT BUT FAILING: [\"could not set 'AIControllerClass' on the class default object: value must be valid JSON.\"]"
+      "status": "PASS"
     },
     {
       "n": 24,
+      "label": "7. every class default read back as requested",
+      "status": "PASS",
+      "detail": "[]"
+    },
+    {
+      "n": 25,
+      "label": "7. did the transaction cover the CDO write",
+      "status": "NOTE",
+      "detail": "transaction_covers_cdo=true. Finding 0r: a class default object is not RF_Transactional, so Modify() can return false and editor undo does not take the write back. The command's own snapshot-and-restore boundary is the way back."
+    },
+    {
+      "n": 26,
+      "label": "primitive puerts_read_property is registered",
+      "tool": "puerts_read_property",
+      "status": "PASS"
+    },
+    {
+      "n": 27,
+      "label": "8. read AIControllerClass back off the class default object",
+      "tool": "puerts_read_property",
+      "status": "PASS"
+    },
+    {
+      "n": 28,
+      "label": "8. the pawn's class default really names the authored controller",
+      "status": "PASS",
+      "detail": "\"BlueprintGeneratedClass'/Game/MCPGenerated/BP_SliceGuardAI.BP_SliceGuardAI_C'\""
+    },
+    {
+      "n": 29,
+      "label": "9. rerunning the identical class defaults converges",
+      "tool": "puerts_class_defaults_patch",
+      "status": "PASS"
+    },
+    {
+      "n": 30,
+      "label": "9. the rerun wrote nothing and saved nothing",
+      "status": "PASS",
+      "detail": "applied_property_count=0"
+    },
+    {
+      "n": 31,
       "label": "primitive puerts_scene_batch is registered",
       "tool": "puerts_scene_batch",
       "status": "PASS"
     },
     {
-      "n": 25,
+      "n": 32,
       "label": "primitive puerts_nav_build is registered",
       "tool": "puerts_nav_build",
       "status": "PASS"
     },
     {
-      "n": 26,
+      "n": 33,
       "label": "10. watch the guard patrol",
       "status": "NOT_ATTEMPTED_BY_POLICY",
       "detail": "a Behavior Tree only ticks in a running game. PIE is reserved for the user to ask for, and the only runtime observation surface is the pie_agent_* family, which is legacy-only and also user-gated."
@@ -176,8 +217,8 @@
   ],
   "missing_primitives": [],
   "checks": {
-    "passed": 16,
-    "failed": 1
+    "passed": 22,
+    "failed": 0
   },
   "sealed_artifacts": [
     {
@@ -185,10 +226,10 @@
       "inspect_tool": "puerts_behavior_tree_inspect",
       "structure_hash": "BF3824C2AE6A676D9AA54A5558CE0C14F06D2DD9",
       "node_count": null,
-      "file_sha256": "afa335635a2f427480ce4ffa832e95424d81c208f5f4ef350a6898985a4a7f2c"
+      "file_sha256": "b6efd27ef9abf9ea67a4f87f622fde350ac6b512e0838a5ee3f5428f93b3f80d"
     }
   ],
-  "mcp_round_trips": 9,
-  "elapsed_ms": 2458,
+  "mcp_round_trips": 11,
+  "elapsed_ms": 5166,
   "blocks": []
 }

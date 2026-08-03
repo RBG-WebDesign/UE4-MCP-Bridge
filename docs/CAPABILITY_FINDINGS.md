@@ -2531,3 +2531,66 @@ belongs in the final environment vertical slice, where static lighting is part
 of what is being proven, and there Swarm genuinely must work. Any earlier test
 that triggers a lighting build is buying a multi-minute external dependency for
 a check it does not need.
+
+## Finding 0v: widget_build re-saved an asset it had not changed
+
+Found and fixed 2026-08-03 by lane X, live against BridgeInstallTest. The UI
+slice's one red check: "3. a converged rerun wrote no new bytes to disk".
+
+The structure hash was already unmoved by an identical rebuild, so the tree was
+converging correctly. The FILE was not. UE regenerates a package GUID on every
+save, so re-saving an unchanged asset changes its bytes unconditionally: there
+is no such thing as an idempotent save. A caller told "nothing changed" then
+finds a modified file, a source-control edit and a new checksum.
+
+That makes "do not save when nothing changed" the only available form of
+convergence for any builder in this catalog, not a nicety. It is worth stating
+generally because the same check is written into the gameplay and materials
+slices against different builders.
+
+`RebuildWidgetFromJSON` has no no-op path and cannot get one cheaply: a widget
+tree has no per-widget identity to merge against, so the spec is always the
+whole tree and the rebuild always replaces it. Convergence is therefore measured
+after the fact, in `MCPPuerTSBridgeWidget.cpp`: the canonical `DescribeWidget`
+description of the tree the rebuild FOUND is compared with the one it LEFT.
+Equal means the rebuild reproduced the same tree, so the file on disk is already
+correct, nothing is saved, and the package's dirty flag is put back the way it
+was found. `converged` is reported either way.
+
+Live: `slice-ui` 20 passed, 0 failed, verdict PASS.
+
+## Finding 0w: class_defaults_patch built its request JSON with printf and it did not parse
+
+Found and fixed 2026-08-03 by lane X, live against BridgeInstallTest. The AI
+slice's one red check, and the whole reason the AI domain could not be finished:
+
+```
+could not set 'AIControllerClass' on the class default object: value must be
+valid JSON.
+```
+
+`PatchClassDefaultsJson` validated the value, exported it on a scratch copy of
+the property, decided it was a real change, opened a transaction, snapshotted
+the CDO, and then handed `SetObjectPropertyJson` a request string built as
+`FString::Printf(TEXT("{\"value\":%s}"), *SerializedBareValue)`, where the bare
+value came from `FJsonSerializer::Serialize(Value, TEXT(""), Writer)`.
+
+Serializing a scalar at the ROOT of a writer is not the same operation as
+writing an object field, and the receiving parser rejected the result. Every
+class default write failed, on every property, for every caller. The command's
+own rollback then worked correctly and reported an honest failure, which is why
+this read as a tidy refusal rather than as damage.
+
+Fixed by building a real `FJsonObject` and serializing it with the service's own
+`SerializeJson`, the helper every other command in the file already uses. There
+was no missing capability and no engine subtlety: there was a hand-built JSON
+string next to a function that builds JSON.
+
+The refusal now also quotes the value it sent. A write refusal that names
+neither the value nor its encoding cannot be acted on without a debugger, and
+this one could not: the message named the property and the parser's complaint
+and nothing that would have located the defect.
+
+Live: `slice-ai` 22 passed, 0 failed, verdict PASS, including the independent
+read of `AIControllerClass` off the class default object through
+`puerts_read_property` and a converged rerun that wrote nothing.
