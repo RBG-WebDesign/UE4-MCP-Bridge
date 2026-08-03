@@ -472,12 +472,6 @@ export function assertInstallCurrent(projectRoot) {
     'Run: npm run install:sync -- --project <path>');
 }
 
-// pathToFileURL, not a hand-built 'file://' + path: on Windows the hand-built
-// form never matches import.meta.url (three slashes, percent-encoded spaces).
-// This file only ever ran because of the endsWith fallback beside it, which
-// also matched any other file with this basename. mutator-atomicity.mjs copied
-// the broken half without the fallback and silently no-opped.
-if (import.meta.url === pathToFileURL(process.argv[1]).href) {
 // pathToFileURL, not a hand-built `file://${path}`: import.meta.url
 // percent-encodes the spaces in "D:\Unreal Projects", so the hand-built form
 // never matched on Windows and only the endsWith() fallback below it was ever
