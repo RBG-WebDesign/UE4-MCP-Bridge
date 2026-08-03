@@ -1,0 +1,43 @@
+{
+  "asset_path": "/Game/MCPGenerated/BP_DefaultProbe_mscwbhi4",
+  "variable": "Delta",
+  "value": 0.75,
+  "rows": [
+    {
+      "phase": "build (no default)",
+      "requested": "-",
+      "description": "",
+      "inspector": "",
+      "cdo": 0,
+      "uasset_has_ascii_value": false,
+      "member_hash": "2ca92fad77a3ea1adcb171d03d9b816354a67863"
+    },
+    {
+      "phase": "patch compile:false",
+      "requested": "0.75",
+      "description": "0.750000",
+      "inspector": "0.750000",
+      "cdo": 0.75,
+      "uasset_has_ascii_value": true,
+      "member_hash": "a4ef52297e36e810ea5d2640b661f5807cd3d5a8"
+    },
+    {
+      "phase": "after compile",
+      "requested": "0.75",
+      "description": "",
+      "inspector": "",
+      "cdo": 0.75,
+      "uasset_has_ascii_value": true,
+      "member_hash": "2ca92fad77a3ea1adcb171d03d9b816354a67863"
+    },
+    {
+      "phase": "after compile+save",
+      "requested": "0.75",
+      "description": "",
+      "inspector": "",
+      "cdo": 0.75,
+      "uasset_has_ascii_value": false,
+      "member_hash": "2ca92fad77a3ea1adcb171d03d9b816354a67863"
+    }
+  ]
+}

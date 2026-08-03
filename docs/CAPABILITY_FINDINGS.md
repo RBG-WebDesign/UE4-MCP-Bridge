@@ -1581,50 +1581,146 @@ default-value comparison was not.
 
 ## Finding 0p: a variable's default_value reads back empty after a successful set
 
-Open. Found by the integration lead, 2026-08-02, after fixing 0o and the value
-mangling behind it.
+**DIAGNOSED, and the READER is the wrong one.** Lane Q, 2026-08-03, measured
+live against BridgeInstallTest (editor pid 38608, install:check current before
+and after). Rerunnable: `Scripts/member-default-diagnosis.mjs`.
 
-`puerts_graph_inspect` reports `default_value: ""` for float variables on a
-Blueprint that `blueprint_member_patch` just set defaults on and saved, and the
-patch reported success. Confirmed by reading the live editor directly, not from
-an acceptance assertion:
+The value is never lost. It is written correctly, stored correctly on the CDO,
+and survives to disk. `graph_inspect` reports the one field the engine
+deliberately empties.
+
+### The five readings, same variable, same run
+
+One fixture, one float variable `Delta`, one value `0.75`. Columns 2 and 4 are
+the same field and are printed separately on purpose, see below.
 
 ```
-{ "name": "Delta", "type": { "category": "float", ... },
-  "category": "Probe", "default_value": "", ... }
+  phase                1 requested  2 description  3 cdo  4 inspector  5 uasset has "0.750000"
+  -------------------  -----------  -------------  -----  -----------  -----------------------
+  build (no default)   -            ""             0      ""           false
+  patch compile:false  0.75         "0.750000"     0.75   "0.750000"   true
+  after compile        0.75         ""             0.75   ""           true
+  after compile+save   0.75         ""             0.75   ""           false
 ```
 
-This is the second of the two checks still red in
-`Scripts/bp-member-patch-acceptance.mjs`:
-`independent verification: the changed default is the requested one ("")`.
+- **2 description** is `FBPVariableDescription::DefaultValue`.
+- **3 cdo** is `puerts_read_property` against
+  `/Game/MCPGenerated/BP_X.Default__BP_X_C`, property `Delta`. Independent of
+  everything else in the table: different tool, different native entry point,
+  no shared comparator with the writer or the inspector.
+- **5 uasset** asks whether the ASCII text `0.750000` appears in the saved
+  package. The description is a serialized FString and a float CDO value is
+  four raw bytes, so an ASCII hit means the DESCRIPTION carried the value to
+  disk, and its absence means the description was empty when the package was
+  written.
 
-**It is not a regression from the serialization fix.** Before that fix the value
-arriving at `ImportText` was `",\r\n0.75"`, which parsed as `0.0` while
-reporting success, so a default was never landing correctly in the first place.
-The fix corrected what is SENT. What this finding says is that something after
-that still does not persist or does not report it.
+The three phases differ by one thing each. `patch compile:false` is the writer
+alone. `after compile` is the identical batch with `compile: true`, whose
+operations are all already satisfied and are skipped, so the compile is the
+only thing that happens between those two rows.
 
-Three candidates, not yet distinguished, listed so the next session measures
-instead of guessing:
+### Which of the four candidates
 
-1. The CDO write succeeds but `FBPVariableDescription::DefaultValue` is never
-   synced back, so the inspector reads the description and sees nothing.
-   `SyncDefaultValueFromCDO` in `BPVariableOps.cpp` exists for exactly this and
-   may not be reached on every path.
-2. The CDO write itself fails silently for a float, and only the description
-   would have shown it.
-3. The inspector reads `DefaultValue` off the description when the truth lives
-   on the CDO, in which case the write is fine and the READER is wrong.
+- **(a) the writer: NOT at fault.** Row 2. Immediately after the patch the CDO
+  holds `0.75` and the description holds `"0.750000"`.
+- **(b) storage: NOT at fault.** Both stores accept the value. Row 2 column 5
+  shows it reaching the package.
+- **(c) compile: the MECHANISM.** Row 3. A full compile empties the
+  description and leaves the CDO alone. This is the engine doing what it says:
+  `KismetCompiler.cpp:776-783` copies `Variable.DefaultValue` into the CDO and
+  then, for `EKismetCompileType::Full` only, calls `Variable.DefaultValue.Empty()`
+  with the comment "We're copying the value to the real CDO, so clear the
+  version stored in the blueprint editor data". The description is editor
+  scratch. The CDO is storage.
+- **(d) the reader: THE DEFECT.** `BPMemberReader.cpp:140` is
+  `VO->SetStringField(TEXT("default_value"), V.DefaultValue);`. It reports the
+  scratch field. Column 3 and column 4 disagree in rows 3 and 4 and column 3 is
+  the one telling the truth.
 
-The distinguishing measurement is cheap: set a default, then read the CDO
-property directly with `puerts_read_property` and compare against what
-`graph_inspect` reports for the same variable. If the CDO holds `0.75` and the
-inspector says `""`, it is (3) and the fix is in the reader.
+`FBPVariableOps::SetVariableDefault` already knows this: it calls
+`SyncDefaultValueFromCDO` (`BPVariableOps.cpp:30`) after its own mutation for
+exactly this reason. What it cannot do is survive a compile it does not own.
+`blueprint_member_patch` runs its own `CompileAndReport` after the whole batch
+(`MCPPuerTSBridgeBlueprintMember.cpp`, the compile section), and nothing
+re-syncs after that. Neither can anything re-sync after a human presses Compile
+in the Blueprint editor. Re-syncing after every compile is unwinnable; reading
+the right field is not.
 
-Do this before touching the writer. The pattern this file keeps recording is
-that the reader and the writer disagree and whoever looks first assumes the
-writer is wrong.
+### The second defect the same cause produces, which is worse
 
-Related: the other red check, `batch apply: the patched Blueprint compiles
-(UpToDateWithWarnings)`, predates all of this work and appeared in the first
-member_patch run too. It is not known whether the two share a cause.
+A converged rerun of `blueprint_member_patch` with `compile: true` **fails and
+declares the asset damaged**. Measured, same run:
+
+```
+1 verification mismatch(es) after patching members, so nothing was saved.
+The rollback did NOT restore the original members: the member hash is
+2ca92fad77a3ea1adcb171d03d9b816354a67863, expected
+a4ef52297e36e810ea5d2640b661f5807cd3d5a8. Treat this asset as damaged.
+```
+
+The chain: `member_structure_hash_sha1` is SHA-1 over `BuildSnapshot`
+(`MCPBridgeBlueprintMembers.h`), which includes `ListVariables`, which includes
+`default_value`. Every operation in the rerun is satisfied and skipped, so
+`Applied.Num() == 0`. The final compile then empties the description, moving the
+hash. Verification's third producer fires: "no operation was applied, but the
+member hash moved". Rollback cannot restore it because the compile is not the
+thing the transaction undoes. The asset is not damaged; the CDO still holds
+`0.75`. The damage report is false, and it is the loudest possible false alarm.
+
+This is also why the FIRST patch reports success while the inspector then says
+`""`, which is the symptom finding 0p was opened on. On the first patch
+`Applied.Num() == 1` and the hash legitimately moves, so neither hash producer
+fires, and the operation-satisfied producer re-reads the CDO and is happy. The
+patch is right to succeed. The inspector is wrong afterwards.
+
+### The fix, in the reader
+
+`BPMemberReader.cpp:140`. Report the compiled default, falling back to the
+description only when there is no compiled property to read:
+
+1. `UClass* GenClass = Blueprint->GeneratedClass;` and
+   `UObject* CDO = GenClass ? GenClass->GetDefaultObject(false) : nullptr;`
+2. `FProperty* Prop = GenClass ? FindFProperty<FProperty>(GenClass, V.VarName) : nullptr;`
+3. When both resolve, `Prop->ExportTextItem(Out, Prop->ContainerPtrToValuePtr<void>(CDO), ..., PPF_SerializedAsImportText)` and report that.
+4. Otherwise report `V.DefaultValue`, which is the only source before the
+   variable's first full compile.
+
+That is `SyncDefaultValueFromCDO`'s body minus the write. Lift it into one
+shared read-only helper and call it from both places, so the reader and the
+writer agree on WHERE the default lives without sharing a comparator for WHAT
+it is. Note the finding 0o hazard honestly: the member_patch verifier also
+reads the CDO. It stays an independent check because it compares by
+`FProperty::Identical` against an imported scratch value while the reader
+exports to text, and more to the point because the CDO IS the storage.
+Agreeing about the location of the truth is not the failure mode 0o described.
+
+Fixing the reader closes both red checks in
+`Scripts/bp-member-patch-acceptance.mjs` that trace to this, because a
+CDO-derived `default_value` does not move across a compile, so the member hash
+stops moving on a converged rerun.
+
+**Do not fix this by calling `SyncDefaultValueFromCDO` after the batch's final
+compile.** It would turn this table green and leave the description as a second
+source of truth that the next compile from anywhere, including a human pressing
+Compile, empties again.
+
+### What was NOT observed
+
+- **No cold reading.** Lane Q had no authority to restart the editor and the
+  catalog has no package-reload primitive, so every reading above is from the
+  live editor's in-memory objects. `Scripts/member-default-diagnosis.mjs
+  --phase=cold` is written and **unrun**; it re-reads the fixture named in
+  `docs/evidence/member-default-diagnosis.json` and is meaningful only after a
+  restart.
+- What the disk says is the closest available substitute and it is not
+  ambiguous: after compile and save, `0.750000` is **absent** from the package
+  (row 4, column 5) while it was present before the compile (row 2). The
+  description reaches disk empty and the value survives only as the CDO's
+  serialized bytes. The prediction is therefore that a cold load restores CDO
+  `0.75` and description `""`, so the inspector reports `""` cold as well.
+  Predicted, not measured.
+- Whether the other red check in `bp-member-patch-acceptance.mjs`, `batch
+  apply: the patched Blueprint compiles (UpToDateWithWarnings)`, shares this
+  cause. Not investigated.
+- The run leaves its fixtures behind under `/Game/MCPGenerated/BP_DefaultProbe_*`.
+  There is no delete-asset primitive, and each run uses a fresh path.
