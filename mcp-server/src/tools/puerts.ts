@@ -312,6 +312,67 @@ const perceptionSense = z.object({
   + "{\"bDetectEnemies\":true,\"bDetectNeutrals\":false,\"bDetectFriendlies\":false}.",
 );
 
+// Everything an Animation Blueprint spec holds EXCEPT asset_path, because that
+// is the one field build and patch describe differently: build refuses a path
+// that exists, patch refuses one that does not. One shape, not two: a copy would
+// let the create schema and the edit schema drift, and the visible failure is a
+// spec that builds and then cannot be patched with the same JSON.
+const animBlueprintSpecFields = {
+  skeleton_path: z.string().min(1).describe(
+    "Object path of the target USkeleton, e.g. \"/Game/Characters/Hero_Skeleton\". "
+    + "Required: an Animation Blueprint has no meaning without one.",
+  ),
+  variables: z.array(z.object({
+    name: z.string().min(1).max(64).regex(/^[A-Za-z0-9_]+$/),
+    type: z.literal("bool").describe("bool is the only type the UE4.27 builder supports today."),
+    default: z.string().optional().describe("\"true\" or \"false\". Defaults to \"false\"."),
+  }).strict()).max(64).optional().describe(
+    "Member variables the transition rules read. Existing names are left alone.",
+  ),
+  anim_graph: z.object({
+    pipeline: z.array(z.object({
+      id: z.string().min(1),
+      type: z.string().describe("\"StateMachine\" or \"Slot\"."),
+      name: z.string().min(1).describe("For a Slot node this is the slot name montages play into."),
+    }).strict()).min(1),
+  }).strict().describe(
+    "The pose pipeline, wired in array order and terminating at the graph's Root node.",
+  ),
+  state_machine: z.object({
+    states: z.array(z.object({
+      id: z.string().min(1).describe("Referenced by transitions. Not persisted on the node."),
+      name: z.string().min(1).describe("The state name the inspector reports back."),
+      animation: z.string().min(1).describe("Object path of the AnimSequence this state plays."),
+      looping: z.boolean().optional(),
+      is_entry: z.boolean().optional().describe("Exactly one state should set this."),
+    }).strict()).min(1),
+    transitions: z.array(z.object({
+      from: z.string().min(1).describe("A state id from states[]."),
+      to: z.string().min(1).describe("A state id from states[]."),
+      blend_time: z.number().optional().describe("Crossfade duration in seconds. Default 0.2."),
+      condition: z.record(z.unknown()).describe(
+        "{type:\"bool_variable\", variable, value} or {type:\"time_remaining\", threshold}.",
+      ),
+    }).strict()),
+  }).strict(),
+  event_graph: z.record(z.unknown()).optional().describe(
+    "Optional event graph, in the same grammar puerts_blueprint_build's graph uses.",
+  ),
+  save: z.boolean().optional().describe(
+    "Default true. An Animation Blueprint that did not compile and read back clean is never saved.",
+  ),
+};
+
+// The spec grammar both commands inherit from the UE4.27 builder (v1). Written
+// once so the two descriptions cannot disagree about what the builder accepts.
+const animBlueprintSpecLimits =
+  "Spec limits inherited from the builder (v1): variables are type \"bool\" only; "
+  + "pipeline node types are \"StateMachine\" and \"Slot\"; every state plays one "
+  + "AnimSequence; transition conditions are {type:\"bool_variable\", variable, value} or "
+  + "{type:\"time_remaining\", threshold}, and a time_remaining condition sets UE4.27's "
+  + "automatic remaining-time rule, which uses the transition's blend_time as the trigger "
+  + "offset because 4.27 exposes no separate trigger time.";
+
 const specs = [
   ["puerts_diagnostic", "diagnostic", "Prove the in-process PuerTS context, game thread, named-pipe transport, and actor-query timing.", z.object({ actor_limit: z.number().optional() }).strict()],
   ["puerts_find_assets", "find_assets", "Find UE4.27 assets by path, type, or name.", z.object({ path: z.string().optional(), type: z.string().optional(), name: z.string().optional(), recursive: z.boolean().optional(), limit: z.number().optional() }).strict()],
@@ -927,10 +988,11 @@ const specs = [
     + "engine limit. A Sound Cue's FirstNode and ChildNodes ARE the source of truth and "
     + "USoundCue::LinkGraphNodesFromSoundNodes derives the editor graph from them, which is the "
     + "reverse of an Environment Query; the engine's own SoundCueFactoryNew builds nodes then "
-    + "calls it. What blocks the writer is failure atomicity: replacing an existing cue's node "
-    + "graph needs a content snapshot the rollback boundary can restore, the same gap that keeps "
-    + "puerts_anim_blueprint_build create-only. The response repeats this in "
-    + "build_unsupported_reason. "
+    + "calls it. What blocked the writer was failure atomicity: replacing an existing cue's node "
+    + "graph needs a content snapshot the rollback boundary can restore. That gap is now closed "
+    + "generically by FBridgeContentSnapshot, which is what unblocked "
+    + "puerts_anim_blueprint_patch, so what remains here is scheduling. The response repeats "
+    + "this in build_unsupported_reason. "
     + "READ ONLY: no transaction, nothing dirtied, and the response reports the package dirty flag "
     + "before and after so a caller can check that rather than take it on trust. Limited to /Game "
     + "and /Engine.",
@@ -1153,65 +1215,47 @@ const specs = [
     + "what was created, what was removed, and whether any package is still dirty. "
     + "CREATE-ONLY, and this is the one thing to know before calling it: the command REFUSES "
     + "when an asset already exists at asset_path, so a rerun of the same spec is a refusal "
-    + "and not a no-op. The underlying UE4.27 builder's rebuild path clears nothing, so "
-    + "running it over an existing graph would append a second state machine rather than "
-    + "converge, and restoring the previous contents of a pre-existing asset is not "
-    + "something the rollback boundary can do. There is no anim_blueprint_patch for the same "
-    + "reason. To change an existing Animation Blueprint, build to a new path. "
-    + "Spec limits inherited from the builder (v1): variables are type \"bool\" only; "
-    + "pipeline node types are \"StateMachine\" and \"Slot\"; every state plays one "
-    + "AnimSequence; transition conditions are {type:\"bool_variable\", variable, value} or "
-    + "{type:\"time_remaining\", threshold}, and a time_remaining condition sets UE4.27's "
-    + "automatic remaining-time rule, which uses the transition's blend_time as the trigger "
-    + "offset because 4.27 exposes no separate trigger time.",
+    + "and not a no-op. To change an Animation Blueprint that already exists, use "
+    + "puerts_anim_blueprint_patch, which takes this same spec. "
+    + animBlueprintSpecLimits,
     z.object({
       asset_path: z.string().regex(/^\/Game\/MCPGenerated\/[A-Za-z0-9_]+(\/[A-Za-z0-9_]+)*$/).describe(
         "AnimBlueprint package path under /Game/MCPGenerated/, no asset-name suffix. Must not "
         + "already exist.",
       ),
-      skeleton_path: z.string().min(1).describe(
-        "Object path of the target USkeleton, e.g. \"/Game/Characters/Hero_Skeleton\". "
-        + "Required: an Animation Blueprint has no meaning without one.",
+      ...animBlueprintSpecFields,
+    }).strict()],
+  ["puerts_anim_blueprint_patch", "anim_blueprint_patch",
+    "Replace the generated contents of an Animation Blueprint that ALREADY EXISTS, from the "
+    + "same JSON spec puerts_anim_blueprint_build takes. The mirror image of that command: "
+    + "build refuses a path that is occupied, this one refuses a path that is empty, so "
+    + "neither has to guess whether you meant create or edit. "
+    + "CONVERGENT: the builder clears the generated AnimGraph before repopulating it, so "
+    + "running the same spec twice leaves the same states and transitions rather than a "
+    + "second state machine beside the first. Compare verification.actual_states and "
+    + "verification.actual_transitions to confirm that; structure_hash_sha1 is NOT promised "
+    + "to be stable across a rerun, because node identity in puerts_anim_blueprint_inspect "
+    + "is derived from each node's UObject name and a clear-and-rebuild reassigns those. "
+    + "PRECONDITION, and it is a refusal rather than a warning: the asset must be SAVED and "
+    + "have no unsaved changes. The rollback boundary here is the .uasset on disk, so an "
+    + "asset with in-memory edits has no restore source that represents them and the command "
+    + "declines rather than silently discard them. Save it and call again. "
+    + "FAILURE-ATOMIC: nothing is written to disk until the compile and the "
+    + "puerts_anim_blueprint_inspect read-back have both passed. On any failure the "
+    + "transaction is cancelled, the package is reloaded from disk, and the asset is READ "
+    + "BACK AGAIN to decide rollback_succeeded rather than assert it. Because the file is "
+    + "never written on a failure path, even a restore that fails leaves a recoverable "
+    + "asset: reopening the editor gets the original back. "
+    + "COST worth knowing: restoring from disk clears the editor's undo history, because the "
+    + "undo records point at objects the reload destroys. The response reports that in "
+    + "restore.undo_history_cleared. "
+    + animBlueprintSpecLimits,
+    z.object({
+      asset_path: z.string().regex(/^\/Game\/MCPGenerated\/[A-Za-z0-9_]+(\/[A-Za-z0-9_]+)*$/).describe(
+        "AnimBlueprint package path under /Game/MCPGenerated/, no asset-name suffix. Must "
+        + "already exist, and must be saved with no unsaved changes.",
       ),
-      variables: z.array(z.object({
-        name: z.string().min(1).max(64).regex(/^[A-Za-z0-9_]+$/),
-        type: z.literal("bool").describe("bool is the only type the UE4.27 builder supports today."),
-        default: z.string().optional().describe("\"true\" or \"false\". Defaults to \"false\"."),
-      }).strict()).max(64).optional().describe(
-        "Member variables the transition rules read. Existing names are left alone.",
-      ),
-      anim_graph: z.object({
-        pipeline: z.array(z.object({
-          id: z.string().min(1),
-          type: z.string().describe("\"StateMachine\" or \"Slot\"."),
-          name: z.string().min(1).describe("For a Slot node this is the slot name montages play into."),
-        }).strict()).min(1),
-      }).strict().describe(
-        "The pose pipeline, wired in array order and terminating at the graph's Root node.",
-      ),
-      state_machine: z.object({
-        states: z.array(z.object({
-          id: z.string().min(1).describe("Referenced by transitions. Not persisted on the node."),
-          name: z.string().min(1).describe("The state name the inspector reports back."),
-          animation: z.string().min(1).describe("Object path of the AnimSequence this state plays."),
-          looping: z.boolean().optional(),
-          is_entry: z.boolean().optional().describe("Exactly one state should set this."),
-        }).strict()).min(1),
-        transitions: z.array(z.object({
-          from: z.string().min(1).describe("A state id from states[]."),
-          to: z.string().min(1).describe("A state id from states[]."),
-          blend_time: z.number().optional().describe("Crossfade duration in seconds. Default 0.2."),
-          condition: z.record(z.unknown()).describe(
-            "{type:\"bool_variable\", variable, value} or {type:\"time_remaining\", threshold}.",
-          ),
-        }).strict()),
-      }).strict(),
-      event_graph: z.record(z.unknown()).optional().describe(
-        "Optional event graph, in the same grammar puerts_blueprint_build's graph uses.",
-      ),
-      save: z.boolean().optional().describe(
-        "Default true. An Animation Blueprint that did not compile and read back clean is never saved.",
-      ),
+      ...animBlueprintSpecFields,
     }).strict()],
   ["puerts_material_inspect", "material_inspect",
     "Read an existing UE4.27 Material or Material Instance back as machine-readable JSON. "
@@ -2095,6 +2139,7 @@ const structuredParameters: Readonly<Record<string, readonly string[]>> = {
   puerts_texture_import: ["color", "color_b"],
   puerts_behavior_tree_build: ["keys", "root"],
   puerts_anim_blueprint_build: ["variables", "anim_graph", "state_machine", "event_graph"],
+  puerts_anim_blueprint_patch: ["variables", "anim_graph", "state_machine", "event_graph"],
   puerts_blackboard_build: ["keys"],
   puerts_nav_query: ["queries"],
   puerts_ai_perception_build: ["senses"],
@@ -2158,6 +2203,10 @@ const commandTimeouts: Readonly<Record<string, number>> = {
   // and reads the whole asset back before saving. 30s is a realistic ceiling for
   // one Blueprint compile and too tight for four passes over a state machine.
   puerts_anim_blueprint_build: 60000,
+  // Everything the build path does, plus an inspect before the mutation and,
+  // on the failure path only, a package reload. 90s rather than 60s because a
+  // reload reinstances every object of the generated class.
+  puerts_anim_blueprint_patch: 90000,
   puerts_anim_blueprint_inspect: 15000,
   puerts_anim_montage_inspect: 15000,
   puerts_anim_blend_space_inspect: 15000,

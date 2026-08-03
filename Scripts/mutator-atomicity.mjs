@@ -103,14 +103,29 @@ export function p4Opened(projectRoot) {
  * answers what is in memory, and a mutation that half-applied without saving
  * moves only the second. Trusting either alone misses one of the two ways this
  * can go wrong.
+ *
+ * `inspector` names the read half for asset types that are not Blueprints. It
+ * is a parameter rather than a second copy of this function because the CONTRACT
+ * is the same for every mutator: the file must not move and an independent read
+ * must not move. Only the tool that performs the read differs.
  */
-export async function fingerprint(call, projectRoot, assetPath) {
+export const BLUEPRINT_INSPECTOR = {
+  tool: "puerts_graph_inspect",
+  hashField: "member_structure_hash_sha1",
+};
+
+export const ANIM_BLUEPRINT_INSPECTOR = {
+  tool: "puerts_anim_blueprint_inspect",
+  hashField: "structure_hash_sha1",
+};
+
+export async function fingerprint(call, projectRoot, assetPath, inspector = BLUEPRINT_INSPECTOR) {
   const file = contentFile(projectRoot, assetPath);
-  const read = await call("puerts_graph_inspect", { asset_path: assetPath });
+  const read = await call(inspector.tool, { asset_path: assetPath });
   return {
     file_exists: existsSync(file),
     file_sha256: existsSync(file) ? createHash("sha256").update(readFileSync(file)).digest("hex") : null,
-    member_hash: read.data?.member_structure_hash_sha1 ?? null,
+    member_hash: read.data?.[inspector.hashField] ?? null,
     package_dirty: read.data?.package_dirty_after ?? null,
     p4_opened: p4Opened(projectRoot),
     inspect_ok: read.success === true,
@@ -130,8 +145,9 @@ export async function fingerprint(call, projectRoot, assetPath) {
  */
 export async function checkMutationIsAtomic({
   call, assert, projectRoot, assetPath, label, mutate, expectFailure = true,
+  inspector = BLUEPRINT_INSPECTOR,
 }) {
-  const before = await fingerprint(call, projectRoot, assetPath);
+  const before = await fingerprint(call, projectRoot, assetPath, inspector);
   if (!assert(before.inspect_ok && before.file_exists, `${label}: the fixture is present before the mutation`)) {
     return { before, after: null, response: null };
   }
@@ -144,7 +160,7 @@ export async function checkMutationIsAtomic({
     // still a failed mutation and the asset still has to be untouched.
     response = { success: false, errors: [String(error?.message ?? error)] };
   }
-  const after = await fingerprint(call, projectRoot, assetPath);
+  const after = await fingerprint(call, projectRoot, assetPath, inspector);
 
   if (!expectFailure) {
     assert(response.success === true, `${label}: the control mutation succeeds`);

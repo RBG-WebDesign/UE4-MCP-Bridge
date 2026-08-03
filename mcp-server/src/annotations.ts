@@ -107,6 +107,15 @@ export const toolAnnotations: Record<string, ToolAnnotations> = {
   // misled. Nothing is ever destroyed: on failure the creation is rolled back,
   // and an existing asset is never touched at all.
   puerts_anim_blueprint_build: mutating,
+  // Destructive and idempotent, and both halves are deliberate. Destructive
+  // because it CLEARS the generated AnimGraph before repopulating it, so any
+  // hand-authored node in that graph is gone whether or not the spec mentions
+  // it; this is the opposite of puerts_blueprint_graph_patch, which clears
+  // nothing on purpose. Idempotent because the clear is what makes a rerun
+  // converge instead of stacking a second state machine beside the first.
+  // The destruction is recoverable: the command refuses unless the asset is
+  // saved and clean, and it restores from that on-disk copy if any step fails.
+  puerts_anim_blueprint_patch: destructiveIdempotent,
   // The read half of puerts_blackboard_build: kept out of IsToolMutating on
   // the native side, reports the package dirty flag before and after the read.
   puerts_blackboard_inspect: readOnly,

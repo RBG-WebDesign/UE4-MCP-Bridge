@@ -579,20 +579,26 @@ the consequence.
   is failure-atomic. A rerun is a refusal, not a no-op.
 
 To unblock a patch command: add the clear pass `Rebuild` is missing, then a
-content snapshot the boundary can restore. Until both exist, editing an
-existing Animation Blueprint stays out of the catalog.
+content snapshot the boundary can restore.
 
-**Half of that is done.** Lane W landed the clear pass
-(`FAnimBPBuilder::ClearGeneratedGraph`, uncompiled). The content snapshot does
-not exist, so `puerts_anim_blueprint_build` is still CREATE-ONLY and there is
-still no `puerts_anim_blueprint_patch`. The snapshot means duplicating the
-AnimBlueprint into a transient package before the first mutation and restoring
-it on failure, and the restore has to survive a Blueprint compile, so it cannot
-be written blind. Finding 0t.
+**Both are done, and both are uncompiled.** Lane W landed the clear pass
+(`FAnimBPBuilder::ClearGeneratedGraph`). Lane Y landed the snapshot, and it is
+not the one this map predicted: duplicating the AnimBlueprint into a transient
+package was read and rejected, because `FBlueprintEditorUtils::PostDuplicateBlueprint`
+regenerates every node and variable guid and builds a fresh generated class
+without carrying the old CDO's values across, so that restore would silently
+drop every variable default. The snapshot that works is the one already on
+disk: `FBridgeContentSnapshot` refuses to start unless the asset is saved and
+clean, and restores with `UPackageTools::ReloadPackages`. Finding 0t.
+
+So `puerts_anim_blueprint_build` stays CREATE-ONLY on purpose - create and edit
+are separate commands, each refusing the other's case - and
+`puerts_anim_blueprint_patch` is the edit half.
 
 | legacy tool | C++ entry point | native command it would front | read-only today | ships as |
 |---|---|---|---|---|
-| `anim_blueprint_build_from_json` | BuildAnimBlueprintFromJSON | `puerts_anim_blueprint_build` (this lane, implemented, uncompiled) | no | MUTATING (create-only) |
+| `anim_blueprint_build_from_json` | BuildAnimBlueprintFromJSON | `puerts_anim_blueprint_build` (implemented, uncompiled) | no | MUTATING (create-only) |
+| (none: new capability) | RebuildAnimBlueprintFromJSON | `puerts_anim_blueprint_patch` (lane Y, implemented, uncompiled) | no | DESTRUCTIVE IDEMPOTENT |
 
 Three read tools were added beside it and front nothing legacy:
 `puerts_anim_blueprint_inspect`, `puerts_anim_montage_inspect` and

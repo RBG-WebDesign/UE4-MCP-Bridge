@@ -23,12 +23,12 @@
     "native_live_partial": "live acceptance passed, but part of the evidence is the builder own report because no independent reader exists yet",
     "legacy_untested": "no live editor proof of any kind; a non-null test_file covers only the mock listener"
   },
-  "tool_count": 272,
+  "tool_count": 273,
   "by_backend": {
     "legacy_http": 170,
     "native_pipe_alias": 40,
     "server_local": 3,
-    "native_pipe": 59
+    "native_pipe": 60
   },
   "tools": [
     {
@@ -7352,7 +7352,7 @@
       "backend": "native_pipe",
       "migration_state": "native_pending_live",
       "target_replacement": null,
-      "description": "[PRIMARY NATIVE IPC] Create a NEW UE4.27 Animation Blueprint from one JSON spec, in one transaction: member variables, the anim graph pipeline, a state machine with its states and transitions, and an optional event graph. The asset is compiled and the compile result is RETURNED (compile_status, plus compiler errors and warnings) rather than assumed, and before the asset is saved it is read back through puerts_anim_blueprint_inspect and every requested state and transition must be present. A failure at any point cancels the transaction and rolls the creation back: the response carries a cleanup object naming what was created, what was removed, and whether any package is still dirty. CREATE-ONLY, and this is the one thing to know before calling it: the command REFUSES when an asset already exists at asset_path, so a rerun of the same spec is a refusal and not a no-op. The underlying UE4.27 builder's rebuild path clears nothing, so running it over an existing graph would append a second state machine rather than converge, and restoring the previous contents of a pre-existing asset is not something the rollback boundary can do. There is no anim_blueprint_patch for the same reason. To change an existing Animation Blueprint, build to a new path. Spec limits inherited from the builder (v1): variables are type \"bool\" only; pipeline node types are \"StateMachine\" and \"Slot\"; every state plays one AnimSequence; transition conditions are {type:\"bool_variable\", variable, value} or {type:\"time_remaining\", threshold}, and a time_remaining condition sets UE4.27's automatic remaining-time rule, which uses the transition's blend_time as the trigger offset because 4.27 exposes no separate trigger time.",
+      "description": "[PRIMARY NATIVE IPC] Create a NEW UE4.27 Animation Blueprint from one JSON spec, in one transaction: member variables, the anim graph pipeline, a state machine with its states and transitions, and an optional event graph. The asset is compiled and the compile result is RETURNED (compile_status, plus compiler errors and warnings) rather than assumed, and before the asset is saved it is read back through puerts_anim_blueprint_inspect and every requested state and transition must be present. A failure at any point cancels the transaction and rolls the creation back: the response carries a cleanup object naming what was created, what was removed, and whether any package is still dirty. CREATE-ONLY, and this is the one thing to know before calling it: the command REFUSES when an asset already exists at asset_path, so a rerun of the same spec is a refusal and not a no-op. To change an Animation Blueprint that already exists, use puerts_anim_blueprint_patch, which takes this same spec. Spec limits inherited from the builder (v1): variables are type \"bool\" only; pipeline node types are \"StateMachine\" and \"Slot\"; every state plays one AnimSequence; transition conditions are {type:\"bool_variable\", variable, value} or {type:\"time_remaining\", threshold}, and a time_remaining condition sets UE4.27's automatic remaining-time rule, which uses the transition's blend_time as the trigger offset because 4.27 exposes no separate trigger time.",
       "schema": {
         "kind": "object",
         "params": {
@@ -7386,7 +7386,7 @@
       "live_evidence": [],
       "migration_risk": "low",
       "capability_loss_risk": "low",
-      "notes": "re-front of UAnimBlueprintBuilderLibrary, which docs/REFRONT_MAP.md group 5 rated BLOCKED on four counts. Three are closed at the command layer rather than in the library: the transaction (IsToolMutating), the rollback boundary (FBridgeAssetRollback, the same one the Blueprint, Widget and Behavior Tree builders use), and an independent inspector (anim_blueprint_inspect). The fourth, convergence, is NOT closed and the command does not pretend otherwise: it is CREATE-ONLY and refuses an asset that already exists, because AnimBlueprintBuilder/ABPBuilder.cpp:147-148 states in its own comment that Rebuild assumes a clean AnimBlueprint and clears nothing, so rebuilding over an existing graph appends a second state machine, and FBridgeAssetRollback cannot restore the previous contents of a pre-existing asset. Creating a new asset IS failure-atomic because the only state a failure must undo is state the command created. Compiles through UBlueprintGraphBuilderLibrary::CompileAndReport and returns the result rather than swallowing it, then reads the asset back and requires every requested state and transition before saving. No anim_blueprint_patch exists; unblocking one needs a clear pass in the builder first. C++ is UNCOMPILED in this lane.",
+      "notes": "re-front of UAnimBlueprintBuilderLibrary, which docs/REFRONT_MAP.md group 5 rated BLOCKED on four counts. Three are closed at the command layer rather than in the library: the transaction (IsToolMutating), the rollback boundary (FBridgeAssetRollback, the same one the Blueprint, Widget and Behavior Tree builders use), and an independent inspector (anim_blueprint_inspect). The fourth is closed by SPLITTING create from edit rather than by making one command do both: this one is CREATE-ONLY and refuses an asset that already exists, and puerts_anim_blueprint_patch is the edit half. Creating a new asset IS failure-atomic because the only state a failure must undo is state the command created. Compiles through UBlueprintGraphBuilderLibrary::CompileAndReport and returns the result rather than swallowing it, then reads the asset back and requires every requested state and transition before saving. C++ is UNCOMPILED in this lane.",
       "verification": "implemented"
     },
     {
@@ -7424,6 +7424,49 @@
       "migration_risk": "low",
       "capability_loss_risk": "low",
       "notes": "read half of anim_blueprint_build and the reason it can verify rather than assert; docs/REFRONT_MAP.md group 5 listed AnimBlueprintBuilderLibrary as having no independent inspector, and this is it. Reports anim graphs and their nodes, state machines with entry state, states, conduits and inner pose graphs, transitions keyed from->to with crossfade/priority/blend mode, and per transition a condition kind of rule_graph, automatic_time_remaining or none (an automatic remaining-time rule has no rule graph at all, so reporting only the graph would read as a missing condition); plus cached poses with their readers, blend nodes, member variables and a canonical structure hash that excludes tunable values. Derived node identity: the id a build spec wrote is not persisted on the node. C++ is UNCOMPILED in this lane, which owns no build rights; not exercised against an editor.",
+      "verification": "implemented"
+    },
+    {
+      "name": "puerts_anim_blueprint_patch",
+      "module": "mcp-server/src/tools/puerts.ts",
+      "backend": "native_pipe",
+      "migration_state": "native_pending_live",
+      "target_replacement": null,
+      "description": "[PRIMARY NATIVE IPC] Replace the generated contents of an Animation Blueprint that ALREADY EXISTS, from the same JSON spec puerts_anim_blueprint_build takes. The mirror image of that command: build refuses a path that is occupied, this one refuses a path that is empty, so neither has to guess whether you meant create or edit. CONVERGENT: the builder clears the generated AnimGraph before repopulating it, so running the same spec twice leaves the same states and transitions rather than a second state machine beside the first. Compare verification.actual_states and verification.actual_transitions to confirm that; structure_hash_sha1 is NOT promised to be stable across a rerun, because node identity in puerts_anim_blueprint_inspect is derived from each node's UObject name and a clear-and-rebuild reassigns those. PRECONDITION, and it is a refusal rather than a warning: the asset must be SAVED and have no unsaved changes. The rollback boundary here is the .uasset on disk, so an asset with in-memory edits has no restore source that represents them and the command declines rather than silently discard them. Save it and call again. FAILURE-ATOMIC: nothing is written to disk until the compile and the puerts_anim_blueprint_inspect read-back have both passed. On any failure the transaction is cancelled, the package is reloaded from disk, and the asset is READ BACK AGAIN to decide rollback_succeeded rather than assert it. Because the file is never written on a failure path, even a restore that fails leaves a recoverable asset: reopening the editor gets the original back. COST worth knowing: restoring from disk clears the editor's undo history, because the undo records point at objects the reload destroys. The response reports that in restore.undo_history_cleared. Spec limits inherited from the builder (v1): variables are type \"bool\" only; pipeline node types are \"StateMachine\" and \"Slot\"; every state plays one AnimSequence; transition conditions are {type:\"bool_variable\", variable, value} or {type:\"time_remaining\", threshold}, and a time_remaining condition sets UE4.27's automatic remaining-time rule, which uses the transition's blend_time as the trigger offset because 4.27 exposes no separate trigger time.",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "asset_path": "string",
+          "skeleton_path": "string",
+          "variables": "array?",
+          "anim_graph": "object",
+          "state_machine": "object",
+          "event_graph": "record?",
+          "save": "boolean?"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": "mcp-server/tests/puerts-tools.test.ts",
+      "capability_category": "animation",
+      "canonical_capability": "animation.anim_blueprint_patch",
+      "owner": "MCPBridgePuerTS service",
+      "lifecycle": "active",
+      "migration_action": "KEEP",
+      "replacement_tool": null,
+      "compatibility_alias": false,
+      "cpp_builder": "AnimBlueprintBuilderLibrary",
+      "cpp_entry_point": "RebuildAnimBlueprintFromJSON",
+      "python_handler": null,
+      "live_evidence": [],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": "UNCOMPILED and never run. The edit half finding 0t said could not ship, and what unblocked it was not a new mechanism but noticing the existing one: the .uasset on disk IS the content snapshot the rollback boundary needed, so FBridgeContentSnapshot (MCPBridgePuerTS/Private/MCPBridgeContentSnapshot.h) refuses to start unless the asset is saved and clean, and restores with UPackageTools::ReloadPackages. The in-memory alternative (StaticDuplicateObject plus FKismetEditorUtilities::ReplaceBlueprint, which the engine's own Blueprint merge tool uses) was read and rejected: FBlueprintEditorUtils::PostDuplicateBlueprint regenerates every node and variable guid and builds a fresh generated class without carrying the old CDO's values, so that restore would silently drop every variable default and reopen finding 0r from the other end. Convergent through lane W's FAnimBPBuilder::ClearGeneratedGraph; failure-atomic because nothing is written to disk until the compile and the anim_blueprint_inspect read-back both pass, which also means even a FAILED restore leaves a recoverable asset. rollback_succeeded is decided by re-reading the structure hash after the restore, not asserted. Two costs stated in the response rather than hidden: restoring from disk clears the editor's undo history, and structure_hash_sha1 is not promised stable across a rerun because node identity is derived from UObject names a clear-and-rebuild reassigns. Acceptance written and NOT run: Scripts/animbp-patch-atomicity.mjs.",
       "verification": "implemented"
     },
     {
@@ -7469,7 +7512,7 @@
       "backend": "native_pipe",
       "migration_state": "native_pending_live",
       "target_replacement": null,
-      "description": "[PRIMARY NATIVE IPC] Read a Sound Cue or a Sound Wave back as machine-readable JSON. This is the first native command in the audio domain, which had no read at all: the legacy catalog's only audio entry was audio_component_add, a Blueprint component write with no way to see what it pointed at. Reports the common USoundBase fields (duration, sound class, attenuation settings) and every EditAnywhere property by reflected name, so a Sound Wave's NumChannels, SampleRate, SoundGroup, CompressionQuality, bLooping and bStreaming come back without this command carrying a field list that would go stale. For a Sound Cue it also walks the WHOLE node graph from FirstNode and returns each node's id, class, title, ordered children and properties. The node array is canonically sorted so structure_hash_sha1 is stable across reads of an unchanged cue; each node's CHILDREN are deliberately NOT sorted, because for a Mixer, a Random or a Concatenator the child index is the meaning and sorting it away would canonicalise out what the graph encodes. Two things a caller cannot get any other way: a cue with no FirstNode is warned about, because it plays nothing while looking like a valid asset; and nodes present in AllNodes but not reachable from FirstNode are counted as orphans, because they are stored in the asset, never play, and are invisible from either list on its own. THERE IS NO audio_build yet, and unlike eqs_inspect that is scheduling rather than an engine limit. A Sound Cue's FirstNode and ChildNodes ARE the source of truth and USoundCue::LinkGraphNodesFromSoundNodes derives the editor graph from them, which is the reverse of an Environment Query; the engine's own SoundCueFactoryNew builds nodes then calls it. What blocks the writer is failure atomicity: replacing an existing cue's node graph needs a content snapshot the rollback boundary can restore, the same gap that keeps puerts_anim_blueprint_build create-only. The response repeats this in build_unsupported_reason. READ ONLY: no transaction, nothing dirtied, and the response reports the package dirty flag before and after so a caller can check that rather than take it on trust. Limited to /Game and /Engine.",
+      "description": "[PRIMARY NATIVE IPC] Read a Sound Cue or a Sound Wave back as machine-readable JSON. This is the first native command in the audio domain, which had no read at all: the legacy catalog's only audio entry was audio_component_add, a Blueprint component write with no way to see what it pointed at. Reports the common USoundBase fields (duration, sound class, attenuation settings) and every EditAnywhere property by reflected name, so a Sound Wave's NumChannels, SampleRate, SoundGroup, CompressionQuality, bLooping and bStreaming come back without this command carrying a field list that would go stale. For a Sound Cue it also walks the WHOLE node graph from FirstNode and returns each node's id, class, title, ordered children and properties. The node array is canonically sorted so structure_hash_sha1 is stable across reads of an unchanged cue; each node's CHILDREN are deliberately NOT sorted, because for a Mixer, a Random or a Concatenator the child index is the meaning and sorting it away would canonicalise out what the graph encodes. Two things a caller cannot get any other way: a cue with no FirstNode is warned about, because it plays nothing while looking like a valid asset; and nodes present in AllNodes but not reachable from FirstNode are counted as orphans, because they are stored in the asset, never play, and are invisible from either list on its own. THERE IS NO audio_build yet, and unlike eqs_inspect that is scheduling rather than an engine limit. A Sound Cue's FirstNode and ChildNodes ARE the source of truth and USoundCue::LinkGraphNodesFromSoundNodes derives the editor graph from them, which is the reverse of an Environment Query; the engine's own SoundCueFactoryNew builds nodes then calls it. What blocked the writer was failure atomicity: replacing an existing cue's node graph needs a content snapshot the rollback boundary can restore. That gap is now closed generically by FBridgeContentSnapshot, which is what unblocked puerts_anim_blueprint_patch, so what remains here is scheduling. The response repeats this in build_unsupported_reason. READ ONLY: no transaction, nothing dirtied, and the response reports the package dirty flag before and after so a caller can check that rather than take it on trust. Limited to /Game and /Engine.",
       "schema": {
         "kind": "object",
         "params": {

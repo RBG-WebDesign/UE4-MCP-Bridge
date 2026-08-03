@@ -2496,6 +2496,99 @@ whether an AnimGraph cleared to a bare Root node compiles clean at the point
 AnimBlueprint holds a reference to the removed state machine graph that
 `RemoveGraph` does not clear.
 
+### Finding 0t, UNBLOCKED 2026-08-03 by lane Y. The snapshot was already on disk
+
+`anim_blueprint_patch` exists. What changed is not that someone finally wrote
+the expensive thing 0t asked for; it is that the expensive thing was not needed.
+
+**The version everyone assumed, and why it is wrong.** Both 0t and
+`docs/REFRONT_MAP.md` describe the missing half as "duplicate the AnimBlueprint
+into a transient package before the first mutation, and on failure put it back".
+That is a real UE4.27 mechanism and the engine's own Blueprint merge tool uses
+it (`Developer/Merge/Private/SBlueprintMerge.cpp:337-356` takes the duplicate,
+`:485` restores it through `FKismetEditorUtilities::ReplaceBlueprint`). Reading
+what it costs before writing it is what changed the answer:
+
+- `ReplaceBlueprint` duplicates through `UBlueprint::PostDuplicate`, and
+  `FBlueprintEditorUtils::PostDuplicateBlueprint` generates a NEW Blueprint
+  guid, a new `VarGuid` for every variable and a new `NodeGuid` for every node,
+  then builds a fresh generated class and does NOT carry the old CDO's property
+  values across. It moves the SCS, component templates and timelines and nothing
+  else. So the restore drops every variable default, which is finding 0r
+  arriving from the other end and by a route the atomicity harness would not
+  have caught, because the anim structure hash covers
+  `variable|<name>|<category>` and not the default.
+- The transient duplicate has to survive the compile it exists to protect
+  against, and `FBlueprintCompilationManager` collects garbage. An unrooted
+  snapshot is a dangling pointer waiting for a slow build.
+- After the mutating compile reinstances the class, the snapshot's
+  `GeneratedClass` refers to a trashed `REINST_` class, and
+  `PostDuplicateBlueprint` dereferences exactly that pointer behind a
+  `check(OldCDO != nullptr)`.
+
+**The version that shipped.** The `.uasset` on disk is already a byte-exact
+snapshot that holds the generated class and its CDO, because both are
+serialized into the package. `FBridgeContentSnapshot`
+(`MCPBridgePuerTS/Private/MCPBridgeContentSnapshot.h`) is thirty lines around
+that fact: `Capture` REFUSES unless the asset is saved and clean, and `Restore`
+is `UPackageTools::ReloadPackages` with `AssumePositive`, which is the same
+operation the Content Browser's Reload performs and which the engine already
+wires to Blueprint reinstancing through `UPackageTools::HandlePackageReloaded`.
+
+**The property that makes it safe, and it is not the reload.** The command
+writes nothing to disk until the compile and the `anim_blueprint_inspect`
+read-back have both passed. So at every failure exit the file is untouched, and
+even a `Restore()` that fails outright leaves a recoverable asset: the worst
+case is a wrong object in memory, which reopening the editor fixes. That is the
+whole difference from 0t's emptied AnimBlueprint, which was unrecoverable
+because it had already been saved. Lane W's conclusion that the clear pass made
+failure worse was correct about the mechanism and wrong about the ceiling: what
+made it unrecoverable was the save, not the clear.
+
+`rollback_succeeded` is decided by re-reading the structure hash after the
+restore and comparing it to the pre-patch read, not asserted. Finding 0r's rule,
+applied to whole-asset content.
+
+**What a snapshot of this kind CANNOT capture**, stated because the precondition
+is the price:
+
+- Unsaved in-memory edits. There is no on-disk representation of them, so
+  `Capture` refuses rather than silently discard them on the failure path.
+- The undo history. The reload destroys the objects the undo records point at,
+  so `Restore` resets the transaction buffer, the same thing
+  `FBlueprintUnloader` does when it unloads a Blueprint. Reported in
+  `restore.undo_history_cleared`.
+- The editor's selection sets, which `UPackageTools::ReloadPackages` resets.
+
+**Unknown, and this is the honest bottom of the lane.** All of it is UNCOMPILED
+and has never run: this lane holds no build rights and no editor. Four things
+are read from source and not established live.
+
+1. Whether `UPackageTools::ReloadPackages` succeeds on a package whose
+   `UAnimBlueprint` was mutated and compiled in the same tick.
+2. Whether `GEditor->Trans->Reset` is safe at that point.
+   `UTransBuffer::Reset` tolerates a non-zero `ActiveCount` (it logs and calls
+   `Cancel(0)`, `EditorTransaction.cpp:1243-1277`) and the command cancels its
+   transaction first, so the count should be zero. Read, not measured.
+3. Whether `anim_blueprint_inspect`'s `structure_hash_sha1` is stable across a
+   converged rerun. It probably is NOT: `NodeIdentity` embeds
+   `Node->GetName()`, and a clear-and-rebuild reassigns those names. The command
+   says so in `convergence_note` and the acceptance records both hashes without
+   asserting they match, so the first live run answers this rather than failing
+   on it.
+4. Lane W's own Unknown is unchanged: whether an AnimGraph cleared to a bare
+   Root node compiles clean.
+
+Acceptance written and NOT run: `Scripts/animbp-patch-atomicity.mjs`. Its lever
+(2) is the one that matters - an unknown pipeline node type passes
+`FAnimBPValidator` (whose Rule 6 only counts StateMachine nodes) and is refused
+by `FAnimBPAnimGraphBuilder::Build` at `ABPAnimGraphBuilder.cpp:63-67`, which is
+AFTER the clear pass has emptied the graph. Without the restore, that lever
+leaves exactly the emptied AnimBlueprint 0t describes. It carries the control
+`mutator-atomicity.mjs` taught: a patch that must SUCCEED and must move the
+fingerprint, strengthened here to require the added state by NAME in the
+read-back, because the hash can move for the uninteresting reason in (3).
+
 ## Finding 0u: "Failed to start Swarm" is environmental, and lighting_build should say so
 
 Diagnosed 2026-08-03. Not an MCPBridge or PuerTS defect.

@@ -290,9 +290,12 @@ bool UMCPPuerTSBridgeService::InspectAudioAssetJson(
              "an engine limit. USoundCue::FirstNode and USoundNode::ChildNodes are the source of "
              "truth and USoundCue::LinkGraphNodesFromSoundNodes derives the editor graph from "
              "them, so a builder could author nodes and then call it, which is what the engine's "
-             "own SoundCueFactoryNew does. What is missing is the same thing that keeps "
-             "anim_blueprint_build create-only: replacing an existing cue's node graph is not "
-             "failure-atomic without a content snapshot the rollback boundary can restore."));
+             "own SoundCueFactoryNew does. What was missing was failure atomicity: replacing an "
+             "existing cue's node graph needs a content snapshot the rollback boundary can "
+             "restore. That gap is now closed generically - FBridgeContentSnapshot in this "
+             "module snapshots any saved asset by its file on disk and restores it with "
+             "UPackageTools::ReloadPackages, which is what unblocked anim_blueprint_patch - so "
+             "what remains here is scheduling rather than an engine limit."));
     Result->SetArrayField(TEXT("unsupported_fields"), Unsupported);
     Result->SetArrayField(TEXT("warnings"), Warnings);
 

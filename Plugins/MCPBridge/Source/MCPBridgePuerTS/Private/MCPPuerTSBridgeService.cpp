@@ -200,7 +200,8 @@ bool UMCPPuerTSBridgeService::Initialize(FString& OutError)
             TEXT("physics_build"), TEXT("physics_observe"), TEXT("viewport_screenshot"), TEXT("sky_shader_create"),
             TEXT("blueprint_build"), TEXT("blueprint_graph_patch"), TEXT("blueprint_member_patch"), TEXT("widget_build"),
             TEXT("widget_bind"),
-            TEXT("behavior_tree_build"), TEXT("anim_blueprint_build"), TEXT("blackboard_build"), TEXT("ai_perception_build"),
+            TEXT("behavior_tree_build"), TEXT("anim_blueprint_build"), TEXT("anim_blueprint_patch"),
+            TEXT("blackboard_build"), TEXT("ai_perception_build"),
             TEXT("material_instance_build"), TEXT("scene_batch"), TEXT("input_mapping_patch"), TEXT("folder_visibility"),
             TEXT("camera_shake"), TEXT("material_build"), TEXT("texture_import"),
             TEXT("camera_shake"), TEXT("class_defaults_patch"),
@@ -1493,9 +1494,16 @@ bool UMCPPuerTSBridgeService::IsToolMutating(const FString& ToolName) const
         // mutation path with no rollback.
         || ToolName == TEXT("widget_bind")
         || ToolName == TEXT("behavior_tree_build")
-        // anim_blueprint_build only. The two anim inspectors are deliberately
-        // absent: they open no transaction and return no transaction id.
+        // The two anim inspectors are deliberately absent: they open no
+        // transaction and return no transaction id.
+        //
+        // anim_blueprint_patch needs the transaction for a different reason than
+        // the builders do. Its real rollback is FBridgeContentSnapshot, which
+        // reloads the package from disk; the transaction exists so the failure
+        // path has something to CANCEL before that reload destroys the objects
+        // its undo records point at.
         || ToolName == TEXT("anim_blueprint_build")
+        || ToolName == TEXT("anim_blueprint_patch")
         // blackboard_build and ai_perception_build write assets. Their
         // plan_only path returns before the mutation section, so a plan still
         // opens a transaction it never uses; that costs an empty undo entry and
