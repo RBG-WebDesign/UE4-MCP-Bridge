@@ -298,6 +298,57 @@ public:
         FString& OutResultJson,
         FString& OutError) const;
 
+    /** Read a UMaterial or a UMaterialInstanceConstant back as machine-readable
+        JSON: for a master material the expression nodes with their class paths,
+        editor positions, per-input connection state, the links between them and
+        the links into the material's own outputs; for either kind the full
+        parameter list with types, effective values and (for an instance) which
+        of them the instance overrides; plus a canonical structure hash.
+
+        The read half material authoring never had. asset_kind says whether a
+        material or an instance answered, and the response uses the same field
+        names for both so a caller does not have to branch on it.
+
+        READ ONLY: not in IsToolMutating, so no transaction opens and the
+        response carries no transaction id; nothing here calls Modify,
+        MarkPackageDirty or a compile; and the package dirty flag is reported
+        before and after. Expression identity is OBSERVED, not derived: a
+        material expression's UObject name is unique within its package and is
+        serialized, unlike a UMG widget or a Behavior Tree node. */
+    UFUNCTION(BlueprintCallable, Category="MCP PuerTS Bridge")
+    bool InspectMaterialJson(
+        const FString& RequestJson,
+        FString& OutResultJson,
+        FString& OutError) const;
+
+    /** Create or update a UMaterialInstanceConstant and set its scalar, vector,
+        texture and static switch parameters from one desired-state spec.
+
+        A re-front of UMaterialEditingLibrary plus the boundary that library
+        does not have. Every parameter is resolved against the parent and
+        validated before the asset is created or touched, so an unknown name is
+        refused with the closest matching names rather than silently dropped. A
+        parameter already at the requested value and already overridden is
+        reported unchanged and not rewritten, so a rerun dirties nothing.
+
+        Modify() is called before any write because the library's setters do
+        not, which is what makes the failure path atomic: on any failure the
+        transaction is cancelled, the rollback boundary runs, and whether the
+        parameters actually came back is decided by reading them again rather
+        than by trusting the undo. The compile is run and its result reported
+        in the response; the save happens only after an independent read-back
+        agrees with every requested value.
+
+        There is deliberately no companion command for master material graphs.
+        UE4.27's graph mutators write outside the undo record, so a failed
+        multi-node build cannot be rolled back; material_inspect is the read
+        half and there is no write half. */
+    UFUNCTION(BlueprintCallable, Category="MCP PuerTS Bridge")
+    bool BuildMaterialInstanceJson(
+        const FString& SpecJson,
+        FString& OutResultJson,
+        FString& OutError);
+
     UFUNCTION(BlueprintCallable, Category="MCP PuerTS Bridge")
     bool BuildPhysicsSceneJson(
         const FString& SpecJson,
