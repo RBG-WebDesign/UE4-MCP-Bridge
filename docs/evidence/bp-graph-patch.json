@@ -4,12 +4,12 @@
     "fixture": {
       "node_count": 22,
       "structure_hash": "ca12eaf79ac8545e80160847393779d484bd3d5d",
-      "file_sha256": "17a591d98d9273e4dd3d7f429e6fe013419acae68db101f28d6fb3d65746b311"
+      "file_sha256": "372e34faad853f656526d37b813280dd527c8149c7edf0e219ec2b82f0513c92"
     },
     "plan": {
       "graph": "EventGraph",
       "matched_nodes": [
-        "operation 0 (set_pin_default) target -> PrintString [K2Node_CallFunction fn=PrintString] at 600,0 (guid 6857897344338022487D06A330816B56, object K2Node_CallFunction_7)"
+        "operation 0 (set_pin_default) target -> PrintString [K2Node_CallFunction fn=PrintString] at 600,0 (guid 9FDCC5F845499B17B55100889C10AA3C, object K2Node_CallFunction_1)"
       ],
       "unmatched_selectors": [],
       "ambiguous_selectors": [],
@@ -17,7 +17,7 @@
       "nodes_to_update": [],
       "nodes_to_remove": [],
       "pin_defaults_to_change": [
-        "PrintString [K2Node_CallFunction fn=PrintString] at 600,0 (guid 6857897344338022487D06A330816B56, object K2Node_CallFunction_7).InString: currently 'two'"
+        "PrintString [K2Node_CallFunction fn=PrintString] at 600,0 (guid 9FDCC5F845499B17B55100889C10AA3C, object K2Node_CallFunction_1).InString: currently 'two'"
       ],
       "links_to_add": [],
       "links_to_remove": [],
@@ -28,10 +28,10 @@
       "plan_only": true,
       "ok": true,
       "pre_structure_hash": "ca12eaf79ac8545e80160847393779d484bd3d5d",
-      "elapsed_ms": 9.52599999436643
+      "elapsed_ms": 7.569599998532794
     },
     "patch": {
-      "elapsed_ms": 92.39130000059959,
+      "elapsed_ms": 89.9992999911774,
       "applied_operation_count": 8,
       "pre_structure_hash": "ca12eaf79ac8545e80160847393779d484bd3d5d",
       "post_structure_hash": "64ef958352d0d6c41c67756c4d0fb423efa2b278"
@@ -42,7 +42,7 @@
       "converged": true
     },
     "partial_batch_refused": true,
-    "source_control_quiescent": true
+    "source_control_quiescent": null
   },
   "post_patch_structure_hash": "64ef958352d0d6c41c67756c4d0fb423efa2b278",
   "post_patch_node_count": 22,

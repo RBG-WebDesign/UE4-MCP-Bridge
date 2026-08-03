@@ -244,9 +244,14 @@ try {
 
   const listed = await send("tools/list", {});
   const names = (listed?.result?.tools ?? []).map((tool) => tool.name);
+  // Named one by one, the same rule mcp-smoke.mjs uses: a server-local tool
+  // contacts no editor, so it is not part of the native lane and must not be
+  // waved through by a prefix somebody picks later. Adding one is deliberate.
+  const SERVER_LOCAL_TOOLS = new Set(["bridge_command_status"]);
   assert(names.length > 0
-    && names.every((name) => name.startsWith("puerts_") || name.startsWith("engine_source_")),
-    `the catalog is native-only (${names.length} tools, no legacy or HTTP names)`);
+    && names.every((name) => name.startsWith("puerts_") || name.startsWith("engine_source_")
+      || SERVER_LOCAL_TOOLS.has(name)),
+    `the catalog is native-only or declared server-local (${names.length} tools, no legacy or HTTP names)`);
 
   if (phase === "build") {
     const built = await call("puerts_behavior_tree_build", SPEC);

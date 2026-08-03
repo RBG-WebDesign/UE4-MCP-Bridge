@@ -1796,3 +1796,62 @@ Second gap this exposed: there is no way to read a Blueprint's compile MESSAGES
 through the bridge, only its status. A caller told `UpToDateWithWarnings` cannot
 find out what the warnings were without opening the editor, which defeats the
 point of an independent inspector.
+
+## Finding 0r: a failed member batch does not restore variable DEFAULTS, and the old reader hid it
+
+Found 2026-08-03 by running `Scripts/mutator-atomicity.mjs` against the merged
+build, immediately after finding 0p was fixed. This is the important one on the
+list.
+
+Lever (3), a batch whose first operation lands and whose second cannot:
+
+```
+The rollback did NOT restore the original members: the member hash is
+01439bb770d2..., expected 1a65950f1f47.... Treat this asset as damaged.
+```
+
+The batch is `set_variable_default Ratio 0.75` followed by `add_variable
+BadFloat` with a value its type cannot hold. Operation 0 now APPLIES, because
+the value mangling behind finding 0o was fixed and `0.75` is finally a valid
+float. Operation 1 fails, the batch cancels its transaction and runs the
+rollback boundary, and the member hash still moves.
+
+**Why this passed before and fails now, which is the whole point.** The member
+structure hash covers `ListVariables`, which includes `default_value`. Before
+finding 0p, that field read `""` for every compiled variable, so the hash was
+BLIND to defaults: a rollback that failed to restore a default produced an
+identical hash and the atomicity check passed. Fixing the reader did not break
+atomicity; it made the harness able to see an atomicity hole it had been
+reporting green over.
+
+That is the same failure shape as 0o one level up. There, a verifier shared a
+comparator with the writer and agreed with it. Here, the verifier could not see
+the field at all and agreed by omission. A check that cannot observe the thing
+it asserts about is not a check.
+
+Not yet established, and worth measuring before fixing:
+
+- whether the CDO write performed by `SetVariableDefault` is transacted at all.
+  `FScopedTransaction` cancel reverts what was recorded through `Modify()`, and
+  the default is written to the generated class default object, which may never
+  be marked.
+- whether the compile that every mutator entry point runs bakes the value in
+  somewhere `Cancel()` cannot reach. A cancelled transaction cannot un-run a
+  compile; that is already known from finding 0p's second defect.
+
+The distinguishing measurement is cheap: apply `set_variable_default` alone
+inside a transaction, cancel it, and read the CDO with `puerts_read_property`.
+If the CDO still holds the new value, the write is not transacted and the fix
+belongs at the writer, not at the rollback boundary.
+
+Two smaller items from the same run:
+
+- `Scripts/mutator-atomicity.mjs` uses a FIXED fixture path and its control
+  operation adds a variable that survives the run, so a second run finds the
+  control already satisfied and reports that the control did not move the
+  fingerprint. It needs the per-run fresh path lane H gave the member-patch
+  acceptance (finding 0n).
+- `Scripts/behavior-tree-acceptance.mjs` asserted the catalog by PREFIX, so
+  lane O's server-local `bridge_command_status` failed a native-only check it
+  was never meant to be part of. Fixed by naming server-local tools explicitly,
+  the same rule `mcp-smoke.mjs` already used.
