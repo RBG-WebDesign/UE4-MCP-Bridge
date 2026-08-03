@@ -1,6 +1,6 @@
 {
   "purpose": "Consolidated missing-primitive list derived from the seven vertical slice evidence files. Do not hand-edit: regenerate with node Scripts/slice-summary.mjs.",
-  "generated_at": "2026-08-03T07:20:45.661Z",
+  "generated_at": "2026-08-03T14:38:11.419Z",
   "slices": [
     {
       "slice": "ai",

@@ -3,18 +3,18 @@
   "title": "a master material with parameters, an instance that overrides them, compiled and applied",
   "proves": "author a material graph, instance it, read the parameter values back, and see it on a mesh",
   "phase": "warm",
-  "generated_at": "2026-08-03T07:18:32.283Z",
+  "generated_at": "2026-08-03T14:38:33.635Z",
   "verdict": "BLOCKED_MISSING_PRIMITIVE",
   "editor": {
-    "available": false,
-    "reason": "install gate refused; no editor was contacted"
+    "available": true,
+    "reason": "puerts_diagnostic answered"
   },
   "install_gate": {
-    "ok": false,
-    "reason": "Set MCP_UNREAL_PROJECT_ROOT to the test project root"
+    "ok": true,
+    "project_root": "D:/Unreal Projects/BridgeInstallTest"
   },
   "catalog": {
-    "registered_tool_count": 27,
+    "registered_tool_count": 48,
     "legacy_http_enabled": false
   },
   "steps": [
@@ -36,41 +36,48 @@
       "n": 3,
       "label": "1. look for an existing master material to instance instead",
       "tool": "puerts_find_assets",
-      "status": "UNPROVEN_NO_EDITOR",
-      "detail": "install gate refused; no editor was contacted"
+      "status": "PASS"
     },
     {
       "n": 4,
-      "label": "primitive puerts_material_instance_build is NOT usable",
-      "tool": "puerts_material_instance_build",
-      "status": "LEGACY_ONLY",
-      "detail": "PORT: material_instance_create (MCP_ENABLE_LEGACY_HTTP=1) + material_instance_set_params (MCP_ENABLE_LEGACY_HTTP=1) already does this, with no native front",
-      "why": "the instance is what a designer actually tunes, and it is the only material write lane I will ship"
+      "label": "1. some material exists to act as a parent",
+      "status": "PASS",
+      "detail": "20 found"
     },
     {
       "n": 5,
-      "label": "2. build the material instance with the prompt's parameter values",
-      "tool": "puerts_material_instance_build",
-      "status": "SKIPPED_PRIOR_STEP_BLOCKED",
-      "detail": "its primitive is missing"
+      "label": "1. this is a degraded path, not the slice",
+      "status": "NOTE",
+      "detail": "instancing whatever material happens to exist proves the instance tool, not the prompt. The prompt asked for a material with named parameters, and a parent nobody authored has no guarantee of carrying any."
     },
     {
       "n": 6,
-      "label": "primitive puerts_material_inspect is NOT usable",
-      "tool": "puerts_material_inspect",
-      "status": "LEGACY_ONLY",
-      "detail": "PORT: material_info (MCP_ENABLE_LEGACY_HTTP=1) already does this, with no native front",
-      "why": "a material builder with no inspector cannot be verified without a human opening the asset"
+      "label": "primitive puerts_material_instance_build is registered",
+      "tool": "puerts_material_instance_build",
+      "status": "PASS"
     },
     {
       "n": 7,
-      "label": "3. read the instance back and compare the overrides field for field",
-      "tool": "puerts_material_inspect",
-      "status": "SKIPPED_PRIOR_STEP_BLOCKED",
-      "detail": "its primitive is missing"
+      "label": "2. build the material instance with the prompt's parameter values",
+      "tool": "puerts_material_instance_build",
+      "status": "FAIL",
+      "detail": "PRESENT BUT FAILING: [\"'/Game/CRT_VCR_Material/Materials/00_animated_crt_v2_1.00_animated_crt_v2_1' does not publish a scalar parameter named 'GlowStrength'. The parent publishes no parameters of that kind. '/Game/CRT_VCR_Material/Materials/00_animated_crt_v2_1.00_animated_crt_v2_1' does not publish a scalar parameter named 'Roughness'. Closest scalar parameters: Glass Roughness Multiplier. '/Game/CRT_VCR_Material/Mat"
     },
     {
       "n": 8,
+      "label": "primitive puerts_material_inspect is registered",
+      "tool": "puerts_material_inspect",
+      "status": "PASS"
+    },
+    {
+      "n": 9,
+      "label": "3. read the instance back and compare the overrides field for field",
+      "tool": "puerts_material_inspect",
+      "status": "FAIL",
+      "detail": "PRESENT BUT FAILING: [\"No asset was found at '/Game/MCPGenerated/MI_SliceBeacon.MI_SliceBeacon'.\"]"
+    },
+    {
+      "n": 10,
       "label": "primitive puerts_texture_import is NOT usable",
       "tool": "puerts_texture_import",
       "status": "MISSING_PRIMITIVE",
@@ -78,33 +85,33 @@
       "why": "import or generate a UTexture2D so a texture parameter can be set. puerts_material_instance_build accepts a textures map and nothing in the catalog can produce a texture to put in it; docs/GAP_AUDIT-2026-07-29.md records no texture tools at all"
     },
     {
-      "n": 9,
+      "n": 11,
       "label": "primitive puerts_blueprint_build is registered",
       "tool": "puerts_blueprint_build",
       "status": "PASS"
     },
     {
-      "n": 10,
+      "n": 12,
       "label": "4. put the instance on a mesh through a component template property",
       "tool": "puerts_blueprint_build",
-      "status": "UNPROVEN_NO_EDITOR",
-      "detail": "install gate refused; no editor was contacted"
+      "status": "FAIL",
+      "detail": "PRESENT BUT FAILING: [\"Component 'Body' property 'OverrideMaterials': element 0: asset '/Game/MCPGenerated/MI_SliceBeacon.MI_SliceBeacon' could not be loaded.\"]"
     },
     {
-      "n": 11,
+      "n": 13,
       "label": "primitive puerts_viewport_screenshot is registered",
       "tool": "puerts_viewport_screenshot",
       "status": "PASS"
     },
     {
-      "n": 12,
+      "n": 14,
       "label": "5. capture the viewport so the material can be judged by eye",
       "tool": "puerts_viewport_screenshot",
-      "status": "UNPROVEN_NO_EDITOR",
-      "detail": "install gate refused; no editor was contacted"
+      "status": "FAIL",
+      "detail": "PRESENT BUT FAILING: [\"No requested actors were found for viewport capture.\"]"
     },
     {
-      "n": 13,
+      "n": 15,
       "label": "6. shader compilation is not observable",
       "status": "NOTE",
       "detail": "no registered tool reports whether the shader compiler has finished, so a screenshot taken immediately after a material change can legitimately show the default checkerboard. Lane I reports compile result inside the instance build response, which covers the instance but not the shader map."
@@ -134,70 +141,6 @@
       }
     },
     {
-      "tool": "puerts_material_instance_build",
-      "state": "LEGACY_ONLY",
-      "gap_kind": "PORT",
-      "why": "the instance is what a designer actually tunes, and it is the only material write lane I will ship",
-      "proposed_schema": {
-        "tool": "puerts_material_instance_build",
-        "owner": "lane I (settled, implementation in progress)",
-        "params": {
-          "asset_path": "string",
-          "parent_path": "string",
-          "scalars": "{name: number}",
-          "vectors": "{name: {r,g,b,a}}",
-          "textures": "{name: path}",
-          "switches": "{name: boolean}",
-          "clear_unlisted": "boolean",
-          "save": "boolean"
-        }
-      },
-      "legacy_equivalent": [
-        {
-          "tool": "material_instance_create",
-          "backend": "legacy_http",
-          "gate": "MCP_ENABLE_LEGACY_HTTP=1",
-          "handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/content_tools.py",
-          "migration_state": "legacy_untested",
-          "description": "Create a MaterialInstanceConstant from a parent material with optional scalar/vector/texture parameter overrides. Saves the instance."
-        },
-        {
-          "tool": "material_instance_set_params",
-          "backend": "legacy_http",
-          "gate": "MCP_ENABLE_LEGACY_HTTP=1",
-          "handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/content_tools.py",
-          "migration_state": "legacy_untested",
-          "description": "Set scalar/vector/texture parameters on an existing material instance, then save."
-        }
-      ],
-      "note": "The capability already runs behind a human opt-in and has no native front. This is a port, not a new command."
-    },
-    {
-      "tool": "puerts_material_inspect",
-      "state": "LEGACY_ONLY",
-      "gap_kind": "PORT",
-      "why": "a material builder with no inspector cannot be verified without a human opening the asset",
-      "proposed_schema": {
-        "tool": "puerts_material_inspect",
-        "owner": "lane I (settled, implementation in progress)",
-        "params": {
-          "asset_path": "string"
-        },
-        "returns": "{ asset_kind: 'material'|'material_instance', parent_path, scalars, vectors, textures, switches, structure_hash_sha1 }"
-      },
-      "legacy_equivalent": [
-        {
-          "tool": "material_info",
-          "backend": "legacy_http",
-          "gate": "MCP_ENABLE_LEGACY_HTTP=1",
-          "handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/materials.py",
-          "migration_state": "legacy_untested",
-          "description": "Get detailed information about a material: parameters, textures, parent chain."
-        }
-      ],
-      "note": "The capability already runs behind a human opt-in and has no native front. This is a port, not a new command."
-    },
-    {
       "tool": "puerts_texture_import",
       "state": "MISSING",
       "gap_kind": "NEW",
@@ -216,16 +159,14 @@
     }
   ],
   "checks": {
-    "passed": 0,
-    "failed": 0
+    "passed": 2,
+    "failed": 4
   },
   "sealed_artifacts": [],
-  "mcp_round_trips": 0,
-  "elapsed_ms": 596,
+  "mcp_round_trips": 6,
+  "elapsed_ms": 5388,
   "blocks": [
     "puerts_material_build",
-    "puerts_material_instance_build",
-    "puerts_material_inspect",
     "puerts_texture_import"
   ]
 }
