@@ -1703,7 +1703,7 @@ const specs = [
         "Where the frames go. Relative paths resolve against the project directory, and anything "
         + "outside the project is refused. Default Saved/MCPRenders/<sequence name>.",
       ),
-      format: z.enum(["png", "jpg", "bmp", "exr", "avi"]).optional().describe(
+      format: z.enum(["png", "jpg", "bmp", "exr"]).optional().describe(
         "Default png. These are the five capture protocols UE4.27 ships; avi is the only one that "
         + "produces a single file rather than an image sequence.",
       ),

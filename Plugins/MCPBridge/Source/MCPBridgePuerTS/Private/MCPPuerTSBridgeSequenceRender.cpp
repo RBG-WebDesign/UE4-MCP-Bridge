@@ -51,7 +51,6 @@
 #include "Misc/Paths.h"
 #include "MovieSceneCapture.h"
 #include "Protocols/ImageSequenceProtocol.h"
-#include "Protocols/VideoCaptureProtocol.h"
 #include "UObject/Package.h"
 
 namespace
@@ -65,7 +64,11 @@ namespace
         if (Format.Equals(TEXT("jpg"), ESearchCase::IgnoreCase)) { return UImageSequenceProtocol_JPG::StaticClass(); }
         if (Format.Equals(TEXT("bmp"), ESearchCase::IgnoreCase)) { return UImageSequenceProtocol_BMP::StaticClass(); }
         if (Format.Equals(TEXT("exr"), ESearchCase::IgnoreCase)) { return UImageSequenceProtocol_EXR::StaticClass(); }
-        if (Format.Equals(TEXT("avi"), ESearchCase::IgnoreCase)) { return UVideoCaptureProtocol::StaticClass(); }
+        // avi is deliberately absent. UVideoCaptureProtocol's header includes
+        // AVIWriter.h, a private header an INSTALLED engine build does not
+        // ship, so supporting it would make the plugin compile only against a
+        // source-built engine. The caller gets a refusal naming the formats
+        // that work rather than a link error at install time.
         return nullptr;
     }
 }
