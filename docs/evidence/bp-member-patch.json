@@ -1,61 +1,73 @@
 {
   "phase": "record",
+  "run_id": "mscvg6aj",
+  "asset_path": "/Game/MCPGenerated/BP_MemberProbe_mscvg6aj",
   "steps": {
     "fixture": {
-      "member_hash": "674e318959708e2a0d50f4ee5b39f99c6d0ecadd",
+      "member_hash": "8dad5a44f3cfd9c02c4397c2d0c65e8c9d3a84ef",
       "variables": [
         "Alpha",
         "Beta",
-        "Delta",
+        "Count",
         "Doomed",
         "Gamma",
-        "Label",
-        "Zeta"
+        "Label"
       ],
       "components": [
-        "Beacon",
         "Body",
         "Lamp",
         "Muzzle",
         "Root"
       ],
-      "file_sha256": "9d3080fc8afbe667f7ec85d526a14ada7484082fae6834c3287e86a960f8c094"
+      "file_sha256": "d7501c53bec7ce37ee6528c78163b8bf70b1bdc30b9b1dcaf97ee1c17c949541",
+      "earlier_probe_files_unlinked": 0
     },
     "plan": {
-      "asset_path": "/Game/MCPGenerated/BP_MemberProbe",
+      "asset_path": "/Game/MCPGenerated/BP_MemberProbe_mscvg6aj",
       "requested_operation_count": 2,
       "operations_to_apply": [
-        "add_variable Alpha"
-      ],
-      "unchanged_operations": [
         "add_variable Delta"
       ],
+      "unchanged_operations": [
+        "add_variable Alpha"
+      ],
       "expected_change_count": 1,
-      "pre_member_hash": "674e318959708e2a0d50f4ee5b39f99c6d0ecadd",
+      "pre_member_hash": "8dad5a44f3cfd9c02c4397c2d0c65e8c9d3a84ef",
       "plan_only": true,
       "prediction_unavailable_reason": "the batch changes the Blueprint's members, and a created graph or variable carries engine-generated detail that only exists once it is made. A predicted hash is offered only for a no-op batch, where it is the current hash by definition.",
-      "elapsed_ms": 3.4696999937295914
+      "elapsed_ms": 1.582199998665601
     },
-    "patch": {},
-    "untouched_members_compared": 4,
-    "rerun": {},
-    "source_control_quiescent": true
+    "patch": {
+      "elapsed_ms": 126.02239999978337,
+      "applied_operation_count": 7,
+      "pre_member_hash": "8dad5a44f3cfd9c02c4397c2d0c65e8c9d3a84ef",
+      "post_member_hash": "53c434f98f4ec9b3570d87f8eac475ef607f5c94"
+    },
+    "untouched_members_compared": 5,
+    "rerun": {
+      "applied": 0,
+      "converged": true
+    },
+    "rollback": {
+      "errors": [
+        "operation 1 (add_variable bHidden) failed inside the mutator; see the LogBlueprintMutator output for the reason. The whole batch is rolled back rather than left half-applied."
+      ]
+    },
+    "source_control_quiescent": null
   },
-  "post_patch_member_hash": "674e318959708e2a0d50f4ee5b39f99c6d0ecadd",
+  "post_patch_member_hash": "53c434f98f4ec9b3570d87f8eac475ef607f5c94",
+  "post_patch_file_sha256": "24f93ca3a49e68e22545781fd89ffebc59c109d5f7b0c1585a8dd06d822d9b4f",
   "post_patch_variables": [
     "Alpha",
     "Beta",
+    "Count",
     "Delta",
-    "Doomed",
     "Gamma",
-    "Label",
-    "Zeta"
+    "Label"
   ],
   "post_patch_components": [
     "Beacon",
     "Body",
-    "Lamp",
-    "Muzzle",
     "Root"
   ],
   "post_patch_functions": [
@@ -65,5 +77,5 @@
   "post_patch_dispatchers": [
     "OnProbed"
   ],
-  "mcp_round_trips": 18
+  "mcp_round_trips": 40
 }

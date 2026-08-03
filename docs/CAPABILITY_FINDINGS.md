@@ -1578,3 +1578,53 @@ The general lesson is the one this file keeps recording: a verifier that shares
 its comparator with the writer cannot catch the writer being wrong. The member
 hash read back through `graph_inspect` is a genuinely independent check; the
 default-value comparison was not.
+
+## Finding 0p: a variable's default_value reads back empty after a successful set
+
+Open. Found by the integration lead, 2026-08-02, after fixing 0o and the value
+mangling behind it.
+
+`puerts_graph_inspect` reports `default_value: ""` for float variables on a
+Blueprint that `blueprint_member_patch` just set defaults on and saved, and the
+patch reported success. Confirmed by reading the live editor directly, not from
+an acceptance assertion:
+
+```
+{ "name": "Delta", "type": { "category": "float", ... },
+  "category": "Probe", "default_value": "", ... }
+```
+
+This is the second of the two checks still red in
+`Scripts/bp-member-patch-acceptance.mjs`:
+`independent verification: the changed default is the requested one ("")`.
+
+**It is not a regression from the serialization fix.** Before that fix the value
+arriving at `ImportText` was `",\r\n0.75"`, which parsed as `0.0` while
+reporting success, so a default was never landing correctly in the first place.
+The fix corrected what is SENT. What this finding says is that something after
+that still does not persist or does not report it.
+
+Three candidates, not yet distinguished, listed so the next session measures
+instead of guessing:
+
+1. The CDO write succeeds but `FBPVariableDescription::DefaultValue` is never
+   synced back, so the inspector reads the description and sees nothing.
+   `SyncDefaultValueFromCDO` in `BPVariableOps.cpp` exists for exactly this and
+   may not be reached on every path.
+2. The CDO write itself fails silently for a float, and only the description
+   would have shown it.
+3. The inspector reads `DefaultValue` off the description when the truth lives
+   on the CDO, in which case the write is fine and the READER is wrong.
+
+The distinguishing measurement is cheap: set a default, then read the CDO
+property directly with `puerts_read_property` and compare against what
+`graph_inspect` reports for the same variable. If the CDO holds `0.75` and the
+inspector says `""`, it is (3) and the fix is in the reader.
+
+Do this before touching the writer. The pattern this file keeps recording is
+that the reader and the writer disagree and whoever looks first assumes the
+writer is wrong.
+
+Related: the other red check, `batch apply: the patched Blueprint compiles
+(UpToDateWithWarnings)`, predates all of this work and appeared in the first
+member_patch run too. It is not known whether the two share a cause.
