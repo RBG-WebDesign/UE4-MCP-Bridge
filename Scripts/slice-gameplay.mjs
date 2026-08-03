@@ -151,6 +151,7 @@ await runSlice({
   // tool that can express the intent, then degrades so the rest still runs.
   const canScene = h.need("puerts_scene_batch", {
     why: "place the beacon with a stable label and a transform in one desired-state call; puerts_spawn_actor cannot label, scale, or fold an actor",
+    legacy: ["actor_spawn", "batch_spawn", "actor_organize"],
     request: {
       tool: "puerts_scene_batch",
       owner: "lane L (settled, implemented_unverified)",

@@ -69,6 +69,7 @@ await runSlice({
     why: "an Animation Blueprint with states and transitions is the whole animation slice; "
       + "UAnimBlueprintBuilderLibrary::BuildAnimBlueprintFromJSON exists in C++ and anim_blueprint_build_from_json "
       + "exists only behind the legacy HTTP opt-in, so there is no registered path to it",
+    legacy: ["anim_blueprint_build_from_json"],
     request: {
       tool: "puerts_anim_blueprint_build",
       owner: "lane J (settled, C++ uncompiled)",

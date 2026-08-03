@@ -169,6 +169,7 @@ await runSlice({
   // places the volume; nothing builds the navmesh.
   h.need("puerts_scene_batch", {
     why: "place a NavMeshBoundsVolume and the guard pawn in the level; puerts_spawn_actor cannot set a volume's brush extent or label the actor",
+    legacy: ["actor_spawn", "batch_spawn", "actor_organize"],
     request: { tool: "puerts_scene_batch", owner: "lane L (settled, implemented_unverified)" },
   });
   h.request("puerts_nav_build",
@@ -178,7 +179,8 @@ await runSlice({
       tool: "puerts_nav_build",
       params: { wait_for_completion: "boolean (default true)", timeout_ms: "number" },
       returns: "{ built: boolean, navmesh_tile_count: number, bounds_volume_count: number, elapsed_ms: number }",
-    });
+    },
+    ["ai_nav_rebuild"]);
 
   h.policy("7. watch the guard patrol",
     "a Behavior Tree only ticks in a running game. PIE is reserved for the user to ask for, and the only runtime "

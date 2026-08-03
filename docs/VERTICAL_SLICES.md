@@ -32,11 +32,34 @@ than dying at the first undefined tool. A harness that stops at
 `puerts_sequence_build is not a function` reports one gap per run; these report
 all of them.
 
-Missing primitives are further split. `MISSING` means no such tool exists
-anywhere. `LEGACY_ONLY` means the tool is in `docs/TOOL_INVENTORY.json` with the
-`legacy_http` backend, so the capability exists but has no native front and is
-invisible unless a human sets `MCP_ENABLE_LEGACY_HTTP=1`. Those are different
-jobs: one is writing a command, the other is porting one.
+Missing primitives are further split, because writing a capability and porting
+one that already runs are different sizes of job:
+
+| State | Gap kind | Means |
+|---|---|---|
+| `MISSING` | `NEW` | nothing in either catalog has ever done this |
+| `LEGACY_ONLY` | `PORT` | the capability runs today behind a human opt-in (`MCP_ENABLE_LEGACY_HTTP=1`, or `MCP_COMPAT_ALIASES=1`) and has no native front |
+| `NOT_REGISTERED` | `REGISTRATION_BUG` | `docs/TOOL_INVENTORY.json` calls it native and `tools/list` does not carry it |
+
+A slice claims a legacy equivalent by naming it; the harness does not take the
+claim on trust. It looks the name up in the inventory, and a claim that does not
+check out is reported as `legacy_claim_unverified` rather than believed. Two
+details matter for that lookup and both were wrong in the first draft:
+
+- **`tools/list` is the only authority on PRESENT.** The inventory is a document
+  and can be stale; a tool a client cannot see is not usable regardless.
+- **A name is not unique in the inventory.** `actor_spawn` appears twice, once as
+  the legacy handler and once as the compat alias. The alias adds no capability
+  (its own description says scale, name and folder "are refused rather than
+  dropped"), so the legacy entry is what counts as evidence a capability exists.
+
+Six of the sixteen gaps turn out to be ports. That is the most actionable
+distinction in this document, and the reason for the `scene` group in particular
+is worth stating plainly: **the native migration lost capability.** `actor_spawn`
+(legacy) takes `name`, `folder` and `scale`. `puerts_spawn_actor` takes none of
+them. `level_actors` (legacy) takes `include_transforms` and `folder_filter`.
+`puerts_find_actors` takes neither. Four slices are blocked on a regression, not
+on an unbuilt feature.
 
 ## Running them
 
@@ -49,6 +72,11 @@ node Scripts/slice-gameplay.mjs --phase=cold   # after an editor restart
 or `npm run slice:gameplay`, `npm run slice:ui`, and so on. There is no
 run-them-all script on purpose: all seven currently exit non-zero, and the cold
 phase needs an editor restart between the two runs.
+
+After a run, `npm run slice:summary` derives the consolidated gap list from the
+seven evidence files into `docs/evidence/slice-summary.json`. The ranked table at
+the bottom of this document is that script's output pasted in, so the table and
+the runs cannot drift apart. Do not hand-edit it; regenerate it.
 
 Each run writes `docs/evidence/slice-<id>.json` (and `-cold.json`), in the same
 shape as the other evidence files, with a `verdict`, a `steps` array, a
@@ -98,7 +126,7 @@ source-control quiescence via `p4 opened` before and after.
 thing to green in the whole program: `puerts_blueprint_build` and
 `puerts_graph_inspect` are both live_verified. Placement is what blocks it.
 
-Missing: `puerts_scene_batch`.
+Missing: `puerts_scene_batch` (PORT).
 
 Two things this slice is watching for that are not tool gaps. First, the one
 connection whose pin role the builder vocabulary does not document is
@@ -123,7 +151,7 @@ read back field for field, converged, bound to data, and displayed.
 
 **Expected verdict: BLOCKED_MISSING_PRIMITIVE.**
 
-Missing: `puerts_widget_bind`.
+Missing: `puerts_widget_bind` (NEW).
 
 Three findings this slice carries beyond the tool gap:
 
@@ -162,7 +190,8 @@ uses that controller, and navigation the MoveTo tasks can path on.
 
 **Expected verdict: BLOCKED_MISSING_PRIMITIVE.**
 
-Missing: `puerts_class_defaults_patch`, `puerts_scene_batch`, `puerts_nav_build`.
+Missing: `puerts_class_defaults_patch` (NEW), `puerts_scene_batch` (PORT),
+`puerts_nav_build` (PORT of `ai_nav_rebuild`).
 
 The tree and blackboard halves are live_verified, and lane K confirmed that
 nothing in the AI lane authors the controller wiring:
@@ -199,8 +228,9 @@ project has assets to build this from at all.
 
 **Expected verdict: BLOCKED_MISSING_PRIMITIVE.**
 
-Missing: `puerts_anim_blueprint_build`, `puerts_anim_blueprint_inspect`,
-`puerts_anim_blueprint_patch`.
+Missing: `puerts_anim_blueprint_build` (PORT of `anim_blueprint_build_from_json`,
+which the inventory's own notes call the highest-value refront in the catalog),
+`puerts_anim_blueprint_inspect` (NEW), `puerts_anim_blueprint_patch` (NEW).
 
 `UAnimBlueprintBuilderLibrary::BuildAnimBlueprintFromJSON` exists in C++ and
 `anim_blueprint_build_from_json` exists behind the legacy HTTP opt-in, so the
@@ -228,8 +258,15 @@ them, a read-back that agrees field for field, and the material on a mesh.
 
 **Expected verdict: BLOCKED_MISSING_PRIMITIVE.**
 
-Missing: `puerts_material_build`, `puerts_material_instance_build`,
-`puerts_material_inspect`, `puerts_texture_import`.
+Missing: `puerts_material_build` (NEW), `puerts_material_instance_build` (PORT of
+`material_instance_create` plus `material_instance_set_params`),
+`puerts_material_inspect` (PORT of `material_info`), `puerts_texture_import` (NEW).
+
+`material_create` is deliberately NOT counted as an equivalent for
+`puerts_material_build`. It creates a simple opaque surface from a fixed template
+and authors no graph, and the inventory's own note on it records a generic
+material graph builder as a known gap. Calling it a port would understate this
+domain by a whole primitive.
 
 Lane I owns the middle two and has them settled. `puerts_material_build` is
 **unowned and stated as out of scope**: lane I will not author a master material
@@ -266,7 +303,8 @@ saved.
 
 **Expected verdict: BLOCKED_MISSING_PRIMITIVE.**
 
-Missing: `puerts_scene_batch`, `puerts_scene_inspect`, `puerts_lighting_build`.
+Missing: `puerts_scene_batch` (PORT), `puerts_scene_inspect` (PORT of
+`level_actors` plus `level_outliner`), `puerts_lighting_build` (NEW).
 
 Lane L owns the first two and has them settled. The size of the gap is worth
 stating plainly: `puerts_spawn_actor` takes a class path, a location and a
@@ -306,8 +344,8 @@ rendered.
 seven.** Nothing in the catalog touches Sequencer, and no lane in this program
 owns it.
 
-Missing: `puerts_sequence_build`, `puerts_sequence_inspect`,
-`puerts_sequence_render`, `puerts_scene_batch`.
+Missing: `puerts_sequence_build` (NEW), `puerts_sequence_inspect` (NEW),
+`puerts_sequence_render` (NEW), `puerts_scene_batch` (PORT).
 
 What exists in the repository and why none of it counts:
 
@@ -328,43 +366,54 @@ now and executable the day the primitives land.
 ## Consolidated missing primitives
 
 Sixteen distinct primitives across the seven slices, ranked by how many slices
-each one blocks.
+each one blocks. Generated by `npm run slice:summary` from the evidence files.
 
-| Slices blocked | Primitive | Owner | Blocks |
-|---|---|---|---|
-| 4 | `puerts_scene_batch` | lane L, settled, implemented_unverified | gameplay, AI, level, cinematics |
-| 1 | `puerts_scene_inspect` | lane L, settled, implemented_unverified | level |
-| 1 | `puerts_class_defaults_patch` | **unowned** | AI |
-| 1 | `puerts_nav_build` | **unowned** | AI |
-| 1 | `puerts_widget_bind` | **unowned** | UI |
-| 1 | `puerts_anim_blueprint_build` | lane J, settled, C++ uncompiled | animation |
-| 1 | `puerts_anim_blueprint_inspect` | lane J, settled, C++ uncompiled | animation |
-| 1 | `puerts_anim_blueprint_patch` | **unowned, and lane J declines it** | animation |
-| 1 | `puerts_material_build` | **unowned, and lane I declines it** | materials |
-| 1 | `puerts_material_instance_build` | lane I, settled, in progress | materials |
-| 1 | `puerts_material_inspect` | lane I, settled, in progress | materials |
-| 1 | `puerts_texture_import` | **unowned** | materials |
-| 1 | `puerts_lighting_build` | **unowned** | level |
-| 1 | `puerts_sequence_build` | **unowned** | cinematics |
-| 1 | `puerts_sequence_inspect` | **unowned** | cinematics |
-| 1 | `puerts_sequence_render` | **unowned** | cinematics |
+| Slices blocked | Primitive | Gap | Owner | Blocks |
+|---|---|---|---|---|
+| 4 | `puerts_scene_batch` | PORT (actor_spawn, batch_spawn, actor_organize) | lane L (settled, implemented_unverified) | ai, cinematics, gameplay, level |
+| 1 | `puerts_anim_blueprint_build` | PORT (anim_blueprint_build_from_json) | lane J (settled, C++ uncompiled) | animation |
+| 1 | `puerts_anim_blueprint_inspect` | NEW | lane J (settled, ships first, C++ uncompiled) | animation |
+| 1 | `puerts_anim_blueprint_patch` | NEW | UNOWNED | animation |
+| 1 | `puerts_class_defaults_patch` | NEW | UNOWNED | ai |
+| 1 | `puerts_lighting_build` | NEW | UNOWNED | level |
+| 1 | `puerts_material_build` | NEW | UNOWNED. Lane I ships the instance and the inspector only | materials |
+| 1 | `puerts_material_inspect` | PORT (material_info) | lane I (settled, implementation in progress) | materials |
+| 1 | `puerts_material_instance_build` | PORT (material_instance_create, material_instance_set_params) | lane I (settled, implementation in progress) | materials |
+| 1 | `puerts_nav_build` | PORT (ai_nav_rebuild) | UNOWNED | ai |
+| 1 | `puerts_scene_inspect` | PORT (level_actors, level_outliner) | lane L (settled, implemented_unverified) | level |
+| 1 | `puerts_sequence_build` | NEW | UNOWNED. No lane in this program covers Sequencer | cinematics |
+| 1 | `puerts_sequence_inspect` | NEW | UNOWNED | cinematics |
+| 1 | `puerts_sequence_render` | NEW | UNOWNED | cinematics |
+| 1 | `puerts_texture_import` | NEW | UNOWNED | materials |
+| 1 | `puerts_widget_bind` | NEW | UNOWNED | ui |
 
-Reading that table by count alone understates it. Three groupings matter more
+Six ports, ten new. Ten of the sixteen are unowned.
+
+Reading that table by count alone understates it. Four groupings matter more
 than the ranking:
 
-1. **`puerts_scene_batch` is the single highest-value primitive in the program.**
-   It is the only one four slices need, and every one of those four needs it for
-   the same reason: an authored asset has to end up in a level with a name before
-   anything can be verified or looked at. Lane L has it settled and uncompiled.
+1. **`puerts_scene_batch` is the single highest-value primitive in the program,
+   and it is a port.** It is the only one four slices need, and every one of
+   those four needs it for the same reason: an authored asset has to end up in a
+   level with a name before anything can be verified or looked at. The
+   capability shipped in `actor_spawn` and `batch_spawn` and did not survive the
+   native migration. Lane L has it settled and uncompiled.
 
-2. **Nine of the sixteen are unowned**, and they cluster: cinematics is three of
-   them plus a fourth that lane L covers, materials is two, and the rest are one
-   apiece. Cinematics is the only domain with no owner and no partial support.
+2. **The six ports are the cheap half of the roadmap.** `puerts_scene_batch`,
+   `puerts_scene_inspect`, `puerts_anim_blueprint_build`,
+   `puerts_material_instance_build`, `puerts_material_inspect` and
+   `puerts_nav_build` all have working Python behind the HTTP opt-in. The
+   inventory calls `anim_blueprint_build_from_json` the "highest-value REFRONT"
+   in its own notes. None of these needs a capability designed, only fronted.
 
-3. **`puerts_class_defaults_patch` is the cheapest fix on the list.** It may be a
-   `defaults:` section on a builder that already exists rather than a new tool,
-   and without it the AI slice's four otherwise-working tools cannot be assembled
-   into a pawn that a controller possesses.
+3. **Cinematics is the only domain that is entirely new work and entirely
+   unowned.** Three of its four primitives exist nowhere, and the fourth is the
+   scene port. It is also the only domain with no lane.
+
+4. **`puerts_class_defaults_patch` is the cheapest new tool on the list.** It may
+   be a `defaults:` section on a builder that already exists rather than a new
+   tool, and without it the AI slice's four otherwise-working tools cannot be
+   assembled into a pawn that a controller possesses.
 
 Two of the sixteen are declined by the lane closest to them, which makes them
 policy decisions rather than backlog: `puerts_material_build` (lane I ships the

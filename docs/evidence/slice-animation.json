@@ -3,7 +3,7 @@
   "title": "an Animation Blueprint with a state machine and transitions",
   "proves": "author an AnimBP against a real skeleton, read the state machine back, and drive it from a pawn",
   "phase": "warm",
-  "generated_at": "2026-08-02T21:46:37.273Z",
+  "generated_at": "2026-08-03T07:18:31.526Z",
   "verdict": "BLOCKED_MISSING_PRIMITIVE",
   "editor": {
     "available": false,
@@ -42,8 +42,8 @@
       "n": 4,
       "label": "primitive puerts_anim_blueprint_build is NOT usable",
       "tool": "puerts_anim_blueprint_build",
-      "status": "MISSING_PRIMITIVE",
-      "detail": "not registered and not in the tool inventory",
+      "status": "LEGACY_ONLY",
+      "detail": "PORT: anim_blueprint_build_from_json (MCP_ENABLE_LEGACY_HTTP=1) already does this, with no native front",
       "why": "an Animation Blueprint with states and transitions is the whole animation slice; UAnimBlueprintBuilderLibrary::BuildAnimBlueprintFromJSON exists in C++ and anim_blueprint_build_from_json exists only behind the legacy HTTP opt-in, so there is no registered path to it"
     },
     {
@@ -58,7 +58,7 @@
       "label": "primitive puerts_anim_blueprint_inspect is NOT usable",
       "tool": "puerts_anim_blueprint_inspect",
       "status": "MISSING_PRIMITIVE",
-      "detail": "not registered and not in the tool inventory",
+      "detail": "NEW: not registered, and no legacy tool in the inventory covers it either",
       "why": "no inspector exists for Animation Blueprints today, which breaks the builder-plus-inspector rule every other builder in this bridge follows"
     },
     {
@@ -73,7 +73,7 @@
       "label": "primitive puerts_anim_blueprint_patch is NOT usable",
       "tool": "puerts_anim_blueprint_patch",
       "status": "MISSING_PRIMITIVE",
-      "detail": "not registered and not in the tool inventory",
+      "detail": "NEW: not registered, and no legacy tool in the inventory covers it either",
       "why": "change one state, transition or variable on an existing Animation Blueprint. puerts_anim_blueprint_build is create-only and refuses an existing asset, and lane J will not ship a patch because the UAnimBlueprintBuilderLibrary rebuild path appends instead of replacing and cannot be made failure-atomic yet. Until it exists, an animation slice is single-shot: the second prompt about the same asset has nowhere to go"
     },
     {
@@ -99,7 +99,8 @@
   "missing_primitives": [
     {
       "tool": "puerts_anim_blueprint_build",
-      "state": "MISSING",
+      "state": "LEGACY_ONLY",
+      "gap_kind": "PORT",
       "why": "an Animation Blueprint with states and transitions is the whole animation slice; UAnimBlueprintBuilderLibrary::BuildAnimBlueprintFromJSON exists in C++ and anim_blueprint_build_from_json exists only behind the legacy HTTP opt-in, so there is no registered path to it",
       "proposed_schema": {
         "tool": "puerts_anim_blueprint_build",
@@ -114,11 +115,23 @@
           "save": "boolean"
         },
         "note": "CREATE ONLY by design: rerunning against an existing asset is a refusal, not a no-op"
-      }
+      },
+      "legacy_equivalent": [
+        {
+          "tool": "anim_blueprint_build_from_json",
+          "backend": "legacy_http",
+          "gate": "MCP_ENABLE_LEGACY_HTTP=1",
+          "handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/blueprints.py",
+          "migration_state": "legacy_untested",
+          "description": "Build an Animation Blueprint from a JSON specification. Creates the AnimBP asset with the given skeleton and populates the anim graph from the JSON spec (state machines, blend spaces, slots, etc.)."
+        }
+      ],
+      "note": "The capability already runs behind a human opt-in and has no native front. This is a port, not a new command."
     },
     {
       "tool": "puerts_anim_blueprint_inspect",
       "state": "MISSING",
+      "gap_kind": "NEW",
       "why": "no inspector exists for Animation Blueprints today, which breaks the builder-plus-inspector rule every other builder in this bridge follows",
       "proposed_schema": {
         "tool": "puerts_anim_blueprint_inspect",
@@ -132,6 +145,7 @@
     {
       "tool": "puerts_anim_blueprint_patch",
       "state": "MISSING",
+      "gap_kind": "NEW",
       "why": "change one state, transition or variable on an existing Animation Blueprint. puerts_anim_blueprint_build is create-only and refuses an existing asset, and lane J will not ship a patch because the UAnimBlueprintBuilderLibrary rebuild path appends instead of replacing and cannot be made failure-atomic yet. Until it exists, an animation slice is single-shot: the second prompt about the same asset has nowhere to go",
       "proposed_schema": {
         "tool": "puerts_anim_blueprint_patch",
@@ -152,7 +166,7 @@
   },
   "sealed_artifacts": [],
   "mcp_round_trips": 0,
-  "elapsed_ms": 496,
+  "elapsed_ms": 660,
   "blocks": [
     "puerts_anim_blueprint_build",
     "puerts_anim_blueprint_inspect",

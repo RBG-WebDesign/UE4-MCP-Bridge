@@ -3,7 +3,7 @@
   "title": "a master material with parameters, an instance that overrides them, compiled and applied",
   "proves": "author a material graph, instance it, read the parameter values back, and see it on a mesh",
   "phase": "warm",
-  "generated_at": "2026-08-02T21:46:37.891Z",
+  "generated_at": "2026-08-03T07:18:32.283Z",
   "verdict": "BLOCKED_MISSING_PRIMITIVE",
   "editor": {
     "available": false,
@@ -23,7 +23,7 @@
       "label": "primitive puerts_material_build is NOT usable",
       "tool": "puerts_material_build",
       "status": "MISSING_PRIMITIVE",
-      "detail": "not registered and not in the tool inventory",
+      "detail": "NEW: not registered, and no legacy tool in the inventory covers it either",
       "why": "author a UMaterial graph: expression nodes, named scalar/vector/texture parameters, and the base-colour, emissive, roughness and normal connections. Without it there is no parent material to instance, so the material slice cannot start from a prompt. Lane I states this will not exist in that lane, and lane B recorded material graph structure as a platform gap. The nearest registered tool, puerts_sky_shader_create, builds one specific hard-coded sky material"
     },
     {
@@ -43,8 +43,8 @@
       "n": 4,
       "label": "primitive puerts_material_instance_build is NOT usable",
       "tool": "puerts_material_instance_build",
-      "status": "MISSING_PRIMITIVE",
-      "detail": "not registered and not in the tool inventory",
+      "status": "LEGACY_ONLY",
+      "detail": "PORT: material_instance_create (MCP_ENABLE_LEGACY_HTTP=1) + material_instance_set_params (MCP_ENABLE_LEGACY_HTTP=1) already does this, with no native front",
       "why": "the instance is what a designer actually tunes, and it is the only material write lane I will ship"
     },
     {
@@ -58,8 +58,8 @@
       "n": 6,
       "label": "primitive puerts_material_inspect is NOT usable",
       "tool": "puerts_material_inspect",
-      "status": "MISSING_PRIMITIVE",
-      "detail": "not registered and not in the tool inventory",
+      "status": "LEGACY_ONLY",
+      "detail": "PORT: material_info (MCP_ENABLE_LEGACY_HTTP=1) already does this, with no native front",
       "why": "a material builder with no inspector cannot be verified without a human opening the asset"
     },
     {
@@ -74,7 +74,7 @@
       "label": "primitive puerts_texture_import is NOT usable",
       "tool": "puerts_texture_import",
       "status": "MISSING_PRIMITIVE",
-      "detail": "not registered and not in the tool inventory",
+      "detail": "NEW: not registered, and no legacy tool in the inventory covers it either",
       "why": "import or generate a UTexture2D so a texture parameter can be set. puerts_material_instance_build accepts a textures map and nothing in the catalog can produce a texture to put in it; docs/GAP_AUDIT-2026-07-29.md records no texture tools at all"
     },
     {
@@ -114,10 +114,12 @@
     {
       "tool": "puerts_material_build",
       "state": "MISSING",
+      "gap_kind": "NEW",
       "why": "author a UMaterial graph: expression nodes, named scalar/vector/texture parameters, and the base-colour, emissive, roughness and normal connections. Without it there is no parent material to instance, so the material slice cannot start from a prompt. Lane I states this will not exist in that lane, and lane B recorded material graph structure as a platform gap. The nearest registered tool, puerts_sky_shader_create, builds one specific hard-coded sky material",
       "proposed_schema": {
         "tool": "puerts_material_build",
         "owner": "UNOWNED. Lane I ships the instance and the inspector only",
+        "nearest_existing": "material_create (legacy_http), which creates a simple opaque surface from a fixed template and authors no graph",
         "params": {
           "asset_path": "/Game/MCPGenerated/...",
           "domain": "Surface | PostProcess | UI",
@@ -133,7 +135,8 @@
     },
     {
       "tool": "puerts_material_instance_build",
-      "state": "MISSING",
+      "state": "LEGACY_ONLY",
+      "gap_kind": "PORT",
       "why": "the instance is what a designer actually tunes, and it is the only material write lane I will ship",
       "proposed_schema": {
         "tool": "puerts_material_instance_build",
@@ -148,11 +151,31 @@
           "clear_unlisted": "boolean",
           "save": "boolean"
         }
-      }
+      },
+      "legacy_equivalent": [
+        {
+          "tool": "material_instance_create",
+          "backend": "legacy_http",
+          "gate": "MCP_ENABLE_LEGACY_HTTP=1",
+          "handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/content_tools.py",
+          "migration_state": "legacy_untested",
+          "description": "Create a MaterialInstanceConstant from a parent material with optional scalar/vector/texture parameter overrides. Saves the instance."
+        },
+        {
+          "tool": "material_instance_set_params",
+          "backend": "legacy_http",
+          "gate": "MCP_ENABLE_LEGACY_HTTP=1",
+          "handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/content_tools.py",
+          "migration_state": "legacy_untested",
+          "description": "Set scalar/vector/texture parameters on an existing material instance, then save."
+        }
+      ],
+      "note": "The capability already runs behind a human opt-in and has no native front. This is a port, not a new command."
     },
     {
       "tool": "puerts_material_inspect",
-      "state": "MISSING",
+      "state": "LEGACY_ONLY",
+      "gap_kind": "PORT",
       "why": "a material builder with no inspector cannot be verified without a human opening the asset",
       "proposed_schema": {
         "tool": "puerts_material_inspect",
@@ -161,11 +184,23 @@
           "asset_path": "string"
         },
         "returns": "{ asset_kind: 'material'|'material_instance', parent_path, scalars, vectors, textures, switches, structure_hash_sha1 }"
-      }
+      },
+      "legacy_equivalent": [
+        {
+          "tool": "material_info",
+          "backend": "legacy_http",
+          "gate": "MCP_ENABLE_LEGACY_HTTP=1",
+          "handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/materials.py",
+          "migration_state": "legacy_untested",
+          "description": "Get detailed information about a material: parameters, textures, parent chain."
+        }
+      ],
+      "note": "The capability already runs behind a human opt-in and has no native front. This is a port, not a new command."
     },
     {
       "tool": "puerts_texture_import",
       "state": "MISSING",
+      "gap_kind": "NEW",
       "why": "import or generate a UTexture2D so a texture parameter can be set. puerts_material_instance_build accepts a textures map and nothing in the catalog can produce a texture to put in it; docs/GAP_AUDIT-2026-07-29.md records no texture tools at all",
       "proposed_schema": {
         "tool": "puerts_texture_import",
@@ -186,7 +221,7 @@
   },
   "sealed_artifacts": [],
   "mcp_round_trips": 0,
-  "elapsed_ms": 501,
+  "elapsed_ms": 596,
   "blocks": [
     "puerts_material_build",
     "puerts_material_instance_build",

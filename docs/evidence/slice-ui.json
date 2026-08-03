@@ -3,7 +3,7 @@
   "title": "a Widget Blueprint with a layout, a binding and an independent read-back",
   "proves": "author a UMG tree, bind a widget property to data, read the asset back, and get it on screen",
   "phase": "warm",
-  "generated_at": "2026-08-02T21:46:35.910Z",
+  "generated_at": "2026-08-03T07:18:30.132Z",
   "verdict": "BLOCKED_MISSING_PRIMITIVE",
   "editor": {
     "available": false,
@@ -56,7 +56,7 @@
       "label": "primitive puerts_widget_bind is NOT usable",
       "tool": "puerts_widget_bind",
       "status": "MISSING_PRIMITIVE",
-      "detail": "not registered and not in the tool inventory",
+      "detail": "NEW: not registered, and no legacy tool in the inventory covers it either",
       "why": "bind a widget property to a function or variable, and expose a widget as a BindWidget variable. puerts_widget_inspect already REPORTS bindings and is_variable; puerts_widget_build has no field that writes either, so every widget this bridge can author is static and unreachable from a graph by name"
     },
     {
@@ -83,6 +83,7 @@
     {
       "tool": "puerts_widget_bind",
       "state": "MISSING",
+      "gap_kind": "NEW",
       "why": "bind a widget property to a function or variable, and expose a widget as a BindWidget variable. puerts_widget_inspect already REPORTS bindings and is_variable; puerts_widget_build has no field that writes either, so every widget this bridge can author is static and unreachable from a graph by name",
       "proposed_schema": {
         "tool": "puerts_widget_bind",
@@ -111,7 +112,7 @@
     }
   ],
   "mcp_round_trips": 0,
-  "elapsed_ms": 506,
+  "elapsed_ms": 551,
   "blocks": [
     "puerts_widget_bind"
   ]

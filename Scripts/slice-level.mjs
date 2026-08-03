@@ -91,6 +91,11 @@ await runSlice({
     why: "puerts_spawn_actor takes a class path and nothing else: it cannot label an actor, cannot scale it, "
       + "cannot file it in an outliner folder, cannot set a volume's extent and cannot batch. Seven separate "
       + "spawns with no way to name what they produced is not a scene-authoring primitive",
+    // Every one of those four abilities shipped in the legacy catalog and did
+    // not survive the native migration. The compat alias says so in its own
+    // description: scale, name and folder "are refused rather than dropped".
+    // This is a capability regression to undo, not a feature to invent.
+    legacy: ["actor_spawn", "batch_spawn", "actor_organize"],
     request: {
       tool: "puerts_scene_batch",
       owner: "lane L (settled, implemented_unverified)",
@@ -111,6 +116,11 @@ await runSlice({
     label: "3. read the level back with the independent scene inspector",
     why: "puerts_find_actors returns names and classes only. It reports no transform, no folder, no bounds and no "
       + "structure hash, so there is no way to verify a placement without one",
+    // The legacy level_actors already takes include_transforms and
+    // folder_filter, and level_outliner returns the folder tree. The native
+    // find_actors dropped both. Bounds and a structure hash are the genuinely
+    // new parts.
+    legacy: ["level_actors", "level_outliner"],
     request: {
       tool: "puerts_scene_inspect",
       owner: "lane L (settled, implemented_unverified)",

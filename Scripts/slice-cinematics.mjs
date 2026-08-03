@@ -71,6 +71,7 @@ await runSlice({
   h.need("puerts_scene_batch", {
     why: "place a LevelSequenceActor that points at the sequence. puerts_spawn_actor can spawn the actor class but "
       + "cannot set its LevelSequence property or label it",
+    legacy: ["actor_spawn", "batch_spawn", "actor_organize"],
     request: { tool: "puerts_scene_batch", owner: "lane L (settled, implemented_unverified)" },
   });
 

@@ -3,7 +3,7 @@
   "title": "a Behavior Tree plus Blackboard driving an AIController on a pawn",
   "proves": "author the tree, the blackboard, the controller wiring and the pawn, then prove the wiring by reading it back",
   "phase": "warm",
-  "generated_at": "2026-08-02T21:46:36.545Z",
+  "generated_at": "2026-08-03T07:18:30.782Z",
   "verdict": "BLOCKED_MISSING_PRIMITIVE",
   "editor": {
     "available": false,
@@ -76,23 +76,23 @@
       "label": "primitive puerts_class_defaults_patch is NOT usable",
       "tool": "puerts_class_defaults_patch",
       "status": "MISSING_PRIMITIVE",
-      "detail": "not registered and not in the tool inventory",
+      "detail": "NEW: not registered, and no legacy tool in the inventory covers it either",
       "why": "set class-default (CDO) properties on a generated Blueprint. The AI slice needs AIControllerClass and AutoPossessAI on the pawn; puerts_blueprint_build writes component template properties and member variable defaults, and has no section for the actor's own class defaults, so an authored pawn can never be possessed by an authored controller"
     },
     {
       "n": 10,
       "label": "primitive puerts_scene_batch is NOT usable",
       "tool": "puerts_scene_batch",
-      "status": "MISSING_PRIMITIVE",
-      "detail": "not registered and not in the tool inventory",
+      "status": "LEGACY_ONLY",
+      "detail": "PORT: actor_spawn (MCP_ENABLE_LEGACY_HTTP=1) + batch_spawn (MCP_ENABLE_LEGACY_HTTP=1) + actor_organize (MCP_ENABLE_LEGACY_HTTP=1) already does this, with no native front",
       "why": "place a NavMeshBoundsVolume and the guard pawn in the level; puerts_spawn_actor cannot set a volume's brush extent or label the actor"
     },
     {
       "n": 11,
       "label": "primitive puerts_nav_build is NOT usable",
       "tool": "puerts_nav_build",
-      "status": "MISSING_PRIMITIVE",
-      "detail": "not registered and not in the tool inventory",
+      "status": "LEGACY_ONLY",
+      "detail": "PORT: ai_nav_rebuild (MCP_ENABLE_LEGACY_HTTP=1) already does this, with no native front",
       "why": "rebuild navigation so MoveTo can path. The legacy catalog has ai_nav_rebuild behind the HTTP opt-in; lane K's puerts_nav_inspect and puerts_nav_query are read-only by design, so no registered tool builds a navmesh"
     },
     {
@@ -106,6 +106,7 @@
     {
       "tool": "puerts_class_defaults_patch",
       "state": "MISSING",
+      "gap_kind": "NEW",
       "why": "set class-default (CDO) properties on a generated Blueprint. The AI slice needs AIControllerClass and AutoPossessAI on the pawn; puerts_blueprint_build writes component template properties and member variable defaults, and has no section for the actor's own class defaults, so an authored pawn can never be possessed by an authored controller",
       "proposed_schema": {
         "tool": "puerts_class_defaults_patch",
@@ -121,16 +122,45 @@
     },
     {
       "tool": "puerts_scene_batch",
-      "state": "MISSING",
+      "state": "LEGACY_ONLY",
+      "gap_kind": "PORT",
       "why": "place a NavMeshBoundsVolume and the guard pawn in the level; puerts_spawn_actor cannot set a volume's brush extent or label the actor",
       "proposed_schema": {
         "tool": "puerts_scene_batch",
         "owner": "lane L (settled, implemented_unverified)"
-      }
+      },
+      "legacy_equivalent": [
+        {
+          "tool": "actor_spawn",
+          "backend": "legacy_http",
+          "gate": "MCP_ENABLE_LEGACY_HTTP=1",
+          "handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/actors.py",
+          "migration_state": "hybrid_candidate",
+          "description": "Spawn an actor from an asset path at a given location/rotation/scale. Returns validation results by default."
+        },
+        {
+          "tool": "batch_spawn",
+          "backend": "legacy_http",
+          "gate": "MCP_ENABLE_LEGACY_HTTP=1",
+          "handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/actors.py",
+          "migration_state": "legacy_untested",
+          "description": "Spawn multiple actors in one call. Each spawn definition uses the same format as actor_spawn."
+        },
+        {
+          "tool": "actor_organize",
+          "backend": "legacy_http",
+          "gate": "MCP_ENABLE_LEGACY_HTTP=1",
+          "handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/actors.py",
+          "migration_state": "legacy_untested",
+          "description": "Move actors into World Outliner folders."
+        }
+      ],
+      "note": "The capability already runs behind a human opt-in and has no native front. This is a port, not a new command."
     },
     {
       "tool": "puerts_nav_build",
-      "state": "MISSING",
+      "state": "LEGACY_ONLY",
+      "gap_kind": "PORT",
       "why": "rebuild navigation so MoveTo can path. The legacy catalog has ai_nav_rebuild behind the HTTP opt-in; lane K's puerts_nav_inspect and puerts_nav_query are read-only by design, so no registered tool builds a navmesh",
       "proposed_schema": {
         "tool": "puerts_nav_build",
@@ -139,7 +169,18 @@
           "timeout_ms": "number"
         },
         "returns": "{ built: boolean, navmesh_tile_count: number, bounds_volume_count: number, elapsed_ms: number }"
-      }
+      },
+      "legacy_equivalent": [
+        {
+          "tool": "ai_nav_rebuild",
+          "backend": "legacy_http",
+          "gate": "MCP_ENABLE_LEGACY_HTTP=1",
+          "handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/gamedev.py",
+          "migration_state": "legacy_untested",
+          "description": "Rebuild navigation data in the loaded level (RebuildNavigation console command)."
+        }
+      ],
+      "note": "The capability already runs behind a human opt-in and has no native front. This is a port, not a new command."
     }
   ],
   "checks": {
@@ -156,7 +197,7 @@
     }
   ],
   "mcp_round_trips": 0,
-  "elapsed_ms": 627,
+  "elapsed_ms": 647,
   "blocks": [
     "puerts_class_defaults_patch",
     "puerts_scene_batch",

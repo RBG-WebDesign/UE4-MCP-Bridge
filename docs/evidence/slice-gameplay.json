@@ -3,7 +3,7 @@
   "title": "a Blueprint actor with components, variables and a working event graph",
   "proves": "author, compile, read back independently, converge on rerun, place in the level, and observe it run",
   "phase": "warm",
-  "generated_at": "2026-08-02T21:46:35.279Z",
+  "generated_at": "2026-08-03T07:18:29.490Z",
   "verdict": "BLOCKED_MISSING_PRIMITIVE",
   "editor": {
     "available": false,
@@ -55,8 +55,8 @@
       "n": 6,
       "label": "primitive puerts_scene_batch is NOT usable",
       "tool": "puerts_scene_batch",
-      "status": "MISSING_PRIMITIVE",
-      "detail": "not registered and not in the tool inventory",
+      "status": "LEGACY_ONLY",
+      "detail": "PORT: actor_spawn (MCP_ENABLE_LEGACY_HTTP=1) + batch_spawn (MCP_ENABLE_LEGACY_HTTP=1) + actor_organize (MCP_ENABLE_LEGACY_HTTP=1) already does this, with no native front",
       "why": "place the beacon with a stable label and a transform in one desired-state call; puerts_spawn_actor cannot label, scale, or fold an actor"
     },
     {
@@ -88,7 +88,8 @@
   "missing_primitives": [
     {
       "tool": "puerts_scene_batch",
-      "state": "MISSING",
+      "state": "LEGACY_ONLY",
+      "gap_kind": "PORT",
       "why": "place the beacon with a stable label and a transform in one desired-state call; puerts_spawn_actor cannot label, scale, or fold an actor",
       "proposed_schema": {
         "tool": "puerts_scene_batch",
@@ -98,7 +99,34 @@
           "plan_only": "boolean",
           "verify": "boolean"
         }
-      }
+      },
+      "legacy_equivalent": [
+        {
+          "tool": "actor_spawn",
+          "backend": "legacy_http",
+          "gate": "MCP_ENABLE_LEGACY_HTTP=1",
+          "handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/actors.py",
+          "migration_state": "hybrid_candidate",
+          "description": "Spawn an actor from an asset path at a given location/rotation/scale. Returns validation results by default."
+        },
+        {
+          "tool": "batch_spawn",
+          "backend": "legacy_http",
+          "gate": "MCP_ENABLE_LEGACY_HTTP=1",
+          "handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/actors.py",
+          "migration_state": "legacy_untested",
+          "description": "Spawn multiple actors in one call. Each spawn definition uses the same format as actor_spawn."
+        },
+        {
+          "tool": "actor_organize",
+          "backend": "legacy_http",
+          "gate": "MCP_ENABLE_LEGACY_HTTP=1",
+          "handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/actors.py",
+          "migration_state": "legacy_untested",
+          "description": "Move actors into World Outliner folders."
+        }
+      ],
+      "note": "The capability already runs behind a human opt-in and has no native front. This is a port, not a new command."
     }
   ],
   "checks": {
@@ -115,7 +143,7 @@
     }
   ],
   "mcp_round_trips": 0,
-  "elapsed_ms": 516,
+  "elapsed_ms": 545,
   "blocks": [
     "puerts_scene_batch"
   ]

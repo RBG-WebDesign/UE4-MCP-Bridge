@@ -37,6 +37,11 @@ await runSlice({
     {
       tool: "puerts_material_build",
       owner: "UNOWNED. Lane I ships the instance and the inspector only",
+      // Deliberately NOT declared as a legacy equivalent. material_create builds
+      // from a fixed template and the inventory's own note on it says a generic
+      // material graph builder is a known gap. Claiming it as a port would
+      // understate this by a whole primitive.
+      nearest_existing: "material_create (legacy_http), which creates a simple opaque surface from a fixed template and authors no graph",
       params: {
         asset_path: "/Game/MCPGenerated/...",
         domain: "Surface | PostProcess | UI",
@@ -78,6 +83,7 @@ await runSlice({
   }, {
     label: "2. build the material instance with the prompt's parameter values",
     why: "the instance is what a designer actually tunes, and it is the only material write lane I will ship",
+    legacy: ["material_instance_create", "material_instance_set_params"],
     request: {
       tool: "puerts_material_instance_build",
       owner: "lane I (settled, implementation in progress)",
@@ -88,6 +94,7 @@ await runSlice({
   const read = await h.call("puerts_material_inspect", { asset_path: INSTANCE }, {
     label: "3. read the instance back and compare the overrides field for field",
     why: "a material builder with no inspector cannot be verified without a human opening the asset",
+    legacy: ["material_info"],
     request: {
       tool: "puerts_material_inspect",
       owner: "lane I (settled, implementation in progress)",

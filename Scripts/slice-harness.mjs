@@ -45,7 +45,29 @@ const evidenceDir = join(repoRoot, "docs", "evidence");
 const inventory = JSON.parse(
   readFileSync(join(repoRoot, "docs", "TOOL_INVENTORY.json"), "utf8"),
 );
-const inventoryByName = new Map(inventory.tools.map((t) => [t.name, t]));
+// A name is not unique in the inventory: actor_spawn appears twice, once as the
+// legacy_http handler and once as the compat alias onto the native catalog. A
+// plain Map silently keeps whichever came last, so entries are grouped and the
+// caller says which backend it is asking about.
+const inventoryByName = new Map();
+for (const tool of inventory.tools) {
+  const list = inventoryByName.get(tool.name);
+  if (list === undefined) inventoryByName.set(tool.name, [tool]);
+  else list.push(tool);
+}
+/** Backends whose tools are real code that a human opt-in makes visible.
+    legacy_http needs MCP_ENABLE_LEGACY_HTTP=1, native_pipe_alias needs
+    MCP_COMPAT_ALIASES=1. Neither is in a default client's catalog. */
+const GATED_BACKENDS = new Set(["legacy_http", "native_pipe_alias"]);
+const entriesFor = (name) => inventoryByName.get(name) ?? [];
+// legacy_http wins over native_pipe_alias when a name carries both. An alias is
+// a rename onto the native catalog and adds no capability: the actor_spawn alias
+// documents that it refuses scale, name and folder rather than implementing
+// them. Only the legacy handler is evidence that a capability exists somewhere.
+const gatedEntry = (name) => entriesFor(name).find((t) => t.backend === "legacy_http")
+  ?? entriesFor(name).find((t) => GATED_BACKENDS.has(t.backend))
+  ?? null;
+const nativeEntry = (name) => entriesFor(name).find((t) => !GATED_BACKENDS.has(t.backend)) ?? null;
 
 export const STATUS = {
   pass: "PASS",
@@ -201,23 +223,78 @@ export async function runSlice(spec, warmBody) {
       return entry;
     };
 
-    /** Classify a tool name against the real catalog. */
-    const classify = (tool) => {
-      if (registered.has(tool)) return "PRESENT";
-      const known = inventoryByName.get(tool);
-      if (known !== undefined) return known.backend === "native_pipe" ? "PRESENT" : "LEGACY_ONLY";
-      return "MISSING";
+    /** Classify a tool name against the real catalog.
+        `tools/list` is the only authority on PRESENT: the inventory is a
+        document and can be wrong, and a tool the client cannot see is not
+        usable no matter what a JSON file says about it.
+
+        `legacy` is the name of an existing legacy_http tool a slice claims
+        already provides this capability. The harness does not take that on
+        trust: it looks the name up, and a claim that does not check out is
+        reported rather than believed. The distinction it buys is the one that
+        decides who does the work. Porting a capability that already runs is a
+        different job from writing one that has never existed in this repo. */
+    const classify = (tool, legacy) => {
+      if (registered.has(tool)) return { state: "PRESENT" };
+
+      // The inventory calls this a native tool and the running server did not
+      // list it. That is a registration defect, not a missing primitive, and it
+      // is a different work item from either.
+      const native = nativeEntry(tool);
+      if (native !== null) {
+        return { state: "NOT_REGISTERED", gap_kind: "REGISTRATION_BUG", inventory_backend: native.backend };
+      }
+
+      const names = legacy === undefined ? [tool] : Array.isArray(legacy) ? legacy : [legacy];
+      const covered = [];
+      const unverified = [];
+      for (const name of names) {
+        const entry = gatedEntry(name);
+        if (entry === null) {
+          if (legacy !== undefined) unverified.push(name);
+          continue;
+        }
+        covered.push({
+          tool: entry.name,
+          backend: entry.backend,
+          gate: entry.backend === "legacy_http" ? "MCP_ENABLE_LEGACY_HTTP=1" : "MCP_COMPAT_ALIASES=1",
+          handler: entry.python_handler ?? null,
+          migration_state: entry.migration_state ?? null,
+          description: entry.description ?? null,
+        });
+      }
+      if (covered.length > 0) {
+        return {
+          state: "LEGACY_ONLY",
+          gap_kind: "PORT",
+          legacy_equivalent: covered,
+          ...(unverified.length > 0
+            ? { legacy_claim_unverified: `named as equivalents and absent from docs/TOOL_INVENTORY.json: ${unverified.join(", ")}` }
+            : {}),
+        };
+      }
+      return {
+        state: "MISSING",
+        gap_kind: "NEW",
+        ...(unverified.length > 0
+          ? { legacy_claim_unverified: `this slice named ${unverified.join(", ")} as an existing equivalent and no such tool is in docs/TOOL_INVENTORY.json` }
+          : {}),
+      };
     };
 
-    const noteMissing = (tool, state, why, request) => {
+    const noteMissing = (tool, verdict, why, request) => {
       if (evidence.missing_primitives.some((m) => m.tool === tool)) return;
       evidence.missing_primitives.push({
         tool,
-        state,
+        state: verdict.state,
+        gap_kind: verdict.gap_kind ?? null,
         why,
         ...(request ? { proposed_schema: request } : {}),
-        ...(state === "LEGACY_ONLY"
-          ? { note: "Present only in the legacy HTTP catalog, which is disabled by default. Needs a native front." }
+        ...(verdict.legacy_equivalent ? { legacy_equivalent: verdict.legacy_equivalent } : {}),
+        ...(verdict.legacy_claim_unverified ? { legacy_claim_unverified: verdict.legacy_claim_unverified } : {}),
+        ...(verdict.inventory_backend ? { inventory_backend: verdict.inventory_backend } : {}),
+        ...(verdict.state === "LEGACY_ONLY"
+          ? { note: "The capability already runs behind a human opt-in and has no native front. This is a port, not a new command." }
           : {}),
       });
     };
@@ -235,23 +312,31 @@ export async function runSlice(spec, warmBody) {
       evidence,
 
       /** Does the primitive this step needs exist? Records the answer either
-          way and never throws, so one run reports every gap in the domain. */
-      need(tool, { why, request } = {}) {
+          way and never throws, so one run reports every gap in the domain.
+          `legacy` names an existing legacy_http tool that already covers the
+          capability, which downgrades the gap from "write this" to "port this".
+          The claim is checked against the inventory, not believed. */
+      need(tool, { why, request, legacy } = {}) {
         if (classified.has(tool)) return classified.get(tool);
-        const state = classify(tool);
-        classified.set(tool, state === "PRESENT");
-        if (state === "PRESENT") {
+        const verdict = classify(tool, legacy);
+        classified.set(tool, verdict.state === "PRESENT");
+        if (verdict.state === "PRESENT") {
           record({ label: `primitive ${tool} is registered`, tool, status: STATUS.pass });
           return true;
         }
-        noteMissing(tool, state, why ?? "required by this slice", request);
+        noteMissing(tool, verdict, why ?? "required by this slice", request);
+        const detail = verdict.state === "LEGACY_ONLY"
+          ? `PORT: ${verdict.legacy_equivalent.map((e) => `${e.tool} (${e.gate})`).join(" + ")} already does this, with no native front`
+          : verdict.state === "NOT_REGISTERED"
+            ? `REGISTRATION BUG: the inventory calls this ${verdict.inventory_backend} and tools/list does not carry it`
+            : verdict.legacy_claim_unverified
+              ? `NEW: ${verdict.legacy_claim_unverified}`
+              : "NEW: not registered, and no legacy tool in the inventory covers it either";
         record({
           label: `primitive ${tool} is NOT usable`,
           tool,
-          status: state === "LEGACY_ONLY" ? STATUS.legacy : STATUS.missing,
-          detail: state === "LEGACY_ONLY"
-            ? "exists only behind MCP_ENABLE_LEGACY_HTTP=1; no native front"
-            : "not registered and not in the tool inventory",
+          status: verdict.state === "LEGACY_ONLY" ? STATUS.legacy : STATUS.missing,
+          detail,
           why,
         });
         raise("BLOCKED_MISSING_PRIMITIVE");
@@ -261,16 +346,16 @@ export async function runSlice(spec, warmBody) {
       /** A capability with no candidate tool name at all. Same effect as need()
           on an unregistered name, spelled for the case where the harness is
           naming the tool it wishes existed. */
-      request(tool, why, proposedSchema) {
-        return h.need(tool, { why, request: proposedSchema });
+      request(tool, why, proposedSchema, legacy) {
+        return h.need(tool, { why, request: proposedSchema, legacy });
       },
 
       /** Call a registered tool. Returns null when the step could not run, so a
           slice reads `const r = await h.call(...); if (!r) return;` and the
           reason is already in the evidence. */
-      async call(tool, args, { label, why, request } = {}) {
+      async call(tool, args, { label, why, request, legacy } = {}) {
         const name = label ?? tool;
-        if (!h.need(tool, { why, request })) {
+        if (!h.need(tool, { why, request, legacy })) {
           record({ label: name, tool, status: STATUS.skipped, detail: "its primitive is missing" });
           return null;
         }
@@ -430,11 +515,13 @@ export async function runSlice(spec, warmBody) {
     }
     console.log(`checks ${evidence.checks.passed} passed, ${evidence.checks.failed} failed`);
     console.log(`evidence: ${out}`);
+    // process.exit never runs a finally block, so the server child is killed
+    // here rather than left to be reaped when the pipe closes.
+    child.kill();
     process.exit(EXIT_FOR_VERDICT[evidence.verdict]);
   } catch (error) {
     console.error(`\nslice ${spec.id}: ${error.message}`);
-    process.exit(1);
-  } finally {
     child.kill();
+    process.exit(1);
   }
 }

@@ -3,7 +3,7 @@
   "title": "a LevelSequence with tracks and keyframes",
   "proves": "author a sequence with bindings, tracks and keys, read it back, place it in the level and play it",
   "phase": "warm",
-  "generated_at": "2026-08-02T21:46:39.113Z",
+  "generated_at": "2026-08-03T07:18:33.641Z",
   "verdict": "BLOCKED_MISSING_PRIMITIVE",
   "editor": {
     "available": false,
@@ -23,7 +23,7 @@
       "label": "primitive puerts_sequence_build is NOT usable",
       "tool": "puerts_sequence_build",
       "status": "MISSING_PRIMITIVE",
-      "detail": "not registered and not in the tool inventory",
+      "detail": "NEW: not registered, and no legacy tool in the inventory covers it either",
       "why": "create or update a LevelSequence: frame rate, playback range, actor bindings, tracks and keyframes. No registered tool touches Sequencer at all. The only LevelSequence code in the repository (generation/sequence_generator.py) creates an empty asset and sets its playback range, is reachable only through the legacy prompt_generate pipeline, and writes no track, no section and no key"
     },
     {
@@ -31,15 +31,15 @@
       "label": "primitive puerts_sequence_inspect is NOT usable",
       "tool": "puerts_sequence_inspect",
       "status": "MISSING_PRIMITIVE",
-      "detail": "not registered and not in the tool inventory",
+      "detail": "NEW: not registered, and no legacy tool in the inventory covers it either",
       "why": "read a LevelSequence back as machine-readable JSON: bindings, tracks, sections, keyframe times and values, and a structure hash. Required by the builder-plus-inspector rule every other builder in this bridge follows, and without it a keyframe claim cannot be verified without a human opening Sequencer"
     },
     {
       "n": 3,
       "label": "primitive puerts_scene_batch is NOT usable",
       "tool": "puerts_scene_batch",
-      "status": "MISSING_PRIMITIVE",
-      "detail": "not registered and not in the tool inventory",
+      "status": "LEGACY_ONLY",
+      "detail": "PORT: actor_spawn (MCP_ENABLE_LEGACY_HTTP=1) + batch_spawn (MCP_ENABLE_LEGACY_HTTP=1) + actor_organize (MCP_ENABLE_LEGACY_HTTP=1) already does this, with no native front",
       "why": "place a LevelSequenceActor that points at the sequence. puerts_spawn_actor can spawn the actor class but cannot set its LevelSequence property or label it"
     },
     {
@@ -47,7 +47,7 @@
       "label": "primitive puerts_sequence_render is NOT usable",
       "tool": "puerts_sequence_render",
       "status": "MISSING_PRIMITIVE",
-      "detail": "not registered and not in the tool inventory",
+      "detail": "NEW: not registered, and no legacy tool in the inventory covers it either",
       "why": "render a LevelSequence to image frames or a video so the result of a cinematic prompt can be looked at. puerts_viewport_screenshot captures one editor viewport frame and cannot follow a sequence's camera cuts"
     },
     {
@@ -89,6 +89,7 @@
     {
       "tool": "puerts_sequence_build",
       "state": "MISSING",
+      "gap_kind": "NEW",
       "why": "create or update a LevelSequence: frame rate, playback range, actor bindings, tracks and keyframes. No registered tool touches Sequencer at all. The only LevelSequence code in the repository (generation/sequence_generator.py) creates an empty asset and sets its playback range, is reachable only through the legacy prompt_generate pipeline, and writes no track, no section and no key",
       "proposed_schema": {
         "tool": "puerts_sequence_build",
@@ -108,6 +109,7 @@
     {
       "tool": "puerts_sequence_inspect",
       "state": "MISSING",
+      "gap_kind": "NEW",
       "why": "read a LevelSequence back as machine-readable JSON: bindings, tracks, sections, keyframe times and values, and a structure hash. Required by the builder-plus-inspector rule every other builder in this bridge follows, and without it a keyframe claim cannot be verified without a human opening Sequencer",
       "proposed_schema": {
         "tool": "puerts_sequence_inspect",
@@ -120,16 +122,45 @@
     },
     {
       "tool": "puerts_scene_batch",
-      "state": "MISSING",
+      "state": "LEGACY_ONLY",
+      "gap_kind": "PORT",
       "why": "place a LevelSequenceActor that points at the sequence. puerts_spawn_actor can spawn the actor class but cannot set its LevelSequence property or label it",
       "proposed_schema": {
         "tool": "puerts_scene_batch",
         "owner": "lane L (settled, implemented_unverified)"
-      }
+      },
+      "legacy_equivalent": [
+        {
+          "tool": "actor_spawn",
+          "backend": "legacy_http",
+          "gate": "MCP_ENABLE_LEGACY_HTTP=1",
+          "handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/actors.py",
+          "migration_state": "hybrid_candidate",
+          "description": "Spawn an actor from an asset path at a given location/rotation/scale. Returns validation results by default."
+        },
+        {
+          "tool": "batch_spawn",
+          "backend": "legacy_http",
+          "gate": "MCP_ENABLE_LEGACY_HTTP=1",
+          "handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/actors.py",
+          "migration_state": "legacy_untested",
+          "description": "Spawn multiple actors in one call. Each spawn definition uses the same format as actor_spawn."
+        },
+        {
+          "tool": "actor_organize",
+          "backend": "legacy_http",
+          "gate": "MCP_ENABLE_LEGACY_HTTP=1",
+          "handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/actors.py",
+          "migration_state": "legacy_untested",
+          "description": "Move actors into World Outliner folders."
+        }
+      ],
+      "note": "The capability already runs behind a human opt-in and has no native front. This is a port, not a new command."
     },
     {
       "tool": "puerts_sequence_render",
       "state": "MISSING",
+      "gap_kind": "NEW",
       "why": "render a LevelSequence to image frames or a video so the result of a cinematic prompt can be looked at. puerts_viewport_screenshot captures one editor viewport frame and cannot follow a sequence's camera cuts",
       "proposed_schema": {
         "tool": "puerts_sequence_render",
@@ -152,7 +183,7 @@
   },
   "sealed_artifacts": [],
   "mcp_round_trips": 0,
-  "elapsed_ms": 500,
+  "elapsed_ms": 562,
   "blocks": [
     "puerts_sequence_build",
     "puerts_sequence_inspect",
