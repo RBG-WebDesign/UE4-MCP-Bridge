@@ -1,0 +1,175 @@
+{
+  "slice": "animation",
+  "title": "an Animation Blueprint with a state machine and transitions",
+  "proves": "author an AnimBP against a real skeleton, read the state machine back, and drive it from a pawn",
+  "phase": "warm",
+  "generated_at": "2026-08-03T07:18:31.526Z",
+  "verdict": "BLOCKED_MISSING_PRIMITIVE",
+  "editor": {
+    "available": false,
+    "reason": "install gate refused; no editor was contacted"
+  },
+  "install_gate": {
+    "ok": false,
+    "reason": "Set MCP_UNREAL_PROJECT_ROOT to the test project root"
+  },
+  "catalog": {
+    "registered_tool_count": 27,
+    "legacy_http_enabled": false
+  },
+  "steps": [
+    {
+      "n": 1,
+      "label": "primitive puerts_find_assets is registered",
+      "tool": "puerts_find_assets",
+      "status": "PASS"
+    },
+    {
+      "n": 2,
+      "label": "1. find a Skeleton in the project to build against",
+      "tool": "puerts_find_assets",
+      "status": "UNPROVEN_NO_EDITOR",
+      "detail": "install gate refused; no editor was contacted"
+    },
+    {
+      "n": 3,
+      "label": "2. find AnimSequences the state machine can play",
+      "tool": "puerts_find_assets",
+      "status": "UNPROVEN_NO_EDITOR",
+      "detail": "install gate refused; no editor was contacted"
+    },
+    {
+      "n": 4,
+      "label": "primitive puerts_anim_blueprint_build is NOT usable",
+      "tool": "puerts_anim_blueprint_build",
+      "status": "LEGACY_ONLY",
+      "detail": "PORT: anim_blueprint_build_from_json (MCP_ENABLE_LEGACY_HTTP=1) already does this, with no native front",
+      "why": "an Animation Blueprint with states and transitions is the whole animation slice; UAnimBlueprintBuilderLibrary::BuildAnimBlueprintFromJSON exists in C++ and anim_blueprint_build_from_json exists only behind the legacy HTTP opt-in, so there is no registered path to it"
+    },
+    {
+      "n": 5,
+      "label": "3. build the state machine from one spec",
+      "tool": "puerts_anim_blueprint_build",
+      "status": "SKIPPED_PRIOR_STEP_BLOCKED",
+      "detail": "its primitive is missing"
+    },
+    {
+      "n": 6,
+      "label": "primitive puerts_anim_blueprint_inspect is NOT usable",
+      "tool": "puerts_anim_blueprint_inspect",
+      "status": "MISSING_PRIMITIVE",
+      "detail": "NEW: not registered, and no legacy tool in the inventory covers it either",
+      "why": "no inspector exists for Animation Blueprints today, which breaks the builder-plus-inspector rule every other builder in this bridge follows"
+    },
+    {
+      "n": 7,
+      "label": "4. read the state machine back with the independent inspector",
+      "tool": "puerts_anim_blueprint_inspect",
+      "status": "SKIPPED_PRIOR_STEP_BLOCKED",
+      "detail": "its primitive is missing"
+    },
+    {
+      "n": 8,
+      "label": "primitive puerts_anim_blueprint_patch is NOT usable",
+      "tool": "puerts_anim_blueprint_patch",
+      "status": "MISSING_PRIMITIVE",
+      "detail": "NEW: not registered, and no legacy tool in the inventory covers it either",
+      "why": "change one state, transition or variable on an existing Animation Blueprint. puerts_anim_blueprint_build is create-only and refuses an existing asset, and lane J will not ship a patch because the UAnimBlueprintBuilderLibrary rebuild path appends instead of replacing and cannot be made failure-atomic yet. Until it exists, an animation slice is single-shot: the second prompt about the same asset has nowhere to go"
+    },
+    {
+      "n": 9,
+      "label": "primitive puerts_blueprint_build is registered",
+      "tool": "puerts_blueprint_build",
+      "status": "PASS"
+    },
+    {
+      "n": 10,
+      "label": "5. attach the Animation Blueprint to a pawn's SkeletalMeshComponent",
+      "tool": "puerts_blueprint_build",
+      "status": "UNPROVEN_NO_EDITOR",
+      "detail": "install gate refused; no editor was contacted"
+    },
+    {
+      "n": 11,
+      "label": "6. see the state machine blend",
+      "status": "NOT_ATTEMPTED_BY_POLICY",
+      "detail": "an Animation Blueprint only evaluates in a running game or in the asset editor's preview viewport. PIE is user-gated, and puerts_viewport_screenshot captures the level viewport, not an asset editor preview. The legacy anim_pose_snapshot / anim_pose_delta pair is the closest thing to a pose read-back and is behind the HTTP opt-in."
+    }
+  ],
+  "missing_primitives": [
+    {
+      "tool": "puerts_anim_blueprint_build",
+      "state": "LEGACY_ONLY",
+      "gap_kind": "PORT",
+      "why": "an Animation Blueprint with states and transitions is the whole animation slice; UAnimBlueprintBuilderLibrary::BuildAnimBlueprintFromJSON exists in C++ and anim_blueprint_build_from_json exists only behind the legacy HTTP opt-in, so there is no registered path to it",
+      "proposed_schema": {
+        "tool": "puerts_anim_blueprint_build",
+        "owner": "lane J (settled, C++ uncompiled)",
+        "params": {
+          "asset_path": "string",
+          "skeleton_path": "string",
+          "variables": "array",
+          "anim_graph": "object",
+          "states": "array",
+          "transitions": "array",
+          "save": "boolean"
+        },
+        "note": "CREATE ONLY by design: rerunning against an existing asset is a refusal, not a no-op"
+      },
+      "legacy_equivalent": [
+        {
+          "tool": "anim_blueprint_build_from_json",
+          "backend": "legacy_http",
+          "gate": "MCP_ENABLE_LEGACY_HTTP=1",
+          "handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/blueprints.py",
+          "migration_state": "legacy_untested",
+          "description": "Build an Animation Blueprint from a JSON specification. Creates the AnimBP asset with the given skeleton and populates the anim graph from the JSON spec (state machines, blend spaces, slots, etc.)."
+        }
+      ],
+      "note": "The capability already runs behind a human opt-in and has no native front. This is a port, not a new command."
+    },
+    {
+      "tool": "puerts_anim_blueprint_inspect",
+      "state": "MISSING",
+      "gap_kind": "NEW",
+      "why": "no inspector exists for Animation Blueprints today, which breaks the builder-plus-inspector rule every other builder in this bridge follows",
+      "proposed_schema": {
+        "tool": "puerts_anim_blueprint_inspect",
+        "owner": "lane J (settled, ships first, C++ uncompiled)",
+        "params": {
+          "asset_path": "string"
+        },
+        "returns": "{ skeleton_path, variables, state_machines: [{name, states: [{name, animation, loop}], transitions: [{from, to, condition}]}], structure_hash_sha1, package_dirty_before, package_dirty_after }"
+      }
+    },
+    {
+      "tool": "puerts_anim_blueprint_patch",
+      "state": "MISSING",
+      "gap_kind": "NEW",
+      "why": "change one state, transition or variable on an existing Animation Blueprint. puerts_anim_blueprint_build is create-only and refuses an existing asset, and lane J will not ship a patch because the UAnimBlueprintBuilderLibrary rebuild path appends instead of replacing and cannot be made failure-atomic yet. Until it exists, an animation slice is single-shot: the second prompt about the same asset has nowhere to go",
+      "proposed_schema": {
+        "tool": "puerts_anim_blueprint_patch",
+        "blocked_by": "UAnimBlueprintBuilderLibrary rebuild appends rather than replaces; needs the same failure-atomic treatment BPMutatorHelpers is getting",
+        "params": {
+          "asset_path": "string",
+          "operations": "[{op:'add_state'|'remove_state'|'set_transition_condition'|'set_state_animation', ...}]",
+          "plan_only": "boolean",
+          "verify": "boolean",
+          "save": "boolean"
+        }
+      }
+    }
+  ],
+  "checks": {
+    "passed": 0,
+    "failed": 0
+  },
+  "sealed_artifacts": [],
+  "mcp_round_trips": 0,
+  "elapsed_ms": 660,
+  "blocks": [
+    "puerts_anim_blueprint_build",
+    "puerts_anim_blueprint_inspect",
+    "puerts_anim_blueprint_patch"
+  ]
+}

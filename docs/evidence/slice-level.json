@@ -1,0 +1,220 @@
+{
+  "slice": "level",
+  "title": "a scene of several actors with lighting and a volume, placed and verified",
+  "proves": "describe a scene as desired state, place it in one call, read it back independently, and save the level",
+  "phase": "warm",
+  "generated_at": "2026-08-03T07:18:42.165Z",
+  "verdict": "BLOCKED_MISSING_PRIMITIVE",
+  "editor": {
+    "available": false,
+    "reason": "install gate refused; no editor was contacted"
+  },
+  "install_gate": {
+    "ok": false,
+    "reason": "Set MCP_UNREAL_PROJECT_ROOT to the test project root"
+  },
+  "catalog": {
+    "registered_tool_count": 27,
+    "legacy_http_enabled": false
+  },
+  "steps": [
+    {
+      "n": 1,
+      "label": "primitive puerts_find_actors is registered",
+      "tool": "puerts_find_actors",
+      "status": "PASS"
+    },
+    {
+      "n": 2,
+      "label": "1. find the PlayerStart the trigger volume must stay away from",
+      "tool": "puerts_find_actors",
+      "status": "UNPROVEN_NO_EDITOR",
+      "detail": "install gate refused; no editor was contacted"
+    },
+    {
+      "n": 3,
+      "label": "primitive puerts_scene_batch is NOT usable",
+      "tool": "puerts_scene_batch",
+      "status": "LEGACY_ONLY",
+      "detail": "PORT: actor_spawn (MCP_ENABLE_LEGACY_HTTP=1) + batch_spawn (MCP_ENABLE_LEGACY_HTTP=1) + actor_organize (MCP_ENABLE_LEGACY_HTTP=1) already does this, with no native front",
+      "why": "puerts_spawn_actor takes a class path and nothing else: it cannot label an actor, cannot scale it, cannot file it in an outliner folder, cannot set a volume's extent and cannot batch. Seven separate spawns with no way to name what they produced is not a scene-authoring primitive"
+    },
+    {
+      "n": 4,
+      "label": "2. place the whole courtyard in one desired-state call",
+      "tool": "puerts_scene_batch",
+      "status": "SKIPPED_PRIOR_STEP_BLOCKED",
+      "detail": "its primitive is missing"
+    },
+    {
+      "n": 5,
+      "label": "primitive puerts_scene_inspect is NOT usable",
+      "tool": "puerts_scene_inspect",
+      "status": "LEGACY_ONLY",
+      "detail": "PORT: level_actors (MCP_ENABLE_LEGACY_HTTP=1) + level_outliner (MCP_ENABLE_LEGACY_HTTP=1) already does this, with no native front",
+      "why": "puerts_find_actors returns names and classes only. It reports no transform, no folder, no bounds and no structure hash, so there is no way to verify a placement without one"
+    },
+    {
+      "n": 6,
+      "label": "3. read the level back with the independent scene inspector",
+      "tool": "puerts_scene_inspect",
+      "status": "SKIPPED_PRIOR_STEP_BLOCKED",
+      "detail": "its primitive is missing"
+    },
+    {
+      "n": 7,
+      "label": "3b. degraded read-back: puerts_find_actors is the only registered level query",
+      "tool": "puerts_find_actors",
+      "status": "UNPROVEN_NO_EDITOR",
+      "detail": "install gate refused; no editor was contacted"
+    },
+    {
+      "n": 8,
+      "label": "primitive puerts_lighting_build is NOT usable",
+      "tool": "puerts_lighting_build",
+      "status": "MISSING_PRIMITIVE",
+      "detail": "NEW: not registered, and no legacy tool in the inventory covers it either",
+      "why": "build lighting so the placed lights are baked rather than preview-only. Nothing in the catalog, native or legacy, triggers a lighting build, so a screenshot of an authored scene shows unbuilt lighting and the Unreal 'Lighting needs to be rebuilt' banner"
+    },
+    {
+      "n": 9,
+      "label": "primitive puerts_save is registered",
+      "tool": "puerts_save",
+      "status": "PASS"
+    },
+    {
+      "n": 10,
+      "label": "4. persist the level, which scene_batch deliberately does not do",
+      "tool": "puerts_save",
+      "status": "UNPROVEN_NO_EDITOR",
+      "detail": "install gate refused; no editor was contacted"
+    },
+    {
+      "n": 11,
+      "label": "primitive puerts_viewport_screenshot is registered",
+      "tool": "puerts_viewport_screenshot",
+      "status": "PASS"
+    },
+    {
+      "n": 12,
+      "label": "5. capture the courtyard",
+      "tool": "puerts_viewport_screenshot",
+      "status": "UNPROVEN_NO_EDITOR",
+      "detail": "install gate refused; no editor was contacted"
+    },
+    {
+      "n": 13,
+      "label": "6. this slice seals no artifact for the cold phase",
+      "status": "NOTE",
+      "detail": "the generic cold check re-reads by asset_path, and puerts_scene_inspect addresses the loaded level rather than an asset path. Proving a level survives a restart needs a cold check written against level_path."
+    }
+  ],
+  "missing_primitives": [
+    {
+      "tool": "puerts_scene_batch",
+      "state": "LEGACY_ONLY",
+      "gap_kind": "PORT",
+      "why": "puerts_spawn_actor takes a class path and nothing else: it cannot label an actor, cannot scale it, cannot file it in an outliner folder, cannot set a volume's extent and cannot batch. Seven separate spawns with no way to name what they produced is not a scene-authoring primitive",
+      "proposed_schema": {
+        "tool": "puerts_scene_batch",
+        "owner": "lane L (settled, implemented_unverified)",
+        "params": {
+          "operations": "[{op:'upsert_actor'|'delete_actor', select?, label?, class?, location?, rotation?, scale?, folder?, tags?, attach_to?, properties?, components?}]",
+          "plan_only": "boolean",
+          "verify": "boolean"
+        },
+        "note": "does NOT save the level; it reports level_package_dirty and puerts_save persists it"
+      },
+      "legacy_equivalent": [
+        {
+          "tool": "actor_spawn",
+          "backend": "legacy_http",
+          "gate": "MCP_ENABLE_LEGACY_HTTP=1",
+          "handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/actors.py",
+          "migration_state": "hybrid_candidate",
+          "description": "Spawn an actor from an asset path at a given location/rotation/scale. Returns validation results by default."
+        },
+        {
+          "tool": "batch_spawn",
+          "backend": "legacy_http",
+          "gate": "MCP_ENABLE_LEGACY_HTTP=1",
+          "handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/actors.py",
+          "migration_state": "legacy_untested",
+          "description": "Spawn multiple actors in one call. Each spawn definition uses the same format as actor_spawn."
+        },
+        {
+          "tool": "actor_organize",
+          "backend": "legacy_http",
+          "gate": "MCP_ENABLE_LEGACY_HTTP=1",
+          "handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/actors.py",
+          "migration_state": "legacy_untested",
+          "description": "Move actors into World Outliner folders."
+        }
+      ],
+      "note": "The capability already runs behind a human opt-in and has no native front. This is a port, not a new command."
+    },
+    {
+      "tool": "puerts_scene_inspect",
+      "state": "LEGACY_ONLY",
+      "gap_kind": "PORT",
+      "why": "puerts_find_actors returns names and classes only. It reports no transform, no folder, no bounds and no structure hash, so there is no way to verify a placement without one",
+      "proposed_schema": {
+        "tool": "puerts_scene_inspect",
+        "owner": "lane L (settled, implemented_unverified)",
+        "params": {
+          "level_path": "optional assertion; refuses if a different level is loaded",
+          "actors": "optional selectors",
+          "include_components": "boolean",
+          "include_properties": "boolean"
+        },
+        "returns": "{ level_path, level_name, actor_count, actors: [{id, path, label, class, folder, tags, transform, bounds, attach_parent, components}], structure_hash_sha1 }"
+      },
+      "legacy_equivalent": [
+        {
+          "tool": "level_actors",
+          "backend": "legacy_http",
+          "gate": "MCP_ENABLE_LEGACY_HTTP=1",
+          "handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/level.py",
+          "migration_state": "hybrid_candidate",
+          "description": "List actors in the current level with optional filters. Returns name, class, folder, and optionally transforms and components."
+        },
+        {
+          "tool": "level_outliner",
+          "backend": "legacy_http",
+          "gate": "MCP_ENABLE_LEGACY_HTTP=1",
+          "handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/level.py",
+          "migration_state": "legacy_untested",
+          "description": "Return the World Outliner folder tree structure with actor counts per folder."
+        }
+      ],
+      "note": "The capability already runs behind a human opt-in and has no native front. This is a port, not a new command."
+    },
+    {
+      "tool": "puerts_lighting_build",
+      "state": "MISSING",
+      "gap_kind": "NEW",
+      "why": "build lighting so the placed lights are baked rather than preview-only. Nothing in the catalog, native or legacy, triggers a lighting build, so a screenshot of an authored scene shows unbuilt lighting and the Unreal 'Lighting needs to be rebuilt' banner",
+      "proposed_schema": {
+        "tool": "puerts_lighting_build",
+        "params": {
+          "quality": "Preview | Medium | High | Production",
+          "wait_for_completion": "boolean",
+          "timeout_ms": "number"
+        },
+        "returns": "{ built: boolean, quality, mapped_lights, elapsed_ms, warnings }"
+      }
+    }
+  ],
+  "checks": {
+    "passed": 0,
+    "failed": 0
+  },
+  "sealed_artifacts": [],
+  "mcp_round_trips": 0,
+  "elapsed_ms": 496,
+  "blocks": [
+    "puerts_scene_batch",
+    "puerts_scene_inspect",
+    "puerts_lighting_build"
+  ]
+}

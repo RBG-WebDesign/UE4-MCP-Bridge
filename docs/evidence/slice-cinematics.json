@@ -1,0 +1,193 @@
+{
+  "slice": "cinematics",
+  "title": "a LevelSequence with tracks and keyframes",
+  "proves": "author a sequence with bindings, tracks and keys, read it back, place it in the level and play it",
+  "phase": "warm",
+  "generated_at": "2026-08-03T07:18:33.641Z",
+  "verdict": "BLOCKED_MISSING_PRIMITIVE",
+  "editor": {
+    "available": false,
+    "reason": "install gate refused; no editor was contacted"
+  },
+  "install_gate": {
+    "ok": false,
+    "reason": "Set MCP_UNREAL_PROJECT_ROOT to the test project root"
+  },
+  "catalog": {
+    "registered_tool_count": 27,
+    "legacy_http_enabled": false
+  },
+  "steps": [
+    {
+      "n": 1,
+      "label": "primitive puerts_sequence_build is NOT usable",
+      "tool": "puerts_sequence_build",
+      "status": "MISSING_PRIMITIVE",
+      "detail": "NEW: not registered, and no legacy tool in the inventory covers it either",
+      "why": "create or update a LevelSequence: frame rate, playback range, actor bindings, tracks and keyframes. No registered tool touches Sequencer at all. The only LevelSequence code in the repository (generation/sequence_generator.py) creates an empty asset and sets its playback range, is reachable only through the legacy prompt_generate pipeline, and writes no track, no section and no key"
+    },
+    {
+      "n": 2,
+      "label": "primitive puerts_sequence_inspect is NOT usable",
+      "tool": "puerts_sequence_inspect",
+      "status": "MISSING_PRIMITIVE",
+      "detail": "NEW: not registered, and no legacy tool in the inventory covers it either",
+      "why": "read a LevelSequence back as machine-readable JSON: bindings, tracks, sections, keyframe times and values, and a structure hash. Required by the builder-plus-inspector rule every other builder in this bridge follows, and without it a keyframe claim cannot be verified without a human opening Sequencer"
+    },
+    {
+      "n": 3,
+      "label": "primitive puerts_scene_batch is NOT usable",
+      "tool": "puerts_scene_batch",
+      "status": "LEGACY_ONLY",
+      "detail": "PORT: actor_spawn (MCP_ENABLE_LEGACY_HTTP=1) + batch_spawn (MCP_ENABLE_LEGACY_HTTP=1) + actor_organize (MCP_ENABLE_LEGACY_HTTP=1) already does this, with no native front",
+      "why": "place a LevelSequenceActor that points at the sequence. puerts_spawn_actor can spawn the actor class but cannot set its LevelSequence property or label it"
+    },
+    {
+      "n": 4,
+      "label": "primitive puerts_sequence_render is NOT usable",
+      "tool": "puerts_sequence_render",
+      "status": "MISSING_PRIMITIVE",
+      "detail": "NEW: not registered, and no legacy tool in the inventory covers it either",
+      "why": "render a LevelSequence to image frames or a video so the result of a cinematic prompt can be looked at. puerts_viewport_screenshot captures one editor viewport frame and cannot follow a sequence's camera cuts"
+    },
+    {
+      "n": 5,
+      "label": "1. build the intro sequence with two bound tracks and five keys",
+      "tool": "puerts_sequence_build",
+      "status": "SKIPPED_PRIOR_STEP_BLOCKED",
+      "detail": "its primitive is missing"
+    },
+    {
+      "n": 6,
+      "label": "2. read the sequence back and count the keys that actually landed",
+      "tool": "puerts_sequence_inspect",
+      "status": "SKIPPED_PRIOR_STEP_BLOCKED",
+      "detail": "its primitive is missing"
+    },
+    {
+      "n": 7,
+      "label": "3. place a LevelSequenceActor that points at it",
+      "tool": "puerts_scene_batch",
+      "status": "SKIPPED_PRIOR_STEP_BLOCKED",
+      "detail": "its primitive is missing"
+    },
+    {
+      "n": 8,
+      "label": "4. render the three seconds so the result can be looked at",
+      "tool": "puerts_sequence_render",
+      "status": "SKIPPED_PRIOR_STEP_BLOCKED",
+      "detail": "its primitive is missing"
+    },
+    {
+      "n": 9,
+      "label": "5. what this slice is really reporting",
+      "status": "NOTE",
+      "detail": "cinematics is the only one of the seven domains with no owner and no partial support. Four primitives are missing and three of them are unowned. The nearest existing code, title_sequence_bind, writes a JSON scaffold and its own runtime_note says a dedicated Sequencer bridge tool is required."
+    }
+  ],
+  "missing_primitives": [
+    {
+      "tool": "puerts_sequence_build",
+      "state": "MISSING",
+      "gap_kind": "NEW",
+      "why": "create or update a LevelSequence: frame rate, playback range, actor bindings, tracks and keyframes. No registered tool touches Sequencer at all. The only LevelSequence code in the repository (generation/sequence_generator.py) creates an empty asset and sets its playback range, is reachable only through the legacy prompt_generate pipeline, and writes no track, no section and no key",
+      "proposed_schema": {
+        "tool": "puerts_sequence_build",
+        "owner": "UNOWNED. No lane in this program covers Sequencer",
+        "params": {
+          "asset_path": "/Game/MCPGenerated/...",
+          "frame_rate": "number (default 30)",
+          "playback_range": "{ start_frame, end_frame }",
+          "bindings": "[{id, kind:'possessable'|'spawnable', actor_label?|actor_class?, name}]",
+          "tracks": "[{binding: id|'master', type:'Transform'|'Float'|'Visibility'|'Event'|'Camera'|'Audio', property?: 'RelativeLocation'|..., sections: [{start_frame, end_frame, keys: [{frame, value, interpolation:'Linear'|'Cubic'|'Constant'}]}]}]",
+          "save": "boolean"
+        },
+        "returns": "{ compile_status: 'n/a', binding_count, track_count, key_count, structure_hash_sha1 }",
+        "note": "UE4.27 API surface for this is ULevelSequence, UMovieScene::AddTrack / AddPossessable, UMovieScene3DTransformTrack and FMovieSceneDoubleChannel-era FMovieSceneFloatChannel. All editor C++, so it belongs in MCPBridgeGraphBuilder next to the other builders."
+      }
+    },
+    {
+      "tool": "puerts_sequence_inspect",
+      "state": "MISSING",
+      "gap_kind": "NEW",
+      "why": "read a LevelSequence back as machine-readable JSON: bindings, tracks, sections, keyframe times and values, and a structure hash. Required by the builder-plus-inspector rule every other builder in this bridge follows, and without it a keyframe claim cannot be verified without a human opening Sequencer",
+      "proposed_schema": {
+        "tool": "puerts_sequence_inspect",
+        "owner": "UNOWNED",
+        "params": {
+          "asset_path": "string"
+        },
+        "returns": "{ frame_rate, playback_range, bindings, tracks: [{binding, type, property, sections: [{start_frame, end_frame, keys}]}], structure_hash_sha1, package_dirty_before, package_dirty_after }"
+      }
+    },
+    {
+      "tool": "puerts_scene_batch",
+      "state": "LEGACY_ONLY",
+      "gap_kind": "PORT",
+      "why": "place a LevelSequenceActor that points at the sequence. puerts_spawn_actor can spawn the actor class but cannot set its LevelSequence property or label it",
+      "proposed_schema": {
+        "tool": "puerts_scene_batch",
+        "owner": "lane L (settled, implemented_unverified)"
+      },
+      "legacy_equivalent": [
+        {
+          "tool": "actor_spawn",
+          "backend": "legacy_http",
+          "gate": "MCP_ENABLE_LEGACY_HTTP=1",
+          "handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/actors.py",
+          "migration_state": "hybrid_candidate",
+          "description": "Spawn an actor from an asset path at a given location/rotation/scale. Returns validation results by default."
+        },
+        {
+          "tool": "batch_spawn",
+          "backend": "legacy_http",
+          "gate": "MCP_ENABLE_LEGACY_HTTP=1",
+          "handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/actors.py",
+          "migration_state": "legacy_untested",
+          "description": "Spawn multiple actors in one call. Each spawn definition uses the same format as actor_spawn."
+        },
+        {
+          "tool": "actor_organize",
+          "backend": "legacy_http",
+          "gate": "MCP_ENABLE_LEGACY_HTTP=1",
+          "handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/actors.py",
+          "migration_state": "legacy_untested",
+          "description": "Move actors into World Outliner folders."
+        }
+      ],
+      "note": "The capability already runs behind a human opt-in and has no native front. This is a port, not a new command."
+    },
+    {
+      "tool": "puerts_sequence_render",
+      "state": "MISSING",
+      "gap_kind": "NEW",
+      "why": "render a LevelSequence to image frames or a video so the result of a cinematic prompt can be looked at. puerts_viewport_screenshot captures one editor viewport frame and cannot follow a sequence's camera cuts",
+      "proposed_schema": {
+        "tool": "puerts_sequence_render",
+        "owner": "UNOWNED",
+        "params": {
+          "asset_path": "string",
+          "output_directory": "string",
+          "resolution": "{width, height}",
+          "format": "PNG | JPG",
+          "frame_range": "{start_frame, end_frame}"
+        },
+        "returns": "{ frame_count, output_files, elapsed_ms }",
+        "note": "UE4.27 ships Movie Render Queue as a plugin; the fallback is the older FSequencerRenderer / automated level sequence capture path. Which one is available is a project-settings question, so the tool must report which it used."
+      }
+    }
+  ],
+  "checks": {
+    "passed": 0,
+    "failed": 0
+  },
+  "sealed_artifacts": [],
+  "mcp_round_trips": 0,
+  "elapsed_ms": 562,
+  "blocks": [
+    "puerts_sequence_build",
+    "puerts_sequence_inspect",
+    "puerts_scene_batch",
+    "puerts_sequence_render"
+  ]
+}
