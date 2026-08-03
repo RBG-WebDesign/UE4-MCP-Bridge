@@ -1,44 +1,35 @@
 {
-  "generated_by": "integration lead, 2026-08-02, wave three partial. Nine of ten lanes were cut off by an account session token limit, not by defects.",
+  "generated_by": "integration lead, 2026-08-03, wave four merged and wave five launched. Counts read from the generated inventory and metadata in this session.",
   "not_generated_from": "prose counts. Every number below was read out of a generated file or counted from source in this session.",
   "integration_branch": "bridge/native-consolidation-2026-07-31",
   "integration_head": "bridge/native-consolidation-2026-07-31, lanes D, E and F merged",
   "definition_of_finished": "Claude and Codex can inspect, create, patch, compile, run, visually review, repair, profile and verify substantial UE4.27 features from one prompt with minimal editor round trips, and every registered capability carries an accurate evidence state.",
   "measured_state": {
-    "total_registrations": 209,
-    "unique_canonical_capabilities": 165,
+    "total_registrations": 256,
+    "unique_canonical_capabilities": 186,
     "by_backend": {
       "legacy_http": 170,
-      "native_pipe_alias": 12,
-      "server_local": 2,
-      "native_pipe": 25
-    },
-    "by_verification": {
-      "untested": 122,
-      "mock_only": 60,
-      "live_verified": 18,
-      "live_partial": 8,
-      "implemented": 1
+      "native_pipe_alias": 38,
+      "server_local": 3,
+      "native_pipe": 45
     },
     "by_migration_action": {
-      "KEEP": 76,
-      "REFRONT": 54,
+      "ALIAS": 81,
       "PORT": 39,
-      "ALIAS": 29,
+      "REFRONT": 28,
       "MERGE": 10,
+      "KEEP": 97,
       "RETIRE": 1
     },
-    "by_migration_state": {
-      "legacy_untested": 158,
-      "native": 16,
-      "hybrid_candidate": 12,
-      "wrap": 12,
-      "native_live_partial": 8,
-      "server_local": 2,
-      "native_pending_live": 1
+    "by_verification": {
+      "live_verified": 18,
+      "implemented": 21,
+      "live_partial": 8,
+      "pending_live": 1,
+      "untested": 78
     },
-    "registered_by_default": 27,
-    "registered_by_default_note": "25 native_pipe plus 2 server_local. blueprint_member_patch is the +1 this wave and is implemented, NOT live_verified: it fails 8 live checks."
+    "native_commands_in_allowlist": 45,
+    "note": "45 native commands compile, load and are reachable. 18 carry live evidence. Those are different numbers and the gap is proof, not code."
   },
   "honest_completion_estimate": {
     "capabilities_with_live_evidence": 18,
@@ -200,6 +191,38 @@
         "P": "32c2161 slices"
       },
       "note": "All eight WIP branches are committed as implemented_unverified. NOT compiled, NOT reviewed. Resumable from a real branch state. Nothing was lost."
+    },
+    {
+      "wave": 4,
+      "state": "complete, all nine lanes merged",
+      "launched_at": "2026-08-03",
+      "lanes_merged": {
+        "Q": "lane/q-finding-0p, diagnosis of finding 0p",
+        "I": "lane/i-material, material inspect and instance build",
+        "J": "lane/j-animation, AnimBP/montage/blend-space inspectors, create-only builder",
+        "K": "lane/k-ai-gameplay, blackboard, EQS, navigation, perception",
+        "L": "lane/l-level-scene, scene_inspect and scene_batch",
+        "M": "lane/m-refront2, REFRONT groups 2 and 4 plus 15 of group 1 as aliases",
+        "N": "lane/n-packaging, packaging attempted for real",
+        "O": "lane/o-perf-live, benchmark hardening, honest progress, orchestrator",
+        "P": "lane/p-slices, seven vertical slice harnesses"
+      },
+      "batch_compile": "PASSED after four distinct failures: a spliced UHT header, two unity-build symbol collisions, a spliced boolean chain and a malformed allowlist. bUseUnity is now false on MCPBridgePuerTS.",
+      "live": "The merged plugin loads and serves. mcp-smoke --require-editor 12 passed, 0 failed, 0 skipped."
+    },
+    {
+      "wave": 5,
+      "state": "launched",
+      "launched_at": "2026-08-03",
+      "goal": "stage one completion: every production domain callable, every slice able to attempt a complete result",
+      "lanes": {
+        "R": "lane/r-finding-0q, holds the editor and build lock exclusively",
+        "S": "lane/s-sequencer, the last completely empty domain",
+        "T": "lane/t-material-graph, material_build and texture_import",
+        "U": "lane/u-level-lighting, lighting_build, class_defaults_patch, and the capability regression",
+        "V": "lane/v-widget-bind, widget bindings and animations",
+        "W": "lane/w-domain-gaps, nav_build, anim_blueprint_patch, audio, cloth"
+      }
     }
   ],
   "roadmap_rows_open": 19,
@@ -355,5 +378,32 @@
     "ValueToJsonText mangled every default value into a leading comma and newline via FJsonSerializer's identifier overload. Fixed by wrapping the value in a throwaway object.",
     "mutator-atomicity.mjs exited 0 having tested nothing: its Windows file:// entry guard never matched. Fixed with pathToFileURL. bridge-install.mjs carried the same dead clause behind an endsWith fallback.",
     "orphan_agents: the previous-session agent tree was killed and every commit it produced is preserved as an ancestor of HEAD."
-  ]
+  ],
+  "resolved_since_last_update": [
+    "Finding 0p: variable defaults read empty after a compile. Fixed at the READER; the CDO is storage and the description is editor scratch KismetCompiler empties on purpose. Live verified.",
+    "Finding 0r: a failed member batch did not restore variable defaults. Fixed at the WRITER's boundary with a snapshot, because UObject::Modify delegates to SaveToTransactionBuffer which fails silently for a class default object. mutator-atomicity green twice consecutively with its control.",
+    "Finding 0o: ImportText returning non-null is not a type check, and every float default was arriving mangled as a leading comma and newline.",
+    "The install gate caught two contaminated live runs and refused them, which is the reason this program has no false green to retract."
+  ],
+  "stage_one_status": {
+    "domains_with_a_callable_implementation": [
+      "Blueprint (build, graph patch, member patch, inspect)",
+      "Widget (build, inspect)",
+      "Behavior Tree and Blackboard, EQS inspect, navigation query, AI perception",
+      "Animation (AnimBP build create-only, AnimBP/montage/blend-space inspect)",
+      "Material (inspect, instance build)",
+      "Level and scene (scene_inspect, scene_batch)",
+      "Physics (build, observe)",
+      "Input, folder visibility, camera shake, PIE agent query"
+    ],
+    "domains_still_missing": [
+      "Sequencer and cinematics: NOTHING today. Lane S.",
+      "Material master graph authoring and textures. Lane T.",
+      "Lighting build and class defaults. Lane U.",
+      "Widget bindings and animations. Lane V.",
+      "Navigation build, AnimBP patch, audio, cloth. Lane W."
+    ],
+    "slice_harness_state": "Seven harnesses exist. Before wave four every one was BLOCKED at the first call with zero checks executed. Sampled after: gameplay PRESENT_BUT_FAILING 0/4, materials 2 passed 4 failed, level 3 passed 7 failed. The shift is from nothing to call to calls things and fails.",
+    "honest_read": "Breadth is close. Evidence is not. Stage one is roughly 85 percent by domain coverage; beta by proof is far lower, and the long pole is evidence for about 120 untested capabilities rather than more code."
+  }
 }
