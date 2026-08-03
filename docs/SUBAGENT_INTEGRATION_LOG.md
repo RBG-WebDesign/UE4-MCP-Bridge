@@ -358,3 +358,66 @@ array. It has executed. It has not passed. Executing is not passing.
 Wave three's first job on this command is to make the acceptance reseed from a
 known state, then re-run warm and cold. Until the fixture is deterministic,
 neither a red nor a green from that script means anything.
+
+## Wave four results, 2026-08-03
+
+Nine lanes, all merged. Every live run below was performed by the integrator,
+never by the lane that wrote the code.
+
+| Lane | Branch @ tip | Verdict | Basis |
+|---|---|---|---|
+| Q | `lane/q-finding-0p` @ `1cbf605` | **Accepted** | Five-way comparison that settled finding 0p, with the CDO read through a different tool than either the writer or the inspector uses. |
+| I | `lane/i-material` @ `8dc589e` | **Accepted, implemented** | Material inspect and instance build. Shipped master graphs read-only on evidence: the editing library never calls `Modify()`. |
+| J | `lane/j-animation` @ `7f53a3b` | **Accepted, implemented** | Three inspectors and a create-only builder that reports `convergent: false` on every success rather than pretending. |
+| K | `lane/k-ai-gameplay` @ `e41a17d` | **Accepted, implemented** | Seven tools. Found two real defects in its own salvage. No `eqs_build`, with a citation for why. |
+| L | `lane/l-level-scene` @ `d2d20c9` | **Accepted, implemented** | `scene_inspect` and `scene_batch`. Found that every volume was spawning with a null brush, so half its own stated scope was silently inert. |
+| M | `lane/m-refront2` @ `4911f16` | **Accepted, implemented** | Five native commands plus 26 alias registrations. Corrected the REFRONT map rather than trusting it. |
+| N | `lane/n-packaging` @ `8495f08` | **Accepted** | Packaging verdict changed from NO to YES for source on evidence, and proved the binary path impossible in 4.27 with an engine citation. |
+| O | `lane/o-perf-live` @ `0abd4e5` | **Accepted, implemented** | Benchmark hardening, an honest progress record, and the orchestrator. Found four wrong response-shape assumptions by checking them against the C++. |
+| P | `lane/p-slices` @ `53412fc` | **Accepted** | Seven harnesses, and the capability regression they exposed. |
+
+### The batch compile, which is what a merge is actually worth
+
+Roughly 6000 lines across five lanes had never been through UBT. Four distinct
+failures, none of which any lane could have found alone:
+
+1. UHT `Missing '*' in Expected a pointer type`, from a line-merged header whose
+   two declarations had been spliced together.
+2. `C2084` twice: a unity build concatenates `.cpp` files into one translation
+   unit, so two commands that each define a local `StringsToJson` or
+   `ValueToJsonText` collide. `bUseUnity` is now false on the module, because
+   renaming fixes today's pairs and leaves the next author to rediscover it.
+3. `C2059` on `||`: each lane terminated the `IsToolMutating` chain with its own
+   semicolon.
+4. A default allowlist with missing commas between lane blocks and the read-only
+   entries repeated four times. A `TSet` hid the duplication; the commas did not.
+
+Clean afterwards, and the merged plugin loads and serves: `mcp-smoke
+--require-editor`, 12 passed, 0 failed, 0 skipped.
+
+### Two findings settled by the integrator, not by a lane
+
+**0p, the reader.** `default_value` read empty for every compiled variable
+because `BPMemberReader` reported `FBPVariableDescription::DefaultValue`, which
+`KismetCompiler` empties on purpose after copying it to the CDO. Fixed at the
+reader. Verified on the same five-way table that diagnosed it.
+
+**0r, the writer's boundary.** A failed batch did not restore variable defaults.
+`CDO->Modify()` is called, but `UObject::Modify` delegates to
+`SaveToTransactionBuffer`, which fails silently for a class default object, and
+the call site discarded the bool that says so. Fixed with a snapshot at the
+batch boundary. `mutator-atomicity` green twice consecutively including its
+control, with no regression in the three suites that share the mutator library.
+
+0r is the more interesting of the two: it had ALWAYS been broken, and the member
+hash could not see it, because the field it failed to restore was the field 0p
+was reporting empty. Fixing the reader did not break atomicity. It made the
+harness able to observe a hole it had been reporting green over.
+
+### Rejected claims this wave
+
+| Claim | Verdict |
+|---|---|
+| Lane P's harness could emit `LEGACY_ONLY` | It could not. The lane found its own harness treating `docs/TOOL_INVENTORY.json` as authority on whether a tool exists, when `tools/list` is, and fixed it before reporting. |
+| A UAT packaging failure recorded with a date | Lane N found that entry in its own salvaged work presented as if run. It had not been. It ran it, and the real failure is now recorded with its engine citation. |
+| `rename_component is not convergent` | Refuted by reading the source. It was the stale fixture, not the product. |
