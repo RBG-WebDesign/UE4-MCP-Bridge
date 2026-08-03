@@ -626,6 +626,21 @@ const aliases: readonly CompatAlias[] = [
     inputSchema: z.object({}),
     translate: () => routed({}),
   },
+  // --- Navigation build -----------------------------------------------------
+  {
+    name: "ai_nav_rebuild",
+    canonical: "puerts_nav_build",
+    description:
+      "Rebuild navigation data in the loaded level. The legacy tool ran the RebuildNavigation " +
+      "console command and blocked until it finished, so this alias routes to wait: true, which " +
+      "is the same UNavigationSystemV1::Build the editor's Build Paths runs. That blocks the game " +
+      "thread, and on a large level it can outlast the 30 second pipe deadline: the build still " +
+      "completes in the editor, but the call reports a timeout. Call puerts_nav_build directly " +
+      "with wait: false for the non-blocking form that answers immediately and is polled with " +
+      "puerts_nav_inspect. Takes no parameters, as the legacy tool did.",
+    inputSchema: z.object({}),
+    translate: () => routed({ wait: true }),
+  },
   // --- Camera shake ---------------------------------------------------------
   {
     name: "camera_shake_play",

@@ -119,6 +119,16 @@ export const toolAnnotations: Record<string, ToolAnnotations> = {
   // mutatingIdempotent.
   puerts_nav_inspect: readOnly,
   puerts_nav_query: readOnly,
+  // Mutating and idempotent, and not destructive. Idempotent because a rebuild
+  // of an already-current navmesh converges on the same navmesh: it costs the
+  // work again, but the world it leaves is the same one. Not destructive
+  // because navigation data is DERIVED from the level, so nothing authored can
+  // be lost; the recovery from a bad build is another build. It is outside
+  // IsToolMutating on the native side and that is deliberate, not an
+  // oversight: the editor's own Build Paths resets the transaction buffer
+  // before running the same build, so a transaction here would record an undo
+  // entry that restores nothing.
+  puerts_nav_build: mutatingIdempotent,
   // The read half of puerts_ai_perception_build, plus the RunBehaviorTree call
   // sites. Same read-only contract as the other inspectors.
   puerts_ai_controller_inspect: readOnly,
@@ -458,6 +468,12 @@ export const compatAliasAnnotations: Record<string, ToolAnnotations> = {
   folder_hidden_list: readOnly,           // -> puerts_folder_visibility (read path)
 
   camera_shake_play: mutating,            // -> puerts_camera_shake (runtime only, nothing persisted)
+
+  // -> puerts_nav_build with wait: true, which is the legacy blocking shape.
+  // Same classification as the native tool: idempotent because a rebuild
+  // converges on the same navmesh, and not destructive because navigation data
+  // is derived from the level and cannot lose anything authored.
+  ai_nav_rebuild: mutatingIdempotent,     // -> puerts_nav_build
 
   // PIE agent read half. pie_agent_expect is readOnly here where the legacy
   // twin was too: it starts an in-engine check that only reads. What changed

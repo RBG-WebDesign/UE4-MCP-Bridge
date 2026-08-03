@@ -1949,3 +1949,87 @@ Live evidence, second consecutive run green, plus no regression in
 `blueprint_member_patch` remains at ONE red check, finding 0q, which is
 unrelated: the patched Blueprint compiles with warnings where a freshly built
 one does not.
+
+## Finding 0s: navigation build is a write the transaction buffer cannot cover, and the engine says so itself
+
+`puerts_nav_build` (lane W, implemented, UNCOMPILED) is mutating and is
+deliberately absent from `IsToolMutating`, so no transaction opens around it.
+That looks like the AGENTS.md rule "Every tool that modifies editor state is
+wrapped in a UE4 transaction" being bent. It is not. The engine's own navigation
+build discards the undo stack before it runs:
+
+```cpp
+// Editor/UnrealEd/Private/EditorBuildUtils.cpp:395
+GEditor->ResetTransaction( NSLOCTEXT("UnrealEd", "RebuildNavigation", "Rebuilding Navigation") );
+```
+
+`FEditorBuildUtils::EditorBuild` calls that on `FBuildOptions::BuildAIPaths`
+before `TriggerNavigationBuilder`. Navmesh tiles are derived data written by
+background generator tasks into an `FNavDataGenerator`, which is not a UObject
+the transaction buffer records. A transaction here would produce an undo entry
+that restores nothing, which is worse than no entry: it advertises a rollback
+that does not exist.
+
+Nothing authored is at risk either way. Navigation data is derived from the
+level, so the recovery from a bad build is another build. That is why the tool
+is `mutatingIdempotent` and not `destructive`.
+
+### The refusal list is the real work, and the reason is a silent return
+
+`UNavigationSystemV1::Build` returns without building and without complaining
+when it has nothing to do:
+
+```cpp
+// Runtime/NavigationSystem/Private/NavigationSystem.cpp:3297-3302
+const bool bHasWork = IsThereAnywhereToBuildNavigation();
+const bool bLockedIgnoreEditor = (NavBuildingLockFlags & ~ENavigationBuildLock::NoUpdateInEditor) != 0;
+if (!bHasWork || bLockedIgnoreEditor)
+{
+    return;
+}
+```
+
+A command that called it blind would report a successful build over a level that
+still has no navmesh, and the caller could not tell that from a level that built
+correctly. That is the empty-success failure this repo has already been bitten
+by once, in the PIE guard. So `BuildNavigationJson` checks each condition itself
+and refuses by name: no navigation system, no `NavMeshBoundsVolume`,
+`IsNavigationBuildingLocked` with the editor auto-update flag masked out exactly
+as `Build` masks it, and `IsThereAnywhereToBuildNavigation` false. The last one
+points at `puerts_nav_inspect` and its `nav_mesh_bounds_volumes` versus
+`registered_navigation_bounds` split, because those two disagreeing is the usual
+cause.
+
+### Blocking is the honest problem, and it is not solvable at this layer
+
+`Build` blocks: it calls `EnsureBuildCompletion` on every nav data
+(`NavigationSystem.cpp:3329-3335`). The editor-side pipe deadline clamps at 30
+seconds (`MCPPuerTSBridgeService.cpp:251`), and the runtime's per-tool
+`executionTimeoutMs` is a `Promise.race` timer that a synchronous native call
+cannot yield to. So a blocking build on a large level dies at the socket while
+the game thread is still inside it, and the build finishes anyway with nobody
+listening.
+
+`wait` therefore defaults to **false** and calls the public non-blocking
+`ANavigationData::RebuildAll` (`NavigationData.h:619`) on every registered nav
+data, answering `status: "building"` with `remaining_build_tasks`. The caller
+polls `puerts_nav_inspect` until that is zero. `wait: true` is the blocking
+editor-equivalent path, kept because it is the only one that converges in a
+single call, and its description says plainly that it can outlast the deadline.
+
+One asymmetry a caller has to know, so the command states it rather than hiding
+it: only the blocking path spawns a missing `RecastNavMesh`, because
+`UNavigationSystemV1::SpawnMissingNavigationData` is protected
+(`NavigationSystem.h:1098`) and `Build` is the only public thing that calls it.
+`wait: false` refuses a level with bounds volumes and no nav data actor and
+names `wait: true` as the fix, instead of triggering zero generators and
+reporting a started build.
+
+**Unknown, and it stays Unknown until an editor runs this.** None of the above
+is live-verified. No editor in this lane compiled the plugin, so every claim here
+is read from UE4.27 source at `D:/UE/UE_4.27` and from the command's own logic.
+In particular, whether `ANavigationData::RebuildAll` alone produces a complete
+navmesh in the editor without the `ProcessRegistrationCandidates` and
+`UpdateInvokers` calls that `Build` makes around it is NOT established. If it
+does not, the fix is to make `wait: true` the default and accept the deadline,
+not to add a workaround.

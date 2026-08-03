@@ -755,6 +755,35 @@ async function queryNavigation(context: ToolContext, input: JsonObject): Promise
   return result;
 }
 
+/** Rebuild the editor world's navigation. Mutating and deliberately outside a
+    transaction: navmesh tiles are derived data the transaction buffer does not
+    record, and the editor's own Build Paths resets the transaction buffer
+    before triggering the same build. Every precondition is refused natively
+    before a generator runs, because UNavigationSystemV1::Build returns silently
+    when it has nothing to do. */
+async function buildNavigation(context: ToolContext, input: JsonObject): Promise<CommandResponse> {
+  const wait = optionalBoolean(input, "wait", false);
+  const planOnly = optionalBoolean(input, "plan_only", false);
+  const resultJson = puerts.$ref<string>("");
+  const error = puerts.$ref<string>("");
+  if (!context.bridge.BuildNavigationJson(
+    JSON.stringify({ wait, plan_only: planOnly }), resultJson, error)) {
+    throw new Error(puerts.$unref(error));
+  }
+  const parsed = JSON.parse(puerts.$unref(resultJson)) as JsonObject;
+  const warnings = stringArray(parsed, "warnings");
+  delete parsed.warnings;
+  const status = typeof parsed.status === "string" ? parsed.status : "unknown";
+  const message = status === "planned"
+    ? "Navigation build planned; nothing was rebuilt."
+    : status === "complete"
+      ? "Navigation rebuilt."
+      : "Navigation rebuild started.";
+  const result = response(true, message, parsed);
+  result.warnings.push(...warnings);
+  return result;
+}
+
 /** Reconcile the AIPerceptionComponent configuration on an existing
     AIController Blueprint. The Blueprint must already exist: this configures a
     controller, blueprint_build creates one. */
@@ -1580,6 +1609,10 @@ export const toolDefinitions: readonly ToolDefinition[] = [
   // assets.read: nav data, bounds volumes and modifier volumes are all actors.
   { name: "nav_inspect", inputSchema: schema({}), outputSchema, permissions: ["actors.read"], executionTimeoutMs: 20000, execute: inspectNavigation },
   { name: "nav_query", inputSchema: schema({ queries: { type: "array", items: { type: "object" } } }, ["queries"]), outputSchema, permissions: ["actors.read"], executionTimeoutMs: 20000, execute: queryNavigation },
+  // 25000, not 60000: the blocking wait path cannot be interrupted by this
+  // layer's timer anyway, so the number that matters is the pipe deadline the
+  // client is holding. Kept under it so a refusal arrives as a refusal.
+  { name: "nav_build", inputSchema: schema({ wait: { type: "boolean" }, plan_only: { type: "boolean" } }), outputSchema, permissions: ["actors.spawn", "level.save"], executionTimeoutMs: 25000, execute: buildNavigation },
   { name: "ai_perception_build", inputSchema: schema({ asset_path: { type: "string" }, component_name: { type: "string" }, senses: { type: "array", items: { type: "object" } }, dominant_sense: { type: "string" }, remove_unlisted: { type: "boolean" }, plan_only: { type: "boolean" }, compile: { type: "boolean" }, save: { type: "boolean" } }, ["asset_path"]), outputSchema, permissions: ["assets.write"], executionTimeoutMs: 30000, execute: buildAIPerception },
   { name: "ai_controller_inspect", inputSchema: schema({ asset_path: { type: "string" } }, ["asset_path"]), outputSchema, permissions: ["assets.read"], executionTimeoutMs: 15000, execute: inspectAIController },
   { name: "material_inspect", inputSchema: schema({ asset_path: { type: "string" } }, ["asset_path"]), outputSchema, permissions: ["assets.read"], executionTimeoutMs: 15000, execute: inspectMaterial },
