@@ -99,7 +99,7 @@ async function main(): Promise<void> {
     // --- catalog shape ----------------------------------------------------
     // A literal on purpose: this is the canary that catches an alias silently
     // disappearing. Raise it deliberately when a wave adds legacy names.
-    const ALIAS_COUNT = 38;
+    const ALIAS_COUNT = 40;
     assert(compat.length === ALIAS_COUNT, `expected ${ALIAS_COUNT} compat aliases, got ${compat.length}`);
     assert(
       Object.keys(compatAliasTargets).length === ALIAS_COUNT,

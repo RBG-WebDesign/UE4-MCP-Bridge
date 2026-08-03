@@ -119,6 +119,16 @@ export const toolAnnotations: Record<string, ToolAnnotations> = {
   // mutatingIdempotent.
   puerts_nav_inspect: readOnly,
   puerts_nav_query: readOnly,
+  // Mutating and idempotent, and not destructive. Idempotent because a rebuild
+  // of an already-current navmesh converges on the same navmesh: it costs the
+  // work again, but the world it leaves is the same one. Not destructive
+  // because navigation data is DERIVED from the level, so nothing authored can
+  // be lost; the recovery from a bad build is another build. It is outside
+  // IsToolMutating on the native side and that is deliberate, not an
+  // oversight: the editor's own Build Paths resets the transaction buffer
+  // before running the same build, so a transaction here would record an undo
+  // entry that restores nothing.
+  puerts_nav_build: mutatingIdempotent,
   // The read half of puerts_ai_perception_build, plus the RunBehaviorTree call
   // sites. Same read-only contract as the other inspectors.
   puerts_ai_controller_inspect: readOnly,
@@ -128,6 +138,17 @@ export const toolAnnotations: Record<string, ToolAnnotations> = {
   // shipped. Kept out of IsToolMutating on the native side, reports the package
   // dirty flag before and after the read.
   puerts_material_inspect: readOnly,
+  // The first native audio command, and read-only by construction rather than
+  // by discipline: there is no audio_build for it to be the read half of. Kept
+  // out of IsToolMutating on the native side, reports the package dirty flag
+  // before and after the read. See the tool description for why a cue builder
+  // is feasible where an EQS builder is not, and what still blocks it.
+  puerts_audio_inspect: readOnly,
+  // The read half of MCPBridgeClothOptimizer, and the only half fronted. Its
+  // three writers are not here on purpose: they do not cancel their transaction
+  // on failure and they mutate cloth paint, which is authored data a re-run
+  // cannot regenerate. Absent from IsToolMutating on the native side.
+  puerts_cloth_inspect: readOnly,
   // The read half of puerts_scene_batch: kept out of IsToolMutating on the
   // native side, reports the level package's dirty flag before and after.
   puerts_scene_inspect: readOnly,
@@ -502,6 +523,14 @@ export const compatAliasAnnotations: Record<string, ToolAnnotations> = {
   folder_hidden_list: readOnly,           // -> puerts_folder_visibility (read path)
 
   camera_shake_play: mutating,            // -> puerts_camera_shake (runtime only, nothing persisted)
+
+  cloth_inspect_asset: readOnly,          // -> puerts_cloth_inspect (the only cloth half fronted)
+
+  // -> puerts_nav_build with wait: true, which is the legacy blocking shape.
+  // Same classification as the native tool: idempotent because a rebuild
+  // converges on the same navmesh, and not destructive because navigation data
+  // is derived from the level and cannot lose anything authored.
+  ai_nav_rebuild: mutatingIdempotent,     // -> puerts_nav_build
 
   // PIE agent read half. pie_agent_expect is readOnly here where the legacy
   // twin was too: it starts an in-engine check that only reads. What changed

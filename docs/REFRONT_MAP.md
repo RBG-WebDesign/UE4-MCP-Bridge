@@ -415,17 +415,33 @@ double-application reachable from further away.
 - Convergent: content-hash guard, no no-op path
 - **Ships as: READ-ONLY**
 
-| Legacy tool | Native command | Pass-through or wrapper |
-|---|---|---|
-| `cloth_inspect_asset` | `cloth_inspect` | pass-through, read only |
-| `cloth_apply_fabric_profile` | `cloth_apply_profile` | pass-through (the module owns its own transaction) |
-| `cloth_apply_lower_leg_gradient` | `cloth_apply_gradient` | pass-through |
-| `cloth_smooth_max_distance` | `cloth_smooth` | pass-through |
+| Legacy tool | Native command | Pass-through or wrapper | Status |
+|---|---|---|---|
+| `cloth_inspect_asset` | `cloth_inspect` | pass-through, read only | ALIAS landed, lane W, uncompiled |
+| `cloth_apply_fabric_profile` | `cloth_apply_profile` | pass-through (the module owns its own transaction) | **not fronted** |
+| `cloth_apply_lower_leg_gradient` | `cloth_apply_gradient` | pass-through | **not fronted** |
+| `cloth_smooth_max_distance` | `cloth_smooth` | pass-through | **not fronted** |
 
 The three writers need `cloth_inspect_asset` as their independent read-back and
 it is in the same group, so the pairing is free; the rollback boundary is not.
 **Ship `cloth_inspect_asset` first**, then the writers once a failed apply
 provably restores the mask.
+
+**The read half landed.** `puerts_cloth_inspect` fronts
+`UClothOptimizerLibrary::InspectClothAsset` as a straight pass-through, with
+`cloth_inspect_asset` aliased onto it. The snapshot is the library's own and the
+module's editor panel reads the same function, so an MCP read and what a human
+sees in the panel cannot disagree. One thing the command does add: the library
+reports its failures INSIDE the snapshot as `success: false` with an error
+string, so the command lifts that into a refusal rather than returning a success
+envelope wrapping a failure.
+
+The three writers stay where they are. What separates this group from
+navigation, where a non-transactional write shipped anyway, is what the write
+costs: a navmesh is derived from the level and the recovery from a bad build is
+another build, while cloth paint is AUTHORED and a half-applied mask is lost
+work. That is the line, and it is why `write_unsupported_reason` is in every
+`cloth_inspect` response rather than only in this document.
 
 ---
 
@@ -544,13 +560,20 @@ the consequence.
 - Rollback on failure: yes, `FBridgeAssetRollback` around asset creation, with
   the transaction cancelled before the boundary runs
 - Independent inspector: yes, `InspectAnimBlueprintJson`
-- Convergent: **no**, and not fixable at this layer.
-  `AnimBlueprintBuilder/ABPBuilder.cpp:147-148` says in its own comment that
-  `Rebuild` assumes a clean AnimBlueprint and clears nothing, so rebuilding over
-  an existing graph appends a second state machine rather than converging. That
-  damage is unrecoverable here: `FBridgeAssetRollback` can delete an asset the
-  command created but cannot restore the previous contents of one that already
-  existed, and the builder compiles between the transaction and any undo.
+- Convergent: **yes since lane W**, and it was not fixable at the command layer,
+  which is why it took a change to the builder. `Rebuild` used to say in its own
+  comment that it assumed a clean AnimBlueprint and cleared nothing, so
+  rebuilding over an existing graph appended a second state machine rather than
+  converging. `FAnimBPBuilder::ClearGeneratedGraph` is the pass it never had and
+  `Rebuild` calls it; the event graph gets `bClearExistingGraph = true` for the
+  same reason. UNCOMPILED.
+- Failure-atomic: **no, and this is now the only blocker.**
+  `FBridgeAssetRollback` can delete an asset the command created but cannot
+  restore the previous contents of one that already existed, and the builder
+  compiles between the transaction and any undo. The clear pass makes that
+  strictly worse for a patch path rather than better: a failed rerun used to
+  leave a DUPLICATED AnimBlueprint and now leaves an EMPTIED one. Both are
+  unrecoverable; the new one loses more. Finding 0t.
 - **Ships as: MUTATING, create-only.** The command refuses an existing asset, so
   the only mutation reachable is creating an asset that did not exist, and that
   is failure-atomic. A rerun is a refusal, not a no-op.
@@ -558,6 +581,14 @@ the consequence.
 To unblock a patch command: add the clear pass `Rebuild` is missing, then a
 content snapshot the boundary can restore. Until both exist, editing an
 existing Animation Blueprint stays out of the catalog.
+
+**Half of that is done.** Lane W landed the clear pass
+(`FAnimBPBuilder::ClearGeneratedGraph`, uncompiled). The content snapshot does
+not exist, so `puerts_anim_blueprint_build` is still CREATE-ONLY and there is
+still no `puerts_anim_blueprint_patch`. The snapshot means duplicating the
+AnimBlueprint into a transient package before the first mutation and restoring
+it on failure, and the restore has to survive a Blueprint compile, so it cannot
+be written blind. Finding 0t.
 
 | legacy tool | C++ entry point | native command it would front | read-only today | ships as |
 |---|---|---|---|---|

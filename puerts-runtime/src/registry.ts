@@ -924,6 +924,78 @@ async function queryNavigation(context: ToolContext, input: JsonObject): Promise
   return result;
 }
 
+/** Read a Sound Cue or Sound Wave. Read-only: the native side opens no
+    transaction and touches no package. */
+async function inspectAudioAsset(context: ToolContext, input: JsonObject): Promise<CommandResponse> {
+  const assetPath = requireString(input, "asset_path");
+  if (!assetPath.startsWith("/Game/") && !assetPath.startsWith("/Engine/")) {
+    throw new Error("Audio inspection is limited to /Game and /Engine");
+  }
+  const resultJson = puerts.$ref<string>("");
+  const error = puerts.$ref<string>("");
+  if (!context.bridge.InspectAudioAssetJson(
+    JSON.stringify({ asset_path: assetPath }), resultJson, error)) {
+    throw new Error(puerts.$unref(error));
+  }
+  const parsed = JSON.parse(puerts.$unref(resultJson)) as JsonObject;
+  const warnings = stringArray(parsed, "warnings");
+  delete parsed.warnings;
+  const result = response(true, "Audio asset inspected.", parsed);
+  result.warnings.push(...warnings);
+  return result;
+}
+
+/** Read a skeletal mesh's cloth setup. Read-only, and the read half only: the
+    cloth optimizer's three writers are not fronted, because they do not cancel
+    their transaction on failure and cloth paint is authored data. */
+async function inspectCloth(context: ToolContext, input: JsonObject): Promise<CommandResponse> {
+  const skeletalMesh = requireString(input, "skeletal_mesh");
+  if (!skeletalMesh.startsWith("/Game/") && !skeletalMesh.startsWith("/Engine/")) {
+    throw new Error("Cloth inspection is limited to /Game and /Engine");
+  }
+  const resultJson = puerts.$ref<string>("");
+  const error = puerts.$ref<string>("");
+  if (!context.bridge.InspectClothJson(
+    JSON.stringify({ skeletal_mesh: skeletalMesh }), resultJson, error)) {
+    throw new Error(puerts.$unref(error));
+  }
+  const parsed = JSON.parse(puerts.$unref(resultJson)) as JsonObject;
+  const warnings = stringArray(parsed, "warnings");
+  delete parsed.warnings;
+  const result = response(true, "Cloth setup inspected.", parsed);
+  result.warnings.push(...warnings);
+  return result;
+}
+
+/** Rebuild the editor world's navigation. Mutating and deliberately outside a
+    transaction: navmesh tiles are derived data the transaction buffer does not
+    record, and the editor's own Build Paths resets the transaction buffer
+    before triggering the same build. Every precondition is refused natively
+    before a generator runs, because UNavigationSystemV1::Build returns silently
+    when it has nothing to do. */
+async function buildNavigation(context: ToolContext, input: JsonObject): Promise<CommandResponse> {
+  const wait = optionalBoolean(input, "wait", false);
+  const planOnly = optionalBoolean(input, "plan_only", false);
+  const resultJson = puerts.$ref<string>("");
+  const error = puerts.$ref<string>("");
+  if (!context.bridge.BuildNavigationJson(
+    JSON.stringify({ wait, plan_only: planOnly }), resultJson, error)) {
+    throw new Error(puerts.$unref(error));
+  }
+  const parsed = JSON.parse(puerts.$unref(resultJson)) as JsonObject;
+  const warnings = stringArray(parsed, "warnings");
+  delete parsed.warnings;
+  const status = typeof parsed.status === "string" ? parsed.status : "unknown";
+  const message = status === "planned"
+    ? "Navigation build planned; nothing was rebuilt."
+    : status === "complete"
+      ? "Navigation rebuilt."
+      : "Navigation rebuild started.";
+  const result = response(true, message, parsed);
+  result.warnings.push(...warnings);
+  return result;
+}
+
 /** Reconcile the AIPerceptionComponent configuration on an existing
     AIController Blueprint. The Blueprint must already exist: this configures a
     controller, blueprint_build creates one. */
@@ -2059,9 +2131,18 @@ export const toolDefinitions: readonly ToolDefinition[] = [
   // assets.read: nav data, bounds volumes and modifier volumes are all actors.
   { name: "nav_inspect", inputSchema: schema({}), outputSchema, permissions: ["actors.read"], executionTimeoutMs: 20000, execute: inspectNavigation },
   { name: "nav_query", inputSchema: schema({ queries: { type: "array", items: { type: "object" } } }, ["queries"]), outputSchema, permissions: ["actors.read"], executionTimeoutMs: 20000, execute: queryNavigation },
+  // 25000, not 60000: the blocking wait path cannot be interrupted by this
+  // layer's timer anyway, so the number that matters is the pipe deadline the
+  // client is holding. Kept under it so a refusal arrives as a refusal.
+  { name: "nav_build", inputSchema: schema({ wait: { type: "boolean" }, plan_only: { type: "boolean" } }), outputSchema, permissions: ["actors.spawn", "level.save"], executionTimeoutMs: 25000, execute: buildNavigation },
   { name: "ai_perception_build", inputSchema: schema({ asset_path: { type: "string" }, component_name: { type: "string" }, senses: { type: "array", items: { type: "object" } }, dominant_sense: { type: "string" }, remove_unlisted: { type: "boolean" }, plan_only: { type: "boolean" }, compile: { type: "boolean" }, save: { type: "boolean" } }, ["asset_path"]), outputSchema, permissions: ["assets.write"], executionTimeoutMs: 30000, execute: buildAIPerception },
   { name: "ai_controller_inspect", inputSchema: schema({ asset_path: { type: "string" } }, ["asset_path"]), outputSchema, permissions: ["assets.read"], executionTimeoutMs: 15000, execute: inspectAIController },
   { name: "material_inspect", inputSchema: schema({ asset_path: { type: "string" } }, ["asset_path"]), outputSchema, permissions: ["assets.read"], executionTimeoutMs: 15000, execute: inspectMaterial },
+  { name: "audio_inspect", inputSchema: schema({ asset_path: { type: "string" } }, ["asset_path"]), outputSchema, permissions: ["assets.read"], executionTimeoutMs: 15000, execute: inspectAudioAsset },
+  // 25000: the snapshot walks every LOD's render sections and every clothing
+  // asset's physical mesh, and a character mesh with several cloth LODs is a
+  // much larger read than a Blueprint graph.
+  { name: "cloth_inspect", inputSchema: schema({ skeletal_mesh: { type: "string" } }, ["skeletal_mesh"]), outputSchema, permissions: ["assets.read"], executionTimeoutMs: 25000, execute: inspectCloth },
   { name: "material_instance_build", inputSchema: schema({ asset_path: { type: "string" }, parent_path: { type: "string" }, scalars: { type: "object" }, vectors: { type: "object" }, textures: { type: "object" }, switches: { type: "object" }, clear_unlisted: { type: "boolean" }, plan_only: { type: "boolean" }, save: { type: "boolean" } }, ["asset_path"]), outputSchema, permissions: ["assets.write"], executionTimeoutMs: 30000, execute: buildMaterialInstance },
   // A master material build blocks on a full shader compile, which is a long
   // way past the 30s an instance permutation needs.

@@ -23,12 +23,12 @@
     "native_live_partial": "live acceptance passed, but part of the evidence is the builder own report because no independent reader exists yet",
     "legacy_untested": "no live editor proof of any kind; a non-null test_file covers only the mock listener"
   },
-  "tool_count": 263,
+  "tool_count": 268,
   "by_backend": {
     "legacy_http": 170,
-    "native_pipe_alias": 38,
+    "native_pipe_alias": 40,
     "server_local": 3,
-    "native_pipe": 52
+    "native_pipe": 55
   },
   "tools": [
     {
@@ -431,10 +431,45 @@
     },
     {
       "name": "ai_nav_rebuild",
+      "module": "mcp-server/src/tools/compat.ts",
+      "backend": "native_pipe_alias",
+      "migration_state": "wrap",
+      "target_replacement": "puerts_nav_build",
+      "description": "[COMPAT ALIAS -> puerts_nav_build] Rebuild navigation data in the loaded level. The legacy tool ran the RebuildNavigation console command and blocked until it finished, so this alias routes to wait: true, which is the same UNavigationSystemV1::Build the editor's Build Paths runs. That blocks the game thread, and on a large level it can outlast the 30 second pipe deadline: the build still completes in the editor, but the call reports a timeout. Call puerts_nav_build directly with wait: false for the non-blocking form that answers immediately and is polled with puerts_nav_inspect. Takes no parameters, as the legacy tool did.",
+      "schema": {
+        "kind": "object",
+        "params": {}
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": "mcp-server/tests/compat-tools.test.ts",
+      "capability_category": "compat",
+      "canonical_capability": "navigation.build",
+      "owner": "compat alias router",
+      "lifecycle": "active",
+      "migration_action": "ALIAS",
+      "replacement_tool": "puerts_nav_build",
+      "compatibility_alias": true,
+      "cpp_builder": null,
+      "cpp_entry_point": null,
+      "python_handler": null,
+      "live_evidence": [],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": "layer: new_native_wrapper (UNavigationSystemV1)",
+      "verification": "mock_only"
+    },
+    {
+      "name": "ai_nav_rebuild",
       "module": "mcp-server/src/tools/gamedev.ts",
       "backend": "legacy_http",
-      "migration_state": "legacy_untested",
-      "target_replacement": null,
+      "migration_state": "hybrid_candidate",
+      "target_replacement": "puerts_nav_build",
       "description": "Rebuild navigation data in the loaded level (RebuildNavigation console command).",
       "schema": {
         "kind": "object",
@@ -454,7 +489,7 @@
       "lifecycle": "active",
       "migration_action": "PORT",
       "replacement_tool": null,
-      "compatibility_alias": false,
+      "compatibility_alias": true,
       "cpp_builder": null,
       "cpp_entry_point": null,
       "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/gamedev.py",
@@ -3278,8 +3313,8 @@
       "name": "cloth_inspect_asset",
       "module": "mcp-server/src/tools/cloth.ts",
       "backend": "legacy_http",
-      "migration_state": "legacy_untested",
-      "target_replacement": null,
+      "migration_state": "hybrid_candidate",
+      "target_replacement": "puerts_cloth_inspect",
       "description": "Inspect a UE4.27 skeletal mesh and return render-section cloth bindings, physical cloth LOD counts, authoring masks, applied weight maps, NvCloth config, topology hash, and Physics Asset coverage.",
       "schema": {
         "kind": "object",
@@ -3301,7 +3336,7 @@
       "lifecycle": "active",
       "migration_action": "REFRONT",
       "replacement_tool": null,
-      "compatibility_alias": false,
+      "compatibility_alias": true,
       "cpp_builder": "MCPBridgeClothOptimizer",
       "cpp_entry_point": null,
       "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/cloth_optimizer.py",
@@ -3310,6 +3345,43 @@
       "capability_loss_risk": "low",
       "notes": null,
       "verification": "untested"
+    },
+    {
+      "name": "cloth_inspect_asset",
+      "module": "mcp-server/src/tools/compat.ts",
+      "backend": "native_pipe_alias",
+      "migration_state": "wrap",
+      "target_replacement": "puerts_cloth_inspect",
+      "description": "[COMPAT ALIAS -> puerts_cloth_inspect] Inspect a skeletal mesh's cloth setup: render-section bindings, physical cloth LOD counts, authoring masks, NvCloth config, topology hash and Physics Asset coverage. The parameter passes through unchanged. Only the READ half of the cloth optimizer is native; its three writers keep their legacy names because a failed apply does not yet restore the mask.",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "skeletal_mesh": "string"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": "mcp-server/tests/compat-tools.test.ts",
+      "capability_category": "compat",
+      "canonical_capability": "cloth.inspect",
+      "owner": "compat alias router",
+      "lifecycle": "active",
+      "migration_action": "ALIAS",
+      "replacement_tool": "puerts_cloth_inspect",
+      "compatibility_alias": true,
+      "cpp_builder": null,
+      "cpp_entry_point": null,
+      "python_handler": null,
+      "live_evidence": [],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": null,
+      "verification": "mock_only"
     },
     {
       "name": "cloth_smooth_max_distance",
@@ -7392,6 +7464,43 @@
       "verification": "implemented"
     },
     {
+      "name": "puerts_audio_inspect",
+      "module": "mcp-server/src/tools/puerts.ts",
+      "backend": "native_pipe",
+      "migration_state": "native_pending_live",
+      "target_replacement": null,
+      "description": "[PRIMARY NATIVE IPC] Read a Sound Cue or a Sound Wave back as machine-readable JSON. This is the first native command in the audio domain, which had no read at all: the legacy catalog's only audio entry was audio_component_add, a Blueprint component write with no way to see what it pointed at. Reports the common USoundBase fields (duration, sound class, attenuation settings) and every EditAnywhere property by reflected name, so a Sound Wave's NumChannels, SampleRate, SoundGroup, CompressionQuality, bLooping and bStreaming come back without this command carrying a field list that would go stale. For a Sound Cue it also walks the WHOLE node graph from FirstNode and returns each node's id, class, title, ordered children and properties. The node array is canonically sorted so structure_hash_sha1 is stable across reads of an unchanged cue; each node's CHILDREN are deliberately NOT sorted, because for a Mixer, a Random or a Concatenator the child index is the meaning and sorting it away would canonicalise out what the graph encodes. Two things a caller cannot get any other way: a cue with no FirstNode is warned about, because it plays nothing while looking like a valid asset; and nodes present in AllNodes but not reachable from FirstNode are counted as orphans, because they are stored in the asset, never play, and are invisible from either list on its own. THERE IS NO audio_build yet, and unlike eqs_inspect that is scheduling rather than an engine limit. A Sound Cue's FirstNode and ChildNodes ARE the source of truth and USoundCue::LinkGraphNodesFromSoundNodes derives the editor graph from them, which is the reverse of an Environment Query; the engine's own SoundCueFactoryNew builds nodes then calls it. What blocks the writer is failure atomicity: replacing an existing cue's node graph needs a content snapshot the rollback boundary can restore, the same gap that keeps puerts_anim_blueprint_build create-only. The response repeats this in build_unsupported_reason. READ ONLY: no transaction, nothing dirtied, and the response reports the package dirty flag before and after so a caller can check that rather than take it on trust. Limited to /Game and /Engine.",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "asset_path": "string"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": "mcp-server/tests/puerts-tools.test.ts",
+      "capability_category": "assets",
+      "canonical_capability": "audio.inspect",
+      "owner": "MCPBridgePuerTS service",
+      "lifecycle": "active",
+      "migration_action": "KEEP",
+      "replacement_tool": null,
+      "compatibility_alias": false,
+      "cpp_builder": "MCPPuerTSBridgeService",
+      "cpp_entry_point": "InspectAudioAssetJson",
+      "python_handler": null,
+      "live_evidence": [],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": "UNCOMPILED. The first native command in the audio domain, which had no read at all: the legacy catalog's only audio entry was audio_component_add, a Blueprint component write with no way to see what it pointed at. Reports the common USoundBase fields (Duration, SoundClassObject, AttenuationSettings, all public, Runtime/Engine/Classes/Sound/SoundBase.h:65,144,163) plus every EditAnywhere property by reflected name, so a Sound Wave's NumChannels, SampleRate, SoundGroup, CompressionQuality, bLooping and bStreaming arrive without a field list that would go stale, and SampleRate being protected (SoundWave.h:574) costs nothing. For a USoundCue it walks the whole node graph from FirstNode (SoundCue.h:97, public) through USoundNode::ChildNodes (SoundNode.h:64, public after GENERATED_UCLASS_BODY) and returns each node's id, class, USoundNode::GetTitle (SoundNode.h:179, public, unguarded), ordered children and reflected properties, capped at 500 reachable nodes. The node array uses MCPBridgeBlueprintMembers::SortByStringField and MCPBridgeBlueprintMembers::StructureHash, the same canonical sort and SHA1 the graph, Behavior Tree, Widget and member inspectors use, so structure_hash_sha1 is the same shape and spelling. Each node's CHILDREN are deliberately unsorted: for a Mixer, Random or Concatenator the child index is the meaning. Two things no other read gives: a cue with a null FirstNode plays nothing while looking valid and is warned about, and nodes in the WITH_EDITORONLY_DATA AllNodes list (SoundCue.h:110-116) that are unreachable from FirstNode are counted as orphans. NO audio_build, and unlike eqs_inspect that is scheduling rather than an engine limit: FirstNode and ChildNodes are the source of truth and USoundCue::LinkGraphNodesFromSoundNodes derives the editor graph from them (SoundCue.h:309; Editor/AudioEditor/Private/Factories/SoundCueFactoryNew.cpp:42 builds nodes then calls it), which is the reverse of UEnvironmentQueryGraph::UpdateAsset. What blocks the writer is failure atomicity: replacing an existing cue's node graph needs a content snapshot the rollback boundary can restore, the same gap finding 0t records for anim_blueprint_build. build_unsupported_reason says so in the response. READ ONLY: absent from IsToolMutating, nothing calls Modify or MarkPackageDirty, package_dirty_before/after reported. NOT COMPILED and NOT run: this lane holds no build rights.",
+      "verification": "implemented"
+    },
+    {
       "name": "puerts_behavior_tree_build",
       "module": "mcp-server/src/tools/puerts.ts",
       "backend": "native_pipe",
@@ -7814,6 +7923,43 @@
       "migration_risk": "low",
       "capability_loss_risk": "low",
       "notes": "sets inherited class-default (CDO) values on a generated Blueprint, which blueprint_build has no section for: AIControllerClass and AutoPossessAI are the gap the AI slice hit, and both are added to AllowedWritableProperties by name. A variable the Blueprint itself declares is refused and pointed at blueprint_member_patch, whose set_variable_default writes the FBPVariableDescription default as well as the CDO. The transaction is deliberately not the rollback: finding 0r measured that UObject::Modify does nothing for a non-RF_Transactional object and a CDO is one, so this command snapshots the exported text of every property it will touch, restores it on failure, decides rollback_succeeded by reading the values again, and reports Modify() return value as transaction_covers_cdo. Convergence is decided by comparing two exported strings produced by the same import-and-export path, on a scratch copy, so an invalid value is rejected before the CDO is touched. UNCOMPILED: lane U holds no build rights, so no editor has run this code.",
+      "verification": "implemented"
+    },
+    {
+      "name": "puerts_cloth_inspect",
+      "module": "mcp-server/src/tools/puerts.ts",
+      "backend": "native_pipe",
+      "migration_state": "native_pending_live",
+      "target_replacement": null,
+      "description": "[PRIMARY NATIVE IPC] Read a UE4.27 skeletal mesh's cloth setup as machine-readable JSON: every render section with whether it has cloth bound and which clothing asset, every clothing asset with its GUID, topology content hash and Physics Asset, per-LOD physical vertex, triangle and fixed-vertex counts, the authoring masks with their targets and value ranges, and the full NvCloth config (solver and stiffness frequency, collision thickness, friction, self-collision radius, stiffness and cull scale, tether stiffness and limit). A re-front of MCPBridgeClothOptimizer, which was already compiled into the plugin and reachable only through the legacy Python listener. Straight pass-through: the snapshot is UClothOptimizerLibrary::InspectClothAsset's, unchanged, and the module's own in-editor panel reads the same function, so an MCP read and what a human sees in that panel are the same output rather than two implementations that can disagree. THE READ HALF ONLY, and that is a deliberate refusal rather than a gap in this wave. The module's three writers (cloth_apply_fabric_profile, cloth_smooth_max_distance, cloth_apply_lower_leg_gradient) open a UE4 transaction and do not cancel it on the failure path, and what they mutate is a skeletal mesh's cloth PAINT: authored data that a re-run cannot regenerate, unlike a navmesh or a shader. A half-applied mask is lost work, not lost time. They ship when a failed apply provably restores the mask; until then they are reachable only through their legacy names, which carry a confirm parameter for the same reason. The response repeats this in write_unsupported_reason. A mesh with no clothing assets is answered, not refused, with a warning naming it as a mesh with no cloth rather than a failed read. READ ONLY: no transaction, nothing dirtied. Limited to /Game and /Engine.",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "skeletal_mesh": "string"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": "mcp-server/tests/puerts-tools.test.ts",
+      "capability_category": "technical-art",
+      "canonical_capability": "cloth.inspect",
+      "owner": "MCPBridgePuerTS service",
+      "lifecycle": "active",
+      "migration_action": "KEEP",
+      "replacement_tool": null,
+      "compatibility_alias": false,
+      "cpp_builder": "MCPBridgeClothOptimizer",
+      "cpp_entry_point": "InspectClothAsset",
+      "python_handler": null,
+      "live_evidence": [],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": "UNCOMPILED. REFRONT of MCPBridgeClothOptimizer, read half only. Straight pass-through to UClothOptimizerLibrary::InspectClothAsset (Public/ClothOptimizerLibrary.h:20), which the module's own SClothOptimizerPanel also reads, so an MCP read and what a human sees in the panel are one function's output rather than two implementations that can disagree. The command adds path resolution (a bare package path grows its asset name, because the library loads by object path), the standard envelope, and one lift: the library reports its own failures INSIDE the snapshot as success:false with an error string rather than by returning nothing, so an unsuccessful read is raised to a refusal instead of being passed through as a success envelope carrying success:false, which is the shape a caller is least likely to check. A mesh with no clothAssets is answered with a warning naming it as a mesh with no cloth, not refused. WRITE HALF DELIBERATELY NOT FRONTED, per docs/REFRONT_MAP.md group 3: ApplyFabricProfile, SmoothMaxDistanceTransition and ApplyLowerLegGradient open an FScopedTransaction and never cancel it on the failure path, and what they mutate is cloth PAINT, authored data a re-run cannot regenerate, so a half-applied mask is lost work rather than lost time. They ship when a failed apply provably restores the mask; until then cloth_apply_fabric_profile, cloth_smooth_max_distance and cloth_apply_lower_leg_gradient stay on the legacy listener with their confirm parameter. write_unsupported_reason says so in every response. READ ONLY: absent from IsToolMutating, nothing calls Modify or MarkPackageDirty. Reports one package_dirty_after_read flag rather than a before/after pair, because InspectClothAsset loads the mesh itself and there is no moment at which this command could observe the package before the read. NOT COMPILED and NOT run: this lane holds no build rights.",
       "verification": "implemented"
     },
     {
@@ -8388,6 +8534,44 @@
       "migration_risk": "low",
       "capability_loss_risk": "low",
       "notes": "re-front of UMaterialEditingLibrary's material instance setters plus the boundary that library does not have: the /Game/MCPGenerated/ limit, whole-request validation against the parent before any asset is created, Modify() so the writes are in the undo record at all (the library's setters call SetScalarParameterValueEditorOnly and friends without it, MaterialEditingLibrary.cpp:966/:987/:1008, which also return a hardcoded false), one rollback boundary, a compile whose result is reported rather than assumed, an independent read-back that decides whether the writes landed, and a save only after that read-back passes. compile.instance_own_resource distinguishes the instance's own static permutation from the parent's inherited resource, so a parent's pre-existing compile errors are not blamed on this request. NOT compiled and NOT run: the lane that added this launched no editor.",
+      "verification": "implemented"
+    },
+    {
+      "name": "puerts_nav_build",
+      "module": "mcp-server/src/tools/puerts.ts",
+      "backend": "native_pipe",
+      "migration_state": "native_pending_live",
+      "target_replacement": null,
+      "description": "[PRIMARY NATIVE IPC] Rebuild the editor world's navigation so a placed NavMeshBoundsVolume produces an actual navmesh, then read the world back with the same function puerts_nav_inspect uses so the answer is not the build's own claim. This is the write half of the navigation group; puerts_nav_inspect and puerts_nav_query are the reads. MUTATING and deliberately NOT transactional, which is a property of navigation rather than a shortcut: navmesh tiles are derived data generated by background tasks into a generator the transaction buffer does not record, and UE4.27's own Build Paths calls GEditor->ResetTransaction(\"Rebuilding Navigation\") before triggering the same build, discarding the undo stack outright. A transaction here would record an undo entry that restores nothing. Nothing authored is at risk either way: a navmesh is regenerated from the level, so the recovery from a bad build is another build. TIME IS THE REAL DECISION. wait defaults to FALSE and starts the rebuild without blocking, calling ANavigationData::RebuildAll on every registered nav data and answering status \"building\"; poll puerts_nav_inspect until remaining_build_tasks is zero before running puerts_nav_query, because a partial navmesh answers queries wrongly rather than refusing them. wait: true calls UNavigationSystemV1::Build, which is exactly what the editor does and which BLOCKS the game thread until every nav data finishes; on a large level that outlasts the 30 second pipe deadline and you get a timeout for work that is still running and will still finish. Use wait: true on small or test levels, and reconcile with puerts_nav_inspect if it times out. Only the blocking path spawns a missing RecastNavMesh actor, because the engine's SpawnMissingNavigationData is protected and unreachable on its own, so wait: false REFUSES a level that has bounds volumes and no nav data actor and names wait: true as the fix. Every other precondition is refused by name before any generator runs: no navigation system, no NavMeshBoundsVolume, a build lock other than the editor's auto-update toggle, and IsThereAnywhereToBuildNavigation returning false. That list exists because UNavigationSystemV1::Build RETURNS SILENTLY when it has no work, so a command that called it blind would report a successful build over a level that still has no navmesh. plan_only runs every precondition and no generator.",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "wait": "boolean?",
+          "plan_only": "boolean?"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": "mcp-server/tests/puerts-tools.test.ts",
+      "capability_category": "gameplay-setup",
+      "canonical_capability": "navigation.build",
+      "owner": "MCPBridgePuerTS service",
+      "lifecycle": "active",
+      "migration_action": "KEEP",
+      "replacement_tool": null,
+      "compatibility_alias": false,
+      "cpp_builder": "MCPPuerTSBridgeService",
+      "cpp_entry_point": "BuildNavigationJson",
+      "python_handler": null,
+      "live_evidence": [],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": "UNCOMPILED. The write half of the navigation group, closing it beside nav_inspect and nav_query. Rebuilds the editor world navigation so a placed NavMeshBoundsVolume produces an actual navmesh. MUTATING and deliberately NOT transactional, and absent from IsToolMutating for that reason: navmesh tiles are derived data generated by background tasks into a generator the transaction buffer does not record, and UE4.27 own Build Paths calls GEditor->ResetTransaction(\"Rebuilding Navigation\") before triggering the same build (Editor/UnrealEd/Private/EditorBuildUtils.cpp:395), discarding the undo stack outright, so a transaction here would record an undo entry that restores nothing. Not destructive: navigation data is derived from the level, so the recovery from a bad build is another build. Independently inspected by calling InspectNavigationJson for the read-back, the same function puerts_nav_inspect uses, so the two cannot disagree. Two shapes because of time: wait defaults to false and calls the public non-blocking ANavigationData::RebuildAll (Runtime/NavigationSystem/Public/NavigationData.h:619) on every registered nav data, answering status building for the caller to poll nav_inspect until remaining_build_tasks is zero; wait true calls FNavigationSystem::Build (Runtime/Engine/Classes/AI/NavigationSystemBase.h:167), which is what FEditorBuildUtils::TriggerNavigationBuilder does (EditorBuildUtils.cpp:868) and which BLOCKS until every nav data returns from EnsureBuildCompletion (Runtime/NavigationSystem/Private/NavigationSystem.cpp:3329-3335), so on a large level it outlasts the 30s pipe deadline while the build keeps running in the editor. Only the blocking path spawns a missing RecastNavMesh, because UNavigationSystemV1::SpawnMissingNavigationData is protected (NavigationSystem.h:1098, under the protected: at 1024), so wait false refuses a level with bounds volumes and no nav data actor and names wait true as the fix. Every precondition is refused by name BEFORE any generator runs, because UNavigationSystemV1::Build RETURNS SILENTLY when it has no work (NavigationSystem.cpp:3297-3302) and a command that called it blind would report a successful build over a level that still has no navmesh: no navigation system, no NavMeshBoundsVolume, IsNavigationBuildingLocked with the editor auto-update flag masked out exactly as Build masks it (NavigationSystem.h:831, ENavigationBuildLock at :88), and IsThereAnywhereToBuildNavigation false (NavigationSystem.h:605). plan_only runs every precondition and no generator. NOT COMPILED and NOT run: this lane holds no build rights and no editor has executed this code.",
       "verification": "implemented"
     },
     {

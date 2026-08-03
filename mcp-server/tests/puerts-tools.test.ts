@@ -72,7 +72,7 @@ async function main(): Promise<void> {
       server.listen(pipeName, resolve);
     });
     const client = new PuerTSClient();
-    const tools = createPuertsTools(client);    assert(tools.length === 52, "expected all 52 PuerTS tools");
+    const tools = createPuertsTools(client);    assert(tools.length === 55, "expected all 55 PuerTS tools");
     assert(tools.some((tool) => tool.name === "puerts_behavior_tree_build"), "native Behavior Tree builder tool is missing");
     assert(tools.some((tool) => tool.name === "puerts_behavior_tree_inspect"), "native Behavior Tree inspector tool is missing");
     assert(tools.some((tool) => tool.name === "puerts_sky_shader_create"), "native sky shader tool is missing");

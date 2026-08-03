@@ -1597,6 +1597,194 @@ bool UMCPPuerTSBridgeService::QueryNavigationJson(
 }
 
 // ---------------------------------------------------------------------------
+// nav_build
+// ---------------------------------------------------------------------------
+
+bool UMCPPuerTSBridgeService::BuildNavigationJson(
+    const FString& RequestJson,
+    FString& OutResultJson,
+    FString& OutError)
+{
+    TSharedPtr<FJsonObject> Request;
+    TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(RequestJson);
+    if (!FJsonSerializer::Deserialize(Reader, Request) || !Request.IsValid())
+    {
+        OutError = TEXT("Navigation build request must be a JSON object.");
+        return false;
+    }
+    const bool bPlanOnly = Request->HasTypedField<EJson::Boolean>(TEXT("plan_only"))
+        && Request->GetBoolField(TEXT("plan_only"));
+    const bool bWait = Request->HasTypedField<EJson::Boolean>(TEXT("wait"))
+        && Request->GetBoolField(TEXT("wait"));
+
+    UWorld* World = GEditor != nullptr ? GEditor->GetEditorWorldContext().World() : nullptr;
+    if (World == nullptr)
+    {
+        OutError = TEXT("There is no editor world to build navigation in.");
+        return false;
+    }
+
+    UNavigationSystemV1* NavSystem = FNavigationSystem::GetCurrent<UNavigationSystemV1>(World);
+    if (NavSystem == nullptr)
+    {
+        OutError = TEXT("This world has no navigation system, so there is nothing to build. Run "
+                        "puerts_nav_inspect: the usual cause is a level with no "
+                        "NavMeshBoundsVolume.");
+        return false;
+    }
+
+    // Everything below refuses rather than building, because UE4.27's
+    // UNavigationSystemV1::Build returns SILENTLY when it has no work
+    // (NavigationSystem.cpp:3297-3302). A command that called it blind would
+    // report a successful build over a level that still has no navmesh, which
+    // is the empty-success failure AGENTS.md names as worse than an error.
+    int32 BoundsVolumeCount = 0;
+    for (TActorIterator<ANavMeshBoundsVolume> It(World); It; ++It)
+    {
+        if (*It != nullptr) { ++BoundsVolumeCount; }
+    }
+    TArray<ANavigationData*> NavDataActors;
+    for (TActorIterator<ANavigationData> It(World); It; ++It)
+    {
+        if (*It != nullptr) { NavDataActors.Add(*It); }
+    }
+
+    // Build ignores the editor's own auto-update lock and honours every other
+    // one, so this mirrors its test exactly rather than approximating it
+    // (NavigationSystem.cpp:3298).
+    const bool bBuildingLocked = NavSystem->IsNavigationBuildingLocked(
+        static_cast<uint8>(~ENavigationBuildLock::NoUpdateInEditor));
+    const bool bAnywhereToBuild = NavSystem->IsThereAnywhereToBuildNavigation();
+
+    TArray<TSharedPtr<FJsonValue>> Warnings;
+    FString Refusal;
+    if (BoundsVolumeCount == 0)
+    {
+        Refusal = TEXT("This level has no NavMeshBoundsVolume, so a rebuild would produce no "
+                       "navmesh and report success. Place a NavMeshBoundsVolume over the "
+                       "navigable area first; that is a level authoring gap, not a build error.");
+    }
+    else if (bBuildingLocked)
+    {
+        Refusal = TEXT("Navigation building is locked by something other than the editor's "
+                       "auto-update toggle (streaming levels still loading, or a custom lock), "
+                       "and UNavigationSystemV1::Build returns without building while it is. "
+                       "Wait for level streaming to settle and try again.");
+    }
+    else if (!bAnywhereToBuild)
+    {
+        Refusal = TEXT("UNavigationSystemV1::IsThereAnywhereToBuildNavigation is false, so Build "
+                       "would return without building. The level has a NavMeshBoundsVolume but "
+                       "the navigation system registered no navigable bounds; run "
+                       "puerts_nav_inspect and compare nav_mesh_bounds_volumes against "
+                       "registered_navigation_bounds, which disagree when a volume sits in an "
+                       "unloaded or hidden sublevel.");
+    }
+    else if (!bWait && NavDataActors.Num() == 0)
+    {
+        Refusal = TEXT("This level has a NavMeshBoundsVolume and no ANavigationData actor to "
+                       "build, and only the blocking path spawns the missing RecastNavMesh "
+                       "(UNavigationSystemV1::Build calls SpawnMissingNavigationData, which is "
+                       "protected and not reachable on its own). Re-run with wait: true.");
+    }
+
+    const int32 TasksBefore = NavSystem->GetNumRemainingBuildTasks();
+
+    TSharedPtr<FJsonObject> Result = MakeShared<FJsonObject>();
+    Result->SetStringField(TEXT("world"), World->GetPathName());
+    Result->SetNumberField(TEXT("nav_mesh_bounds_volume_count"), BoundsVolumeCount);
+    Result->SetNumberField(TEXT("nav_data_actor_count"), NavDataActors.Num());
+    Result->SetBoolField(TEXT("navigation_building_locked"), bBuildingLocked);
+    Result->SetBoolField(TEXT("anywhere_to_build"), bAnywhereToBuild);
+    Result->SetBoolField(TEXT("auto_update_enabled"), NavSystem->GetIsAutoUpdateEnabled());
+    Result->SetNumberField(TEXT("remaining_build_tasks_before"), TasksBefore);
+    Result->SetBoolField(TEXT("plan_only"), bPlanOnly);
+    Result->SetBoolField(TEXT("waited"), bWait);
+
+    if (!Refusal.IsEmpty())
+    {
+        // A refusal is still a refusal in plan_only: the point of the plan is to
+        // learn that the build would do nothing WITHOUT running it.
+        OutError = Refusal;
+        return false;
+    }
+    if (bPlanOnly)
+    {
+        Result->SetStringField(TEXT("status"), TEXT("planned"));
+        Result->SetBoolField(TEXT("would_build"), true);
+        Result->SetNumberField(TEXT("remaining_build_tasks"), TasksBefore);
+        Result->SetBoolField(TEXT("is_building"), TasksBefore > 0);
+        Warnings.Add(MakeShared<FJsonValueString>(
+            TEXT("plan_only: nothing was rebuilt. Every precondition above passed, so a real run "
+                 "would reach the generator.")));
+        Result->SetArrayField(TEXT("warnings"), Warnings);
+        OutResultJson = SerializeJson(Result);
+        return true;
+    }
+
+    if (bWait)
+    {
+        // What the editor's own Build Paths does
+        // (FEditorBuildUtils::TriggerNavigationBuilder, EditorBuildUtils.cpp:868).
+        // It BLOCKS: Build calls EnsureBuildCompletion on every nav data
+        // (NavigationSystem.cpp:3329-3335). On a large level that can outlast the
+        // named pipe's deadline, and the build keeps running in the editor after
+        // the client has given up. That is why wait defaults to false.
+        FNavigationSystem::Build(*World);
+        Result->SetStringField(TEXT("status"), TEXT("complete"));
+    }
+    else
+    {
+        // ANavigationData::RebuildAll is public and does NOT block; the generator
+        // ticks with the editor afterwards. This is the shape that cannot time
+        // out, at the cost of the answer being "started" rather than "done".
+        for (ANavigationData* Data : NavDataActors)
+        {
+            Data->RebuildAll();
+        }
+        Result->SetStringField(TEXT("status"), TEXT("building"));
+        Warnings.Add(MakeShared<FJsonValueString>(
+            TEXT("The rebuild was STARTED, not finished. Poll puerts_nav_inspect until "
+                 "remaining_build_tasks is zero before running puerts_nav_query, or re-run with "
+                 "wait: true to block until the generator is done.")));
+    }
+
+    const int32 TasksAfter = NavSystem->GetNumRemainingBuildTasks();
+    Result->SetNumberField(TEXT("remaining_build_tasks"), TasksAfter);
+    Result->SetBoolField(TEXT("is_building"), TasksAfter > 0);
+
+    // Read the world back with the inspector a caller verifies with, rather than
+    // reporting what the build claimed. Same function, same shape, so the two
+    // cannot disagree about what is there.
+    FString NavigationJson;
+    FString InspectError;
+    if (InspectNavigationJson(TEXT("{}"), NavigationJson, InspectError))
+    {
+        TSharedPtr<FJsonObject> Navigation;
+        TSharedRef<TJsonReader<>> NavReader = TJsonReaderFactory<>::Create(NavigationJson);
+        if (FJsonSerializer::Deserialize(NavReader, Navigation) && Navigation.IsValid())
+        {
+            Result->SetObjectField(TEXT("navigation_after"), Navigation);
+        }
+    }
+    else
+    {
+        Warnings.Add(MakeShared<FJsonValueString>(
+            FString::Printf(TEXT("The build ran but the read-back failed: %s"), *InspectError)));
+    }
+
+    if (bWait && TasksAfter > 0)
+    {
+        Warnings.Add(MakeShared<FJsonValueString>(
+            TEXT("Build returned with build tasks still remaining, which means work was queued "
+                 "after the blocking phase finished. Poll puerts_nav_inspect before querying.")));
+    }
+    Result->SetArrayField(TEXT("warnings"), Warnings);
+    OutResultJson = SerializeJson(Result);
+    return true;
+}
+
+// ---------------------------------------------------------------------------
 // ai_perception_build
 // ---------------------------------------------------------------------------
 

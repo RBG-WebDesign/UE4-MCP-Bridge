@@ -88,5 +88,13 @@ public class MCPBridgePuerTS : ModuleRules
         // TimeManagement is not needed and is not added; LevelSequence exports it
         // publicly anyway.
         PrivateDependencyModuleNames.AddRange(new string[] { "LevelSequence", "MovieScene", "MovieSceneTracks" });
+        // MCPBridgeClothOptimizer is a dependency for the same reason
+        // MCPBridgePIEAgent is: cloth_inspect re-fronts
+        // UClothOptimizerLibrary::InspectClothAsset rather than reimplementing
+        // the NvCloth snapshot that module already owns and that its editor
+        // panel already reads. Only the READ entry point is called; the three
+        // writers stay behind the legacy listener until a failed apply provably
+        // restores the mask.
+        PrivateDependencyModuleNames.AddRange(new string[] { "MCPBridgeClothOptimizer" });
     }
 }
