@@ -12,19 +12,26 @@
 // the inspector is anim_blueprint_inspect beside this file.
 //
 // The fourth is not closed, and this command does not pretend otherwise. It is
-// CREATE-ONLY: it refuses when the target asset already exists. The reason is a
-// specific defect, not caution -
-// AnimBlueprintBuilder/ABPBuilder.cpp:147-148 says in its own comment that
-// Rebuild assumes a clean AnimBlueprint and clears nothing, so rebuilding over
-// an existing graph appends a second state machine and a second copy of every
-// state rather than converging. Worse, that damage is not recoverable by this
-// boundary: FBridgeAssetRollback can delete an asset this command created, but
-// it cannot restore the previous contents of an asset that already existed, and
-// FKismetEditorUtilities::CompileBlueprint inside the builder puts a compile
-// between the transaction and any undo. So a patch path would be a mutation
-// with no way back, which is exactly what the REFRONT map's failure-atomic
-// column exists to stop. Fix the builder's clear pass first; then a patch
-// command becomes writable.
+// CREATE-ONLY: it refuses when the target asset already exists.
+//
+// The reason was two defects, and only one of them is fixed.
+//
+// FIXED (lane W): FAnimBPBuilder::Rebuild cleared nothing, so rebuilding over an
+// existing graph appended a second state machine and a second copy of every
+// state rather than converging. FAnimBPBuilder::ClearGeneratedGraph is the pass
+// it never had, and Rebuild now calls it. So a rerun converges.
+//
+// STILL OPEN, and it is why this command stays create-only: a rerun that FAILS
+// is not recoverable. FBridgeAssetRollback can delete an asset this command
+// created; it cannot restore the previous CONTENTS of an asset that already
+// existed, and FKismetEditorUtilities::CompileBlueprint inside the builder puts
+// a compile between the transaction and any undo. With the clear pass in place
+// that is now worse rather than better for a hypothetical patch path: a clear
+// that succeeds followed by a build step that fails leaves an EMPTIED
+// AnimBlueprint where before it left a duplicated one. Both are unrecoverable;
+// this one loses more. The missing half is a content snapshot the boundary can
+// restore, and until it exists there is no anim_blueprint_patch. See
+// docs/CAPABILITY_FINDINGS.md finding 0t.
 //
 // What that leaves is honest and useful: creating a new Animation Blueprint is
 // failure-atomic, because the only state a failure has to undo is state this

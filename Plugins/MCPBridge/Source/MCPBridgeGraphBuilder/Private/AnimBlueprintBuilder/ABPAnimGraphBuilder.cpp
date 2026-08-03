@@ -22,18 +22,22 @@ static UEdGraphPin* FindPinByName(UEdGraphNode* Node, const FString& PinName, EE
 	return nullptr;
 }
 
-FString FAnimBPAnimGraphBuilder::Build(const FAnimBPBuildSpec& Spec, FAnimBPBuildContext& Ctx)
+UEdGraph* FAnimBPAnimGraphBuilder::FindAnimGraph(UAnimBlueprint* AnimBlueprint)
 {
-	// Find AnimGraph among function graphs
-	UEdGraph* AnimGraph = nullptr;
-	for (UEdGraph* Graph : Ctx.AnimBlueprint->FunctionGraphs)
+	if (!AnimBlueprint) return nullptr;
+	for (UEdGraph* Graph : AnimBlueprint->FunctionGraphs)
 	{
 		if (Graph && Graph->Schema && Graph->Schema->GetClass()->GetName().Contains(TEXT("AnimationGraphSchema")))
 		{
-			AnimGraph = Graph;
-			break;
+			return Graph;
 		}
 	}
+	return nullptr;
+}
+
+FString FAnimBPAnimGraphBuilder::Build(const FAnimBPBuildSpec& Spec, FAnimBPBuildContext& Ctx)
+{
+	UEdGraph* AnimGraph = FindAnimGraph(Ctx.AnimBlueprint);
 	if (!AnimGraph)
 	{
 		return TEXT("[ABPAnimGraphBuilder] AnimGraph not found in AnimBlueprint");

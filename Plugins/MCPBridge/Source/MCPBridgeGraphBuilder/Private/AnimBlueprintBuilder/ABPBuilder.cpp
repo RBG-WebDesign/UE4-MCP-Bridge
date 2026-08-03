@@ -9,7 +9,10 @@
 #include "ABPVariableBuilder.h"
 #include "ABPAnimGraphBuilder.h"
 #include "ABPStateMachineBuilder.h"
+#include "Animation/AnimBlueprint.h"
 #include "BlueprintGraphBuilderLibrary.h"
+#include "EdGraph/EdGraph.h"
+#include "EdGraph/EdGraphNode.h"
 #include "Kismet2/KismetEditorUtilities.h"
 #include "Kismet2/BlueprintEditorUtils.h"
 #include "Kismet2/CompilerResultsLog.h"
@@ -112,6 +115,38 @@ FString FAnimBPBuilder::Build(
 	return FString();
 }
 
+FString FAnimBPBuilder::ClearGeneratedGraph(UAnimBlueprint* AnimBP, int32& OutRemovedNodes)
+{
+	OutRemovedNodes = 0;
+	if (!AnimBP) return TEXT("[AnimBPBuilder] AnimBlueprint is null");
+
+	UEdGraph* AnimGraph = FAnimBPAnimGraphBuilder::FindAnimGraph(AnimBP);
+	if (!AnimGraph)
+	{
+		return TEXT("[AnimBPBuilder] AnimGraph not found in AnimBlueprint");
+	}
+
+	// A copy, because RemoveNode mutates AnimGraph->Nodes while we walk it.
+	TArray<UEdGraphNode*> Nodes = AnimGraph->Nodes;
+	AnimGraph->Modify();
+	for (UEdGraphNode* Node : Nodes)
+	{
+		if (!Node) continue;
+		// CanUserDeleteNode rather than a Root cast: it is the schema's own
+		// answer, so anything else 4.27 protects in an AnimGraph is protected
+		// here too instead of being discovered by a crash.
+		if (!Node->CanUserDeleteNode()) continue;
+		FBlueprintEditorUtils::RemoveNode(AnimBP, Node, /*bDontRecompile=*/ true);
+		++OutRemovedNodes;
+	}
+
+	// Nothing left should be linked, because RemoveNode breaks both ends of
+	// every link it touches. A surviving link means a protected node was wired
+	// to another protected node, which is the graph's own business, not this
+	// pass's, so it is left alone.
+	return FString();
+}
+
 FString FAnimBPBuilder::Rebuild(UAnimBlueprint* AnimBP, const FString& JsonString)
 {
 	if (!AnimBP) return TEXT("[AnimBPBuilder] AnimBlueprint is null");
@@ -144,8 +179,27 @@ FString FAnimBPBuilder::Rebuild(UAnimBlueprint* AnimBP, const FString& JsonStrin
 	Ctx.Skeleton = AnimBP->TargetSkeleton;
 	Ctx.Registry = &Registry;
 
-	// NOTE: v1 Rebuild assumes a clean AnimBP (no existing graph nodes to clear).
-	// A full implementation would clear existing AnimGraph and state machine nodes first.
+	// CLEAR, then build. Before this existed, Rebuild appended: a rerun added a
+	// second state machine and a second copy of every state beside the first,
+	// so the asset had two of everything and whichever one ended up wired to
+	// Root was the one that played. That is why anim_blueprint_build ships
+	// create-only.
+	//
+	// Placed here, after the variables compile and before the graph is
+	// populated, on purpose. Clearing earlier would leave the Root pose node
+	// unconnected across that compile, and the compile-after-variables check
+	// above fails the whole rebuild on any compiler error.
+	//
+	// This makes a rerun CONVERGE. It does not make a failed rerun
+	// RECOVERABLE: everything below compiles the asset, and the rollback
+	// boundary the native command owns can only delete an asset it created, so
+	// a clear that succeeds followed by a build step that fails leaves an
+	// emptied AnimBlueprint. Finding 0t records that, and it is why there is
+	// still no anim_blueprint_patch.
+	int32 RemovedNodes = 0;
+	FString ClearError = ClearGeneratedGraph(AnimBP, RemovedNodes);
+	if (!ClearError.IsEmpty()) return ClearError;
+	UE_LOG(LogTemp, Log, TEXT("[AnimBPBuilder] cleared %d AnimGraph node(s) before rebuild"), RemovedNodes);
 
 	// Same build steps as Build (AnimGraph, States, Transitions, EventGraph)
 	FString GraphError = FAnimBPAnimGraphBuilder::Build(Spec, Ctx);
@@ -159,8 +213,11 @@ FString FAnimBPBuilder::Rebuild(UAnimBlueprint* AnimBP, const FString& JsonStrin
 
 	if (!Spec.EventGraphJson.IsEmpty())
 	{
+		// true here where Build passes false: a rebuild that appended to the
+		// event graph would leave the same duplicate-everything result the
+		// AnimGraph clear pass above exists to stop.
 		UBlueprintGraphBuilderLibrary::BuildBlueprintFromJSON(
-			AnimBP, Spec.EventGraphJson, /*bClearExistingGraph=*/ false);
+			AnimBP, Spec.EventGraphJson, /*bClearExistingGraph=*/ true);
 	}
 
 	// Final compile

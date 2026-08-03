@@ -2033,3 +2033,77 @@ navmesh in the editor without the `ProcessRegistrationCandidates` and
 `UpdateInvokers` calls that `Build` makes around it is NOT established. If it
 does not, the fix is to make `wait: true` the default and accept the deadline,
 not to add a workaround.
+
+## Finding 0t: the AnimBlueprint clear pass exists now, and patch is still not shippable
+
+`docs/REFRONT_MAP.md` group 5 recorded `AnimBlueprintBuilderLibrary` as
+convergence-blocked, and quoted the builder's own admission:
+
+```cpp
+// AnimBlueprintBuilder/ABPBuilder.cpp, before this lane
+// NOTE: v1 Rebuild assumes a clean AnimBP (no existing graph nodes to clear).
+// A full implementation would clear existing AnimGraph and state machine nodes first.
+```
+
+The consequence was not a missing feature, it was silent duplication. A second
+`RebuildAnimBlueprintFromJSON` over the same asset added a second state machine
+and a second copy of every state beside the first, and whichever one ended up
+wired to the Root pose node was the one that played. `puerts_anim_blueprint_build`
+shipped CREATE-ONLY because of it.
+
+### What landed
+
+`FAnimBPBuilder::ClearGeneratedGraph` empties the AnimGraph of everything the
+builder generates and `Rebuild` calls it, after the variables compile and before
+the graph is populated. Two details are load-bearing:
+
+- It skips nodes whose `CanUserDeleteNode()` is false rather than casting for
+  `UAnimGraphNode_Root`. That is the schema's own answer, so anything else
+  UE4.27 protects in an AnimGraph is protected here instead of being discovered
+  by a crash.
+- Removing a `UAnimGraphNode_StateMachine` takes its inner state machine graph
+  with it, because `UAnimGraphNode_StateMachineBase::DestroyNode` calls
+  `FBlueprintEditorUtils::RemoveGraph`
+  (`AnimGraph/Private/AnimGraphNode_StateMachineBase.cpp:153-166`). The states
+  and transitions inside are not orphaned in the Blueprint.
+
+The event graph got the same treatment: `Rebuild` now passes
+`bClearExistingGraph = true` to `BuildBlueprintFromJSON` where it passed false,
+for the same reason.
+
+Also folded in: the AnimGraph lookup existed only inside
+`FAnimBPAnimGraphBuilder::Build` and the clear pass needed it too. It is now
+`FAnimBPAnimGraphBuilder::FindAnimGraph`, one definition, because a clear pass
+and a build pass that disagreed about which graph they meant would clear one and
+populate another.
+
+### Why there is still no `anim_blueprint_patch`
+
+Convergence was one of two blockers and the smaller one. The other is unchanged:
+a failed rebuild over an existing asset cannot be undone.
+
+`FBridgeAssetRollback` deletes assets the command created. It has no way to
+restore the previous contents of an asset that already existed, and
+`FKismetEditorUtilities::CompileBlueprint` runs inside the builder between the
+transaction and any undo.
+
+The clear pass makes that strictly worse for a patch path, which is worth saying
+plainly rather than burying: before, a failed rerun left a DUPLICATED
+AnimBlueprint; now it leaves an EMPTIED one. Both are unrecoverable, and the new
+failure loses more. That is an acceptable trade for `Rebuild`, which no shipped
+command calls, and it is not an acceptable trade for a command in the catalog.
+
+**So `puerts_anim_blueprint_build` stays create-only and no patch command was
+added.** The missing half is a content snapshot: duplicate the AnimBlueprint into
+a transient package before the first mutation, and on failure put it back. That
+is real work with no cheap version, it cannot be written blind because the
+restore has to survive a compile, and this lane has no editor to prove it in.
+
+**Unknown.** The clear pass is UNCOMPILED and has never run. What is read from
+source is that `FBlueprintEditorUtils::RemoveNode` breaks links then calls
+`DestroyNode` (`Kismet2/BlueprintEditorUtils.cpp:2857-2899`) and that the state
+machine node's `DestroyNode` removes its sub-graph. What is NOT established is
+whether an AnimGraph cleared to a bare Root node compiles clean at the point
+`Rebuild` reaches its final compile, or whether anything else in the
+AnimBlueprint holds a reference to the removed state machine graph that
+`RemoveGraph` does not clear.
