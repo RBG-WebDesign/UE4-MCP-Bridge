@@ -197,9 +197,12 @@ bool UMCPPuerTSBridgeService::Initialize(FString& OutError)
             TEXT("physics_build"), TEXT("physics_observe"), TEXT("viewport_screenshot"), TEXT("sky_shader_create"),
             TEXT("blueprint_build"), TEXT("blueprint_graph_patch"), TEXT("blueprint_member_patch"),
             TEXT("widget_build"), TEXT("behavior_tree_build"),
+            TEXT("blackboard_build"), TEXT("ai_perception_build"),
             // Read only. Deliberately absent from IsToolMutating below, so they
             // open no transaction and return no transaction id.
-            TEXT("graph_inspect"), TEXT("behavior_tree_inspect"), TEXT("widget_inspect")
+            TEXT("graph_inspect"), TEXT("behavior_tree_inspect"), TEXT("widget_inspect"),
+            TEXT("blackboard_inspect"), TEXT("eqs_inspect"),
+            TEXT("nav_inspect"), TEXT("nav_query"), TEXT("ai_controller_inspect")
         };
         for (const TCHAR* Value : Defaults) { AllowedTools.Add(Value); }
     }
@@ -1414,7 +1417,14 @@ bool UMCPPuerTSBridgeService::IsToolMutating(const FString& ToolName) const
         || ToolName == TEXT("blueprint_graph_patch")
         || ToolName == TEXT("blueprint_member_patch")
         || ToolName == TEXT("widget_build")
-        || ToolName == TEXT("behavior_tree_build");
+        || ToolName == TEXT("behavior_tree_build")
+        // blackboard_build and ai_perception_build write assets. Their
+        // plan_only path returns before the mutation section, so a plan still
+        // opens a transaction it never uses; that costs an empty undo entry and
+        // is the cheap side of the mistake, because the alternative is a build
+        // that reaches the mutation section with no rollback.
+        || ToolName == TEXT("blackboard_build")
+        || ToolName == TEXT("ai_perception_build");
 }
 
 void UMCPPuerTSBridgeService::EndActiveCommand()

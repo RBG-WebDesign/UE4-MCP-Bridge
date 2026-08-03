@@ -258,6 +258,60 @@ const widgetNode: z.ZodType<WidgetNodeInput> = z.lazy(() => z.object({
   ),
 }).strict());
 
+/** One Blackboard key. The type vocabulary is UE4.27's nine
+    UBlackboardKeyType subclasses; the native side re-validates against the
+    same list, so this can only reject earlier, never let a type through.
+
+    There is no default value here because UE4.27 has none: FBlackboardEntry
+    holds a name, an instanced key type, an instance-sync flag and two
+    editor-only strings, and a key's value exists only on a running
+    UBlackboardComponent. */
+const blackboardKey = z.object({
+  name: z.string().min(1).max(64).regex(/^[A-Za-z0-9_]+$/),
+  type: z.enum(["Bool", "Int", "Float", "String", "Name", "Vector", "Rotator", "Object", "Class"]),
+  base_class: z.string().optional().describe(
+    "Object and Class keys only: the required base, for example "
+    + "\"/Script/Engine.Actor\". Rejected on any other key type.",
+  ),
+  instance_synced: z.boolean().optional().describe(
+    "Share this key's value across every instance of the blackboard. Default false.",
+  ),
+  description: z.string().optional().describe("Editor-only tooltip on the key."),
+  category: z.string().optional().describe("Editor-only grouping for the key."),
+}).strict();
+
+/** One navigation query. Which position fields apply depends on kind: project
+    takes point and an optional extent, path and raycast take start and end,
+    random_point takes origin and radius. */
+const navQuery = z.object({
+  id: z.string().optional().describe("Echoed on the matching result. Defaults to q0, q1, and so on."),
+  kind: z.enum(["project", "path", "raycast", "random_point"]),
+  point: vector.optional(),
+  start: vector.optional(),
+  end: vector.optional(),
+  origin: vector.optional(),
+  extent: vector.optional().describe(
+    "project only. Omit to use the nav data's own default query extent, which "
+    + "is almost always what you want.",
+  ),
+  radius: z.number().optional().describe("random_point only. Must be greater than zero."),
+}).strict();
+
+/** One configured AI sense. Every field other than `sense` is a reflected
+    property of the matching UAISenseConfig subclass, checked by name on the
+    native side before anything is written, so a misspelled field is a refusal
+    rather than a value that silently never applied. */
+const perceptionSense = z.object({
+  sense: z.enum(["Sight", "Hearing", "Damage", "Touch", "Team", "Prediction"]),
+}).passthrough().describe(
+  "Sight takes SightRadius, LoseSightRadius, PeripheralVisionAngleDegrees, "
+  + "AutoSuccessRangeFromLastSeenLocation, PointOfViewBackwardOffset, "
+  + "NearClippingRadius and DetectionByAffiliation. Hearing takes HearingRange, "
+  + "LoSHearingRange and DetectionByAffiliation. All senses take MaxAge and "
+  + "bStartsEnabled. DetectionByAffiliation is "
+  + "{\"bDetectEnemies\":true,\"bDetectNeutrals\":false,\"bDetectFriendlies\":false}.",
+);
+
 const specs = [
   ["puerts_diagnostic", "diagnostic", "Prove the in-process PuerTS context, game thread, named-pipe transport, and actor-query timing.", z.object({ actor_limit: z.number().optional() }).strict()],
   ["puerts_find_assets", "find_assets", "Find UE4.27 assets by path, type, or name.", z.object({ path: z.string().optional(), type: z.string().optional(), name: z.string().optional(), recursive: z.boolean().optional(), limit: z.number().optional() }).strict()],
@@ -570,6 +624,204 @@ const specs = [
         + "object path other tools hand back. Limited to /Game and /Engine.",
       ),
     }).strict()],
+  ["puerts_blackboard_build", "blackboard_build",
+    "Reconcile a whole UE4.27 Blackboard asset from one desired-state spec: keys with their "
+    + "types, per-key instance sync, editor description and category, and the parent blackboard. "
+    + "puerts_behavior_tree_build already creates a blackboard and ADDS keys to it, and that path "
+    + "is unchanged and still the right one for a tree plus its blackboard. This command owns the "
+    + "blackboard as an asset in its own right: it can UPDATE a key, REMOVE one, and set the "
+    + "parent, none of which add-only key creation can express. "
+    + "There is no key default value parameter because UE4.27 has no such thing: FBlackboardEntry "
+    + "holds a name, an instanced key type, an instance-sync flag and two editor-only strings, and "
+    + "a key's value exists only on a running UBlackboardComponent. "
+    + "A key that already exists under a DIFFERENT type is an error naming both types, never a "
+    + "silent retype, because retyping would drop every Behavior Tree selector bound to it. A key "
+    + "name owned by the parent chain is refused as protected: UBlackboardData::IsValid treats a "
+    + "name that collides with the parent as a broken asset. An existing key of the same type is "
+    + "updated in the fields the spec names and left alone in the fields it does not, so a partial "
+    + "spec is a partial update rather than a reset. "
+    + "remove_unlisted is opt-in and off by default; when set, keys not in the spec are removed and "
+    + "the response warns that any Behavior Tree node selecting them is now dangling, with "
+    + "puerts_behavior_tree_inspect named as the way to find them. "
+    + "Rerunning a spec that is already satisfied returns before the mutation section: nothing is "
+    + "dirtied, nothing is saved, and the response reports converged. plan_only is read-only and "
+    + "returns keys_to_add / keys_to_update / keys_to_remove / unchanged_keys / protected_keys and "
+    + "expected_change_count without creating the asset even when it does not exist yet. "
+    + "Applying runs in one transaction, reads every key back off the asset rather than trusting "
+    + "the write, and saves only after that passes; any failure cancels the transaction and rolls "
+    + "an asset this command created back out of the Asset Registry and off disk. Assets are "
+    + "limited to /Game/MCPGenerated/.",
+    z.object({
+      asset_path: z.string().regex(/^\/Game\/MCPGenerated\/[A-Za-z0-9_]+(\/[A-Za-z0-9_]+)*$/).describe(
+        "Blackboard package path under /Game/MCPGenerated/, no asset-name suffix.",
+      ),
+      parent_path: z.string().optional().describe(
+        "A Blackboard to inherit keys from, anywhere under /Game or /Engine. Keys the parent "
+        + "chain declares cannot be redeclared here.",
+      ),
+      keys: z.array(blackboardKey).max(128).optional(),
+      remove_unlisted: z.boolean().optional().describe(
+        "Default false. Remove keys this asset declares that the spec does not name. Inherited "
+        + "keys are never removed: they are not this asset's to remove.",
+      ),
+      plan_only: z.boolean().optional().describe(
+        "Default false. Classify the change and write nothing.",
+      ),
+      save: z.boolean().optional().describe("Default true. A build that failed verification is never saved."),
+    }).strict()],
+  ["puerts_blackboard_inspect", "blackboard_inspect",
+    "Read a UE4.27 Blackboard back as machine-readable JSON: every key with its type, base class, "
+    + "instance-sync flag, editor description and category, an inherited flag, the parent chain, "
+    + "the asset's own UBlackboardData::IsValid verdict, and structure_hash_sha1 so two reads of "
+    + "an unchanged asset compare by hash. "
+    + "The read half of puerts_blackboard_build, and READ ONLY: no transaction is opened, nothing "
+    + "is saved, and the package dirty flag is reported before and after the read "
+    + "(package_dirty_before / package_dirty_after) so the claim is checkable rather than asserted. "
+    + "Key identity is AUTHORED, not derived (identity_kind: \"authored_name\"), which is the "
+    + "opposite of puerts_behavior_tree_inspect: a blackboard key's name IS what every "
+    + "FBlackboardKeySelector binds to, so renaming a key is a different key and every selector "
+    + "pointing at the old name is now dangling. "
+    + "key_count is what this asset declares; total_key_count includes the parent chain. Reading "
+    + "is allowed anywhere under /Game and /Engine.",
+    z.object({
+      asset_path: z.string().describe(
+        "The Blackboard, as a package path (\"/Game/MCPGenerated/BB_Guard\") or the object path "
+        + "other tools hand back. Limited to /Game and /Engine.",
+      ),
+    }).strict()],
+  ["puerts_eqs_inspect", "eqs_inspect",
+    "Read a UE4.27 Environment Query (UEnvQuery) back as machine-readable JSON: query name, "
+    + "options in evaluation order, each option's generator class with its properties, and each "
+    + "test with its class and every scoring and filtering property (TestPurpose, ScoringEquation, "
+    + "ScoringFactor, FilterType and the rest), plus unsupported_fields for anything reflection "
+    + "could not express and structure_hash_sha1. "
+    + "READ ONLY: no transaction, nothing saved, package dirty flag reported before and after. "
+    + "Node identity is DERIVED (identity_kind: \"derived\"): options and tests are addressed by "
+    + "index, because neither carries a GUID. "
+    + "THERE IS NO eqs_build, and that is a decision rather than a gap. "
+    + "UEnvironmentQueryGraph::UpdateAsset opens with Query->GetOptionsMutable().Reset() and "
+    + "rebuilds Options entirely from the editor graph, which makes Options a COMPILED ARTIFACT "
+    + "rather than the source of truth. A builder that wrote Options without also authoring the "
+    + "matching UEdGraph would pass its own read-back and then be silently wiped the next time a "
+    + "human opened the asset in the EQS editor, failing convergence and independent verification "
+    + "at once. The response repeats this in build_unsupported_reason so a caller does not have to "
+    + "find it here. To use EQS from the bridge, author the query by hand in the editor and run it "
+    + "from a Behavior Tree with the RunEQS service, which puerts_behavior_tree_build already "
+    + "supports. Reading is allowed anywhere under /Game and /Engine.",
+    z.object({
+      asset_path: z.string().describe(
+        "The Environment Query, as a package path or the object path other tools hand back. "
+        + "Limited to /Game and /Engine.",
+      ),
+    }).strict()],
+  ["puerts_nav_inspect", "nav_inspect",
+    "Read the editor world's navigation configuration as machine-readable JSON: whether a "
+    + "navigation system exists at all, how many build tasks remain, every ANavigationData actor "
+    + "with its agent config and its generation settings (CellSize, CellHeight, AgentRadius, "
+    + "AgentHeight, AgentMaxSlope, AgentMaxStepHeight, TileSizeUU and the rest, read by reflected "
+    + "name so a non-Recast nav data reports whatever it has), the navigation system's supported "
+    + "agents, every NavMeshBoundsVolume and NavModifierVolume with its world-space min/max box "
+    + "and area class, and the bounds the navigation system actually REGISTERED. "
+    + "The registered bounds are deliberately a separate list from the volumes, because they "
+    + "disagree in the case that matters: a NavMeshBoundsVolume in an unloaded or hidden sublevel "
+    + "is present as an actor and absent from the registered bounds, which is the usual reason a "
+    + "level that looks like it has a navmesh does not. A level with no bounds volume at all is "
+    + "reported as a warning naming that as a level authoring gap rather than a query failure. "
+    + "READ ONLY: no transaction, no navmesh rebuild, nothing spawned, nothing dirtied. Reads the "
+    + "editor world, so it refuses during Play In Editor like every other editor-only command.",
+    z.object({}).strict()],
+  ["puerts_nav_query", "nav_query",
+    "Answer a batch of navigation queries against the editor world's navmesh in one round trip. "
+    + "Kinds: \"project\" snaps a point onto the navmesh and reports the projected point and the "
+    + "distance it moved; \"path\" reports whether the end is reachable from the start, the path "
+    + "length, the path cost and the straight-line distance for comparison; \"raycast\" walks the "
+    + "navmesh in a straight line and reports whether it was blocked and where; \"random_point\" "
+    + "picks a navigable point within a radius. "
+    + "reachable is true only for ENavigationQueryResult::Success, and the raw result word is also "
+    + "returned, because Fail (\"there is no path\") and Error or Invalid (\"the query could not be "
+    + "answered\") are different problems and collapsing them into false would report a "
+    + "configuration fault as a level layout fault. "
+    + "Batched on purpose: deciding where to place a patrol point or a spawn needs several of "
+    + "these at once, and one call per point is the interface this bridge exists to avoid. The "
+    + "whole batch is validated before the first query runs, so a bad entry is a refusal rather "
+    + "than partial answers. The response warns when the navmesh is still building, because those "
+    + "answers describe a partial navmesh, and warns that random_point is not deterministic and "
+    + "must not be used in a comparison. "
+    + "READ ONLY: every kind is a const query on UNavigationSystemV1. No navmesh is generated and "
+    + "no actor is touched. Requires a navigation system; run puerts_nav_inspect first if this "
+    + "refuses.",
+    z.object({
+      queries: z.array(navQuery).min(1).max(100),
+    }).strict()],
+  ["puerts_ai_perception_build", "ai_perception_build",
+    "Reconcile the whole AIPerceptionComponent configuration on an existing AIController Blueprint "
+    + "in one call: which senses it has, each sense's properties, and the dominant sense. The "
+    + "component is created if it is missing. "
+    + "Desired-state rather than a set of setters, because a perception config is only coherent as "
+    + "a whole. A dominant_sense that senses does not configure is refused by name, not written: a "
+    + "dominant sense that is not configured never reports anything. "
+    + "A listed sense is replaced wholesale, so what lands is the spec plus that config class's "
+    + "defaults and never the residue of an earlier spec. Every field other than `sense` is checked "
+    + "against the config class by reflected name BEFORE anything is written, so a misspelled "
+    + "property is a refusal rather than a value that silently never applied. "
+    + "UE4.27 has six usable sense config classes: Sight, Hearing, Damage, Touch, Team and "
+    + "Prediction. A Blueprint sense is deliberately not accepted, because its user sense class "
+    + "cannot be validated here. "
+    + "The Blueprint must already exist and must derive from AIController; this command configures "
+    + "a controller, it does not invent one. Create it with puerts_blueprint_build first. "
+    + "remove_unlisted is opt-in and off by default. plan_only is read-only and returns "
+    + "current_senses, senses_to_add / update / remove and expected_change_count. "
+    + "Applying runs in one transaction, compiles the Blueprint, reads the component template back "
+    + "through the component's own public iterator rather than trusting the write, and saves only "
+    + "after that passes; any failure cancels the transaction and saves nothing. "
+    + "Perception configures WHAT a controller can sense, not what it does about it: handling a "
+    + "stimulus needs an OnPerceptionUpdated binding in the controller graph, which "
+    + "puerts_blueprint_build authors. Assets are limited to /Game/MCPGenerated/.",
+    z.object({
+      asset_path: z.string().regex(/^\/Game\/MCPGenerated\/[A-Za-z0-9_]+(\/[A-Za-z0-9_]+)*$/).describe(
+        "An existing AIController Blueprint under /Game/MCPGenerated/, no asset-name suffix.",
+      ),
+      component_name: z.string().min(1).max(64).regex(/^[A-Za-z0-9_]+$/).optional().describe(
+        "Default \"AIPerception\". An existing component of that name that is not an "
+        + "AIPerceptionComponent is a refusal, never a replacement.",
+      ),
+      senses: z.array(perceptionSense).max(6).optional(),
+      dominant_sense: z.enum(["Sight", "Hearing", "Damage", "Touch", "Team", "Prediction", "None"])
+        .optional().describe(
+          "Must also appear in senses. Default None.",
+        ),
+      remove_unlisted: z.boolean().optional().describe(
+        "Default false. Remove configured senses the spec does not name.",
+      ),
+      plan_only: z.boolean().optional().describe("Default false. Classify the change and write nothing."),
+      compile: z.boolean().optional().describe("Default true. A Blueprint that did not compile is rolled back."),
+      save: z.boolean().optional().describe("Default true."),
+    }).strict()],
+  ["puerts_ai_controller_inspect", "ai_controller_inspect",
+    "Read an AIController Blueprint back as machine-readable JSON: parent class, generated class "
+    + "path, every AIPerceptionComponent the Blueprint declares with each configured sense's class, "
+    + "max age, enabled flag and full property set, the dominant sense class, and every "
+    + "RunBehaviorTree call site in its graphs with the Behavior Tree and that tree's Blackboard. "
+    + "The independent read half of puerts_ai_perception_build, and READ ONLY: no transaction is "
+    + "opened, nothing is compiled or saved, and the package dirty flag is reported before and "
+    + "after the read. "
+    + "The controller-to-BT wiring is reported as CALL SITES because that is what it is. UE4.27 has "
+    + "no data-driven field pointing a controller at a tree: a controller starts one by calling "
+    + "AAIController::RunBehaviorTree, so the wiring lives in a graph node. A call site whose "
+    + "BTAsset pin carries a literal reports that asset; one whose pin is wired from a variable "
+    + "resolves to nothing at edit time and is listed under dynamic_behavior_tree_call_sites rather "
+    + "than guessed at. A controller with no call site at all is reported as a warning naming "
+    + "puerts_blueprint_build and the exact node to author. "
+    + "Only components this Blueprint declares in its SimpleConstructionScript are visible: one "
+    + "inherited from a native C++ parent lives on the parent CDO, which this reader does not "
+    + "walk, and the response says so. "
+    + "Reading is allowed anywhere under /Game and /Engine.",
+    z.object({
+      asset_path: z.string().describe(
+        "The controller Blueprint, as a package path or the object path other tools hand back. "
+        + "Limited to /Game and /Engine.",
+      ),
+    }).strict()],
   ["puerts_widget_inspect", "widget_inspect",
     "Read an existing UE4.27 Widget Blueprint back as machine-readable JSON. "
     + "The independent read half of puerts_widget_build, and READ ONLY: no transaction is "
@@ -666,6 +918,9 @@ const structuredParameters: Readonly<Record<string, readonly string[]>> = {
   puerts_blueprint_build: ["components", "variables", "graph"],
   puerts_widget_build: ["tree"],
   puerts_behavior_tree_build: ["keys", "root"],
+  puerts_blackboard_build: ["keys"],
+  puerts_nav_query: ["queries"],
+  puerts_ai_perception_build: ["senses"],
 };
 
 /** Round-trip budget per tool, in milliseconds. Absent means the 7 second
@@ -682,6 +937,18 @@ const commandTimeouts: Readonly<Record<string, number>> = {
   puerts_behavior_tree_build: 30000,
   puerts_behavior_tree_inspect: 15000,
   puerts_widget_inspect: 15000,
+  puerts_blackboard_build: 20000,
+  puerts_blackboard_inspect: 10000,
+  puerts_eqs_inspect: 10000,
+  // Reads the whole editor world twice over with TActorIterator. On a large
+  // level that is well past the 7 second default.
+  puerts_nav_inspect: 20000,
+  // A hundred path queries on a large navmesh is real pathfinding work, done
+  // synchronously on the game thread.
+  puerts_nav_query: 20000,
+  // Compiles the Blueprint, so it costs what any Blueprint compile costs.
+  puerts_ai_perception_build: 30000,
+  puerts_ai_controller_inspect: 15000,
   // Reading is cheaper than building, but a 200-node graph with include_pins
   // is a large serialization on the game thread and the 7 second default is
   // close enough to it to report a failure for work that succeeds.
