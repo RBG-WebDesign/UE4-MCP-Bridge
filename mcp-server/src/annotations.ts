@@ -138,6 +138,12 @@ export const toolAnnotations: Record<string, ToolAnnotations> = {
   // shipped. Kept out of IsToolMutating on the native side, reports the package
   // dirty flag before and after the read.
   puerts_material_inspect: readOnly,
+  // The first native audio command, and read-only by construction rather than
+  // by discipline: there is no audio_build for it to be the read half of. Kept
+  // out of IsToolMutating on the native side, reports the package dirty flag
+  // before and after the read. See the tool description for why a cue builder
+  // is feasible where an EQS builder is not, and what still blocks it.
+  puerts_audio_inspect: readOnly,
   // The read half of puerts_scene_batch: kept out of IsToolMutating on the
   // native side, reports the level package's dirty flag before and after.
   puerts_scene_inspect: readOnly,

@@ -23,12 +23,12 @@
     "native_live_partial": "live acceptance passed, but part of the evidence is the builder own report because no independent reader exists yet",
     "legacy_untested": "no live editor proof of any kind; a non-null test_file covers only the mock listener"
   },
-  "tool_count": 258,
+  "tool_count": 259,
   "by_backend": {
     "legacy_http": 170,
     "native_pipe_alias": 39,
     "server_local": 3,
-    "native_pipe": 46
+    "native_pipe": 47
   },
   "tools": [
     {
@@ -7424,6 +7424,43 @@
       "migration_risk": "low",
       "capability_loss_risk": "low",
       "notes": "read-only with no write counterpart, and that is the finding rather than an omission: montage sections and notifies are FAnimLinkableElement values that must be re-linked against slot segments, and UE4.27 exposes no atomic operation for rebuilding the NextSectionName chain, so a montage writer could not be failure-atomic. Notifies are read explicitly because UE4.27 declares them UPROPERTY() with no Edit flag and a CPF_Edit reflection walk drops them. C++ is UNCOMPILED in this lane.",
+      "verification": "implemented"
+    },
+    {
+      "name": "puerts_audio_inspect",
+      "module": "mcp-server/src/tools/puerts.ts",
+      "backend": "native_pipe",
+      "migration_state": "native_pending_live",
+      "target_replacement": null,
+      "description": "[PRIMARY NATIVE IPC] Read a Sound Cue or a Sound Wave back as machine-readable JSON. This is the first native command in the audio domain, which had no read at all: the legacy catalog's only audio entry was audio_component_add, a Blueprint component write with no way to see what it pointed at. Reports the common USoundBase fields (duration, sound class, attenuation settings) and every EditAnywhere property by reflected name, so a Sound Wave's NumChannels, SampleRate, SoundGroup, CompressionQuality, bLooping and bStreaming come back without this command carrying a field list that would go stale. For a Sound Cue it also walks the WHOLE node graph from FirstNode and returns each node's id, class, title, ordered children and properties. The node array is canonically sorted so structure_hash_sha1 is stable across reads of an unchanged cue; each node's CHILDREN are deliberately NOT sorted, because for a Mixer, a Random or a Concatenator the child index is the meaning and sorting it away would canonicalise out what the graph encodes. Two things a caller cannot get any other way: a cue with no FirstNode is warned about, because it plays nothing while looking like a valid asset; and nodes present in AllNodes but not reachable from FirstNode are counted as orphans, because they are stored in the asset, never play, and are invisible from either list on its own. THERE IS NO audio_build yet, and unlike eqs_inspect that is scheduling rather than an engine limit. A Sound Cue's FirstNode and ChildNodes ARE the source of truth and USoundCue::LinkGraphNodesFromSoundNodes derives the editor graph from them, which is the reverse of an Environment Query; the engine's own SoundCueFactoryNew builds nodes then calls it. What blocks the writer is failure atomicity: replacing an existing cue's node graph needs a content snapshot the rollback boundary can restore, the same gap that keeps puerts_anim_blueprint_build create-only. The response repeats this in build_unsupported_reason. READ ONLY: no transaction, nothing dirtied, and the response reports the package dirty flag before and after so a caller can check that rather than take it on trust. Limited to /Game and /Engine.",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "asset_path": "string"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": "mcp-server/tests/puerts-tools.test.ts",
+      "capability_category": "assets",
+      "canonical_capability": "audio.inspect",
+      "owner": "MCPBridgePuerTS service",
+      "lifecycle": "active",
+      "migration_action": "KEEP",
+      "replacement_tool": null,
+      "compatibility_alias": false,
+      "cpp_builder": "MCPPuerTSBridgeService",
+      "cpp_entry_point": "InspectAudioAssetJson",
+      "python_handler": null,
+      "live_evidence": [],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": "UNCOMPILED. The first native command in the audio domain, which had no read at all: the legacy catalog's only audio entry was audio_component_add, a Blueprint component write with no way to see what it pointed at. Reports the common USoundBase fields (Duration, SoundClassObject, AttenuationSettings, all public, Runtime/Engine/Classes/Sound/SoundBase.h:65,144,163) plus every EditAnywhere property by reflected name, so a Sound Wave's NumChannels, SampleRate, SoundGroup, CompressionQuality, bLooping and bStreaming arrive without a field list that would go stale, and SampleRate being protected (SoundWave.h:574) costs nothing. For a USoundCue it walks the whole node graph from FirstNode (SoundCue.h:97, public) through USoundNode::ChildNodes (SoundNode.h:64, public after GENERATED_UCLASS_BODY) and returns each node's id, class, USoundNode::GetTitle (SoundNode.h:179, public, unguarded), ordered children and reflected properties, capped at 500 reachable nodes. The node array uses MCPBridgeBlueprintMembers::SortByStringField and MCPBridgeBlueprintMembers::StructureHash, the same canonical sort and SHA1 the graph, Behavior Tree, Widget and member inspectors use, so structure_hash_sha1 is the same shape and spelling. Each node's CHILDREN are deliberately unsorted: for a Mixer, Random or Concatenator the child index is the meaning. Two things no other read gives: a cue with a null FirstNode plays nothing while looking valid and is warned about, and nodes in the WITH_EDITORONLY_DATA AllNodes list (SoundCue.h:110-116) that are unreachable from FirstNode are counted as orphans. NO audio_build, and unlike eqs_inspect that is scheduling rather than an engine limit: FirstNode and ChildNodes are the source of truth and USoundCue::LinkGraphNodesFromSoundNodes derives the editor graph from them (SoundCue.h:309; Editor/AudioEditor/Private/Factories/SoundCueFactoryNew.cpp:42 builds nodes then calls it), which is the reverse of UEnvironmentQueryGraph::UpdateAsset. What blocks the writer is failure atomicity: replacing an existing cue's node graph needs a content snapshot the rollback boundary can restore, the same gap finding 0t records for anim_blueprint_build. build_unsupported_reason says so in the response. READ ONLY: absent from IsToolMutating, nothing calls Modify or MarkPackageDirty, package_dirty_before/after reported. NOT COMPILED and NOT run: this lane holds no build rights.",
       "verification": "implemented"
     },
     {

@@ -743,6 +743,31 @@ private:
         FString& OutResultJson,
         FString& OutError);
 
+    /** Read a Sound Cue or a Sound Wave back as JSON: the common USoundBase
+        fields, every EditAnywhere property by reflected name, and for a cue the
+        whole node graph walked from FirstNode with each node's class, title,
+        ordered children and properties, plus a canonical structure hash.
+
+        Node properties are read by reflection rather than from a field list,
+        because roughly thirty USoundNode subclasses share no useful base and a
+        list would need extending for every node class a project uses. A
+        property that cannot be converted is named in unsupported_fields rather
+        than dropped.
+
+        The node array is canonically sorted with the shared
+        MCPBridgeBlueprintMembers sort, so the hash is stable across reads.
+        Each node's CHILDREN are deliberately not sorted: for a Mixer, a Random
+        or a Concatenator the child index is the meaning.
+
+        READ ONLY: not in IsToolMutating, nothing calls Modify or
+        MarkPackageDirty, and the response reports the package dirty flag before
+        and after so a caller can see that. */
+    UFUNCTION(BlueprintCallable, Category="MCP PuerTS Bridge")
+    bool InspectAudioAssetJson(
+        const FString& RequestJson,
+        FString& OutResultJson,
+        FString& OutError) const;
+
     /** Reconcile the whole AIPerceptionComponent configuration on an existing
         AIController Blueprint in one call: the senses it has, each sense's
         properties, and the dominant sense. The component is created if it is

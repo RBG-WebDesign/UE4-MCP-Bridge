@@ -793,6 +793,42 @@ const specs = [
         "Check every precondition and rebuild nothing. Read-only.",
       ),
     }).strict()],
+  ["puerts_audio_inspect", "audio_inspect",
+    "Read a Sound Cue or a Sound Wave back as machine-readable JSON. This is the first native "
+    + "command in the audio domain, which had no read at all: the legacy catalog's only audio "
+    + "entry was audio_component_add, a Blueprint component write with no way to see what it "
+    + "pointed at. "
+    + "Reports the common USoundBase fields (duration, sound class, attenuation settings) and "
+    + "every EditAnywhere property by reflected name, so a Sound Wave's NumChannels, SampleRate, "
+    + "SoundGroup, CompressionQuality, bLooping and bStreaming come back without this command "
+    + "carrying a field list that would go stale. "
+    + "For a Sound Cue it also walks the WHOLE node graph from FirstNode and returns each node's "
+    + "id, class, title, ordered children and properties. The node array is canonically sorted so "
+    + "structure_hash_sha1 is stable across reads of an unchanged cue; each node's CHILDREN are "
+    + "deliberately NOT sorted, because for a Mixer, a Random or a Concatenator the child index is "
+    + "the meaning and sorting it away would canonicalise out what the graph encodes. "
+    + "Two things a caller cannot get any other way: a cue with no FirstNode is warned about, "
+    + "because it plays nothing while looking like a valid asset; and nodes present in AllNodes "
+    + "but not reachable from FirstNode are counted as orphans, because they are stored in the "
+    + "asset, never play, and are invisible from either list on its own. "
+    + "THERE IS NO audio_build yet, and unlike eqs_inspect that is scheduling rather than an "
+    + "engine limit. A Sound Cue's FirstNode and ChildNodes ARE the source of truth and "
+    + "USoundCue::LinkGraphNodesFromSoundNodes derives the editor graph from them, which is the "
+    + "reverse of an Environment Query; the engine's own SoundCueFactoryNew builds nodes then "
+    + "calls it. What blocks the writer is failure atomicity: replacing an existing cue's node "
+    + "graph needs a content snapshot the rollback boundary can restore, the same gap that keeps "
+    + "puerts_anim_blueprint_build create-only. The response repeats this in "
+    + "build_unsupported_reason. "
+    + "READ ONLY: no transaction, nothing dirtied, and the response reports the package dirty flag "
+    + "before and after so a caller can check that rather than take it on trust. Limited to /Game "
+    + "and /Engine.",
+    z.object({
+      asset_path: z.string().describe(
+        "The Sound Cue or Sound Wave, as a package path or the object path other tools hand back. "
+        + "Any USoundBase is accepted; a Sound Class, Sound Mix or Attenuation asset is a "
+        + "different type and is refused by name.",
+      ),
+    }).strict()],
   ["puerts_ai_perception_build", "ai_perception_build",
     "Reconcile the whole AIPerceptionComponent configuration on an existing AIController Blueprint "
     + "in one call: which senses it has, each sense's properties, and the dominant sense. The "
@@ -1478,6 +1514,10 @@ const commandTimeouts: Readonly<Record<string, number>> = {
   // Compiles the Blueprint, so it costs what any Blueprint compile costs.
   puerts_ai_perception_build: 30000,
   puerts_ai_controller_inspect: 15000,
+  // A cue graph walk plus reflected properties on every node. Small next to a
+  // Blueprint, but the 7 second default is close enough to a large cue on a
+  // cold asset load to report a failure for work that succeeds.
+  puerts_audio_inspect: 15000,
   // Reading is cheaper than building, but a 200-node graph with include_pins
   // is a large serialization on the game thread and the 7 second default is
   // close enough to it to report a failure for work that succeeds.
