@@ -86,6 +86,9 @@ export const toolAnnotations: Record<string, ToolAnnotations> = {
   // The read half of puerts_widget_build: kept out of IsToolMutating on the
   // native side, reports the package dirty flag before and after the read.
   puerts_widget_inspect: readOnly,
+  // The read half of puerts_scene_batch: kept out of IsToolMutating on the
+  // native side, reports the level package's dirty flag before and after.
+  puerts_scene_inspect: readOnly,
   puerts_viewport_screenshot: mutatingIdempotent,
   puerts_set_property: mutatingIdempotent,
   puerts_call_function: mutating,
@@ -115,6 +118,11 @@ export const toolAnnotations: Record<string, ToolAnnotations> = {
   // interface deletes the function graphs that implemented it. Idempotent
   // because a rerun applies nothing and does not save.
   puerts_blueprint_member_patch: destructiveIdempotent,
+  // Destructive because delete_actor is one of its two operations and an upsert
+  // replaces an actor's whole tag array. Idempotent because it is desired-state
+  // throughout: a rerun applies nothing, reports converged, and the level does
+  // not get dirtier.
+  puerts_scene_batch: destructiveIdempotent,
   puerts_delete_actor: destructiveIdempotent,
   puerts_save: destructive,
   puerts_undo: destructive,

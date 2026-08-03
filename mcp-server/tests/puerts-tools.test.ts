@@ -73,7 +73,7 @@ async function main(): Promise<void> {
     });
     const client = new PuerTSClient();
     const tools = createPuertsTools(client);
-    assert(tools.length === 25, "expected all 25 PuerTS tools");
+    assert(tools.length === 27, "expected all 27 PuerTS tools");
     assert(tools.some((tool) => tool.name === "puerts_behavior_tree_build"), "native Behavior Tree builder tool is missing");
     assert(tools.some((tool) => tool.name === "puerts_behavior_tree_inspect"), "native Behavior Tree inspector tool is missing");
     assert(tools.some((tool) => tool.name === "puerts_sky_shader_create"), "native sky shader tool is missing");
@@ -1270,6 +1270,112 @@ async function widgetInspectSuite(): Promise<void> {
   }
 }
 
+/** The level and scene pair. What is checked here is the contract the two tools
+    make to each other and to a client, because everything below the schema is
+    C++ that no unit test can reach: scene_inspect is annotated read-only and
+    returns no transaction id, scene_batch is destructive-idempotent and carries
+    a batch-sized timeout, an empty operations array is refused at the client
+    rather than sent, and operations survives the JSON-text encoding an MCP
+    client applies to structured parameters. That last one is the failure this
+    suite exists for: a batch that arrives as a string reaches Unreal as a
+    string and dies in the validator with no useful message. */
+async function sceneSuite(): Promise<void> {
+  const { toolAnnotations } = await import("../src/annotations.js");
+  assert(
+    toolAnnotations.puerts_scene_inspect?.readOnlyHint === true,
+    "the scene inspector is not annotated read-only",
+  );
+  assert(
+    toolAnnotations.puerts_scene_batch?.readOnlyHint === false
+      && toolAnnotations.puerts_scene_batch?.idempotentHint === true,
+    "scene_batch must be mutating and idempotent: it is desired-state, so a rerun changes nothing",
+  );
+
+  const directory = await mkdtemp(join(tmpdir(), "ue4-puerts-scene-"));
+  const tokenPath = join(directory, "token.txt");
+  const pipeName = `\\\\.\\pipe\\ue4-puerts-scene-${process.pid}-${Date.now()}`;
+  await writeFile(tokenPath, "test-token", "utf8");
+  process.env.MCP_PUERTS_TOKEN_PATH = tokenPath;
+  process.env.MCP_PUERTS_PIPE = pipeName;
+  await advertiseSession(pipeName);
+
+  const received: Record<string, unknown>[] = [];
+  const server = createServer((socket) => socket.once("data", (data: Buffer) => {
+    const request = JSON.parse(data.toString("utf8")) as {
+      tool?: string; params?: Record<string, unknown>; timeout_ms?: number;
+    };
+    received.push({ ...request.params, __tool: request.tool, __timeout: request.timeout_ms });
+    socket.end(JSON.stringify({
+      session: RESPONSE_SESSION,
+      success: true,
+      message: "Level inspected.",
+      data: {
+        level_path: "/Game/Maps/Probe",
+        actor_count: 2,
+        identity_kind: "observed",
+        package_dirty_before: false,
+        package_dirty_after: false,
+        structure_hash_sha1: "0".repeat(40),
+      },
+      changed_assets: [], changed_actors: [], warnings: [], errors: [],
+      log_output: [], transaction_id: "",
+    }) + "\n");
+  }));
+
+  try {
+    await new Promise<void>((resolve, reject) => {
+      server.once("error", reject);
+      server.listen(pipeName, resolve);
+    });
+    const tools = createPuertsTools(new PuerTSClient());
+    const inspect = tools.find((entry) => entry.name === "puerts_scene_inspect");
+    const batch = tools.find((entry) => entry.name === "puerts_scene_batch");
+    assert(inspect !== undefined, "puerts_scene_inspect is missing");
+    assert(batch !== undefined, "puerts_scene_batch is missing");
+
+    const read = await inspect.handler({});
+    const payload = JSON.parse(read.content[0]?.text ?? "null") as Record<string, unknown>;
+    assert(payload.success === true, "a scene inspection with no arguments was rejected");
+    assert(payload.transaction_id === "", "a read-only scene inspection returned a transaction id");
+    assert(received[0]?.__tool === "scene_inspect", "the runtime command name is wrong");
+
+    const empty = await batch.handler({ operations: [] });
+    assert(
+      JSON.parse(empty.content[0]?.text ?? "null").success === false,
+      "a scene batch with no operations was accepted",
+    );
+    const unknownKey = await batch.handler({ operations: [{ op: "upsert_actor" }], save: true });
+    assert(
+      JSON.parse(unknownKey.content[0]?.text ?? "null").success === false,
+      "scene_batch accepted a save key; it never saves, and silently ignoring one would promise a write",
+    );
+    assert(received.length === 1, "a rejected scene batch still reached the pipe");
+
+    // An MCP client with no type information sends an array as JSON text.
+    // decodeStructuredParams has to turn it back into an array before it
+    // reaches Unreal, or the native validator sees a string.
+    await batch.handler({
+      operations: JSON.stringify([{ op: "delete_actor", select: { name: "Probe_0" } }]),
+    });
+    const sentBatch = received[1];
+    assert(sentBatch?.__tool === "scene_batch", "the batch runtime command name is wrong");
+    assert(
+      Array.isArray(sentBatch?.operations),
+      "operations arrived as text rather than an array; the structured-parameter decode is missing",
+    );
+    assert(
+      typeof sentBatch?.__timeout === "number" && (sentBatch.__timeout as number) >= 60000,
+      "scene_batch did not get a batch-sized timeout budget",
+    );
+    console.log("  PASS  scene inspect and batch contract");
+  } finally {
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+    await rm(directory, { recursive: true, force: true });
+    delete process.env.MCP_PUERTS_TOKEN_PATH;
+    delete process.env.MCP_PUERTS_PIPE;
+  }
+}
+
 main()
   .then(marshalingSuite)
   .then(blueprintBuildSuite)
@@ -1277,6 +1383,7 @@ main()
   .then(behaviorTreeInspectSuite)
   .then(widgetBuildSuite)
   .then(widgetInspectSuite)
+  .then(sceneSuite)
   .then(connectionContractSuite)
   .then(nonActorParentSuite)
   .then(graphInspectSuite)

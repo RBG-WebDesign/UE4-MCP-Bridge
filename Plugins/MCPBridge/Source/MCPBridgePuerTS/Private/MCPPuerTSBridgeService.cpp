@@ -196,20 +196,39 @@ bool UMCPPuerTSBridgeService::Initialize(FString& OutError)
             TEXT("pie_start"), TEXT("pie_stop"), TEXT("get_logs"), TEXT("undo"),
             TEXT("physics_build"), TEXT("physics_observe"), TEXT("viewport_screenshot"), TEXT("sky_shader_create"),
             TEXT("blueprint_build"), TEXT("blueprint_graph_patch"), TEXT("blueprint_member_patch"),
-            TEXT("widget_build"), TEXT("behavior_tree_build"),
+            TEXT("widget_build"), TEXT("behavior_tree_build"), TEXT("scene_batch"),
             // Read only. Deliberately absent from IsToolMutating below, so they
             // open no transaction and return no transaction id.
-            TEXT("graph_inspect"), TEXT("behavior_tree_inspect"), TEXT("widget_inspect")
+            TEXT("graph_inspect"), TEXT("behavior_tree_inspect"), TEXT("widget_inspect"),
+            TEXT("scene_inspect")
         };
         for (const TCHAR* Value : Defaults) { AllowedTools.Add(Value); }
     }
     if (AllowedWritableProperties.Num() == 0)
     {
+        // Widened for scene_batch, by name, one line per capability. This list
+        // is the security boundary for every reflected write the bridge makes,
+        // so it grows by deliberate edit and never by request: scene_batch
+        // refuses a property that is not here rather than reaching past it.
+        // Everything added below is level dressing - light shaping, volume
+        // settings, and the mesh a placed StaticMeshActor shows. Nothing here
+        // reaches gameplay defaults, class layout, or project config.
         const TCHAR* Defaults[] = {
             TEXT("Actor.bHidden"), TEXT("Actor.Tags"), TEXT("Actor.ActorLabel"),
             TEXT("SceneComponent.RelativeLocation"), TEXT("SceneComponent.RelativeRotation"),
-            TEXT("SceneComponent.RelativeScale3D"),
-            TEXT("LightComponentBase.Intensity"), TEXT("LightComponentBase.LightColor")
+            TEXT("SceneComponent.RelativeScale3D"), TEXT("SceneComponent.Mobility"),
+            TEXT("LightComponentBase.Intensity"), TEXT("LightComponentBase.LightColor"),
+            TEXT("LightComponentBase.CastShadows"),
+            TEXT("LightComponentBase.IndirectLightingIntensity"),
+            TEXT("LightComponentBase.VolumetricScatteringIntensity"),
+            TEXT("LightComponent.Temperature"), TEXT("LightComponent.bUseTemperature"),
+            TEXT("LocalLightComponent.AttenuationRadius"),
+            TEXT("SpotLightComponent.InnerConeAngle"), TEXT("SpotLightComponent.OuterConeAngle"),
+            TEXT("PostProcessVolume.Settings"), TEXT("PostProcessVolume.Priority"),
+            TEXT("PostProcessVolume.BlendRadius"), TEXT("PostProcessVolume.BlendWeight"),
+            TEXT("PostProcessVolume.bEnabled"), TEXT("PostProcessVolume.bUnbound"),
+            TEXT("BoxComponent.BoxExtent"),
+            TEXT("StaticMeshComponent.StaticMesh")
         };
         for (const TCHAR* Value : Defaults) { AllowedWritableProperties.Add(Value); }
     }
@@ -1414,7 +1433,8 @@ bool UMCPPuerTSBridgeService::IsToolMutating(const FString& ToolName) const
         || ToolName == TEXT("blueprint_graph_patch")
         || ToolName == TEXT("blueprint_member_patch")
         || ToolName == TEXT("widget_build")
-        || ToolName == TEXT("behavior_tree_build");
+        || ToolName == TEXT("behavior_tree_build")
+        || ToolName == TEXT("scene_batch");
 }
 
 void UMCPPuerTSBridgeService::EndActiveCommand()

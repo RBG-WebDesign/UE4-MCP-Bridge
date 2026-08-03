@@ -640,6 +640,100 @@ async function inspectWidget(context: ToolContext, input: JsonObject): Promise<C
   return result;
 }
 
+/** Read the editor's current level back as JSON. The read half of scene_batch,
+    same shape as inspectGraph and inspectWidget: no transaction, nothing
+    dirtied, dirty flag reported both sides. The level is whatever the editor
+    has open; level_path is an assertion that refuses a mismatch rather than a
+    path to load, because loading a level would discard unsaved work. */
+async function inspectScene(context: ToolContext, input: JsonObject): Promise<CommandResponse> {
+  const request: JsonObject = {};
+  const levelPath = optionalString(input, "level_path");
+  if (levelPath !== undefined) { request.level_path = levelPath; }
+  const actors = stringArray(input, "actors");
+  if (actors.length > 0) { request.actors = actors; }
+  const properties = stringArray(input, "include_properties");
+  if (properties.length > 0) { request.include_properties = properties; }
+  if (input.include_components !== undefined) {
+    request.include_components = optionalBoolean(input, "include_components", true);
+  }
+
+  const resultJson = puerts.$ref<string>("");
+  const error = puerts.$ref<string>("");
+  if (!context.bridge.InspectSceneJson(JSON.stringify(request), resultJson, error)) {
+    throw new Error(puerts.$unref(error));
+  }
+  const parsed = JSON.parse(puerts.$unref(resultJson)) as JsonObject;
+  // No changed_assets and no changed_actors on purpose: reading changed nothing.
+  return response(true, "Level inspected.", parsed);
+}
+
+/** Apply a desired-state description of many actors to the current level in one
+    transaction.
+
+    The envelope is all this function owns. Selector resolution, validation,
+    convergence and mutation are the native command's; so are the transaction,
+    the rollback boundary, the independent read-back and the verification. The
+    same split patchBlueprintGraph makes.
+
+    Nothing here saves, and nothing here decides to: the native side leaves the
+    level dirty and says so, because a level written to disk is not something a
+    rollback can take back. */
+async function applySceneBatch(context: ToolContext, input: JsonObject): Promise<CommandResponse> {
+  const operations = objectArray(input, "operations");
+  if (operations.length === 0) {
+    throw new Error("operations must be a non-empty array; a batch with no operations is not a request.");
+  }
+  const spec: JsonObject = { operations: operations as unknown as JsonValue };
+  const levelPath = optionalString(input, "level_path");
+  if (levelPath !== undefined) { spec.level_path = levelPath; }
+  // Forwarded only when the caller actually set them, so the native side keeps
+  // its own defaults rather than having this layer restate them in a second
+  // place where the two can drift apart.
+  for (const flag of ["plan_only", "verify"]) {
+    if (input[flag] !== undefined) { spec[flag] = optionalBoolean(input, flag, false); }
+  }
+
+  const resultJson = puerts.$ref<string>("");
+  const error = puerts.$ref<string>("");
+  if (!context.bridge.ApplySceneBatchJson(JSON.stringify(spec), resultJson, error)) {
+    // A refused batch has structure worth keeping: which selectors matched more
+    // than one actor and what they matched, the plan that was refused, and
+    // whether the rollback restored the level. Throwing here would discard it.
+    const failureBody = puerts.$unref(resultJson);
+    if (failureBody.length > 0) {
+      return commandFailure(new Error(puerts.$unref(error)), JSON.parse(failureBody) as JsonObject);
+    }
+    throw new Error(puerts.$unref(error));
+  }
+  const parsed = JSON.parse(puerts.$unref(resultJson)) as JsonObject;
+  const warnings = stringArray(parsed, "warnings");
+  delete parsed.warnings;
+
+  const applied = typeof parsed.applied_operation_count === "number" ? parsed.applied_operation_count : 0;
+  const planOnly = parsed.plan_only === true;
+  const result = response(
+    true,
+    planOnly
+      ? "Scene batch planned."
+      : applied === 0 ? "Level already matches the batch." : "Level updated.",
+    parsed,
+  );
+  result.warnings.push(...warnings);
+  if (!planOnly && applied > 0) {
+    const levelPackage = parsed.level_path;
+    if (typeof levelPackage === "string" && levelPackage.length > 0) {
+      // The level is dirty in memory and nothing was written. Reporting it as a
+      // changed asset is what tells a client there is something to save; the
+      // save itself stays puerts_save's call.
+      result.changed_assets.push(levelPackage);
+    }
+    for (const spawned of stringArray(parsed, "spawned_actors")) {
+      result.changed_actors.push(spawned);
+    }
+  }
+  return result;
+}
+
 async function buildPhysics(context: ToolContext, input: JsonObject): Promise<CommandResponse> {
   const actors = input.actors;
   if (!Array.isArray(actors) || actors.length === 0 || actors.length > 200) {
@@ -772,6 +866,8 @@ export const toolDefinitions: readonly ToolDefinition[] = [
   { name: "behavior_tree_build", inputSchema: schema({ asset_path: { type: "string" }, blackboard_path: { type: "string" }, keys: { type: "array", items: { type: "object" } }, root: { type: "object" }, save: { type: "boolean" } }, ["asset_path", "root"]), outputSchema, permissions: ["assets.write"], executionTimeoutMs: 30000, execute: buildBehaviorTree },
   { name: "behavior_tree_inspect", inputSchema: schema({ asset_path: { type: "string" } }, ["asset_path"]), outputSchema, permissions: ["assets.read"], executionTimeoutMs: 15000, execute: inspectBehaviorTree },
   { name: "widget_inspect", inputSchema: schema({ asset_path: { type: "string" } }, ["asset_path"]), outputSchema, permissions: ["assets.read"], executionTimeoutMs: 15000, execute: inspectWidget },
+  { name: "scene_inspect", inputSchema: schema({ level_path: { type: "string" }, actors: { type: "array", items: { type: "string" } }, include_components: { type: "boolean" }, include_properties: { type: "array", items: { type: "string" } } }), outputSchema, permissions: ["actors.read", "reflection.read"], executionTimeoutMs: 15000, execute: inspectScene },
+  { name: "scene_batch", inputSchema: schema({ level_path: { type: "string" }, operations: { type: "array", items: { type: "object" } }, plan_only: { type: "boolean" }, verify: { type: "boolean" } }, ["operations"]), outputSchema, permissions: ["actors.spawn", "actors.delete", "reflection.write"], executionTimeoutMs: 60000, execute: applySceneBatch },
   { name: "physics_build", inputSchema: schema({ actors: { type: "array", items: { type: "object" } } }, ["actors"]), outputSchema, permissions: ["actors.spawn"], executionTimeoutMs: 10000, execute: buildPhysics },
   { name: "physics_observe", inputSchema: schema({ actors: { type: "array", items: { type: "string" } } }), outputSchema, permissions: ["actors.read"], executionTimeoutMs: 2000, execute: observePhysics },
   { name: "viewport_screenshot", inputSchema: schema({ actors: { type: "array", items: { type: "string" } }, filename: { type: "string" } }), outputSchema, permissions: ["viewport.capture"], executionTimeoutMs: 2000, execute: captureViewport },
