@@ -75,6 +75,28 @@ public:
     static bool TryReadVariableDefaultFromCDO(const UBlueprint* Blueprint, FName VarName, FString& OutDefault);
 
     /**
+     * Every variable's current CDO default, for a rollback boundary to restore.
+     *
+     * This exists because the transaction does NOT cover these writes and
+     * cannot be made to. SetVariableDefault calls CDO->Modify(), but
+     * UObject::Modify delegates to SaveToTransactionBuffer, which fails
+     * silently for an object that is not RF_Transactional, and a class default
+     * object is exactly that. Cancelling the transaction restores nothing, and
+     * a compile runs between the write and any undo anyway. Finding 0r.
+     *
+     * So the boundary keeps its own snapshot. This is not belt-and-braces over
+     * the undo system; it is the only thing that restores a default.
+     */
+    static void SnapshotVariableDefaults(const UBlueprint* Blueprint, TMap<FName, FString>& OutDefaults);
+
+    /** Put the snapshot back. Returns how many values were actually rewritten,
+     *  so a caller can report a rollback that could not fully run instead of
+     *  assuming it did. Variables the batch deleted are skipped, not recreated:
+     *  restoring a default is this function's job and restoring a variable is
+     *  the asset rollback's. */
+    static int32 RestoreVariableDefaults(UBlueprint* Blueprint, const TMap<FName, FString>& Defaults);
+
+    /**
      * Import a default value into ValueAddress and report whether the WHOLE
      * value was read. Public for the same reason JsonDefaultToImportText is:
      * the validator that decides whether a type can hold a value and the

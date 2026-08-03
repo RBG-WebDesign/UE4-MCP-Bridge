@@ -719,6 +719,15 @@ bool UMCPPuerTSBridgeService::PatchBlueprintMembersJson(
     const TArray<FString> DirtyBefore = Rollback.DirtyPackages();
     const TArray<FString> SourceControlBefore = Rollback.SourceControlState();
 
+    // Variable defaults need their own snapshot, because the transaction does
+    // not cover them and cannot be made to: SetVariableDefault calls
+    // CDO->Modify(), but that delegates to SaveToTransactionBuffer, which fails
+    // silently for a class default object because it is not RF_Transactional.
+    // Measured, not assumed: a cancelled batch left the CDO holding 0.75 where
+    // it held 0.5 before. Finding 0r, Scripts/member-rollback-diagnosis.mjs.
+    TMap<FName, FString> DefaultsBefore;
+    UBlueprintMutatorLibrary::SnapshotVariableDefaults(Blueprint, DefaultsBefore);
+
     bool bRollbackAttempted = false;
     bool bRollbackSucceeded = false;
     auto FailWithRollback = [&](const FString& Error) -> bool
@@ -735,6 +744,17 @@ bool UMCPPuerTSBridgeService::PatchBlueprintMembersJson(
             UBlueprintMutatorLibrary::RevertAndCancelTransaction(*ActiveTransaction);
         }
         Rollback.Rollback();
+        // Then the defaults, which nothing above restores. This runs after the
+        // asset rollback on purpose: that step can bring a deleted variable
+        // back, and a variable has to exist before its default can be written.
+        const int32 RestoredDefaults =
+            UBlueprintMutatorLibrary::RestoreVariableDefaults(Blueprint, DefaultsBefore);
+        if (RestoredDefaults > 0)
+        {
+            UE_LOG(LogTemp, Log,
+                TEXT("blueprint_member_patch: restored %d variable default(s) the transaction did not cover"),
+                RestoredDefaults);
+        }
         // Trust the read-back, not the undo. Findings 0g: a cancelled
         // transaction looked transactional and was not, and the only thing that
         // settles whether the members came back is reading them again.

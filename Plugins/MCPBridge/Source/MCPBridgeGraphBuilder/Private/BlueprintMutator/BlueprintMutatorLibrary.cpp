@@ -47,6 +47,61 @@ bool UBlueprintMutatorLibrary::TryReadVariableDefaultFromCDO(const UBlueprint* B
     return true;
 }
 
+void UBlueprintMutatorLibrary::SnapshotVariableDefaults(const UBlueprint* Blueprint, TMap<FName, FString>& OutDefaults)
+{
+    OutDefaults.Reset();
+    if (!Blueprint) { return; }
+    for (const FBPVariableDescription& Description : Blueprint->NewVariables)
+    {
+        FString Exported;
+        if (TryReadVariableDefaultFromCDO(Blueprint, Description.VarName, Exported))
+        {
+            OutDefaults.Add(Description.VarName, Exported);
+        }
+    }
+}
+
+int32 UBlueprintMutatorLibrary::RestoreVariableDefaults(UBlueprint* Blueprint, const TMap<FName, FString>& Defaults)
+{
+    if (!Blueprint) { return 0; }
+    UClass* GenClass = Blueprint->GeneratedClass;
+    UObject* CDO = GenClass ? GenClass->GetDefaultObject(/*bCreateIfNeeded=*/false) : nullptr;
+    if (!CDO) { return 0; }
+
+    int32 Restored = 0;
+    for (const TPair<FName, FString>& Pair : Defaults)
+    {
+        FProperty* Prop = FindFProperty<FProperty>(CDO->GetClass(), Pair.Key);
+        if (!Prop) { continue; }
+        void* Addr = Prop->ContainerPtrToValuePtr<void>(CDO);
+        if (!Addr) { continue; }
+
+        // Only write when the value actually moved. A restore that rewrites
+        // every variable would dirty the package on a batch that changed
+        // nothing, and the failure path is measured on exactly that.
+        FString Current;
+        Prop->ExportTextItem(Current, Addr, Addr, nullptr, PPF_SerializedAsImportText);
+        if (Current == Pair.Value) { continue; }
+
+        // Modify(false), not Modify(). The default overload marks the package
+        // dirty, and this function runs on the FAILURE path, where the contract
+        // is that the asset comes back exactly as the batch found it. Marking
+        // dirty while restoring would trade a wrong value for a wrong dirty
+        // flag, and the atomicity harness measures both.
+        CDO->Modify(/*bAlwaysMarkDirty=*/false);
+        Prop->ImportText(*Pair.Value, Addr, PPF_SerializedAsImportText, CDO);
+
+        const int32 Index = Blueprint->NewVariables.IndexOfByPredicate(
+            [&](const FBPVariableDescription& D){ return D.VarName == Pair.Key; });
+        if (Index != INDEX_NONE)
+        {
+            Blueprint->NewVariables[Index].DefaultValue = Pair.Value;
+        }
+        ++Restored;
+    }
+    return Restored;
+}
+
 FString UBlueprintMutatorLibrary::JsonDefaultToImportText(const FString& DefaultValueJson, bool bTextLike)
 {
     FString Trimmed = DefaultValueJson.TrimStartAndEnd();

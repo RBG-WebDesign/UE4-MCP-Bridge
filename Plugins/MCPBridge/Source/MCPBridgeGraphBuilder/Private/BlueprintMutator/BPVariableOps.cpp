@@ -200,7 +200,20 @@ bool FBPVariableOps::SetVariableDefault(UBlueprint* Blueprint, const FString& Va
             FString OldExported;
             Prop->ExportTextItem(OldExported, Addr, Addr, nullptr, PPF_SerializedAsImportText);
 
-            CDO->Modify();
+            // Modify() returns whether the object actually reached the undo
+            // buffer, and for a class default object it does not: UObject::Modify
+            // delegates to SaveToTransactionBuffer, which fails silently when the
+            // object is not RF_Transactional. Discarding this bool is what made
+            // finding 0r invisible for so long, so it is logged rather than
+            // dropped. The caller's own snapshot is what restores this write;
+            // see UBlueprintMutatorLibrary::SnapshotVariableDefaults.
+            const bool bCdoIsTransacted = CDO->Modify();
+            if (!bCdoIsTransacted)
+            {
+                UE_LOG(LogBlueprintMutator, Verbose,
+                    TEXT("SetVariableDefault: '%s' CDO write is NOT in the transaction buffer; ")
+                    TEXT("a cancelled transaction will not restore it."), *VarName);
+            }
             Prop->ImportText(*ImportString, Addr, PPF_SerializedAsImportText, CDO);
 
             // Loaded child class CDOs carry their own copy of the value. Any

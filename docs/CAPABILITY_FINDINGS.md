@@ -1911,3 +1911,41 @@ hashes that were both blind to the field that was not being rolled back, and
 passed. A check that cannot observe the thing it asserts about is not a check,
 and it is indistinguishable from a passing one until something makes the field
 visible.
+
+### Finding 0r, FIXED and live-verified 2026-08-03
+
+`Scripts/mutator-atomicity.mjs`: **all checks passed, twice consecutively**,
+including the control that must succeed and must move the fingerprint.
+
+The fix is a snapshot at the boundary, not a repair to the undo system, because
+the undo system provably does not cover this write:
+
+- `UBlueprintMutatorLibrary::SnapshotVariableDefaults` records every variable's
+  CDO default before the first mutation.
+- `RestoreVariableDefaults` puts them back on the failure path, after the asset
+  rollback (which can bring a deleted variable back, and a variable has to exist
+  before its default can be written) and before the hash read-back that decides
+  `rollback_succeeded`.
+- `BPVariableOps::SetVariableDefault` now logs when `CDO->Modify()` returns
+  false instead of discarding it, so the next author who assumes a transaction
+  covers a CDO write finds out at the call site.
+
+Two things the fix got wrong first, both caught by the harness rather than by
+reading:
+
+1. `RestoreVariableDefaults` used `CDO->Modify()`, whose default overload marks
+   the package dirty. The restore then left a dirty package on the failure path,
+   trading a wrong value for a wrong dirty flag. `Modify(false)` is correct here
+   precisely because this runs on the path whose contract is "exactly as the
+   batch found it".
+2. The harness used a FIXED fixture path, so its control added a variable that
+   survived the run and the second run reported the control as not moving the
+   fingerprint. Now a fresh path per run, the same rule finding 0n records.
+
+Live evidence, second consecutive run green, plus no regression in
+`bp-graph-patch-acceptance`, `graph-inspect-acceptance` or
+`bp-failure-atomicity`, all of which share the mutator library.
+
+`blueprint_member_patch` remains at ONE red check, finding 0q, which is
+unrelated: the patched Blueprint compiles with warnings where a freshly built
+one does not.

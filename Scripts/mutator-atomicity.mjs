@@ -169,7 +169,15 @@ export async function checkMutationIsAtomic({
 
 // --- The table. One row per lever; a new mutator adds a row. -----------------
 
-const BP = "/Game/MCPGenerated/BP_MutatorAtomicity";
+// A fresh path per run, not a fixed one. The control operation ADDS a variable
+// and succeeds, so on a fixed fixture the second run finds it already there,
+// the add converges to a no-op, and the control reports that it did not move
+// the fingerprint. That is a false red about the product caused entirely by the
+// harness, and it is the same order dependence finding 0n records for the
+// member-patch acceptance. Determinism comes from never reusing a path: there
+// is no delete-asset primitive, and unlinking the .uasset does not reseed a
+// package the editor already has loaded.
+const BP = `/Game/MCPGenerated/BP_MutatorAtomicity_${Date.now().toString(36)}`;
 
 // Rebuilt from this whole spec on every run, with remove_unlisted so a variable
 // left behind by an earlier run cannot survive into the measurement. A fixture
