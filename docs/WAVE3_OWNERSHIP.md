@@ -97,3 +97,50 @@ C++ that needs UHT and UBT; they finish everything else, report READY TO BUILD,
 and stop. The integrator batches those compiles after merging, because five
 lanes building into one shared project is the collision that cost lane A two
 sessions. Lane N builds only its own throwaway project and cannot collide.
+
+# Wave five ownership, 2026-08-03
+
+Stage-one completion wave. Every lane closes a domain that has no callable
+implementation, except lane R which settles the last red check on a merged one.
+
+## Pre-flight
+
+| Gate | Result |
+|---|---|
+| Integration tree | Clean at `df14297` |
+| Unmerged branches | None. All nine wave-four lanes are ancestors of HEAD. |
+| Orphan agents | None. One claude-code session, which is this one. |
+| Editors | One, PID 26764, assigned to lane R |
+| `install:check` | Current |
+
+## Lanes
+
+| Lane | Branch | Domain | Build rights | Editor |
+|---|---|---|---|---|
+| R | `lane/r-finding-0q` | Finding 0q: why a patched Blueprint compiles with warnings | **YES, exclusive** | **YES, exclusive** |
+| S | `lane/s-sequencer` | Sequencer and cinematics, the last empty domain | no | no |
+| T | `lane/t-material-graph` | Material graph authoring and textures | no | no |
+| U | `lane/u-level-lighting` | Lighting build, class defaults, and the capability regression | no | no |
+| V | `lane/v-widget-bind` | Widget bindings and animations | no | no |
+| W | `lane/w-domain-gaps` | Navigation build, AnimBP patch, audio, cloth | no | no |
+
+Lane R holds both the editor and the build lock because 0q can only be settled
+live, and because five lanes building into one project is the collision that
+cost this program two sessions. Everyone else writes and compiles nothing; the
+integrator batches their compiles after merging.
+
+## What each lane was told not to repeat
+
+- A no-op decided at PLAN time against pre-batch state is wrong when an earlier
+  operation in the same batch moved that state. Shipped three times here.
+- `CDO->Modify()` returns whether the object reached the undo buffer, and for a
+  class default object it does not. Discarding that bool was finding 0r.
+- A fixed fixture path produces false reds on the second run. Findings 0n, 0r.
+- If a mutation cannot be transactional, convergent, independently inspected and
+  failure-atomic, ship the read half and name the blocker. That is an expected
+  outcome, not a failure.
+
+## Stage-one gap this wave is aimed at
+
+The seven slice harnesses currently need 16 distinct primitives. Ten were
+unowned before this wave. After it, the unowned set should be empty or named.
