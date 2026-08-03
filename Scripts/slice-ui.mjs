@@ -117,25 +117,45 @@ await runSlice({
       "3. a converged rerun wrote no new bytes to disk");
   }
 
-  // The read side of bindings exists and the write side does not. widget_inspect
-  // returns a bindings array and an is_variable flag per widget; widget_build's
-  // schema has no way to produce either, so a HUD authored here can never show
-  // live data and can never be reached from a graph by BindWidget.
-  h.request("puerts_widget_bind",
-    "bind a widget property to a function or variable, and expose a widget as a BindWidget variable. "
-    + "puerts_widget_inspect already REPORTS bindings and is_variable; puerts_widget_build has no field that writes either, "
-    + "so every widget this bridge can author is static and unreachable from a graph by name",
-    {
-      tool: "puerts_widget_bind",
-      alternative: "add is_variable and bindings to the puerts_widget_build widget node schema instead of a second tool",
-      params: {
-        asset_path: "/Game/MCPGenerated/...",
-        bindings: "[{widget: string, property: string, source: {kind: 'function'|'variable', name: string}}]",
-        expose_as_variable: "string[] (widget names to mark is_variable for BindWidget)",
-        remove_unlisted: "boolean",
-        save: "boolean",
-      },
+  // The write side of bindings and is_variable is puerts_widget_bind. Only the
+  // expose half runs here: a property binding needs a source function or
+  // variable that already exists on this Widget Blueprint, and whether the
+  // Blueprint tooling can author one inside a WidgetBlueprint is exactly what
+  // step 4 below is still measuring. Exposing needs no prerequisite and is the
+  // half that decides whether a graph can reach these widgets by name at all.
+  const EXPOSED = ["ChargeBar", "ToggleButton", "TitleText"];
+  const exposed = await h.call("puerts_widget_bind", {
+    asset_path: WBP,
+    expose_as_variable: EXPOSED,
+  }, {
+    label: "4a. expose the driveable widgets as members of the generated class",
+    why: "widget_inspect reports is_variable and widget_build cannot write it, so without this every widget "
+      + "the bridge authors is unreachable from a graph by name and no BindWidget can resolve",
+  });
+  if (exposed?.success === true) {
+    const after = await h.call("puerts_widget_inspect", { asset_path: WBP }, {
+      label: "4a. read the exposed variables back with the independent inspector",
     });
+    const names = (after?.data?.variables ?? []).map((v) => v.name ?? v);
+    h.check(EXPOSED.every((n) => names.includes(n)),
+      "4a. every widget asked for is a variable on the asset, read back independently",
+      JSON.stringify(names));
+
+    const again = await h.call("puerts_widget_bind", {
+      asset_path: WBP,
+      expose_as_variable: EXPOSED,
+    }, { label: "4a. rerunning the identical bind spec converges" });
+    h.check(again?.data?.applied_change_count === 0 && again?.data?.converged === true,
+      "4a. a converged rerun applied nothing and said so",
+      `applied=${again?.data?.applied_change_count} converged=${again?.data?.converged}`);
+    h.check(again?.data?.saved === false,
+      "4a. a converged rerun saved nothing", String(again?.data?.saved));
+  }
+
+  h.note("4a. the property-binding half of this slice is unrun, not unsupported",
+    "puerts_widget_bind takes bindings of {widget, property, source:{kind, name}}, but a source has to "
+    + "already exist on WBP_SliceHUD. Authoring one is the widget event graph question step 4 measures, "
+    + "so this slice exposes the widgets and stops rather than binding to a function it invented.");
 
   // A Widget Blueprint has an event graph. Whether the Blueprint tooling can
   // reach it is unmeasured, and it decides whether OnClicked is authorable at

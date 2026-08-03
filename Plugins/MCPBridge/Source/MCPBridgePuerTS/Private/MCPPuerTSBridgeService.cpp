@@ -199,6 +199,7 @@ bool UMCPPuerTSBridgeService::Initialize(FString& OutError)
             TEXT("save"), TEXT("pie_start"), TEXT("pie_stop"), TEXT("undo"),
             TEXT("physics_build"), TEXT("physics_observe"), TEXT("viewport_screenshot"), TEXT("sky_shader_create"),
             TEXT("blueprint_build"), TEXT("blueprint_graph_patch"), TEXT("blueprint_member_patch"), TEXT("widget_build"),
+            TEXT("widget_bind"),
             TEXT("behavior_tree_build"), TEXT("anim_blueprint_build"), TEXT("blackboard_build"), TEXT("ai_perception_build"),
             TEXT("material_instance_build"), TEXT("scene_batch"), TEXT("input_mapping_patch"), TEXT("folder_visibility"),
             TEXT("camera_shake"),
@@ -1441,6 +1442,11 @@ bool UMCPPuerTSBridgeService::IsToolMutating(const FString& ToolName) const
         || ToolName == TEXT("blueprint_graph_patch")
         || ToolName == TEXT("blueprint_member_patch")
         || ToolName == TEXT("widget_build")
+        // widget_bind writes UWidgetBlueprint::Bindings and UWidget::bIsVariable
+        // and recompiles. Its plan_only path cancels the transaction it opened
+        // rather than returning before one exists, because the alternative is a
+        // mutation path with no rollback.
+        || ToolName == TEXT("widget_bind")
         || ToolName == TEXT("behavior_tree_build")
         // anim_blueprint_build only. The two anim inspectors are deliberately
         // absent: they open no transaction and return no transaction id.

@@ -1,19 +1,19 @@
 {
   "generated_by": "Scripts/generate-tool-inventory.mjs (do not edit by hand)",
-  "total_registrations": 256,
-  "unique_canonical_capabilities": 186,
+  "total_registrations": 257,
+  "unique_canonical_capabilities": 187,
   "by_backend": {
     "legacy_http": 170,
     "native_pipe_alias": 38,
     "server_local": 3,
-    "native_pipe": 45
+    "native_pipe": 46
   },
   "by_verification": {
     "untested": 122,
     "mock_only": 86,
     "pending_live": 1,
     "live_verified": 19,
-    "implemented": 20,
+    "implemented": 21,
     "live_partial": 8
   },
   "by_migration_action": {
@@ -21,7 +21,7 @@
     "PORT": 39,
     "REFRONT": 28,
     "MERGE": 10,
-    "KEEP": 97,
+    "KEEP": 98,
     "RETIRE": 1
   },
   "by_capability_category": {
@@ -44,7 +44,7 @@
     "levels": 3,
     "materials": 7,
     "optimization": 24,
-    "ui": 9,
+    "ui": 10,
     "ai": 7,
     "properties": 3,
     "bridge": 1,

@@ -166,6 +166,14 @@ export const toolAnnotations: Record<string, ToolAnnotations> = {
   // Converges on a rerun, and the spec is the whole widget tree, so a build
   // aimed at an existing Widget Blueprint replaces the hierarchy it had.
   puerts_widget_build: destructiveIdempotent,
+  // Mutating and idempotent, and NOT destructive by default: it adds the
+  // bindings it was given, exposes the widgets it was given, and leaves every
+  // other binding and variable flag alone. remove_unlisted does take away
+  // bindings and can clear a variable flag that graph nodes depend on, but it is
+  // opt-in, off by default, and applies only inside the sections the request
+  // stated. A rerun of the same spec applies nothing, compiles nothing and does
+  // not save, which is the idempotent half.
+  puerts_widget_bind: mutatingIdempotent,
   // Mutating and idempotent, but NOT destructive, and that distinction is the
   // reason the command exists: it clears nothing, names the nodes it touches,
   // and leaves everything it was not asked about alone. A rerun of the same

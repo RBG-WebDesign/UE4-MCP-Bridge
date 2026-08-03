@@ -73,7 +73,7 @@ async function main(): Promise<void> {
     });
     const client = new PuerTSClient();
     const tools = createPuertsTools(client);
-    assert(tools.length === 45, "expected all 45 PuerTS tools");
+    assert(tools.length === 46, "expected all 46 PuerTS tools");
     assert(tools.some((tool) => tool.name === "puerts_behavior_tree_build"), "native Behavior Tree builder tool is missing");
     assert(tools.some((tool) => tool.name === "puerts_behavior_tree_inspect"), "native Behavior Tree inspector tool is missing");
     assert(tools.some((tool) => tool.name === "puerts_sky_shader_create"), "native sky shader tool is missing");
@@ -81,6 +81,7 @@ async function main(): Promise<void> {
     assert(tools.some((tool) => tool.name === "puerts_widget_build"), "native widget builder tool is missing");
     assert(tools.some((tool) => tool.name === "puerts_graph_inspect"), "native Blueprint inspector tool is missing");
     assert(tools.some((tool) => tool.name === "puerts_widget_inspect"), "native widget inspector tool is missing");
+    assert(tools.some((tool) => tool.name === "puerts_widget_bind"), "native widget binder tool is missing");
     assert(tools.some((tool) => tool.name === "puerts_blueprint_member_patch"), "native Blueprint member patch tool is missing");
     for (const name of [
       "puerts_anim_blueprint_build",
@@ -1530,6 +1531,145 @@ async function widgetInspectSuite(): Promise<void> {
   }
 }
 
+/** puerts_widget_bind is the write half of the bindings and variables
+    widget_inspect could already read. What is pinned here is the surface a
+    client sees, because every rule below it is UE4.27's and lives in C++:
+
+    1. It is annotated mutating and idempotent, NOT destructive. remove_unlisted
+       is what takes work away and it is opt-in, so the default classification
+       has to say so.
+    2. A request that states neither section never reaches the editor. Sending
+       one would be a round trip to be told the obvious, and with
+       remove_unlisted set it is the shape that means "delete everything".
+    3. bindings marshals as an array of objects, not as text. A schema that let
+       a string through would reach C++ as a non-array. */
+async function widgetBindSuite(): Promise<void> {
+  const { toolAnnotations } = await import("../src/annotations.js");
+  const bindAnnotations = toolAnnotations.puerts_widget_bind;
+  assert(bindAnnotations !== undefined, "puerts_widget_bind has no annotation");
+  assert(bindAnnotations.readOnlyHint !== true, "the widget binder is annotated read-only");
+  assert(bindAnnotations.idempotentHint === true, "the widget binder is not annotated idempotent");
+  assert(
+    bindAnnotations.destructiveHint !== true,
+    "the widget binder is annotated destructive; remove_unlisted is opt-in and off by default",
+  );
+
+  const directory = await mkdtemp(join(tmpdir(), "ue4-puerts-wbp-bind-"));
+  const tokenPath = join(directory, "token.txt");
+  const pipeName = `\\\\.\\pipe\\ue4-puerts-wbp-bind-${process.pid}-${Date.now()}`;
+  await writeFile(tokenPath, "test-token", "utf8");
+  process.env.MCP_PUERTS_TOKEN_PATH = tokenPath;
+  process.env.MCP_PUERTS_PIPE = pipeName;
+  await advertiseSession(pipeName);
+
+  const received: Record<string, unknown>[] = [];
+  const server = createServer((socket) => socket.once("data", (data: Buffer) => {
+    const request = JSON.parse(data.toString("utf8")) as {
+      tool?: string; params?: Record<string, unknown>; timeout_ms?: number;
+    };
+    received.push({ ...request.params, __tool: request.tool, __timeout: request.timeout_ms });
+    socket.end(JSON.stringify({
+      session: RESPONSE_SESSION,
+      success: true,
+      message: "Widget bindings applied: 2.",
+      data: {
+        asset_path: "/Game/MCPGenerated/WBP_Probe",
+        applied_change_count: 2,
+        converged: false,
+        compiled: true,
+        compile_status: "UpToDate",
+        saved: true,
+      },
+      changed_assets: ["/Game/MCPGenerated/WBP_Probe.WBP_Probe"],
+      changed_actors: [], warnings: [], errors: [],
+      log_output: [], transaction_id: "T9",
+    }) + "\n");
+  }));
+
+  try {
+    await new Promise<void>((resolve, reject) => {
+      server.once("error", reject);
+      server.listen(pipeName, resolve);
+    });
+    const tool = createPuertsTools(new PuerTSClient())
+      .find((entry) => entry.name === "puerts_widget_bind");
+    assert(tool !== undefined, "puerts_widget_bind is missing");
+
+    const bound = await tool.handler({
+      asset_path: "/Game/MCPGenerated/WBP_Probe",
+      bindings: [
+        { widget: "ChargeBar", property: "Percent", source: { kind: "function", name: "GetCharge" } },
+        { widget: "TitleText", property: "Text", source: { kind: "variable", name: "BeaconName" } },
+      ],
+      expose_as_variable: ["ToggleButton"],
+    });
+    assert(JSON.parse(bound.content[0]?.text ?? "null").success === true, "a valid bind spec was rejected");
+    const sent = received[0];
+    assert(sent?.__tool === "widget_bind", "the runtime command name is wrong");
+    assert(
+      typeof sent?.__timeout === "number" && (sent.__timeout as number) > 5000,
+      "widget binding did not get its own timeout budget",
+    );
+    assert(
+      Array.isArray(sent?.bindings) && (sent.bindings as unknown[]).length === 2,
+      "bindings did not reach the pipe as an array of objects",
+    );
+    assert(
+      Array.isArray(sent?.expose_as_variable),
+      "expose_as_variable did not reach the pipe as an array",
+    );
+
+    const fromText = await tool.handler({
+      asset_path: "/Game/MCPGenerated/WBP_Probe",
+      bindings: '[{"widget":"ChargeBar","property":"Percent","source":{"kind":"function","name":"GetCharge"}}]',
+    });
+    assert(
+      JSON.parse(fromText.content[0]?.text ?? "null").success === true,
+      "a bindings array sent as JSON text was rejected",
+    );
+    assert(
+      Array.isArray(received[1]?.bindings),
+      "the bindings text was not decoded before the pipe",
+    );
+
+    const badKind = await tool.handler({
+      asset_path: "/Game/MCPGenerated/WBP_Probe",
+      bindings: [{ widget: "ChargeBar", property: "Percent", source: { kind: "delegate", name: "X" } }],
+    });
+    assert(
+      JSON.parse(badKind.content[0]?.text ?? "null").success === false,
+      "an unknown binding source kind was accepted",
+    );
+
+    const badPath = await tool.handler({
+      asset_path: "/Game/UI/WBP_Probe",
+      expose_as_variable: ["ChargeBar"],
+    });
+    assert(
+      JSON.parse(badPath.content[0]?.text ?? "null").success === false,
+      "a path outside /Game/MCPGenerated was accepted",
+    );
+
+    // Neither section stated. With remove_unlisted this is the request that
+    // means "remove everything", so it must not reach the editor at all.
+    const empty = await tool.handler({
+      asset_path: "/Game/MCPGenerated/WBP_Probe",
+      remove_unlisted: true,
+    });
+    assert(
+      JSON.parse(empty.content[0]?.text ?? "null").success === false,
+      "a bind request that stated no desired set was accepted",
+    );
+    assert(received.length === 2, "a rejected bind request still reached the editor");
+    console.log("  PASS  widget bind schema, marshaling, and rejected specs");
+  } finally {
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+    await rm(directory, { recursive: true, force: true });
+    delete process.env.MCP_PUERTS_TOKEN_PATH;
+    delete process.env.MCP_PUERTS_PIPE;
+  }
+}
+
 /** The animation lane's three tools. Two contracts are tested here that the
     other builders do not have:
 
@@ -1734,6 +1874,7 @@ main()
   .then(behaviorTreeInspectSuite)
   .then(widgetBuildSuite)
   .then(widgetInspectSuite)
+  .then(widgetBindSuite)
   .then(animationSuite)
   .then(materialSuite)
   .then(sceneSuite)

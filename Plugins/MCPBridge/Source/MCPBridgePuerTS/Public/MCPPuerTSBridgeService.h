@@ -222,6 +222,28 @@ public:
         FString& OutResultJson,
         FString& OutError);
 
+    /** Bind widget properties to Blueprint functions or variables, and expose
+        widgets as members of the generated class.
+
+        The write half of what widget_inspect could already read and nothing
+        could author: a widget built by widget_build shows the constant its spec
+        gave it and cannot be reached from a graph by name, because
+        UWidgetBlueprint::Bindings is empty and every UWidget::bIsVariable is
+        false. Desired state: the caller lists the bindings it wants, and a
+        rerun applies nothing, compiles nothing and saves nothing.
+
+        UE4.27 binds the delegate named "<PropertyName>Delegate", falling back
+        to PropertyName for an event delegate, so the caller writes "Percent"
+        and the engine drives "PercentDelegate"; the resolved name is in the
+        response. Validation is the engine's own FEditorPropertyPath::Validate,
+        run before anything is written, and a compile that comes back Error
+        restores the previous bindings and variable flags and recompiles. */
+    UFUNCTION(BlueprintCallable, Category="MCP PuerTS Bridge")
+    bool BindWidgetJson(
+        const FString& SpecJson,
+        FString& OutResultJson,
+        FString& OutError);
+
     /** Read a Widget Blueprint back as machine-readable JSON: parent class,
         the whole widget hierarchy in child order, each widget's class, variable
         flag, slot (with CanvasPanel anchors, offsets, alignment and z-order)

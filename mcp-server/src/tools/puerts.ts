@@ -525,6 +525,74 @@ const specs = [
       ),
       save: z.boolean().optional().describe("Default true. A tree that did not compile is never saved."),
     }).strict()],
+  ["puerts_widget_bind", "widget_bind",
+    "Bind widget properties to Blueprint functions or variables, and expose widgets as members "
+    + "of the generated class. This is what makes a UMG widget show live data: a tree from "
+    + "puerts_widget_build displays the constants its spec gave it and cannot be reached from a "
+    + "graph by name, because the Blueprint holds no bindings and no widget is a variable. "
+    + "Desired state, not a sequence of edits: rerunning an identical spec applies nothing, "
+    + "compiles nothing and saves nothing, and reports converged. "
+    + "UE4.27 drives the delegate named \"<property>Delegate\", falling back to the bare name "
+    + "for an event delegate, so you write \"Percent\" on a ProgressBar and the engine binds "
+    + "PercentDelegate; the response names the delegate each entry resolved to. A property "
+    + "binding may only target a pure (BlueprintPure or const) function. The source function or "
+    + "variable must already exist on the Widget Blueprint: author it with "
+    + "puerts_blueprint_graph_patch or puerts_blueprint_member_patch first. "
+    + "Every entry is validated by UE4.27's own binding validator before anything is written, so "
+    + "an unknown widget, an unbindable property, a missing source or an incompatible type is a "
+    + "refusal with the closest matching names rather than a half-bound asset; and a compile that "
+    + "comes back Error restores the previous bindings and variable flags and recompiles. "
+    + "Binding a widget implies exposing it, because the runtime resolves a binding's widget "
+    + "against the generated class members; the response lists which exposures that rule added. "
+    + "Verify with puerts_widget_inspect, which reports bindings and variables read off the asset.",
+    z.object({
+      asset_path: z.string().regex(/^\/Game\/MCPGenerated\/[A-Za-z0-9_]+(\/[A-Za-z0-9_]+)*$/).describe(
+        "Package path of an existing Widget Blueprint under /Game/MCPGenerated/, no asset-name "
+        + "suffix. widget_bind never creates an asset.",
+      ),
+      bindings: z.array(z.object({
+        widget: z.string().min(1).describe("Widget name in the tree, as widget_build spelled it."),
+        property: z.string().min(1).describe(
+          "The property to bind, without the \"Delegate\" suffix: Percent on a ProgressBar, Text "
+          + "on a TextBlock, Visibility, IsEnabled, ToolTipText. An unbindable name is refused "
+          + "with the bindable ones on that widget class listed.",
+        ),
+        source: z.object({
+          kind: z.enum(["function", "variable"]).describe(
+            "function binds to a member function of the Widget Blueprint (pure only, for a "
+            + "property binding); variable binds directly to one of its member variables.",
+          ),
+          name: z.string().min(1).describe("The function or variable name on the Widget Blueprint."),
+        }).strict(),
+      }).strict()).optional().describe(
+        "The bindings this widget should have. One entry per (widget, property): UE4.27 allows a "
+        + "property to be bound once, so two entries for the same pair are refused rather than "
+        + "silently resolved.",
+      ),
+      expose_as_variable: z.array(z.string().min(1)).optional().describe(
+        "Widget names to publish as members of the generated class, which is what BindWidget and "
+        + "a graph reference by name both need. Widgets named in bindings are added automatically.",
+      ),
+      remove_unlisted: z.boolean().optional().describe(
+        "Default false. Converge downward as well as upward: drop bindings not listed, and clear "
+        + "the variable flag on widgets not listed. Applies only inside the sections the request "
+        + "actually stated, so a spec with bindings and no expose_as_variable never unexposes "
+        + "anything. Clearing a variable flag breaks every graph reference to that widget.",
+      ),
+      plan_only: z.boolean().optional().describe(
+        "Default false. Report what would change and write nothing.",
+      ),
+      save: z.boolean().optional().describe(
+        "Default true. Nothing is saved when nothing changed or the compile failed.",
+      ),
+    }).strict().refine(
+      (spec) => spec.bindings !== undefined || spec.expose_as_variable !== undefined,
+      // Both sections optional, neither present is not. A request that states no
+      // desired state has nothing to converge on, and with remove_unlisted it is
+      // the shape that means "take everything away", so it is refused at the
+      // client rather than sent to the editor to be told the same thing.
+      { message: "widget_bind needs bindings, expose_as_variable, or both." },
+    )],
   ["puerts_graph_inspect", "graph_inspect",
     "Read an existing Blueprint back as machine-readable JSON: parent class, "
     + "SimpleConstructionScript components, member variables, implemented interfaces, "
@@ -1384,6 +1452,7 @@ const structuredParameters: Readonly<Record<string, readonly string[]>> = {
   puerts_save: ["assets"],
   puerts_blueprint_build: ["components", "variables", "graph"],
   puerts_widget_build: ["tree"],
+  puerts_widget_bind: ["bindings", "expose_as_variable"],
   puerts_input_mapping_patch: ["actions", "axes", "remove_actions", "remove_axes"],
   puerts_folder_visibility: ["hidden", "hide", "show"],
   puerts_pie_agent_query: ["conditions"],
@@ -1408,6 +1477,10 @@ const commandTimeouts: Readonly<Record<string, number>> = {
   // build and too tight for a ten-operation member batch.
   puerts_blueprint_member_patch: 60000,
   puerts_widget_build: 30000,
+  // Applies the bindings, then compiles the Widget Blueprint, and compiles it a
+  // second time if it has to restore them. Two compiles is the ceiling worth
+  // budgeting for.
+  puerts_widget_bind: 30000,
   puerts_input_mapping_patch: 15000,
   puerts_scene_batch: 60000,
   puerts_scene_inspect: 15000,
