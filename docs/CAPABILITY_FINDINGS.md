@@ -1949,3 +1949,141 @@ Live evidence, second consecutive run green, plus no regression in
 `blueprint_member_patch` remains at ONE red check, finding 0q, which is
 unrelated: the patched Blueprint compiles with warnings where a freshly built
 one does not.
+
+## Finding 0q: SETTLED. add_event_dispatcher built half an event dispatcher
+
+Settled 2026-08-03 by lane R, live against BridgeInstallTest, `install:check`
+current before and after. Rerunnable: `Scripts/member-warning-diagnosis.mjs`.
+
+### The isolation, and it took one run
+
+Seven operations, one at a time, each its own patch, status read after every one:
+
+```
+  UpToDate               fixture built, never patched
+  UpToDate               0: add_variable Delta
+  UpToDate               1: set_variable_default Label
+  UpToDate               2: remove_variable Doomed
+  UpToDate               3: add_function ProbeStep
+  UpToDateWithWarnings   4: add_event_dispatcher OnProbed
+      warn: No delegate property found for  OnProbed
+  UpToDateWithWarnings   5: rename_component Lamp -> Beacon
+  UpToDateWithWarnings   6: remove_component Muzzle
+```
+
+Operations 5 and 6 carry operation 4's warning forward; they add none of their
+own. **The component operations were innocent**, which is the opposite of what
+finding 0q predicted. The predicted cause was a graph reference orphaned by a
+rename or a removal, and it was worth writing down that this fixture's graph
+never referenced `Lamp` or `Muzzle` at all, so that hypothesis was checkable and
+wrong before any code was read.
+
+The clean control, built directly into the same component and variable state and
+never patched, reads `UpToDate` from the builder, from `graph_inspect` and from
+an independent recompile. So the difference was the patch, not the state.
+
+### The defect
+
+`FBPEventDispatcherOps::AddEventDispatcher` created a signature graph and
+nothing else. An event dispatcher is TWO objects: a multicast delegate member
+variable, which is the property callers bind and call, and a signature graph
+that gives that property its parameter list.
+
+`FKismetCompilerContext::PrecompileFunction` reaches
+`FindFProperty<FMulticastDelegateProperty>(NewClass, Context.DelegateSignatureName)`
+for any graph in `DelegateSignatureGraphs` (`KismetCompiler.cpp:2038-2045`),
+finds nothing, and warns. Every compile of that Blueprint afterwards warns
+again, which is why the acceptance saw it on a batch whose last two operations
+were components.
+
+The warning was the visible half. The invisible half is worse and is why this is
+a capability gap rather than a cosmetic one: **the dispatcher was not bindable,
+not callable and not a member at all.** There was no property, so no Bind, Call
+or Assign node could reference it, and nothing but `DelegateSignatureGraphs`
+knew it existed. The command reported success, `graph_inspect` listed it under
+`event_dispatchers`, and both were reading the half that had been built.
+
+### The fix, at the mutator
+
+`FBlueprintEditor::OnAddNewDelegate` (`BlueprintEditor.cpp:8729-8775`) is the
+editor's own path and the op now mirrors it step for step:
+
+1. `AddMemberVariable` with `PinCategory = PC_MCDelegate`, FIRST, and fail the
+   whole operation if it fails.
+2. `CreateNewGraph`, and remove the variable again if the graph cannot be made,
+   so the failure path does not leave the other half standing.
+3. `bEditable = false`, `CreateDefaultNodesForGraph`,
+   `CreateFunctionGraphTerminators`, `AddExtraFunctionFlags`,
+   `MarkFunctionEntryAsEditable`.
+4. The user-defined pins go on the entry node the SCHEMA made, checked to be
+   exactly one. The old code hand-built a second `UK2Node_FunctionEntry`.
+
+`RemoveEventDispatcher` now removes both halves too
+(`SMyBlueprint::OnDeleteDelegate`, `SMyBlueprint.cpp:2700-2701`). Removing only
+the graph would have left a delegate property with no signature function, which
+is the same half-object one direction over.
+
+Two consequences of the property now existing, both handled where the truth is
+shared rather than at the command:
+
+- `FBPMemberReader::ListVariables` skips `PC_MCDelegate` descriptions. A
+  dispatcher would otherwise appear in `variables` AND `event_dispatchers`. The
+  editor's own list excludes delegate properties for the same reason, with the
+  same comment (`SMyBlueprint.cpp:1232-1236`).
+- `remove_variable` on a dispatcher is refused by name, pointing at
+  `remove_event_dispatcher`. Removing the property and leaving the graph would
+  reproduce finding 0q exactly, from a different command.
+
+### The second gap 0q recorded is closed, and it was already written
+
+`blueprint_member_patch` now returns `compile_warnings` and `compile_errors`.
+`UBlueprintGraphBuilderLibrary::CompileAndReport` has ALWAYS collected them off
+the `FCompilerResultsLog`; this call site read `success` and `status` out of that
+report and dropped the arrays, while `blueprint_build` fifteen hundred lines away
+surfaced the same two fields from the same function. There was no missing
+primitive. There was a discarded return value, and it cost this program a
+finding that stayed open for a day because the warning text was unreadable.
+
+A batch compiles whether or not any operation applied, so a converged
+single-operation call is now also how you read any Blueprint's current compiler
+messages, with no new tool. The compile-failure path puts the errors in the
+refusal text, because a failed request returns an empty `data`.
+
+### Live evidence
+
+- `Scripts/bp-member-patch-acceptance.mjs`: **all checks passed**, twice
+  consecutively warm, including `batch apply: the patched Blueprint compiles
+  (UpToDate)`, which is the check finding 0q was opened on. Cold phase after a
+  restart: all checks passed.
+- `Scripts/member-warning-diagnosis.mjs`: every operation `UpToDate`, no
+  warnings, warm and cold.
+- `Scripts/mutator-atomicity.mjs`: all checks passed, control included.
+- No regression in `bp-graph-patch-acceptance`, `graph-inspect-acceptance` or
+  `bp-failure-atomicity`.
+- `install:check` before: 5 problems, all of them staleness in this worktree's
+  install rather than a code difference (see below). After sync and the live run:
+  `install is current`, installed from `df14297`.
+
+### Three smaller things from the same run
+
+1. **`install:check` counted `__pycache__` as undeclared extras.** The editor's
+   Python regenerates 39 `.pyc` files inside the TARGET's plugin copy on every
+   launch, so a gate that passed after a sync failed again after the next editor
+   start, on an install that was otherwise byte-identical. `__pycache__` is now
+   in `SKIP_DIRS` beside `Binaries` and `Intermediate`, for the same reason.
+2. **A fresh worktree cannot build without `Plugins/Puerts`,** which is
+   gitignored and lives only in the main checkout. `npm run build` warns and
+   produces an incomplete `Content/JavaScript`, which `install:check` then reports
+   as 22 extra files in the target. A directory junction to the main checkout's
+   bundle fixes it. Worth a line in AGENTS.md's worktree guidance rather than
+   another lane rediscovering it.
+3. **UNKNOWN, tracked, not diagnosed.** The same string variable set to the same
+   value reads back differently depending on which command set it:
+   `set_variable_default Label "patched"` gives `default_value` `"\"patched\""`,
+   and `blueprint_build` with `default: "patched"` gives `"patched"`. Both read
+   through the same CDO reader, so one of the two writers is storing the JSON
+   quoting. Measured, both assets still on disk, in
+   `docs/evidence/member-warning-diagnosis.json` under `patched_shape` and
+   `clean_shape`. `bp-member-patch-acceptance.mjs` uses a substring test on that
+   field and so does not see it. Not chased: one capability per session, and this
+   is a different one.

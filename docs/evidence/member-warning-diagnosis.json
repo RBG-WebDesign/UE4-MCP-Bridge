@@ -1,0 +1,698 @@
+{
+  "phase": "record",
+  "run_id": "msdda18y",
+  "patched": "/Game/MCPGenerated/BP_WarnPatched_msdda18y",
+  "clean": "/Game/MCPGenerated/BP_WarnClean_msdda18y",
+  "readings": [
+    {
+      "step": "fixture built, unpatched",
+      "build_status": "UpToDate",
+      "build_warnings": [],
+      "inspect_status": "UpToDate",
+      "recompile_status": "UpToDate",
+      "recompile_warnings": [],
+      "recompile_applied": 1
+    },
+    {
+      "step": "op 0",
+      "label": "0: add_variable Delta",
+      "success": true,
+      "applied": 1,
+      "status": "UpToDate",
+      "warnings": [],
+      "errors": [],
+      "inspect_status": "UpToDate",
+      "member_hash": "042481ef93337d15bd35d6c1e95ad75ba671c941"
+    },
+    {
+      "step": "op 1",
+      "label": "1: set_variable_default Label",
+      "success": true,
+      "applied": 1,
+      "status": "UpToDate",
+      "warnings": [],
+      "errors": [],
+      "inspect_status": "UpToDate",
+      "member_hash": "655f6de898a4119921ac6a890412aadccfd8a6ab"
+    },
+    {
+      "step": "op 2",
+      "label": "2: remove_variable Doomed",
+      "success": true,
+      "applied": 1,
+      "status": "UpToDate",
+      "warnings": [],
+      "errors": [],
+      "inspect_status": "UpToDate",
+      "member_hash": "29b5a0becac7bb1d2e8f52e5abdc5fc7d2ad7036"
+    },
+    {
+      "step": "op 3",
+      "label": "3: add_function ProbeStep",
+      "success": true,
+      "applied": 1,
+      "status": "UpToDate",
+      "warnings": [],
+      "errors": [],
+      "inspect_status": "UpToDate",
+      "member_hash": "c7a119d7b3cd2b1833b2a2a4d79c68e53f08b4b9"
+    },
+    {
+      "step": "op 4",
+      "label": "4: add_event_dispatcher OnProbed",
+      "success": true,
+      "applied": 1,
+      "status": "UpToDate",
+      "warnings": [],
+      "errors": [],
+      "inspect_status": "UpToDate",
+      "member_hash": "7944d17c1af6d3e61c99883963791da953495619"
+    },
+    {
+      "step": "op 5",
+      "label": "5: rename_component Lamp -> Beacon",
+      "success": true,
+      "applied": 1,
+      "status": "UpToDate",
+      "warnings": [],
+      "errors": [],
+      "inspect_status": "UpToDate",
+      "member_hash": "094296ac52ad306d9d4b3ae2af6834d2c365be09"
+    },
+    {
+      "step": "op 6",
+      "label": "6: remove_component Muzzle",
+      "success": true,
+      "applied": 1,
+      "status": "UpToDate",
+      "warnings": [],
+      "errors": [],
+      "inspect_status": "UpToDate",
+      "member_hash": "94fa6845bcbe51b1be791b428ae61cb10a157b42"
+    },
+    {
+      "step": "clean control",
+      "build_status": "UpToDate",
+      "build_warnings": [],
+      "inspect_status": "UpToDate",
+      "recompile_status": "UpToDate",
+      "recompile_warnings": []
+    }
+  ],
+  "first_warning_operation": null,
+  "patched_inspect": {
+    "asset_path": "/Game/MCPGenerated/BP_WarnPatched_msdda18y",
+    "object_path": "/Game/MCPGenerated/BP_WarnPatched_msdda18y.BP_WarnPatched_msdda18y",
+    "package_name": "/Game/MCPGenerated/BP_WarnPatched_msdda18y",
+    "generated_class_path": "/Game/MCPGenerated/BP_WarnPatched_msdda18y.BP_WarnPatched_msdda18y_C",
+    "parent_class": "/Script/Engine.Actor",
+    "is_actor": true,
+    "compile_status": "UpToDate",
+    "package_dirty_before": false,
+    "package_dirty_after": false,
+    "components": [
+      {
+        "name": "Beacon",
+        "class_path": "/Script/Engine.PointLightComponent",
+        "parent": "Root",
+        "is_root": false
+      },
+      {
+        "name": "Body",
+        "class_path": "/Script/Engine.StaticMeshComponent",
+        "parent": "Root",
+        "is_root": false
+      },
+      {
+        "name": "Root",
+        "class_path": "/Script/Engine.SceneComponent",
+        "parent": "",
+        "is_root": true
+      }
+    ],
+    "variables": [
+      {
+        "name": "Alpha",
+        "type": {
+          "category": "float",
+          "sub_category": "None",
+          "sub_category_object": "",
+          "container_type": "None",
+          "is_reference": false,
+          "value_type": null
+        },
+        "category": "Default",
+        "default_value": "1.000000",
+        "is_editable": true,
+        "is_replicated": false,
+        "tooltip": ""
+      },
+      {
+        "name": "Beta",
+        "type": {
+          "category": "float",
+          "sub_category": "None",
+          "sub_category_object": "",
+          "container_type": "None",
+          "is_reference": false,
+          "value_type": null
+        },
+        "category": "Default",
+        "default_value": "2.000000",
+        "is_editable": true,
+        "is_replicated": false,
+        "tooltip": ""
+      },
+      {
+        "name": "Count",
+        "type": {
+          "category": "int",
+          "sub_category": "None",
+          "sub_category_object": "",
+          "container_type": "None",
+          "is_reference": false,
+          "value_type": null
+        },
+        "category": "Default",
+        "default_value": "1",
+        "is_editable": true,
+        "is_replicated": false,
+        "tooltip": ""
+      },
+      {
+        "name": "Delta",
+        "type": {
+          "category": "float",
+          "sub_category": "None",
+          "sub_category_object": "",
+          "container_type": "None",
+          "is_reference": false,
+          "value_type": null
+        },
+        "category": "Probe",
+        "default_value": "9.000000",
+        "is_editable": true,
+        "is_replicated": false,
+        "tooltip": ""
+      },
+      {
+        "name": "Gamma",
+        "type": {
+          "category": "float",
+          "sub_category": "None",
+          "sub_category_object": "",
+          "container_type": "None",
+          "is_reference": false,
+          "value_type": null
+        },
+        "category": "Default",
+        "default_value": "3.000000",
+        "is_editable": true,
+        "is_replicated": false,
+        "tooltip": ""
+      },
+      {
+        "name": "Label",
+        "type": {
+          "category": "string",
+          "sub_category": "None",
+          "sub_category_object": "",
+          "container_type": "None",
+          "is_reference": false,
+          "value_type": null
+        },
+        "category": "Default",
+        "default_value": "\"patched\"",
+        "is_editable": true,
+        "is_replicated": false,
+        "tooltip": ""
+      }
+    ],
+    "interfaces": [],
+    "functions": [
+      {
+        "name": "ProbeStep",
+        "category": "",
+        "is_pure": false,
+        "is_override": false,
+        "is_const": false,
+        "inputs": [
+          {
+            "name": "Amount",
+            "type": {
+              "category": "float",
+              "sub_category": "None",
+              "sub_category_object": "",
+              "container_type": "None",
+              "is_reference": false,
+              "value_type": null
+            }
+          }
+        ],
+        "outputs": [
+          {
+            "name": "Result",
+            "type": {
+              "category": "float",
+              "sub_category": "None",
+              "sub_category_object": "",
+              "container_type": "None",
+              "is_reference": false,
+              "value_type": null
+            }
+          }
+        ]
+      },
+      {
+        "name": "UserConstructionScript",
+        "category": "",
+        "is_pure": false,
+        "is_override": true,
+        "is_const": false,
+        "inputs": [],
+        "outputs": []
+      }
+    ],
+    "event_dispatchers": [
+      {
+        "name": "OnProbed",
+        "parameters": [
+          {
+            "name": "Value",
+            "type": {
+              "category": "float",
+              "sub_category": "None",
+              "sub_category_object": "",
+              "container_type": "None",
+              "is_reference": false,
+              "value_type": null
+            }
+          }
+        ]
+      }
+    ],
+    "member_structure_hash_sha1": "94fa6845bcbe51b1be791b428ae61cb10a157b42",
+    "graphs": [
+      {
+        "name": "EventGraph",
+        "type": "Ubergraph"
+      },
+      {
+        "name": "ProbeStep",
+        "type": "Function"
+      },
+      {
+        "name": "UserConstructionScript",
+        "type": "Function"
+      }
+    ],
+    "graph": {
+      "structure_hash_sha1": "93d57ed08141c8b49979f642738e4bed603567e7",
+      "structure_hash_basis": "node type, class, position, comment, enabled state and pin defaults, plus links between those structural keys; object names and NodeGuids deliberately excluded",
+      "asset_path": "/Game/MCPGenerated/BP_WarnPatched_msdda18y.BP_WarnPatched_msdda18y",
+      "name": "EventGraph",
+      "graph_name": "EventGraph",
+      "graph_guid": "5AC87C3F46BF245D3F89EDB5CCD8FE08",
+      "node_count": 4,
+      "connection_count": 1,
+      "pins_included": false,
+      "nodes": [
+        {
+          "asset_path": "/Game/MCPGenerated/BP_WarnPatched_msdda18y.BP_WarnPatched_msdda18y",
+          "graph_name": "EventGraph",
+          "id": "K2Node_Event_3",
+          "node_guid": "592B568D46C3C879D75828953C96CA2E",
+          "type": "BeginPlay",
+          "node_class": "K2Node_Event",
+          "title": "Event BeginPlay",
+          "x": 0,
+          "y": 0,
+          "comment": "",
+          "enabled": "Enabled",
+          "params": {
+            "event_name": "ReceiveBeginPlay"
+          }
+        },
+        {
+          "asset_path": "/Game/MCPGenerated/BP_WarnPatched_msdda18y.BP_WarnPatched_msdda18y",
+          "graph_name": "EventGraph",
+          "id": "K2Node_VariableGet_0",
+          "node_guid": "5D3EA0814622113329F0939D0CA71BBF",
+          "type": "VariableGet",
+          "node_class": "K2Node_VariableGet",
+          "title": "Get Alpha",
+          "x": 0,
+          "y": 300,
+          "comment": "",
+          "enabled": "Enabled",
+          "params": {
+            "var_name": "Alpha",
+            "scope": "self"
+          }
+        },
+        {
+          "asset_path": "/Game/MCPGenerated/BP_WarnPatched_msdda18y.BP_WarnPatched_msdda18y",
+          "graph_name": "EventGraph",
+          "id": "K2Node_VariableGet_1",
+          "node_guid": "8BBC15D547AFA3FE8A54A8AC79BAE227",
+          "type": "VariableGet",
+          "node_class": "K2Node_VariableGet",
+          "title": "Get Beta",
+          "x": 0,
+          "y": 400,
+          "comment": "",
+          "enabled": "Enabled",
+          "params": {
+            "var_name": "Beta",
+            "scope": "self"
+          }
+        },
+        {
+          "asset_path": "/Game/MCPGenerated/BP_WarnPatched_msdda18y.BP_WarnPatched_msdda18y",
+          "graph_name": "EventGraph",
+          "id": "K2Node_CallFunction_0",
+          "node_guid": "FEE3466B48F718E915403B8530618BB6",
+          "type": "PrintString",
+          "node_class": "K2Node_CallFunction",
+          "title": "Print String",
+          "x": 300,
+          "y": 0,
+          "comment": "",
+          "enabled": "DevelopmentOnly",
+          "params": {
+            "InString": "member probe"
+          }
+        }
+      ],
+      "connections": [
+        {
+          "from": "K2Node_Event_3.then",
+          "to": "K2Node_CallFunction_0.execute",
+          "from_node_guid": "592B568D46C3C879D75828953C96CA2E",
+          "from_pin_id": "7F1C46B9489EEB89EFC9A5A893AB62BB",
+          "to_node_guid": "FEE3466B48F718E915403B8530618BB6",
+          "to_pin_id": "E57AFBAE47D891053B875F90C2C59911"
+        }
+      ],
+      "unmapped_nodes": [],
+      "lossy_pin_defaults": []
+    }
+  },
+  "clean_inspect": {
+    "asset_path": "/Game/MCPGenerated/BP_WarnClean_msdda18y",
+    "object_path": "/Game/MCPGenerated/BP_WarnClean_msdda18y.BP_WarnClean_msdda18y",
+    "package_name": "/Game/MCPGenerated/BP_WarnClean_msdda18y",
+    "generated_class_path": "/Game/MCPGenerated/BP_WarnClean_msdda18y.BP_WarnClean_msdda18y_C",
+    "parent_class": "/Script/Engine.Actor",
+    "is_actor": true,
+    "compile_status": "UpToDate",
+    "package_dirty_before": false,
+    "package_dirty_after": false,
+    "components": [
+      {
+        "name": "Beacon",
+        "class_path": "/Script/Engine.PointLightComponent",
+        "parent": "Root",
+        "is_root": false
+      },
+      {
+        "name": "Body",
+        "class_path": "/Script/Engine.StaticMeshComponent",
+        "parent": "Root",
+        "is_root": false
+      },
+      {
+        "name": "Root",
+        "class_path": "/Script/Engine.SceneComponent",
+        "parent": "",
+        "is_root": true
+      }
+    ],
+    "variables": [
+      {
+        "name": "Alpha",
+        "type": {
+          "category": "float",
+          "sub_category": "None",
+          "sub_category_object": "",
+          "container_type": "None",
+          "is_reference": false,
+          "value_type": null
+        },
+        "category": "Default",
+        "default_value": "1.000000",
+        "is_editable": true,
+        "is_replicated": false,
+        "tooltip": ""
+      },
+      {
+        "name": "Beta",
+        "type": {
+          "category": "float",
+          "sub_category": "None",
+          "sub_category_object": "",
+          "container_type": "None",
+          "is_reference": false,
+          "value_type": null
+        },
+        "category": "Default",
+        "default_value": "2.000000",
+        "is_editable": true,
+        "is_replicated": false,
+        "tooltip": ""
+      },
+      {
+        "name": "Count",
+        "type": {
+          "category": "int",
+          "sub_category": "None",
+          "sub_category_object": "",
+          "container_type": "None",
+          "is_reference": false,
+          "value_type": null
+        },
+        "category": "Default",
+        "default_value": "1",
+        "is_editable": true,
+        "is_replicated": false,
+        "tooltip": ""
+      },
+      {
+        "name": "Delta",
+        "type": {
+          "category": "float",
+          "sub_category": "None",
+          "sub_category_object": "",
+          "container_type": "None",
+          "is_reference": false,
+          "value_type": null
+        },
+        "category": "Default",
+        "default_value": "9.000000",
+        "is_editable": true,
+        "is_replicated": false,
+        "tooltip": ""
+      },
+      {
+        "name": "Gamma",
+        "type": {
+          "category": "float",
+          "sub_category": "None",
+          "sub_category_object": "",
+          "container_type": "None",
+          "is_reference": false,
+          "value_type": null
+        },
+        "category": "Default",
+        "default_value": "3.000000",
+        "is_editable": true,
+        "is_replicated": false,
+        "tooltip": ""
+      },
+      {
+        "name": "Label",
+        "type": {
+          "category": "string",
+          "sub_category": "None",
+          "sub_category_object": "",
+          "container_type": "None",
+          "is_reference": false,
+          "value_type": null
+        },
+        "category": "Default",
+        "default_value": "patched",
+        "is_editable": true,
+        "is_replicated": false,
+        "tooltip": ""
+      }
+    ],
+    "interfaces": [],
+    "functions": [
+      {
+        "name": "UserConstructionScript",
+        "category": "",
+        "is_pure": false,
+        "is_override": true,
+        "is_const": false,
+        "inputs": [],
+        "outputs": []
+      }
+    ],
+    "event_dispatchers": [],
+    "member_structure_hash_sha1": "faa0b3063c3562798739eaf68baf44e1f8652991",
+    "graphs": [
+      {
+        "name": "EventGraph",
+        "type": "Ubergraph"
+      },
+      {
+        "name": "UserConstructionScript",
+        "type": "Function"
+      }
+    ],
+    "graph": {
+      "structure_hash_sha1": "93d57ed08141c8b49979f642738e4bed603567e7",
+      "structure_hash_basis": "node type, class, position, comment, enabled state and pin defaults, plus links between those structural keys; object names and NodeGuids deliberately excluded",
+      "asset_path": "/Game/MCPGenerated/BP_WarnClean_msdda18y.BP_WarnClean_msdda18y",
+      "name": "EventGraph",
+      "graph_name": "EventGraph",
+      "graph_guid": "11A1E92547722FE350C62180184A2B74",
+      "node_count": 4,
+      "connection_count": 1,
+      "pins_included": false,
+      "nodes": [
+        {
+          "asset_path": "/Game/MCPGenerated/BP_WarnClean_msdda18y.BP_WarnClean_msdda18y",
+          "graph_name": "EventGraph",
+          "id": "K2Node_VariableGet_0",
+          "node_guid": "664D765647DBC945E999F79EB256F59E",
+          "type": "VariableGet",
+          "node_class": "K2Node_VariableGet",
+          "title": "Get Alpha",
+          "x": 0,
+          "y": 300,
+          "comment": "",
+          "enabled": "Enabled",
+          "params": {
+            "var_name": "Alpha",
+            "scope": "self"
+          }
+        },
+        {
+          "asset_path": "/Game/MCPGenerated/BP_WarnClean_msdda18y.BP_WarnClean_msdda18y",
+          "graph_name": "EventGraph",
+          "id": "K2Node_Event_3",
+          "node_guid": "6DBF0F7B40E41D818EFA9C985348AA7E",
+          "type": "BeginPlay",
+          "node_class": "K2Node_Event",
+          "title": "Event BeginPlay",
+          "x": 0,
+          "y": 0,
+          "comment": "",
+          "enabled": "Enabled",
+          "params": {
+            "event_name": "ReceiveBeginPlay"
+          }
+        },
+        {
+          "asset_path": "/Game/MCPGenerated/BP_WarnClean_msdda18y.BP_WarnClean_msdda18y",
+          "graph_name": "EventGraph",
+          "id": "K2Node_VariableGet_1",
+          "node_guid": "7EBEB80D44597970D0FC7684415639D1",
+          "type": "VariableGet",
+          "node_class": "K2Node_VariableGet",
+          "title": "Get Beta",
+          "x": 0,
+          "y": 400,
+          "comment": "",
+          "enabled": "Enabled",
+          "params": {
+            "var_name": "Beta",
+            "scope": "self"
+          }
+        },
+        {
+          "asset_path": "/Game/MCPGenerated/BP_WarnClean_msdda18y.BP_WarnClean_msdda18y",
+          "graph_name": "EventGraph",
+          "id": "K2Node_CallFunction_0",
+          "node_guid": "B92FA6B54C0153BD59C04598A5389B2D",
+          "type": "PrintString",
+          "node_class": "K2Node_CallFunction",
+          "title": "Print String",
+          "x": 300,
+          "y": 0,
+          "comment": "",
+          "enabled": "DevelopmentOnly",
+          "params": {
+            "InString": "member probe"
+          }
+        }
+      ],
+      "connections": [
+        {
+          "from": "K2Node_Event_3.then",
+          "to": "K2Node_CallFunction_0.execute",
+          "from_node_guid": "6DBF0F7B40E41D818EFA9C985348AA7E",
+          "from_pin_id": "4C757796404DD37747BE4F9B38C9BD71",
+          "to_node_guid": "B92FA6B54C0153BD59C04598A5389B2D",
+          "to_pin_id": "115E5BF549D44A56821BACA6A6E17EE6"
+        }
+      ],
+      "unmapped_nodes": [],
+      "lossy_pin_defaults": []
+    }
+  },
+  "patched_shape": {
+    "components": [
+      "Beacon:?@Root",
+      "Body:?@Root",
+      "Root:?@"
+    ],
+    "variables": [
+      "Alpha:{\"category\":\"float\",\"sub_category\":\"None\",\"sub_category_object\":\"\",\"container_type\":\"None\",\"is_reference\":false,\"value_type\":null}=1.000000",
+      "Beta:{\"category\":\"float\",\"sub_category\":\"None\",\"sub_category_object\":\"\",\"container_type\":\"None\",\"is_reference\":false,\"value_type\":null}=2.000000",
+      "Count:{\"category\":\"int\",\"sub_category\":\"None\",\"sub_category_object\":\"\",\"container_type\":\"None\",\"is_reference\":false,\"value_type\":null}=1",
+      "Delta:{\"category\":\"float\",\"sub_category\":\"None\",\"sub_category_object\":\"\",\"container_type\":\"None\",\"is_reference\":false,\"value_type\":null}=9.000000",
+      "Gamma:{\"category\":\"float\",\"sub_category\":\"None\",\"sub_category_object\":\"\",\"container_type\":\"None\",\"is_reference\":false,\"value_type\":null}=3.000000",
+      "Label:{\"category\":\"string\",\"sub_category\":\"None\",\"sub_category_object\":\"\",\"container_type\":\"None\",\"is_reference\":false,\"value_type\":null}=\"patched\""
+    ],
+    "functions": [
+      "ProbeStep",
+      "UserConstructionScript"
+    ],
+    "dispatchers": [
+      "OnProbed"
+    ],
+    "graph_nodes": [
+      "BeginPlay:Event BeginPlay",
+      "PrintString:Print String",
+      "VariableGet:Get Alpha",
+      "VariableGet:Get Beta"
+    ]
+  },
+  "clean_shape": {
+    "components": [
+      "Beacon:?@Root",
+      "Body:?@Root",
+      "Root:?@"
+    ],
+    "variables": [
+      "Alpha:{\"category\":\"float\",\"sub_category\":\"None\",\"sub_category_object\":\"\",\"container_type\":\"None\",\"is_reference\":false,\"value_type\":null}=1.000000",
+      "Beta:{\"category\":\"float\",\"sub_category\":\"None\",\"sub_category_object\":\"\",\"container_type\":\"None\",\"is_reference\":false,\"value_type\":null}=2.000000",
+      "Count:{\"category\":\"int\",\"sub_category\":\"None\",\"sub_category_object\":\"\",\"container_type\":\"None\",\"is_reference\":false,\"value_type\":null}=1",
+      "Delta:{\"category\":\"float\",\"sub_category\":\"None\",\"sub_category_object\":\"\",\"container_type\":\"None\",\"is_reference\":false,\"value_type\":null}=9.000000",
+      "Gamma:{\"category\":\"float\",\"sub_category\":\"None\",\"sub_category_object\":\"\",\"container_type\":\"None\",\"is_reference\":false,\"value_type\":null}=3.000000",
+      "Label:{\"category\":\"string\",\"sub_category\":\"None\",\"sub_category_object\":\"\",\"container_type\":\"None\",\"is_reference\":false,\"value_type\":null}=patched"
+    ],
+    "functions": [
+      "UserConstructionScript"
+    ],
+    "dispatchers": [],
+    "graph_nodes": [
+      "BeginPlay:Event BeginPlay",
+      "PrintString:Print String",
+      "VariableGet:Get Alpha",
+      "VariableGet:Get Beta"
+    ]
+  }
+}

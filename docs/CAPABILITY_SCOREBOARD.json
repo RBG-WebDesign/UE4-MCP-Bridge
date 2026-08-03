@@ -12,8 +12,8 @@
     "untested": 122,
     "mock_only": 86,
     "pending_live": 1,
-    "live_verified": 18,
-    "implemented": 21,
+    "live_verified": 19,
+    "implemented": 20,
     "live_partial": 8
   },
   "by_migration_action": {

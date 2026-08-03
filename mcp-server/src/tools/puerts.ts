@@ -460,7 +460,12 @@ const specs = [
     + "failure rolls the whole batch back, and whether the rollback actually restored the members "
     + "is decided by reading them again and reported as rollback_succeeded. "
     + "pre_member_hash and post_member_hash are the same hash puerts_graph_inspect returns as "
-    + "member_structure_hash_sha1, so a caller can verify a patch against an independent read.",
+    + "member_structure_hash_sha1, so a caller can verify a patch against an independent read. "
+    + "compile_status is accompanied by compile_warnings and compile_errors, the actual "
+    + "FCompilerResultsLog messages, so UpToDateWithWarnings is a readable answer rather than a "
+    + "reason to open the editor. A batch whose operations are all already satisfied still "
+    + "compiles, so a converged single-operation call is also how you read any Blueprint's "
+    + "current compiler messages.",
     z.object({
       asset_path: z.string().regex(/^\/Game\/MCPGenerated\/[A-Za-z0-9_]+(\/[A-Za-z0-9_]+)*$/).describe(
         "Package path under /Game/MCPGenerated/, no asset-name suffix. The Blueprint must "

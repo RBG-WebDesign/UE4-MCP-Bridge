@@ -117,6 +117,14 @@ through `tsx` with a custom assert helper. Unit tests use a mock HTTP server
   `Engine/Source`). Currently `D:/UE/UE_4.27`. Without it the `engine_source_*`
   tools cannot find the engine: their fallback reads `EngineAssociation` from a
   `.uproject`, and a bridge-only clone has none.
+- `Plugins/Puerts`, the pinned vendored bundle. It is gitignored, so a fresh
+  **git worktree does not have it** and `npm run build` warns, stages an
+  incomplete `Content/JavaScript`, and leaves `install:check` reporting 22 extra
+  files in the target. Link it from the main checkout once per worktree:
+
+  ```powershell
+  New-Item -ItemType Junction -Path <worktree>\Plugins\Puerts -Target <main checkout>\Plugins\Puerts
+  ```
 
 ## Client setup
 
