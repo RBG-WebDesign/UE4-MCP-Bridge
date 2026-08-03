@@ -446,3 +446,64 @@ Lane V is the counter-example worth naming beside it: told to stop if widget
 animations reached MovieScene track authoring, it inspected only and reported
 the overlap instead of shipping a duplicate. That is the same instruction lane R
 had about `live_verified`, followed.
+
+## Background task audit, 2026-08-03
+
+Full inventory taken before launching anything further.
+
+### Kept
+
+| Task | Lane | Process | Started | Waiting for | Reachable | Holds a lock |
+|---|---|---|---|---|---|---|
+| `lane-x` agent | X, slice greening | in-process subagent | 10:52 | its own slice work | yes | **editor + build lock on BridgeInstallTest, exclusive** |
+| `lane-y` agent | Y, AnimBP snapshot | in-process subagent | 10:53 | its own work | yes | `_bridge_worktrees/lane-y` only |
+| `lane-z` agent | Z, async job API | in-process subagent | 10:53 | its own work | yes | `_bridge_worktrees/lane-z` only |
+| lane child shells (`b26tnlj72`, `b9mqzqijp`, `bihssq0ve`, `bknjs6y7q`, `brqo8co7y`, `bst38gq3a`) | X, Y, Z | bash, owned by their agent | 11:00 to 11:13 | their own commands | yes | none held by the integrator |
+
+### Cancelled
+
+Three integrator watchers, all `until grep ...; do sleep; done` loops:
+
+| Task | Watching | Started | Why cancelled |
+|---|---|---|---|
+| `bw9ku1vth` | `bbyyr3d8j.output` (rebuild with repaired header) | 00:59 | Target build finished at 00:59 and its output was consumed hours ago |
+| `bf3slwkfd` | `bvaasjmdc.output` (rebuild after the unity collision fix) | 01:10 | Same; build finished, output consumed |
+| `bbtnjm3o8` | `b7c3fr4ck.output` (rebuild with unity disabled) | 01:12 | Same; build finished, output consumed |
+
+**The condition could never have become true, and that is the finding.** The
+awaited marker count in all three watched files is ZERO:
+
+```
+bbyyr3d8j: 4124 bytes | terminal marker: 0
+bvaasjmdc: 3957 bytes | terminal marker: 0
+b7c3fr4ck:  462 bytes | terminal marker: 0
+```
+
+The parent commands piped their build output through `grep` before it reached
+the log, so the very lines the watchers polled for (`Total execution`,
+`re-checking after sync`) had already been filtered out. Each loop would have
+slept forever against a file that finished being written ten hours earlier.
+
+None held a lock. They were pure pollers, three sleeping shells, invisible
+because a loop that never exits also never reports.
+
+The reusable point: a watcher must poll for something the watched file will
+actually contain. Grepping a log for a marker the producer filters out is the
+watcher equivalent of a test that exits 0 having run nothing, which this program
+has now hit twice in different forms.
+
+### Deliberately NOT created
+
+- **No build watcher.** There is no active build. Lane X's UBT run completed
+  during the audit (UnrealBuildTool and 8 `cl.exe` present at 11:12, gone by
+  11:14) and it relaunched its editor itself.
+- **No editor lifecycle watcher.** One editor is live and lane X owns it
+  exclusively this wave. A second observer of a resource with a single assigned
+  owner is how two writers start disagreeing about who closed it.
+
+### Environment note
+
+`SwarmAgent.exe` (PID 32288) is running because the integrator started it while
+diagnosing finding 0u. It is not owned by any lane and holds no bridge lock. It
+can be left running or closed with no effect on any lane; lighting builds need
+it and nothing else does.
