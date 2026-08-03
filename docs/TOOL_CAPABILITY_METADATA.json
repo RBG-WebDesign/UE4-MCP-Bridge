@@ -1,7 +1,12 @@
 {
   "purpose": "Curated capability metadata merged into docs/TOOL_INVENTORY.json by Scripts/generate-tool-inventory.mjs. This file is the ONLY hand-maintained input: canonical capability names, migration actions, C++ builder ownership, and live evidence. Everything countable is derived by the generator; do not record counts here.",
   "dimensions": {
-    "backend": ["native_pipe", "server_local", "legacy_http", "native_pipe_alias"],
+    "backend": [
+      "native_pipe",
+      "server_local",
+      "legacy_http",
+      "native_pipe_alias"
+    ],
     "verification": {
       "live_verified": "proven against a live UE4.27 editor by the referenced evidence",
       "live_partial": "implemented and exercised live, but the recorded evidence is incomplete (see notes)",
@@ -17,177 +22,1129 @@
       "ALIAS": "old public name routed to the canonical native tool (compat router)",
       "RETIRE": "removal proposed; requires evidence, replacement, compatibility coverage, and human sign-off"
     },
-    "lifecycle": ["active", "blocked", "deprecated"]
+    "lifecycle": [
+      "active",
+      "blocked",
+      "deprecated"
+    ]
   },
   "builders": {
-    "BlueprintGraphBuilderLibrary": { "path": "Plugins/MCPBridge/Source/MCPBridgeGraphBuilder/Public/BlueprintGraphBuilderLibrary.h", "entry_points": ["BuildBlueprintFromJSON", "CompileAndReport", "DescribeBlueprintGraphJSON", "ConfigureVariablesFromJSON"] },
-    "BlueprintInspectorLibrary": { "path": "Plugins/MCPBridge/Source/MCPBridgeGraphBuilder/Public/BlueprintInspectorLibrary.h", "entry_points": ["ListGraphs", "ListFunctions", "ListVariables", "ListInterfaces", "ListEventDispatchers"] },
-    "BlueprintMutatorLibrary": { "path": "Plugins/MCPBridge/Source/MCPBridgeGraphBuilder/Public/BlueprintMutatorLibrary.h", "entry_points": ["JsonDefaultToImportText", "AddVariable", "RemoveVariable", "SetVariableDefault", "AddFunction", "RemoveFunction", "AddInterfaceImplementation", "RemoveInterfaceImplementation", "AddEventDispatcher", "RemoveEventDispatcher", "RemoveSCSNode", "RenameSCSNode", "SetNodeEnabled", "BreakPinLinks"] },
-    "BehaviorTreeBuilderLibrary": { "path": "Plugins/MCPBridge/Source/MCPBridgeGraphBuilder/Public/BehaviorTreeBuilderLibrary.h", "entry_points": ["BuildBehaviorTreeFromJSON"] },
-    "MCPBridgeAILibrary": { "path": "Plugins/MCPBridge/Source/MCPBridgeGraphBuilder/Public/MCPBridgeAILibrary.h", "entry_points": ["AddBlackboardKeys", "SetBlackboardAsset", "ListBlackboardKeys"] },
-    "AnimBlueprintBuilderLibrary": { "path": "Plugins/MCPBridge/Source/MCPBridgeGraphBuilder/Public/AnimBlueprintBuilderLibrary.h", "entry_points": ["BuildAnimBlueprintFromJSON", "RebuildAnimBlueprintFromJSON", "ValidateAnimBlueprintJSON"] },
-    "WidgetBlueprintBuilderLibrary": { "path": "Plugins/MCPBridge/Source/MCPBridgeGraphBuilder/Public/WidgetBlueprintBuilderLibrary.h", "entry_points": ["BuildWidgetFromJSON", "RebuildWidgetFromJSON", "ValidateWidgetJSON"] },
-    "AnimPoseLibrary": { "path": "Plugins/MCPBridge/Source/MCPBridgeGraphBuilder/Public/AnimPoseLibrary.h", "entry_points": ["ApplyReanchorPlan", "ValidateReanchorPlan"] },
-    "MCPBridgeDataLibrary": { "path": "Plugins/MCPBridge/Source/MCPBridgeGraphBuilder/Public/MCPBridgeDataLibrary.h", "entry_points": ["FillDataTableFromJSON"] },
-    "MCPBridgeInputLibrary": { "path": "Plugins/MCPBridge/Source/MCPBridgeGraphBuilder/Public/MCPBridgeInputLibrary.h", "entry_points": ["AddActionMapping", "RemoveActionMapping", "AddAxisMapping", "RemoveAxisMapping"] },
-    "FolderVisibilityLibrary": { "path": "Plugins/MCPBridge/Source/MCPBridgeGraphBuilder/Public/FolderVisibilityLibrary.h", "entry_points": ["HideFolder", "ShowFolder", "GetHiddenFolders"] },
-    "CanonFontLibrary": { "path": "Plugins/MCPBridge/Source/MCPBridgeGraphBuilder/Public/CanonFontLibrary.h", "entry_points": ["ConfigureRuntimeFont"] },
-    "AutoPIEHelper": { "path": "Plugins/MCPBridge/Source/MCPBridgeGraphBuilder/Public/AutoPIEHelper.h", "entry_points": ["StartPIE", "StopPIE", "PlayCameraShakeOnPlayer", "PlayCameraShakeByPath"] },
-    "MCPBridgePIEAgent": { "path": "Plugins/MCPBridge/Source/MCPBridgePIEAgent", "entry_points": ["runtime play-test agent module: move, look, press, observe, record, replay"] },
-    "MCPBridgeClothOptimizer": { "path": "Plugins/MCPBridge/Source/MCPBridgeClothOptimizer", "entry_points": ["NvCloth inspection and tuning module"] },
-    "MCPPuerTSBridgeService": { "path": "Plugins/MCPBridge/Source/MCPBridgePuerTS/Public/MCPPuerTSBridgeService.h", "entry_points": ["the native command surface itself"] }
+    "BlueprintGraphBuilderLibrary": {
+      "path": "Plugins/MCPBridge/Source/MCPBridgeGraphBuilder/Public/BlueprintGraphBuilderLibrary.h",
+      "entry_points": [
+        "BuildBlueprintFromJSON",
+        "CompileAndReport",
+        "DescribeBlueprintGraphJSON",
+        "ConfigureVariablesFromJSON"
+      ]
+    },
+    "BlueprintInspectorLibrary": {
+      "path": "Plugins/MCPBridge/Source/MCPBridgeGraphBuilder/Public/BlueprintInspectorLibrary.h",
+      "entry_points": [
+        "ListGraphs",
+        "ListFunctions",
+        "ListVariables",
+        "ListInterfaces",
+        "ListEventDispatchers"
+      ]
+    },
+    "BlueprintMutatorLibrary": {
+      "path": "Plugins/MCPBridge/Source/MCPBridgeGraphBuilder/Public/BlueprintMutatorLibrary.h",
+      "entry_points": [
+        "JsonDefaultToImportText",
+        "AddVariable",
+        "RemoveVariable",
+        "SetVariableDefault",
+        "AddFunction",
+        "RemoveFunction",
+        "AddInterfaceImplementation",
+        "RemoveInterfaceImplementation",
+        "AddEventDispatcher",
+        "RemoveEventDispatcher",
+        "RemoveSCSNode",
+        "RenameSCSNode",
+        "SetNodeEnabled",
+        "BreakPinLinks"
+      ]
+    },
+    "BehaviorTreeBuilderLibrary": {
+      "path": "Plugins/MCPBridge/Source/MCPBridgeGraphBuilder/Public/BehaviorTreeBuilderLibrary.h",
+      "entry_points": [
+        "BuildBehaviorTreeFromJSON"
+      ]
+    },
+    "MCPBridgeAILibrary": {
+      "path": "Plugins/MCPBridge/Source/MCPBridgeGraphBuilder/Public/MCPBridgeAILibrary.h",
+      "entry_points": [
+        "AddBlackboardKeys",
+        "SetBlackboardAsset",
+        "ListBlackboardKeys"
+      ]
+    },
+    "AnimBlueprintBuilderLibrary": {
+      "path": "Plugins/MCPBridge/Source/MCPBridgeGraphBuilder/Public/AnimBlueprintBuilderLibrary.h",
+      "entry_points": [
+        "BuildAnimBlueprintFromJSON",
+        "RebuildAnimBlueprintFromJSON",
+        "ValidateAnimBlueprintJSON"
+      ]
+    },
+    "WidgetBlueprintBuilderLibrary": {
+      "path": "Plugins/MCPBridge/Source/MCPBridgeGraphBuilder/Public/WidgetBlueprintBuilderLibrary.h",
+      "entry_points": [
+        "BuildWidgetFromJSON",
+        "RebuildWidgetFromJSON",
+        "ValidateWidgetJSON"
+      ]
+    },
+    "AnimPoseLibrary": {
+      "path": "Plugins/MCPBridge/Source/MCPBridgeGraphBuilder/Public/AnimPoseLibrary.h",
+      "entry_points": [
+        "ApplyReanchorPlan",
+        "ValidateReanchorPlan"
+      ]
+    },
+    "MCPBridgeDataLibrary": {
+      "path": "Plugins/MCPBridge/Source/MCPBridgeGraphBuilder/Public/MCPBridgeDataLibrary.h",
+      "entry_points": [
+        "FillDataTableFromJSON"
+      ]
+    },
+    "MCPBridgeInputLibrary": {
+      "path": "Plugins/MCPBridge/Source/MCPBridgeGraphBuilder/Public/MCPBridgeInputLibrary.h",
+      "entry_points": [
+        "AddActionMapping",
+        "RemoveActionMapping",
+        "AddAxisMapping",
+        "RemoveAxisMapping"
+      ]
+    },
+    "FolderVisibilityLibrary": {
+      "path": "Plugins/MCPBridge/Source/MCPBridgeGraphBuilder/Public/FolderVisibilityLibrary.h",
+      "entry_points": [
+        "HideFolder",
+        "ShowFolder",
+        "GetHiddenFolders"
+      ]
+    },
+    "CanonFontLibrary": {
+      "path": "Plugins/MCPBridge/Source/MCPBridgeGraphBuilder/Public/CanonFontLibrary.h",
+      "entry_points": [
+        "ConfigureRuntimeFont"
+      ]
+    },
+    "AutoPIEHelper": {
+      "path": "Plugins/MCPBridge/Source/MCPBridgeGraphBuilder/Public/AutoPIEHelper.h",
+      "entry_points": [
+        "StartPIE",
+        "StopPIE",
+        "PlayCameraShakeOnPlayer",
+        "PlayCameraShakeByPath"
+      ]
+    },
+    "MCPBridgePIEAgent": {
+      "path": "Plugins/MCPBridge/Source/MCPBridgePIEAgent",
+      "entry_points": [
+        "runtime play-test agent module: move, look, press, observe, record, replay"
+      ]
+    },
+    "MCPBridgeClothOptimizer": {
+      "path": "Plugins/MCPBridge/Source/MCPBridgeClothOptimizer",
+      "entry_points": [
+        "NvCloth inspection and tuning module"
+      ]
+    },
+    "MCPPuerTSBridgeService": {
+      "path": "Plugins/MCPBridge/Source/MCPBridgePuerTS/Public/MCPPuerTSBridgeService.h",
+      "entry_points": [
+        "the native command surface itself"
+      ]
+    }
   },
   "module_defaults": {
-    "actors": { "capability_category": "actors", "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/actors.py", "migration_action": "PORT", "notes": "layer: direct_reflection or new_native_wrapper per tool" },
-    "animation": { "capability_category": "animation", "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/animation.py", "migration_action": "REFRONT", "cpp_builder": "AnimPoseLibrary" },
-    "blueprint-graph": { "capability_category": "blueprint", "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/blueprint_graph.py", "migration_action": "REFRONT", "cpp_builder": "BlueprintMutatorLibrary", "migration_risk": "medium", "notes": "idempotent graph patching is the deferred capability; mutator library is compiled and callable" },
-    "blueprints": { "capability_category": "blueprint", "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/blueprints.py", "migration_action": "PORT" },
-    "cloth": { "capability_category": "technical-art", "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/cloth_optimizer.py", "migration_action": "REFRONT", "cpp_builder": "MCPBridgeClothOptimizer" },
-    "content": { "capability_category": "assets", "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/content_tools.py", "migration_action": "PORT" },
-    "cpp": { "capability_category": "cpp-build", "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/cpp_tools.py", "migration_action": "KEEP", "notes": "belongs to a future build/commandlet backend; legacy lane is the only owner today" },
-    "effects": { "capability_category": "effects", "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/effects.py", "migration_action": "PORT", "notes": "layer: direct_reflection for post-process volumes and console effects" },
-    "gamedev": { "capability_category": "gameplay-setup", "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/gamedev.py", "migration_action": "PORT" },
-    "gameplay": { "capability_category": "pie", "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/gameplay.py", "migration_action": "KEEP" },
-    "intelligence": { "capability_category": "project-intelligence", "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/project_index.py", "migration_action": "PORT", "notes": "layer: puerts_workflow; no editor mutation involved" },
-    "level": { "capability_category": "levels", "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/level.py", "migration_action": "PORT" },
-    "materials": { "capability_category": "materials", "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/materials.py", "migration_action": "PORT", "migration_risk": "high", "notes": "layer: new_native_wrapper; a generic material graph builder is a known gap (sky demo is not one)" },
-    "operations": { "capability_category": "editor-ops", "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/system.py", "migration_action": "PORT" },
-    "optimization": { "capability_category": "optimization", "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/optimization.py", "migration_action": "KEEP", "notes": "24-tool profiling suite with no native equivalent; migrate late, by capability group" },
-    "pie-agent": { "capability_category": "pie", "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/pie_agent.py", "migration_action": "REFRONT", "cpp_builder": "MCPBridgePIEAgent" },
-    "project": { "capability_category": "project", "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/project.py", "migration_action": "PORT" },
-    "promptbrush": { "capability_category": "ui", "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/promptbrush.py", "migration_action": "KEEP", "notes": "PromptBrush orchestration; PORT to puerts_workflow when the pipeline migrates" },
-    "system": { "capability_category": "listener-admin", "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/system.py", "migration_action": "KEEP", "canonical_capability": "system.listener_admin", "notes": "transport plumbing for the legacy listener, not a capability; shares one canonical name so it never inflates the unique count" },
-    "titles": { "capability_category": "cinematics", "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/titles.py", "migration_action": "KEEP", "notes": "title pipeline; migrate with UMG/sequencer groups" },
-    "viewport": { "capability_category": "viewport", "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/viewport.py", "migration_action": "PORT", "notes": "layer: new_native_wrapper; MCPPuerTSBridgeViewport.cpp already holds the native focus/capture half" }
+    "actors": {
+      "capability_category": "actors",
+      "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/actors.py",
+      "migration_action": "PORT",
+      "notes": "layer: direct_reflection or new_native_wrapper per tool"
+    },
+    "animation": {
+      "capability_category": "animation",
+      "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/animation.py",
+      "migration_action": "REFRONT",
+      "cpp_builder": "AnimPoseLibrary"
+    },
+    "blueprint-graph": {
+      "capability_category": "blueprint",
+      "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/blueprint_graph.py",
+      "migration_action": "REFRONT",
+      "cpp_builder": "BlueprintMutatorLibrary",
+      "migration_risk": "medium",
+      "notes": "idempotent graph patching is the deferred capability; mutator library is compiled and callable"
+    },
+    "blueprints": {
+      "capability_category": "blueprint",
+      "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/blueprints.py",
+      "migration_action": "PORT"
+    },
+    "cloth": {
+      "capability_category": "technical-art",
+      "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/cloth_optimizer.py",
+      "migration_action": "REFRONT",
+      "cpp_builder": "MCPBridgeClothOptimizer"
+    },
+    "content": {
+      "capability_category": "assets",
+      "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/content_tools.py",
+      "migration_action": "PORT"
+    },
+    "cpp": {
+      "capability_category": "cpp-build",
+      "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/cpp_tools.py",
+      "migration_action": "KEEP",
+      "notes": "belongs to a future build/commandlet backend; legacy lane is the only owner today"
+    },
+    "effects": {
+      "capability_category": "effects",
+      "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/effects.py",
+      "migration_action": "PORT",
+      "notes": "layer: direct_reflection for post-process volumes and console effects"
+    },
+    "gamedev": {
+      "capability_category": "gameplay-setup",
+      "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/gamedev.py",
+      "migration_action": "PORT"
+    },
+    "gameplay": {
+      "capability_category": "pie",
+      "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/gameplay.py",
+      "migration_action": "KEEP"
+    },
+    "intelligence": {
+      "capability_category": "project-intelligence",
+      "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/project_index.py",
+      "migration_action": "PORT",
+      "notes": "layer: puerts_workflow; no editor mutation involved"
+    },
+    "level": {
+      "capability_category": "levels",
+      "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/level.py",
+      "migration_action": "PORT"
+    },
+    "materials": {
+      "capability_category": "materials",
+      "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/materials.py",
+      "migration_action": "PORT",
+      "migration_risk": "high",
+      "notes": "layer: new_native_wrapper; a generic material graph builder is a known gap (sky demo is not one)"
+    },
+    "operations": {
+      "capability_category": "editor-ops",
+      "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/system.py",
+      "migration_action": "PORT"
+    },
+    "optimization": {
+      "capability_category": "optimization",
+      "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/optimization.py",
+      "migration_action": "KEEP",
+      "notes": "24-tool profiling suite with no native equivalent; migrate late, by capability group"
+    },
+    "pie-agent": {
+      "capability_category": "pie",
+      "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/pie_agent.py",
+      "migration_action": "REFRONT",
+      "cpp_builder": "MCPBridgePIEAgent"
+    },
+    "project": {
+      "capability_category": "project",
+      "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/project.py",
+      "migration_action": "PORT"
+    },
+    "promptbrush": {
+      "capability_category": "ui",
+      "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/promptbrush.py",
+      "migration_action": "KEEP",
+      "notes": "PromptBrush orchestration; PORT to puerts_workflow when the pipeline migrates"
+    },
+    "system": {
+      "capability_category": "listener-admin",
+      "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/system.py",
+      "migration_action": "KEEP",
+      "canonical_capability": "system.listener_admin",
+      "notes": "transport plumbing for the legacy listener, not a capability; shares one canonical name so it never inflates the unique count"
+    },
+    "titles": {
+      "capability_category": "cinematics",
+      "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/titles.py",
+      "migration_action": "KEEP",
+      "notes": "title pipeline; migrate with UMG/sequencer groups"
+    },
+    "viewport": {
+      "capability_category": "viewport",
+      "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/viewport.py",
+      "migration_action": "PORT",
+      "notes": "layer: new_native_wrapper; MCPPuerTSBridgeViewport.cpp already holds the native focus/capture half"
+    }
   },
   "tools": {
-    "puerts_diagnostic": { "canonical_capability": "bridge.diagnostic", "capability_category": "bridge", "verification": "live_verified", "live_evidence": ["Scripts/graph-inspect-acceptance.mjs", "Scripts/puerts-live-smoke.mjs"] },
-    "puerts_find_actors": { "canonical_capability": "actors.find", "capability_category": "actors", "verification": "live_verified", "live_evidence": ["Scripts/puerts-live-smoke.mjs"] },
-    "puerts_find_assets": { "canonical_capability": "assets.find", "capability_category": "assets", "verification": "live_verified", "live_evidence": ["Scripts/graph-inspect-acceptance.mjs"] },
-    "puerts_read_property": { "canonical_capability": "properties.get", "capability_category": "properties", "verification": "live_verified", "live_evidence": ["Scripts/puerts-live-smoke.mjs"] },
-    "puerts_set_property": { "canonical_capability": "properties.set", "capability_category": "properties", "verification": "live_verified", "live_evidence": ["Scripts/puerts-live-smoke.mjs"] },
-    "puerts_save": { "canonical_capability": "assets.save", "capability_category": "assets", "verification": "live_verified", "live_evidence": ["Scripts/puerts-live-smoke.mjs"] },
-    "puerts_undo": { "canonical_capability": "editor.undo", "capability_category": "editor-ops", "verification": "live_verified", "live_evidence": ["Scripts/puerts-live-smoke.mjs"] },
-    "puerts_blueprint_build": { "canonical_capability": "blueprints.build", "capability_category": "blueprint", "cpp_builder": "BlueprintGraphBuilderLibrary", "cpp_entry_point": "BuildBlueprintFromJSON", "verification": "live_verified", "live_evidence": ["Scripts/graph-inspect-acceptance.mjs"] },
-    "puerts_blueprint_graph_patch": { "canonical_capability": "blueprints.graph_patch", "capability_category": "blueprint", "cpp_builder": "BlueprintGraphBuilderLibrary", "cpp_entry_point": "PatchBlueprintGraphFromJSON", "verification": "live_verified", "live_evidence": ["Scripts/bp-graph-patch-acceptance.mjs", "docs/evidence/bp-graph-patch.json", "docs/evidence/bp-graph-patch-cold.json"], "notes": "promoted 2026-08-02 after warm and cold live acceptance passed in full. Incremental patching: named operations against resolved selectors, no clear_existing_graph. Shares the node-creation primitive with puerts_blueprint_build (SpawnNodeFromSpec) so an added node is identical to a built one. Proven on a 22-node fixture: a pin default, an added node with two links, a moved node, a removed node and a disconnect-reconnect pair applied in one batch; every node the patch did not name is structurally identical afterwards; a rerun applies nothing, reports converged and does not save; an ambiguous selector is refused by name without mutating; a batch with one unresolvable target applies neither operation; no dirty package and no source-control entry; and the structure hash survives an editor restart." },
-    "puerts_blueprint_member_patch": { "canonical_capability": "blueprints.member_patch", "capability_category": "blueprint", "cpp_builder": "BlueprintMutatorLibrary", "cpp_entry_point": "AddVariable", "verification": "live_verified", "live_evidence": ["Scripts/bp-member-patch-acceptance.mjs", "Scripts/member-warning-diagnosis.mjs", "Scripts/mutator-atomicity.mjs"], "notes": "re-front of UBlueprintMutatorLibrary through the native pipe: the member half of incremental Blueprint editing, which blueprint_graph_patch cannot reach and blueprint_build reaches only by restating the whole asset. Eleven operations over variables, functions, interfaces, event dispatchers and components. The mutations are entirely the existing library; the command adds the classify-before-mutate pass (every mutator entry point recompiles, so a half-applied batch is expensive), one rollback boundary, the compile gate, a per-operation independent read-back, and save only after verification. pre_member_hash / post_member_hash are the same value graph_inspect now returns as member_structure_hash_sha1, so a caller verifies against an independent read. Live acceptance passes warm and cold against BridgeInstallTest (2026-08-03), all checks, twice consecutively warm. compile_status is accompanied by compile_warnings and compile_errors off the same FCompilerResultsLog blueprint_build already reported, so UpToDateWithWarnings is readable without opening the editor; a converged batch still compiles, which makes a no-op call the way to read any Blueprint's compiler messages. Finding 0q settled here: add_event_dispatcher created a signature graph without its multicast delegate property, so every later compile warned and the dispatcher was not bindable." },
-    "puerts_graph_inspect": { "canonical_capability": "blueprints.inspect", "capability_category": "blueprint", "cpp_builder": "BlueprintInspectorLibrary", "cpp_entry_point": "DescribeBlueprintGraphJSON", "verification": "live_verified", "live_evidence": ["Scripts/graph-inspect-acceptance.mjs"], "notes": "also reports event_dispatchers and member_structure_hash_sha1, the canonical member snapshot puerts_blueprint_member_patch compares before and after a batch; those two fields are not covered by the recorded live evidence" },
-    "puerts_widget_build": { "canonical_capability": "widgets.build", "capability_category": "ui", "cpp_builder": "MCPPuerTSBridgeService", "cpp_entry_point": "BuildWidgetJson", "verification": "live_verified", "live_evidence": ["docs/CAPABILITY_FINDINGS.md"], "notes": "live proof is the stamina HUD session (WBP_StaminaHUD and probes saved in the test project); no scripted acceptance yet" },
-    "puerts_behavior_tree_build": { "canonical_capability": "ai.behavior_tree_build", "capability_category": "ai", "cpp_builder": "BehaviorTreeBuilderLibrary", "cpp_entry_point": "BuildBehaviorTreeFromJSON", "verification": "live_verified", "live_evidence": ["Scripts/behavior-tree-acceptance.mjs", "docs/evidence/behavior-tree-acceptance-2026-08-01.txt"], "notes": "promoted to live_verified 2026-08-01 evening: puerts_behavior_tree_inspect independently compared the saved graph to the requested spec (classes, child order, decorator attachment, params, keys) and proved rerun convergence by structure hash; full evidence in docs/evidence/behavior-tree-acceptance-2026-08-01.txt" },
-    "puerts_behavior_tree_inspect": { "canonical_capability": "ai.behavior_tree_inspect", "capability_category": "ai", "cpp_builder": "MCPPuerTSBridgeService", "cpp_entry_point": "InspectBehaviorTreeJson", "verification": "live_verified", "live_evidence": ["Scripts/behavior-tree-acceptance.mjs", "docs/evidence/behavior-tree-acceptance-2026-08-01.txt"], "notes": "read half of behavior_tree_build; derived node identity (UE4.27 BT nodes have no GUIDs); donor references: ultimateunrealenginemcp@c31ebac MCPAICommands.cpp BuildBTCompositeNodeJson and monolith@e67544c MonolithAIBehaviorTreeActions HandleGetBehaviorTree, design only, MIT" },
-    "puerts_widget_inspect": { "canonical_capability": "ui.widget_inspect", "capability_category": "ui", "cpp_builder": "MCPPuerTSBridgeService", "cpp_entry_point": "InspectWidgetJson", "verification": "live_verified", "live_evidence": ["Scripts/wbp-failure-atomicity.mjs", "docs/evidence/widget-inspect-2026-08-02.json"], "notes": "read half of widget_build; derived widget identity (UE4.27 UMG widgets have no GUIDs); reports CanvasPanelSlot anchors/offsets/alignment/z_order, named-slot content that panel-child traversal cannot reach, exposed variables, bindings and animations; read-only proven by package_dirty_before/after, unchanged file hash and mtime, and identical structure hash across two reads and across a restart. Extended 2026-08-03 (lane V) with two ADDITIVE fields, both UNCOMPILED: source_property and source_path per binding entry, and an animation_details array beside the unchanged animations string array. The structure hash basis is unchanged (bindings still hash on widget|property|function|kind, animations still hash on name), so the live evidence above still describes the hash this tool produces." },
-    "puerts_widget_bind": { "canonical_capability": "ui.widget_bind", "capability_category": "ui", "cpp_builder": "MCPPuerTSBridgeService", "cpp_entry_point": "BindWidgetJson", "verification": "implemented", "live_evidence": [], "notes": "UNCOMPILED and never run: written in an isolated worktree with no editor and no UBT pass, so even the compile is unproven. Write half of the bindings and is_variable that widget_inspect could already READ and nothing could author, which is what makes a UMG widget show live data rather than a constant. Writes UWidgetBlueprint::Bindings (FDelegateEditorBinding: ObjectName, PropertyName, FunctionName, SourceProperty, SourcePath, MemberGuid, Kind) and UWidget::bIsVariable. UE4.27 drives the delegate named PropertyName+\"Delegate\", falling back to the bare name for an event delegate, confirmed at Editor/UMGEditor/Private/WidgetBlueprint.cpp:413 and :440; the caller writes \"Percent\" and the response reports the delegate it resolved to. A property-kind binding needs a non-empty SourcePath or validation falls through to a FunctionName that is not there, so the path is built with FEditorPropertyPath(TArray<FFieldVariant>), the same public constructor the UMG details panel uses at Customizations/UMGDetailCustomizations.cpp:313, and refused with FEditorPropertyPath::Validate, the engine's own check. Everything validates before anything is written; a compile that returns Error restores the captured Bindings array and bIsVariable flags by value and recompiles, because a Blueprint compile is not an undo record. Convergent: satisfied-ness is re-read immediately before each mutation rather than decided at plan time, so an earlier entry in the same batch cannot make a later one report a false no-op. Widget ANIMATIONS are deliberately NOT authorable here: a UWidgetAnimation wraps a UMovieScene, so track and keyframe authoring is Sequencer's data model and belongs with that work, not duplicated here." },
-    "puerts_anim_blueprint_inspect": { "canonical_capability": "animation.anim_blueprint_inspect", "capability_category": "animation", "cpp_builder": "MCPPuerTSBridgeService", "cpp_entry_point": "InspectAnimBlueprintJson", "verification": "implemented", "live_evidence": [], "notes": "read half of anim_blueprint_build and the reason it can verify rather than assert; docs/REFRONT_MAP.md group 5 listed AnimBlueprintBuilderLibrary as having no independent inspector, and this is it. Reports anim graphs and their nodes, state machines with entry state, states, conduits and inner pose graphs, transitions keyed from->to with crossfade/priority/blend mode, and per transition a condition kind of rule_graph, automatic_time_remaining or none (an automatic remaining-time rule has no rule graph at all, so reporting only the graph would read as a missing condition); plus cached poses with their readers, blend nodes, member variables and a canonical structure hash that excludes tunable values. Derived node identity: the id a build spec wrote is not persisted on the node. C++ is UNCOMPILED in this lane, which owns no build rights; not exercised against an editor." },
-    "puerts_anim_montage_inspect": { "canonical_capability": "animation.anim_montage_inspect", "capability_category": "animation", "cpp_builder": "MCPPuerTSBridgeService", "cpp_entry_point": "InspectAnimMontageJson", "verification": "implemented", "live_evidence": [], "notes": "read-only with no write counterpart, and that is the finding rather than an omission: montage sections and notifies are FAnimLinkableElement values that must be re-linked against slot segments, and UE4.27 exposes no atomic operation for rebuilding the NextSectionName chain, so a montage writer could not be failure-atomic. Notifies are read explicitly because UE4.27 declares them UPROPERTY() with no Edit flag and a CPF_Edit reflection walk drops them. C++ is UNCOMPILED in this lane." },
-    "puerts_anim_blend_space_inspect": { "canonical_capability": "animation.anim_blend_space_inspect", "capability_category": "animation", "cpp_builder": "MCPPuerTSBridgeService", "cpp_entry_point": "InspectAnimBlendSpaceJson", "verification": "implemented", "live_evidence": [], "notes": "read-only with no write counterpart, for the same shape of reason as the montage reader: UE4.27 rebuilds a blend space's triangulation from its sample set, so a partly applied sample edit leaves a space that interpolates wrong rather than one that fails, and there is no atomic sample-set replacement a writer could be failure-atomic around. Reports the skeleton, all three blend axes (UE4.27 exposes no dimension count, so the class is what tells 1D from 2D) and every sample with animation, position and rate scale. Samples are sorted by position and animation rather than reported in array order, because array order carries no meaning in a blend space, which is what makes the structure hash stable across two reads. C++ is UNCOMPILED in this lane, which owns no build rights; not exercised against an editor." },
-    "puerts_anim_blueprint_build": { "canonical_capability": "animation.anim_blueprint_build", "capability_category": "animation", "cpp_builder": "AnimBlueprintBuilderLibrary", "cpp_entry_point": "BuildAnimBlueprintFromJSON", "verification": "implemented", "live_evidence": [], "notes": "re-front of UAnimBlueprintBuilderLibrary, which docs/REFRONT_MAP.md group 5 rated BLOCKED on four counts. Three are closed at the command layer rather than in the library: the transaction (IsToolMutating), the rollback boundary (FBridgeAssetRollback, the same one the Blueprint, Widget and Behavior Tree builders use), and an independent inspector (anim_blueprint_inspect). The fourth, convergence, is NOT closed and the command does not pretend otherwise: it is CREATE-ONLY and refuses an asset that already exists, because AnimBlueprintBuilder/ABPBuilder.cpp:147-148 states in its own comment that Rebuild assumes a clean AnimBlueprint and clears nothing, so rebuilding over an existing graph appends a second state machine, and FBridgeAssetRollback cannot restore the previous contents of a pre-existing asset. Creating a new asset IS failure-atomic because the only state a failure must undo is state the command created. Compiles through UBlueprintGraphBuilderLibrary::CompileAndReport and returns the result rather than swallowing it, then reads the asset back and requires every requested state and transition before saving. No anim_blueprint_patch exists; unblocking one needs a clear pass in the builder first. C++ is UNCOMPILED in this lane." },
-    "puerts_blackboard_build": { "canonical_capability": "ai.blackboard_build", "capability_category": "ai", "cpp_builder": "MCPPuerTSBridgeService", "cpp_entry_point": "BuildBlackboardJson", "verification": "implemented", "live_evidence": [], "notes": "UNCOMPILED. The C++ was written and never built: the lane that added it holds no build rights, so nothing here has been through UBT, let alone an editor. Desired-state reconciliation of a whole Blackboard asset: add, update, remove and reparent, which UMCPBridgeAILibrary::AddBlackboardKeys cannot express because it is add-only. That library is deliberately UNCHANGED; this command carries its own key-type mapping rather than editing the live_verified path behavior_tree_build depends on. No key default value parameter exists because UE4.27 has none: FBlackboardEntry holds EntryName, an instanced UBlackboardKeyType, bInstanceSynced and two editor-only strings, confirmed at Engine/Source/Runtime/AIModule/Classes/BehaviorTree/BlackboardData.h. Convergent (a satisfied rerun returns before the mutation section), failure-atomic (FBridgeAssetRollback plus transaction cancel), independently verified (keys re-read off the asset before save). remove_unlisted is opt-in and is why the annotation is destructiveIdempotent: a removed key silently dangles every FBlackboardKeySelector bound to it." },
-    "puerts_blackboard_inspect": { "canonical_capability": "ai.blackboard_inspect", "capability_category": "ai", "cpp_builder": "MCPPuerTSBridgeService", "cpp_entry_point": "InspectBlackboardJson", "verification": "implemented", "live_evidence": [], "notes": "UNCOMPILED, same lane and same reason. Read half of blackboard_build: keys with type, base class, instance sync, description, category and an inherited flag, the parent chain, the asset's own IsValid verdict, and a structure hash. identity_kind is authored_name rather than derived, which is the opposite of behavior_tree_inspect and is a property of the asset: a blackboard key's NAME is what every selector binds to, so a rename is a different key." },
-    "puerts_eqs_inspect": { "canonical_capability": "ai.eqs_inspect", "capability_category": "ai", "cpp_builder": "MCPPuerTSBridgeService", "cpp_entry_point": "InspectEnvQueryJson", "verification": "implemented", "live_evidence": [], "notes": "UNCOMPILED. Read half only, and there is NO eqs_build, which is a decision rather than an unfinished job. UEnvironmentQueryGraph::UpdateAsset (Engine/Plugins/AI/EnvironmentQueryEditor/Source/EnvironmentQueryEditor/Private/EnvironmentQueryGraph.cpp:62) opens with Query->GetOptionsMutable().Reset() and rebuilds Options entirely from the editor UEdGraph, so Options is a compiled artifact and not the source of truth. A builder writing Options without authoring the matching graph would pass its own read-back and be silently wiped the next time a human opened the asset, failing convergence and independent verification at once. The response repeats this in build_unsupported_reason. To use EQS from the bridge, author the query by hand and run it from a Behavior Tree with the RunEQS service, which behavior_tree_build already supports." },
-    "puerts_nav_inspect": { "canonical_capability": "navigation.inspect", "capability_category": "gameplay-setup", "cpp_builder": "MCPPuerTSBridgeService", "cpp_entry_point": "InspectNavigationJson", "verification": "implemented", "live_evidence": [], "notes": "UNCOMPILED. Reads the editor world's navigation configuration: nav system and build state, ANavigationData actors with agent and generation settings (read by reflected name, so a non-Recast nav data reports what it has), supported agents, NavMeshBoundsVolumes and NavModifierVolumes with world-space boxes, and the bounds the nav system actually registered. The registered bounds are a separate list from the volumes on purpose: a volume in an unloaded sublevel is an actor and is not registered, which is the usual cause of a missing navmesh. APIs confirmed in UE4.27 at Runtime/NavigationSystem/Public/NavigationSystem.h (GetNavigationBounds, GetSupportedAgents, GetDefaultNavDataInstance, GetNumRemainingBuildTasks) and NavMesh/NavMeshBoundsVolume.h, NavModifierVolume.h. Adds NavigationSystem to MCPBridgePuerTS.Build.cs." },
-    "puerts_nav_query": { "canonical_capability": "navigation.query", "capability_category": "gameplay-setup", "cpp_builder": "MCPPuerTSBridgeService", "cpp_entry_point": "QueryNavigationJson", "verification": "implemented", "live_evidence": [], "notes": "UNCOMPILED. Batched read-only navmesh queries: project a point, path length and cost and reachability, navmesh raycast, random navigable point. Batched because a placement decision needs several at once. reachable is true only for ENavigationQueryResult::Success and the raw result word is returned beside it, because Fail (no path) and Error or Invalid (query could not be answered) are different faults and collapsing them would report a configuration problem as a layout problem. APIs confirmed in UE4.27: UNavigationSystemV1::ProjectPointToNavigation, GetPathLength, GetPathCost (instance, const), NavigationRaycast and K2_GetRandomLocationInNavigableRadius (static, world context), Runtime/NavigationSystem/Public/NavigationSystem.h. random_point is non-deterministic and the response warns against using it in a comparison." },
-    "puerts_ai_perception_build": { "canonical_capability": "ai.perception_build", "capability_category": "ai", "cpp_builder": "MCPPuerTSBridgeService", "cpp_entry_point": "BuildAIPerceptionJson", "verification": "implemented", "live_evidence": [], "notes": "UNCOMPILED. Desired-state reconciliation of the whole AIPerceptionComponent config on an existing AIController Blueprint: senses, per-sense properties, dominant sense, component created if missing. Six sense config classes confirmed present in UE4.27 (Sight, Hearing, Damage, Touch, Team, Prediction); UAISenseConfig_Blueprint is refused because its user sense class cannot be validated. UAIPerceptionComponent::SensesConfig and DominantSense are protected UPROPERTYs (AIModule/Classes/Perception/AIPerceptionComponent.h:217-223), so the write goes through FArrayProperty reflection and the read through the public GetSensesConfigIterator. Every sense property is checked against the config class by reflected name before anything is written. Transactional, compiled through UBlueprintGraphBuilderLibrary::CompileAndReport, verified by re-reading the component template, saved only after that passes. Convergent: classification compares every spec-named property against the config already on the component with FJsonValue::CompareEqual and returns before the mutation section when nothing differs, so a satisfied rerun costs no compile and no save; the dominant sense is counted as a change in its own right. The Blueprint must already exist and derive from AIController: this configures a controller, blueprint_build creates one." },
-    "puerts_ai_controller_inspect": { "canonical_capability": "ai.controller_inspect", "capability_category": "ai", "cpp_builder": "MCPPuerTSBridgeService", "cpp_entry_point": "InspectAIControllerJson", "verification": "implemented", "live_evidence": [], "notes": "UNCOMPILED. Read half of ai_perception_build plus the controller-to-BT wiring. That wiring is reported as RunBehaviorTree CALL SITES because UE4.27 has no data-driven field for it: AAIController::RunBehaviorTree is UFUNCTION(BlueprintCallable) (AIModule/Classes/AIController.h:255-257) and a controller starts a tree by calling it, so the wiring is a UK2Node_CallFunction and the BTAsset pin default is the only thing resolvable at edit time. A pin wired from a variable resolves to nothing and is listed under dynamic_behavior_tree_call_sites rather than guessed at. NOTHING in this lane WRITES that wiring: puerts_blueprint_build already authors the call node. Only components declared in the Blueprint's SimpleConstructionScript are visible; one inherited from a native parent lives on the parent CDO and the response says so." },
-    "puerts_scene_inspect": { "canonical_capability": "level.scene_inspect", "capability_category": "level", "cpp_builder": "MCPPuerTSBridgeService", "cpp_entry_point": "InspectSceneJson", "verification": "implemented", "live_evidence": [], "notes": "canonical read of the editor's current level: actors with class, world transform, folder, tags, bounds, attachment and components, plus PlayerStarts and structure_hash_sha1. Shares one snapshot definition with scene_batch (Private/MCPBridgeSceneSnapshot.h), for the reason graph_inspect and blueprint_member_patch share MCPBridgeBlueprintMembers.h: a batch that measured convergence with a different reader than the inspector a caller verifies with could report a change the inspector cannot see. Actor identity is observed (object name, unique within a level), not derived. The hash always covers the whole level; an actors filter narrows the report only, because a hash of a filter is a hash of the request. Read-only on the same terms as graph_inspect: absent from IsToolMutating, reports package_dirty_before/after. UNCOMPILED: lane L holds no build rights, so no editor has run this code." },
-    "puerts_scene_batch": { "canonical_capability": "level.scene_batch", "capability_category": "level", "cpp_builder": "MCPPuerTSBridgeService", "cpp_entry_point": "ApplySceneBatchJson", "verification": "implemented", "live_evidence": [], "notes": "desired-state level authoring in one transaction, modelled on blueprint_graph_patch and blueprint_member_patch. Two operations, upsert_actor and delete_actor, cover spawn, modify, delete, reparent, folder, tags and reflected properties on actors and on components they already have; lights and post-process/trigger/blocking/nav-mesh-bounds volumes are upsert_actor with a class path and properties rather than tools of their own. Carries the lane A lesson: satisfied-ness is re-evaluated immediately before each mutation, never read from the plan. Trigger volumes enforce the AGENTS.md PlayerStart rule (a volume containing a PlayerStart refuses the batch; inside 1.5x its extent warns) against real GetActorBounds after placement, inside the rollback boundary. Failure cancels the transaction, runs FBridgeAssetRollback over the level package, and decides rollback_succeeded by re-hashing rather than trusting the undo. It never saves: the level is left dirty and puerts_save writes it, which is what lets a failed batch leave nothing on disk. Property writes are gated by AllowedWritableProperties, widened here by name for light shaping, post-process volume settings, box extent and StaticMeshComponent.StaticMesh. Review pass 2026-08-03 fixed three defects in the salvaged draft: (1) GEditor->AddActor calls World->SpawnActor directly and never runs UActorFactoryBoxVolume::PostSpawnActor, so every AVolume subclass (TriggerVolume, BlockingVolume, PostProcessVolume, NavMeshBoundsVolume) was spawned with a null Brush, zero bounds and no collision, which would also have walked through the PlayerStart clearance check reporting a pass that measured nothing; EnsureVolumeBrush now builds the same 200-unit cube the editor places and refuses the operation if it cannot. (2) ResolveOne collapsed 'matched two' into 'matched none', so an ambiguity an earlier operation in the same batch created would make an upsert spawn a third actor and a delete_actor read as satisfied; the match count is now an output and both the satisfied-predicate and the applier refuse on it. (3) FBridgeAssetRollback::PackageFilename appended the .uasset extension unconditionally, which never resolves for a level (.umap); it now asks FPackageName::DoesPackageExist for the real filename first and falls back to the old concat for a package that does not exist yet, so asset builders are unchanged. UNCOMPILED and NOT live: no build rights in this lane, no live acceptance script yet." },
-    "puerts_input_mapping_info": { "canonical_capability": "input.mapping_info", "capability_category": "project", "cpp_builder": "MCPBridgeInputLibrary", "verification": "implemented", "live_evidence": [], "notes": "the inspector UMCPBridgeInputLibrary never had: the library could add and remove bindings with no reader, so a mutation could only be confirmed by the mutator own report. Read-only: absent from the native IsToolMutating list, const accessors on UInputSettings only. Canonically sorted, reduced to mapping_hash_sha1, which is what input_mapping_patch reports as pre/post hash. NOT COMPILED and NOT run: this lane built no editor." },
-    "puerts_input_mapping_patch": { "canonical_capability": "input.mapping_patch", "capability_category": "project", "cpp_builder": "MCPBridgeInputLibrary", "cpp_entry_point": "AddActionMapping", "verification": "implemented", "live_evidence": [], "notes": "re-front of UMCPBridgeInputLibrary behind one reconciling command: the legacy lane spent one round trip per binding across three tools and a control scheme is eleven bindings. The library per-mapping validation and duplicate rejection are reused; the command adds classify-before-write, presets expanded client side, and the boundary the library never had. DefaultInput.ini is not a UObject, so instead of a transaction the command snapshots both mapping arrays, restores them on any failure, and decides rollback_succeeded by re-reading and comparing the hash. NOT COMPILED and NOT run." },
-    "puerts_folder_visibility": { "canonical_capability": "assets.folder_visibility", "capability_category": "assets", "cpp_builder": "FolderVisibilityLibrary", "cpp_entry_point": "HideFolder", "verification": "implemented", "live_evidence": [], "notes": "re-front of UFolderVisibilityLibrary. Display-only Content Browser state in Config/FolderVisibility.ini; hidden folders stay on disk, referenced and cookable. Desired-state hidden converges; hide/show is the delta form; the two shapes are refused together rather than merged. No hidden/hide/show at all is the read, which is what folder_hidden_list asked for. The hidden set in the response is read back from GetHiddenFolders, never echoed. NOT COMPILED and NOT run." },
-    "puerts_camera_shake": { "canonical_capability": "pie.camera_shake", "capability_category": "pie", "cpp_builder": "AutoPIEHelper", "cpp_entry_point": "PlayCameraShakeOnPlayer", "verification": "implemented", "live_evidence": [], "notes": "re-front of UAutoPIEHelper::PlayCameraShakeOnPlayer, which owns the PIE World to PlayerController(0) to PlayerCameraManager chain. Runtime only: nothing persisted, nothing to undo. Refuses by name when PIE is not running rather than reporting a shake nobody could have seen. UE4.27 note: UCameraShakeBase with StartCameraShake, not the older names. NOT COMPILED and NOT run." },
-    "puerts_pie_agent_query": { "canonical_capability": "pie.agent_query", "capability_category": "pie", "cpp_builder": "MCPBridgePIEAgent", "verification": "implemented", "live_evidence": [], "notes": "the READ-ONLY half of UPIEAgentLibrary: observe, status, expect. The write half (move_to, look_at, press, record_start, record_stop, replay) is deliberately absent because AGENTS.md requires the user to ask before any pie_agent_ tool runs, which makes the read half both the safe half and the one worth having first. One behaviour difference from the legacy pie_agent_expect: the native command starts the check and returns operation_id rather than blocking until the verdict; poll op=status. NOT COMPILED and NOT run." },
-    "puerts_spawn_actor": { "canonical_capability": "actors.spawn", "capability_category": "actors", "verification": "live_partial", "live_evidence": ["docs/UE427_PUERST_MCP_HANDOFF_2026-07-31.md"], "notes": "handoff: implemented, code/schema present; no dedicated live regression recorded" },
-    "puerts_delete_actor": { "canonical_capability": "actors.delete", "capability_category": "actors", "verification": "live_partial", "live_evidence": ["docs/UE427_PUERST_MCP_HANDOFF_2026-07-31.md"], "notes": "handoff: final delete regression absent" },
-    "puerts_call_function": { "canonical_capability": "reflection.call_function", "capability_category": "properties", "verification": "live_partial", "live_evidence": ["docs/UE427_PUERST_MCP_HANDOFF_2026-07-31.md"], "notes": "handoff: full live coverage not recorded; 3-function default allowlist" },
-    "puerts_physics_build": { "canonical_capability": "physics.scene_build", "capability_category": "gameplay-setup", "verification": "live_partial", "live_evidence": ["Scripts/puerts-live-smoke.mjs"], "notes": "handoff: final physics smoke not re-run" },
-    "puerts_physics_observe": { "canonical_capability": "physics.scene_observe", "capability_category": "gameplay-setup", "verification": "live_partial", "live_evidence": ["Scripts/puerts-live-smoke.mjs"], "notes": "handoff: final physics smoke not re-run" },
-    "puerts_pie_start": { "canonical_capability": "editor.pie_start", "capability_category": "pie", "verification": "live_partial", "live_evidence": ["docs/UE427_PUERST_MCP_HANDOFF_2026-07-31.md"], "notes": "handoff: implemented, partial history; timing coverage weak" },
-    "puerts_pie_stop": { "canonical_capability": "editor.pie_stop", "capability_category": "pie", "verification": "live_partial", "live_evidence": ["docs/UE427_PUERST_MCP_HANDOFF_2026-07-31.md"], "notes": "handoff: implemented, partial history" },
-    "puerts_get_logs": { "canonical_capability": "editor.logs", "capability_category": "editor-ops", "verification": "live_partial", "live_evidence": ["docs/UE427_PUERST_MCP_HANDOFF_2026-07-31.md"], "notes": "used ad hoc across live sessions; no scripted acceptance exercises it" },
-    "puerts_viewport_screenshot": { "canonical_capability": "viewport.screenshot", "capability_category": "viewport", "verification": "live_verified", "live_evidence": ["docs/UE427_PUERST_MCP_HANDOFF_2026-07-31.md"], "notes": "handoff: tested successfully, aurora PNG visually reviewed" },
-    "puerts_sky_shader_create": { "canonical_capability": "materials.sky_demo", "capability_category": "materials", "verification": "live_verified", "live_evidence": ["docs/UE427_PUERST_MCP_HANDOFF_2026-07-31.md"], "notes": "specialized demo, not generic material editing" },
-    "puerts_material_inspect": { "canonical_capability": "materials.inspect", "capability_category": "materials", "cpp_builder": "MCPPuerTSBridgeService", "cpp_entry_point": "InspectMaterialJson", "verification": "implemented", "live_evidence": [], "notes": "the read half material authoring never had, for UMaterial and UMaterialInstanceConstant at one tool name; observed expression identity (a material expression's UObject name is unique in its package and is serialized, unlike a UMG widget or a BT node); canonical structure hash over the parameter set, override flags, expressions and links, values excluded so retinting an instance does not read as a reshape. For master material GRAPHS this is the only half: UMaterialEditingLibrary::CreateMaterialExpressionEx (MaterialEditingLibrary.cpp:469) and ConnectMaterialExpressions (:631) both write without calling Modify, so a failed multi-node build cannot be rolled back and no write command was shipped. NOT compiled and NOT run: the lane that added this launched no editor." },
-    "puerts_material_instance_build": { "canonical_capability": "materials.instance_build", "capability_category": "materials", "cpp_builder": "MCPPuerTSBridgeService", "cpp_entry_point": "BuildMaterialInstanceJson", "verification": "implemented", "live_evidence": [], "notes": "re-front of UMaterialEditingLibrary's material instance setters plus the boundary that library does not have: the /Game/MCPGenerated/ limit, whole-request validation against the parent before any asset is created, Modify() so the writes are in the undo record at all (the library's setters call SetScalarParameterValueEditorOnly and friends without it, MaterialEditingLibrary.cpp:966/:987/:1008, which also return a hardcoded false), one rollback boundary, a compile whose result is reported rather than assumed, an independent read-back that decides whether the writes landed, and a save only after that read-back passes. compile.instance_own_resource distinguishes the instance's own static permutation from the parent's inherited resource, so a parent's pre-existing compile errors are not blamed on this request. NOT compiled and NOT run: the lane that added this launched no editor." },
-    "engine_source_search": { "canonical_capability": "engine_source.search", "capability_category": "engine-source", "verification": "live_verified", "notes": "no editor involved; unit tests run against the real installed engine source" },
-    "engine_source_read": { "canonical_capability": "engine_source.read", "capability_category": "engine-source", "verification": "live_verified", "notes": "no editor involved; unit tests run against the real installed engine source" },
-    "bridge_command_status": { "canonical_capability": "bridge.command_status", "capability_category": "status", "verification": "pending_live", "notes": "reads Saved/MCPPuerTSBridge/status.json off disk; never contacts the editor. Needs MCP_PUERTS_STATUS=1 in the editor environment at launch, so the live half is unproven until an editor runs with it set" },
-
-    "actor_spawn": { "canonical_capability": "actors.spawn", "migration_action": "ALIAS", "replacement_tool": "puerts_spawn_actor" },
-    "actor_delete": { "canonical_capability": "actors.delete", "migration_action": "ALIAS", "replacement_tool": "puerts_delete_actor" },
-    "actor_modify": { "canonical_capability": "properties.set", "migration_action": "ALIAS", "replacement_tool": "puerts_set_property" },
-    "batch_spawn": { "canonical_capability": "actors.batch_spawn", "migration_action": "MERGE", "replacement_tool": "puerts_spawn_actor", "notes": "future batch primitive; native spawn is single-actor today" },
-    "actor_duplicate": { "migration_action": "PORT", "notes": "layer: new_native_wrapper (transactions plus template copy)" },
-    "actor_snap_to_socket": { "migration_action": "PORT", "notes": "layer: new_native_wrapper" },
-    "placement_validate": { "migration_action": "PORT", "notes": "layer: puerts_workflow over properties.get" },
-    "blueprint_inspect": { "canonical_capability": "blueprints.inspect", "migration_action": "ALIAS", "replacement_tool": "puerts_graph_inspect", "notes": "alias not yet written; the native replacement is live-verified" },
-    "blueprint_build_from_json": { "canonical_capability": "blueprints.build", "migration_action": "ALIAS", "replacement_tool": "puerts_blueprint_build", "notes": "alias not yet written; the native replacement is live-verified" },
-    "blueprint_create": { "canonical_capability": "blueprints.build", "migration_action": "MERGE", "replacement_tool": "puerts_blueprint_build" },
-    "blueprint_compile": { "migration_action": "REFRONT", "cpp_builder": "BlueprintGraphBuilderLibrary", "cpp_entry_point": "CompileAndReport" },
-    "blueprint_info": { "canonical_capability": "blueprints.inspect", "migration_action": "MERGE", "replacement_tool": "puerts_graph_inspect" },
-    "blueprint_list": { "canonical_capability": "assets.find", "migration_action": "MERGE", "replacement_tool": "puerts_find_assets" },
-    "blueprint_document": { "migration_action": "PORT", "notes": "layer: puerts_workflow over blueprints.inspect" },
-    "blueprint_build_from_description": { "migration_action": "PORT", "notes": "layer: puerts_workflow" },
-    "anim_blueprint_build_from_json": { "canonical_capability": "animation.blueprint_build", "migration_action": "REFRONT", "cpp_builder": "AnimBlueprintBuilderLibrary", "cpp_entry_point": "BuildAnimBlueprintFromJSON", "notes": "highest-value REFRONT: builder v1 complete, same shape as behavior_tree_build" },
-    "data_table_create": { "migration_action": "REFRONT", "cpp_builder": "MCPBridgeDataLibrary", "cpp_entry_point": "FillDataTableFromJSON" },
-    "data_table_fill_from_json": { "migration_action": "REFRONT", "cpp_builder": "MCPBridgeDataLibrary", "cpp_entry_point": "FillDataTableFromJSON" },
-    "level_new": { "migration_action": "PORT", "migration_risk": "high", "notes": "no native map-load or map-create exists (findings defect 5); layer: new_native_wrapper" },
-    "camera_shake_play": { "migration_action": "ALIAS", "replacement_tool": "puerts_camera_shake", "cpp_builder": "AutoPIEHelper", "cpp_entry_point": "PlayCameraShakeOnPlayer" },
-    "camera_shake_trigger": { "migration_action": "REFRONT", "cpp_builder": "AutoPIEHelper", "cpp_entry_point": "PlayCameraShakeByPath" },
-    "camera_shake_spawn": { "migration_action": "REFRONT", "cpp_builder": "AutoPIEHelper" },
-    "camera_shake_blueprint": { "migration_action": "PORT", "notes": "layer: existing_native_builder (BlueprintGraphBuilderLibrary) once camera-shake node types are in the vocabulary" },
-    "behavior_tree_create": { "canonical_capability": "ai.behavior_tree_build", "migration_action": "ALIAS", "replacement_tool": "puerts_behavior_tree_build", "notes": "alias not yet written; native replacement is pending_live" },
-    "blackboard_create": { "canonical_capability": "ai.behavior_tree_build", "migration_action": "ALIAS", "replacement_tool": "puerts_behavior_tree_build", "notes": "blackboard creation is part of the native BT build; alias not yet written" },
-    "input_mapping_add": { "migration_action": "ALIAS", "replacement_tool": "puerts_input_mapping_patch", "cpp_builder": "MCPBridgeInputLibrary", "cpp_entry_point": "AddActionMapping" },
-    "input_mapping_remove": { "migration_action": "ALIAS", "replacement_tool": "puerts_input_mapping_patch", "cpp_builder": "MCPBridgeInputLibrary", "cpp_entry_point": "RemoveActionMapping" },
-    "input_preset_apply": { "migration_action": "ALIAS", "replacement_tool": "puerts_input_mapping_patch", "cpp_builder": "MCPBridgeInputLibrary" },
-    "input_mapping_info": { "migration_action": "ALIAS", "replacement_tool": "puerts_input_mapping_info", "cpp_builder": "MCPBridgeInputLibrary" },
-    "ai_nav_rebuild": { "migration_action": "PORT", "notes": "layer: new_native_wrapper (UNavigationSystemV1)" },
-    "gameplay_pie_start": { "canonical_capability": "editor.pie_start", "migration_action": "ALIAS", "replacement_tool": "puerts_pie_start" },
-    "gameplay_pie_stop": { "canonical_capability": "editor.pie_stop", "migration_action": "ALIAS", "replacement_tool": "puerts_pie_stop" },
-    "gameplay_pie_status": { "canonical_capability": "bridge.diagnostic", "migration_action": "MERGE", "replacement_tool": "puerts_diagnostic" },
-    "pie_agent_observe": { "migration_action": "ALIAS", "replacement_tool": "puerts_pie_agent_query", "cpp_builder": "MCPBridgePIEAgent" },
-    "pie_agent_status": { "migration_action": "ALIAS", "replacement_tool": "puerts_pie_agent_query", "cpp_builder": "MCPBridgePIEAgent" },
-    "pie_agent_expect": { "migration_action": "ALIAS", "replacement_tool": "puerts_pie_agent_query", "cpp_builder": "MCPBridgePIEAgent" },
-    "blueprint_add_variable": { "migration_action": "ALIAS", "replacement_tool": "puerts_blueprint_member_patch", "cpp_builder": "BlueprintMutatorLibrary", "cpp_entry_point": "AddVariable" },
-    "blueprint_remove_variable": { "migration_action": "ALIAS", "replacement_tool": "puerts_blueprint_member_patch", "cpp_builder": "BlueprintMutatorLibrary", "cpp_entry_point": "RemoveVariable" },
-    "blueprint_set_variable_default": { "migration_action": "ALIAS", "replacement_tool": "puerts_blueprint_member_patch", "cpp_builder": "BlueprintMutatorLibrary", "cpp_entry_point": "SetVariableDefault" },
-    "blueprint_add_function": { "migration_action": "ALIAS", "replacement_tool": "puerts_blueprint_member_patch", "cpp_builder": "BlueprintMutatorLibrary", "cpp_entry_point": "AddFunction" },
-    "blueprint_remove_function": { "migration_action": "ALIAS", "replacement_tool": "puerts_blueprint_member_patch", "cpp_builder": "BlueprintMutatorLibrary", "cpp_entry_point": "RemoveFunction" },
-    "blueprint_add_event_dispatcher": { "migration_action": "ALIAS", "replacement_tool": "puerts_blueprint_member_patch", "cpp_builder": "BlueprintMutatorLibrary", "cpp_entry_point": "AddEventDispatcher" },
-    "blueprint_remove_event_dispatcher": { "migration_action": "ALIAS", "replacement_tool": "puerts_blueprint_member_patch", "cpp_builder": "BlueprintMutatorLibrary", "cpp_entry_point": "RemoveEventDispatcher" },
-    "blueprint_add_interface": { "migration_action": "ALIAS", "replacement_tool": "puerts_blueprint_member_patch", "cpp_builder": "BlueprintMutatorLibrary", "cpp_entry_point": "AddInterfaceImplementation" },
-    "blueprint_remove_interface": { "migration_action": "ALIAS", "replacement_tool": "puerts_blueprint_member_patch", "cpp_builder": "BlueprintMutatorLibrary", "cpp_entry_point": "RemoveInterfaceImplementation" },
-    "blueprint_component_remove": { "migration_action": "ALIAS", "replacement_tool": "puerts_blueprint_member_patch", "cpp_builder": "BlueprintMutatorLibrary", "cpp_entry_point": "RemoveSCSNode" },
-    "blueprint_component_rename": { "migration_action": "ALIAS", "replacement_tool": "puerts_blueprint_member_patch", "cpp_builder": "BlueprintMutatorLibrary", "cpp_entry_point": "RenameSCSNode" },
-    "blueprint_node_add": { "migration_action": "ALIAS", "replacement_tool": "puerts_blueprint_graph_patch", "cpp_builder": "BlueprintGraphBuilderLibrary" },
-    "blueprint_node_delete": { "migration_action": "ALIAS", "replacement_tool": "puerts_blueprint_graph_patch", "cpp_builder": "BlueprintGraphBuilderLibrary" },
-    "blueprint_node_move": { "migration_action": "ALIAS", "replacement_tool": "puerts_blueprint_graph_patch", "cpp_builder": "BlueprintGraphBuilderLibrary" },
-    "blueprint_pins_connect": { "migration_action": "ALIAS", "replacement_tool": "puerts_blueprint_graph_patch", "cpp_builder": "BlueprintGraphBuilderLibrary" },
-    "gameplay_telemetry_snapshot": { "migration_action": "REFRONT", "cpp_builder": "MCPBridgePIEAgent" },
-    "gameplay_run_acceptance_tests": { "migration_action": "KEEP", "notes": "legacy acceptance harness; replaced by per-capability native acceptance scripts over time" },
-    "level_actors": { "canonical_capability": "actors.find", "migration_action": "ALIAS", "replacement_tool": "puerts_find_actors" },
-    "level_save": { "canonical_capability": "assets.save", "migration_action": "ALIAS", "replacement_tool": "puerts_save" },
-    "level_outliner": { "canonical_capability": "actors.find", "migration_action": "MERGE", "replacement_tool": "puerts_find_actors" },
-    "undo": { "canonical_capability": "editor.undo", "migration_action": "ALIAS", "replacement_tool": "puerts_undo" },
-    "redo": { "migration_action": "PORT", "migration_risk": "medium", "capability_loss_risk": "medium", "notes": "no native redo exists; this is a legacy capability with no current replacement" },
-    "checkpoint_create": { "migration_action": "KEEP", "notes": "source-control checkpoint; transport-independent" },
-    "checkpoint_restore": { "migration_action": "KEEP", "capability_loss_risk": "medium", "notes": "restore is destructive; keep the proven path until a native equivalent has parity tests" },
-    "batch_operations": { "migration_action": "MERGE", "replacement_tool": "puerts_blueprint_build", "notes": "the batch concept moves into per-domain batch primitives, not one generic executor" },
-    "history_list": { "migration_action": "PORT", "notes": "layer: new_native_wrapper over the native transaction history" },
-    "asset_list": { "canonical_capability": "assets.find", "migration_action": "ALIAS", "replacement_tool": "puerts_find_assets" },
-    "asset_info": { "canonical_capability": "assets.find", "migration_action": "MERGE", "replacement_tool": "puerts_find_assets" },
-    "asset_save_many": { "canonical_capability": "assets.save", "migration_action": "ALIAS", "replacement_tool": "puerts_save" },
-    "folder_hide": { "migration_action": "ALIAS", "replacement_tool": "puerts_folder_visibility", "cpp_builder": "FolderVisibilityLibrary", "cpp_entry_point": "HideFolder", "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/folder_visibility.py" },
-    "folder_show": { "migration_action": "ALIAS", "replacement_tool": "puerts_folder_visibility", "cpp_builder": "FolderVisibilityLibrary", "cpp_entry_point": "ShowFolder", "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/folder_visibility.py" },
-    "folder_hidden_list": { "migration_action": "ALIAS", "replacement_tool": "puerts_folder_visibility", "cpp_builder": "FolderVisibilityLibrary", "cpp_entry_point": "GetHiddenFolders", "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/folder_visibility.py" },
-    "widget_build_from_json": { "canonical_capability": "widgets.build", "migration_action": "ALIAS", "replacement_tool": "puerts_widget_build", "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/widgets.py", "notes": "alias not yet written; native replacement is live-verified" },
-    "widget_lower_third_create": { "migration_action": "REFRONT", "cpp_builder": "WidgetBlueprintBuilderLibrary", "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/widgets.py" },
-    "widget_title_card_create": { "migration_action": "REFRONT", "cpp_builder": "WidgetBlueprintBuilderLibrary", "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/widgets.py" },
-    "widget_title_template": { "migration_action": "REFRONT", "cpp_builder": "WidgetBlueprintBuilderLibrary", "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/widgets.py" },
-    "title_widget_build_from_manifest": { "migration_action": "REFRONT", "cpp_builder": "WidgetBlueprintBuilderLibrary" },
-    "python_proxy": { "migration_action": "RETIRE", "capability_loss_risk": "high", "lifecycle": "blocked", "notes": "RETIRE proposed, human sign-off required: arbitrary Python execution is outside every native safety control (handoff risk register, High). Replacement is the allowlisted native catalog itself; the lost generality is deliberate. Blocked until a human approves the loss.", "live_evidence": ["docs/UE427_PUERST_MCP_HANDOFF_2026-07-31.md"], "replacement_tool": "puerts_call_function" },
-    "ue_logs": { "canonical_capability": "editor.logs", "migration_action": "ALIAS", "replacement_tool": "puerts_get_logs" },
-    "viewport_screenshot": { "canonical_capability": "viewport.screenshot", "migration_action": "ALIAS", "replacement_tool": "puerts_viewport_screenshot" },
-    "viewport_focus": { "canonical_capability": "viewport.screenshot", "migration_action": "MERGE", "replacement_tool": "puerts_viewport_screenshot", "notes": "native screenshot already fits requested actors" },
-    "viewport_fit": { "canonical_capability": "viewport.screenshot", "migration_action": "MERGE", "replacement_tool": "puerts_viewport_screenshot" }
+    "puerts_diagnostic": {
+      "canonical_capability": "bridge.diagnostic",
+      "capability_category": "bridge",
+      "verification": "live_verified",
+      "live_evidence": [
+        "Scripts/graph-inspect-acceptance.mjs",
+        "Scripts/puerts-live-smoke.mjs"
+      ]
+    },
+    "puerts_find_actors": {
+      "canonical_capability": "actors.find",
+      "capability_category": "actors",
+      "verification": "live_verified",
+      "live_evidence": [
+        "Scripts/puerts-live-smoke.mjs"
+      ]
+    },
+    "puerts_find_assets": {
+      "canonical_capability": "assets.find",
+      "capability_category": "assets",
+      "verification": "live_verified",
+      "live_evidence": [
+        "Scripts/graph-inspect-acceptance.mjs"
+      ]
+    },
+    "puerts_read_property": {
+      "canonical_capability": "properties.get",
+      "capability_category": "properties",
+      "verification": "live_verified",
+      "live_evidence": [
+        "Scripts/puerts-live-smoke.mjs"
+      ]
+    },
+    "puerts_set_property": {
+      "canonical_capability": "properties.set",
+      "capability_category": "properties",
+      "verification": "live_verified",
+      "live_evidence": [
+        "Scripts/puerts-live-smoke.mjs"
+      ]
+    },
+    "puerts_save": {
+      "canonical_capability": "assets.save",
+      "capability_category": "assets",
+      "verification": "live_verified",
+      "live_evidence": [
+        "Scripts/puerts-live-smoke.mjs"
+      ]
+    },
+    "puerts_undo": {
+      "canonical_capability": "editor.undo",
+      "capability_category": "editor-ops",
+      "verification": "live_verified",
+      "live_evidence": [
+        "Scripts/puerts-live-smoke.mjs"
+      ]
+    },
+    "puerts_blueprint_build": {
+      "canonical_capability": "blueprints.build",
+      "capability_category": "blueprint",
+      "cpp_builder": "BlueprintGraphBuilderLibrary",
+      "cpp_entry_point": "BuildBlueprintFromJSON",
+      "verification": "live_verified",
+      "live_evidence": [
+        "Scripts/graph-inspect-acceptance.mjs"
+      ]
+    },
+    "puerts_blueprint_graph_patch": {
+      "canonical_capability": "blueprints.graph_patch",
+      "capability_category": "blueprint",
+      "cpp_builder": "BlueprintGraphBuilderLibrary",
+      "cpp_entry_point": "PatchBlueprintGraphFromJSON",
+      "verification": "live_verified",
+      "live_evidence": [
+        "Scripts/bp-graph-patch-acceptance.mjs",
+        "docs/evidence/bp-graph-patch.json",
+        "docs/evidence/bp-graph-patch-cold.json"
+      ],
+      "notes": "promoted 2026-08-02 after warm and cold live acceptance passed in full. Incremental patching: named operations against resolved selectors, no clear_existing_graph. Shares the node-creation primitive with puerts_blueprint_build (SpawnNodeFromSpec) so an added node is identical to a built one. Proven on a 22-node fixture: a pin default, an added node with two links, a moved node, a removed node and a disconnect-reconnect pair applied in one batch; every node the patch did not name is structurally identical afterwards; a rerun applies nothing, reports converged and does not save; an ambiguous selector is refused by name without mutating; a batch with one unresolvable target applies neither operation; no dirty package and no source-control entry; and the structure hash survives an editor restart."
+    },
+    "puerts_blueprint_member_patch": {
+      "canonical_capability": "blueprints.member_patch",
+      "capability_category": "blueprint",
+      "cpp_builder": "BlueprintMutatorLibrary",
+      "cpp_entry_point": "AddVariable",
+      "verification": "live_verified",
+      "live_evidence": [
+        "Scripts/bp-member-patch-acceptance.mjs (warm, all checks passed)",
+        "Scripts/bp-member-patch-acceptance.mjs --phase=cold (all checks passed after editor restart)",
+        "Scripts/mutator-atomicity.mjs (failure atomicity, control included)"
+      ],
+      "notes": "re-front of UBlueprintMutatorLibrary through the native pipe: the member half of incremental Blueprint editing, which blueprint_graph_patch cannot reach and blueprint_build reaches only by restating the whole asset. Eleven operations over variables, functions, interfaces, event dispatchers and components. The mutations are entirely the existing library; the command adds the classify-before-mutate pass (every mutator entry point recompiles, so a half-applied batch is expensive), one rollback boundary, the compile gate, a per-operation independent read-back, and save only after verification. pre_member_hash / post_member_hash are the same value graph_inspect now returns as member_structure_hash_sha1, so a caller verifies against an independent read. Live acceptance passes warm and cold against BridgeInstallTest (2026-08-03), all checks, twice consecutively warm. compile_status is accompanied by compile_warnings and compile_errors off the same FCompilerResultsLog blueprint_build already reported, so UpToDateWithWarnings is readable without opening the editor; a converged batch still compiles, which makes a no-op call the way to read any Blueprint's compiler messages. Finding 0q settled here: add_event_dispatcher created a signature graph without its multicast delegate property, so every later compile warned and the dispatcher was not bindable."
+    },
+    "puerts_graph_inspect": {
+      "canonical_capability": "blueprints.inspect",
+      "capability_category": "blueprint",
+      "cpp_builder": "BlueprintInspectorLibrary",
+      "cpp_entry_point": "DescribeBlueprintGraphJSON",
+      "verification": "live_verified",
+      "live_evidence": [
+        "Scripts/graph-inspect-acceptance.mjs"
+      ],
+      "notes": "also reports event_dispatchers and member_structure_hash_sha1, the canonical member snapshot puerts_blueprint_member_patch compares before and after a batch; those two fields are not covered by the recorded live evidence"
+    },
+    "puerts_widget_build": {
+      "canonical_capability": "widgets.build",
+      "capability_category": "ui",
+      "cpp_builder": "MCPPuerTSBridgeService",
+      "cpp_entry_point": "BuildWidgetJson",
+      "verification": "live_verified",
+      "live_evidence": [
+        "docs/CAPABILITY_FINDINGS.md"
+      ],
+      "notes": "live proof is the stamina HUD session (WBP_StaminaHUD and probes saved in the test project); no scripted acceptance yet"
+    },
+    "puerts_behavior_tree_build": {
+      "canonical_capability": "ai.behavior_tree_build",
+      "capability_category": "ai",
+      "cpp_builder": "BehaviorTreeBuilderLibrary",
+      "cpp_entry_point": "BuildBehaviorTreeFromJSON",
+      "verification": "live_verified",
+      "live_evidence": [
+        "Scripts/behavior-tree-acceptance.mjs",
+        "docs/evidence/behavior-tree-acceptance-2026-08-01.txt"
+      ],
+      "notes": "promoted to live_verified 2026-08-01 evening: puerts_behavior_tree_inspect independently compared the saved graph to the requested spec (classes, child order, decorator attachment, params, keys) and proved rerun convergence by structure hash; full evidence in docs/evidence/behavior-tree-acceptance-2026-08-01.txt"
+    },
+    "puerts_behavior_tree_inspect": {
+      "canonical_capability": "ai.behavior_tree_inspect",
+      "capability_category": "ai",
+      "cpp_builder": "MCPPuerTSBridgeService",
+      "cpp_entry_point": "InspectBehaviorTreeJson",
+      "verification": "live_verified",
+      "live_evidence": [
+        "Scripts/behavior-tree-acceptance.mjs",
+        "docs/evidence/behavior-tree-acceptance-2026-08-01.txt"
+      ],
+      "notes": "read half of behavior_tree_build; derived node identity (UE4.27 BT nodes have no GUIDs); donor references: ultimateunrealenginemcp@c31ebac MCPAICommands.cpp BuildBTCompositeNodeJson and monolith@e67544c MonolithAIBehaviorTreeActions HandleGetBehaviorTree, design only, MIT"
+    },
+    "puerts_widget_inspect": {
+      "canonical_capability": "ui.widget_inspect",
+      "capability_category": "ui",
+      "cpp_builder": "MCPPuerTSBridgeService",
+      "cpp_entry_point": "InspectWidgetJson",
+      "verification": "live_verified",
+      "live_evidence": [
+        "Scripts/wbp-failure-atomicity.mjs",
+        "docs/evidence/widget-inspect-2026-08-02.json"
+      ],
+      "notes": "read half of widget_build; derived widget identity (UE4.27 UMG widgets have no GUIDs); reports CanvasPanelSlot anchors/offsets/alignment/z_order, named-slot content that panel-child traversal cannot reach, exposed variables, bindings and animations; read-only proven by package_dirty_before/after, unchanged file hash and mtime, and identical structure hash across two reads and across a restart. Extended 2026-08-03 (lane V) with two ADDITIVE fields, both UNCOMPILED: source_property and source_path per binding entry, and an animation_details array beside the unchanged animations string array. The structure hash basis is unchanged (bindings still hash on widget|property|function|kind, animations still hash on name), so the live evidence above still describes the hash this tool produces."
+    },
+    "puerts_widget_bind": {
+      "canonical_capability": "ui.widget_bind",
+      "capability_category": "ui",
+      "cpp_builder": "MCPPuerTSBridgeService",
+      "cpp_entry_point": "BindWidgetJson",
+      "verification": "implemented",
+      "live_evidence": [],
+      "notes": "UNCOMPILED and never run: written in an isolated worktree with no editor and no UBT pass, so even the compile is unproven. Write half of the bindings and is_variable that widget_inspect could already READ and nothing could author, which is what makes a UMG widget show live data rather than a constant. Writes UWidgetBlueprint::Bindings (FDelegateEditorBinding: ObjectName, PropertyName, FunctionName, SourceProperty, SourcePath, MemberGuid, Kind) and UWidget::bIsVariable. UE4.27 drives the delegate named PropertyName+\"Delegate\", falling back to the bare name for an event delegate, confirmed at Editor/UMGEditor/Private/WidgetBlueprint.cpp:413 and :440; the caller writes \"Percent\" and the response reports the delegate it resolved to. A property-kind binding needs a non-empty SourcePath or validation falls through to a FunctionName that is not there, so the path is built with FEditorPropertyPath(TArray<FFieldVariant>), the same public constructor the UMG details panel uses at Customizations/UMGDetailCustomizations.cpp:313, and refused with FEditorPropertyPath::Validate, the engine's own check. Everything validates before anything is written; a compile that returns Error restores the captured Bindings array and bIsVariable flags by value and recompiles, because a Blueprint compile is not an undo record. Convergent: satisfied-ness is re-read immediately before each mutation rather than decided at plan time, so an earlier entry in the same batch cannot make a later one report a false no-op. Widget ANIMATIONS are deliberately NOT authorable here: a UWidgetAnimation wraps a UMovieScene, so track and keyframe authoring is Sequencer's data model and belongs with that work, not duplicated here."
+    },
+    "puerts_anim_blueprint_inspect": {
+      "canonical_capability": "animation.anim_blueprint_inspect",
+      "capability_category": "animation",
+      "cpp_builder": "MCPPuerTSBridgeService",
+      "cpp_entry_point": "InspectAnimBlueprintJson",
+      "verification": "implemented",
+      "live_evidence": [],
+      "notes": "read half of anim_blueprint_build and the reason it can verify rather than assert; docs/REFRONT_MAP.md group 5 listed AnimBlueprintBuilderLibrary as having no independent inspector, and this is it. Reports anim graphs and their nodes, state machines with entry state, states, conduits and inner pose graphs, transitions keyed from->to with crossfade/priority/blend mode, and per transition a condition kind of rule_graph, automatic_time_remaining or none (an automatic remaining-time rule has no rule graph at all, so reporting only the graph would read as a missing condition); plus cached poses with their readers, blend nodes, member variables and a canonical structure hash that excludes tunable values. Derived node identity: the id a build spec wrote is not persisted on the node. C++ is UNCOMPILED in this lane, which owns no build rights; not exercised against an editor."
+    },
+    "puerts_anim_montage_inspect": {
+      "canonical_capability": "animation.anim_montage_inspect",
+      "capability_category": "animation",
+      "cpp_builder": "MCPPuerTSBridgeService",
+      "cpp_entry_point": "InspectAnimMontageJson",
+      "verification": "implemented",
+      "live_evidence": [],
+      "notes": "read-only with no write counterpart, and that is the finding rather than an omission: montage sections and notifies are FAnimLinkableElement values that must be re-linked against slot segments, and UE4.27 exposes no atomic operation for rebuilding the NextSectionName chain, so a montage writer could not be failure-atomic. Notifies are read explicitly because UE4.27 declares them UPROPERTY() with no Edit flag and a CPF_Edit reflection walk drops them. C++ is UNCOMPILED in this lane."
+    },
+    "puerts_anim_blend_space_inspect": {
+      "canonical_capability": "animation.anim_blend_space_inspect",
+      "capability_category": "animation",
+      "cpp_builder": "MCPPuerTSBridgeService",
+      "cpp_entry_point": "InspectAnimBlendSpaceJson",
+      "verification": "implemented",
+      "live_evidence": [],
+      "notes": "read-only with no write counterpart, for the same shape of reason as the montage reader: UE4.27 rebuilds a blend space's triangulation from its sample set, so a partly applied sample edit leaves a space that interpolates wrong rather than one that fails, and there is no atomic sample-set replacement a writer could be failure-atomic around. Reports the skeleton, all three blend axes (UE4.27 exposes no dimension count, so the class is what tells 1D from 2D) and every sample with animation, position and rate scale. Samples are sorted by position and animation rather than reported in array order, because array order carries no meaning in a blend space, which is what makes the structure hash stable across two reads. C++ is UNCOMPILED in this lane, which owns no build rights; not exercised against an editor."
+    },
+    "puerts_anim_blueprint_build": {
+      "canonical_capability": "animation.anim_blueprint_build",
+      "capability_category": "animation",
+      "cpp_builder": "AnimBlueprintBuilderLibrary",
+      "cpp_entry_point": "BuildAnimBlueprintFromJSON",
+      "verification": "implemented",
+      "live_evidence": [],
+      "notes": "re-front of UAnimBlueprintBuilderLibrary, which docs/REFRONT_MAP.md group 5 rated BLOCKED on four counts. Three are closed at the command layer rather than in the library: the transaction (IsToolMutating), the rollback boundary (FBridgeAssetRollback, the same one the Blueprint, Widget and Behavior Tree builders use), and an independent inspector (anim_blueprint_inspect). The fourth, convergence, is NOT closed and the command does not pretend otherwise: it is CREATE-ONLY and refuses an asset that already exists, because AnimBlueprintBuilder/ABPBuilder.cpp:147-148 states in its own comment that Rebuild assumes a clean AnimBlueprint and clears nothing, so rebuilding over an existing graph appends a second state machine, and FBridgeAssetRollback cannot restore the previous contents of a pre-existing asset. Creating a new asset IS failure-atomic because the only state a failure must undo is state the command created. Compiles through UBlueprintGraphBuilderLibrary::CompileAndReport and returns the result rather than swallowing it, then reads the asset back and requires every requested state and transition before saving. No anim_blueprint_patch exists; unblocking one needs a clear pass in the builder first. C++ is UNCOMPILED in this lane."
+    },
+    "puerts_blackboard_build": {
+      "canonical_capability": "ai.blackboard_build",
+      "capability_category": "ai",
+      "cpp_builder": "MCPPuerTSBridgeService",
+      "cpp_entry_point": "BuildBlackboardJson",
+      "verification": "implemented",
+      "live_evidence": [],
+      "notes": "UNCOMPILED. The C++ was written and never built: the lane that added it holds no build rights, so nothing here has been through UBT, let alone an editor. Desired-state reconciliation of a whole Blackboard asset: add, update, remove and reparent, which UMCPBridgeAILibrary::AddBlackboardKeys cannot express because it is add-only. That library is deliberately UNCHANGED; this command carries its own key-type mapping rather than editing the live_verified path behavior_tree_build depends on. No key default value parameter exists because UE4.27 has none: FBlackboardEntry holds EntryName, an instanced UBlackboardKeyType, bInstanceSynced and two editor-only strings, confirmed at Engine/Source/Runtime/AIModule/Classes/BehaviorTree/BlackboardData.h. Convergent (a satisfied rerun returns before the mutation section), failure-atomic (FBridgeAssetRollback plus transaction cancel), independently verified (keys re-read off the asset before save). remove_unlisted is opt-in and is why the annotation is destructiveIdempotent: a removed key silently dangles every FBlackboardKeySelector bound to it."
+    },
+    "puerts_blackboard_inspect": {
+      "canonical_capability": "ai.blackboard_inspect",
+      "capability_category": "ai",
+      "cpp_builder": "MCPPuerTSBridgeService",
+      "cpp_entry_point": "InspectBlackboardJson",
+      "verification": "implemented",
+      "live_evidence": [],
+      "notes": "UNCOMPILED, same lane and same reason. Read half of blackboard_build: keys with type, base class, instance sync, description, category and an inherited flag, the parent chain, the asset's own IsValid verdict, and a structure hash. identity_kind is authored_name rather than derived, which is the opposite of behavior_tree_inspect and is a property of the asset: a blackboard key's NAME is what every selector binds to, so a rename is a different key."
+    },
+    "puerts_eqs_inspect": {
+      "canonical_capability": "ai.eqs_inspect",
+      "capability_category": "ai",
+      "cpp_builder": "MCPPuerTSBridgeService",
+      "cpp_entry_point": "InspectEnvQueryJson",
+      "verification": "implemented",
+      "live_evidence": [],
+      "notes": "UNCOMPILED. Read half only, and there is NO eqs_build, which is a decision rather than an unfinished job. UEnvironmentQueryGraph::UpdateAsset (Engine/Plugins/AI/EnvironmentQueryEditor/Source/EnvironmentQueryEditor/Private/EnvironmentQueryGraph.cpp:62) opens with Query->GetOptionsMutable().Reset() and rebuilds Options entirely from the editor UEdGraph, so Options is a compiled artifact and not the source of truth. A builder writing Options without authoring the matching graph would pass its own read-back and be silently wiped the next time a human opened the asset, failing convergence and independent verification at once. The response repeats this in build_unsupported_reason. To use EQS from the bridge, author the query by hand and run it from a Behavior Tree with the RunEQS service, which behavior_tree_build already supports."
+    },
+    "puerts_nav_inspect": {
+      "canonical_capability": "navigation.inspect",
+      "capability_category": "gameplay-setup",
+      "cpp_builder": "MCPPuerTSBridgeService",
+      "cpp_entry_point": "InspectNavigationJson",
+      "verification": "implemented",
+      "live_evidence": [],
+      "notes": "UNCOMPILED. Reads the editor world's navigation configuration: nav system and build state, ANavigationData actors with agent and generation settings (read by reflected name, so a non-Recast nav data reports what it has), supported agents, NavMeshBoundsVolumes and NavModifierVolumes with world-space boxes, and the bounds the nav system actually registered. The registered bounds are a separate list from the volumes on purpose: a volume in an unloaded sublevel is an actor and is not registered, which is the usual cause of a missing navmesh. APIs confirmed in UE4.27 at Runtime/NavigationSystem/Public/NavigationSystem.h (GetNavigationBounds, GetSupportedAgents, GetDefaultNavDataInstance, GetNumRemainingBuildTasks) and NavMesh/NavMeshBoundsVolume.h, NavModifierVolume.h. Adds NavigationSystem to MCPBridgePuerTS.Build.cs."
+    },
+    "puerts_nav_query": {
+      "canonical_capability": "navigation.query",
+      "capability_category": "gameplay-setup",
+      "cpp_builder": "MCPPuerTSBridgeService",
+      "cpp_entry_point": "QueryNavigationJson",
+      "verification": "implemented",
+      "live_evidence": [],
+      "notes": "UNCOMPILED. Batched read-only navmesh queries: project a point, path length and cost and reachability, navmesh raycast, random navigable point. Batched because a placement decision needs several at once. reachable is true only for ENavigationQueryResult::Success and the raw result word is returned beside it, because Fail (no path) and Error or Invalid (query could not be answered) are different faults and collapsing them would report a configuration problem as a layout problem. APIs confirmed in UE4.27: UNavigationSystemV1::ProjectPointToNavigation, GetPathLength, GetPathCost (instance, const), NavigationRaycast and K2_GetRandomLocationInNavigableRadius (static, world context), Runtime/NavigationSystem/Public/NavigationSystem.h. random_point is non-deterministic and the response warns against using it in a comparison."
+    },
+    "puerts_ai_perception_build": {
+      "canonical_capability": "ai.perception_build",
+      "capability_category": "ai",
+      "cpp_builder": "MCPPuerTSBridgeService",
+      "cpp_entry_point": "BuildAIPerceptionJson",
+      "verification": "implemented",
+      "live_evidence": [],
+      "notes": "UNCOMPILED. Desired-state reconciliation of the whole AIPerceptionComponent config on an existing AIController Blueprint: senses, per-sense properties, dominant sense, component created if missing. Six sense config classes confirmed present in UE4.27 (Sight, Hearing, Damage, Touch, Team, Prediction); UAISenseConfig_Blueprint is refused because its user sense class cannot be validated. UAIPerceptionComponent::SensesConfig and DominantSense are protected UPROPERTYs (AIModule/Classes/Perception/AIPerceptionComponent.h:217-223), so the write goes through FArrayProperty reflection and the read through the public GetSensesConfigIterator. Every sense property is checked against the config class by reflected name before anything is written. Transactional, compiled through UBlueprintGraphBuilderLibrary::CompileAndReport, verified by re-reading the component template, saved only after that passes. Convergent: classification compares every spec-named property against the config already on the component with FJsonValue::CompareEqual and returns before the mutation section when nothing differs, so a satisfied rerun costs no compile and no save; the dominant sense is counted as a change in its own right. The Blueprint must already exist and derive from AIController: this configures a controller, blueprint_build creates one."
+    },
+    "puerts_ai_controller_inspect": {
+      "canonical_capability": "ai.controller_inspect",
+      "capability_category": "ai",
+      "cpp_builder": "MCPPuerTSBridgeService",
+      "cpp_entry_point": "InspectAIControllerJson",
+      "verification": "implemented",
+      "live_evidence": [],
+      "notes": "UNCOMPILED. Read half of ai_perception_build plus the controller-to-BT wiring. That wiring is reported as RunBehaviorTree CALL SITES because UE4.27 has no data-driven field for it: AAIController::RunBehaviorTree is UFUNCTION(BlueprintCallable) (AIModule/Classes/AIController.h:255-257) and a controller starts a tree by calling it, so the wiring is a UK2Node_CallFunction and the BTAsset pin default is the only thing resolvable at edit time. A pin wired from a variable resolves to nothing and is listed under dynamic_behavior_tree_call_sites rather than guessed at. NOTHING in this lane WRITES that wiring: puerts_blueprint_build already authors the call node. Only components declared in the Blueprint's SimpleConstructionScript are visible; one inherited from a native parent lives on the parent CDO and the response says so."
+    },
+    "puerts_scene_inspect": {
+      "canonical_capability": "level.scene_inspect",
+      "capability_category": "level",
+      "cpp_builder": "MCPPuerTSBridgeService",
+      "cpp_entry_point": "InspectSceneJson",
+      "verification": "implemented",
+      "live_evidence": [],
+      "notes": "canonical read of the editor's current level: actors with class, world transform, folder, tags, bounds, attachment and components, plus PlayerStarts and structure_hash_sha1. Shares one snapshot definition with scene_batch (Private/MCPBridgeSceneSnapshot.h), for the reason graph_inspect and blueprint_member_patch share MCPBridgeBlueprintMembers.h: a batch that measured convergence with a different reader than the inspector a caller verifies with could report a change the inspector cannot see. Actor identity is observed (object name, unique within a level), not derived. The hash always covers the whole level; an actors filter narrows the report only, because a hash of a filter is a hash of the request. Read-only on the same terms as graph_inspect: absent from IsToolMutating, reports package_dirty_before/after. UNCOMPILED: lane L holds no build rights, so no editor has run this code."
+    },
+    "puerts_scene_batch": {
+      "canonical_capability": "level.scene_batch",
+      "capability_category": "level",
+      "cpp_builder": "MCPPuerTSBridgeService",
+      "cpp_entry_point": "ApplySceneBatchJson",
+      "verification": "implemented",
+      "live_evidence": [],
+      "notes": "desired-state level authoring in one transaction, modelled on blueprint_graph_patch and blueprint_member_patch. Two operations, upsert_actor and delete_actor, cover spawn, modify, delete, reparent, folder, tags and reflected properties on actors and on components they already have; lights and post-process/trigger/blocking/nav-mesh-bounds volumes are upsert_actor with a class path and properties rather than tools of their own. Carries the lane A lesson: satisfied-ness is re-evaluated immediately before each mutation, never read from the plan. Trigger volumes enforce the AGENTS.md PlayerStart rule (a volume containing a PlayerStart refuses the batch; inside 1.5x its extent warns) against real GetActorBounds after placement, inside the rollback boundary. Failure cancels the transaction, runs FBridgeAssetRollback over the level package, and decides rollback_succeeded by re-hashing rather than trusting the undo. It never saves: the level is left dirty and puerts_save writes it, which is what lets a failed batch leave nothing on disk. Property writes are gated by AllowedWritableProperties, widened here by name for light shaping, post-process volume settings, box extent and StaticMeshComponent.StaticMesh. Review pass 2026-08-03 fixed three defects in the salvaged draft: (1) GEditor->AddActor calls World->SpawnActor directly and never runs UActorFactoryBoxVolume::PostSpawnActor, so every AVolume subclass (TriggerVolume, BlockingVolume, PostProcessVolume, NavMeshBoundsVolume) was spawned with a null Brush, zero bounds and no collision, which would also have walked through the PlayerStart clearance check reporting a pass that measured nothing; EnsureVolumeBrush now builds the same 200-unit cube the editor places and refuses the operation if it cannot. (2) ResolveOne collapsed 'matched two' into 'matched none', so an ambiguity an earlier operation in the same batch created would make an upsert spawn a third actor and a delete_actor read as satisfied; the match count is now an output and both the satisfied-predicate and the applier refuse on it. (3) FBridgeAssetRollback::PackageFilename appended the .uasset extension unconditionally, which never resolves for a level (.umap); it now asks FPackageName::DoesPackageExist for the real filename first and falls back to the old concat for a package that does not exist yet, so asset builders are unchanged. UNCOMPILED and NOT live: no build rights in this lane, no live acceptance script yet."
+    },
+    "puerts_input_mapping_info": {
+      "canonical_capability": "input.mapping_info",
+      "capability_category": "project",
+      "cpp_builder": "MCPBridgeInputLibrary",
+      "verification": "implemented",
+      "live_evidence": [],
+      "notes": "the inspector UMCPBridgeInputLibrary never had: the library could add and remove bindings with no reader, so a mutation could only be confirmed by the mutator own report. Read-only: absent from the native IsToolMutating list, const accessors on UInputSettings only. Canonically sorted, reduced to mapping_hash_sha1, which is what input_mapping_patch reports as pre/post hash. NOT COMPILED and NOT run: this lane built no editor."
+    },
+    "puerts_input_mapping_patch": {
+      "canonical_capability": "input.mapping_patch",
+      "capability_category": "project",
+      "cpp_builder": "MCPBridgeInputLibrary",
+      "cpp_entry_point": "AddActionMapping",
+      "verification": "implemented",
+      "live_evidence": [],
+      "notes": "re-front of UMCPBridgeInputLibrary behind one reconciling command: the legacy lane spent one round trip per binding across three tools and a control scheme is eleven bindings. The library per-mapping validation and duplicate rejection are reused; the command adds classify-before-write, presets expanded client side, and the boundary the library never had. DefaultInput.ini is not a UObject, so instead of a transaction the command snapshots both mapping arrays, restores them on any failure, and decides rollback_succeeded by re-reading and comparing the hash. NOT COMPILED and NOT run."
+    },
+    "puerts_folder_visibility": {
+      "canonical_capability": "assets.folder_visibility",
+      "capability_category": "assets",
+      "cpp_builder": "FolderVisibilityLibrary",
+      "cpp_entry_point": "HideFolder",
+      "verification": "implemented",
+      "live_evidence": [],
+      "notes": "re-front of UFolderVisibilityLibrary. Display-only Content Browser state in Config/FolderVisibility.ini; hidden folders stay on disk, referenced and cookable. Desired-state hidden converges; hide/show is the delta form; the two shapes are refused together rather than merged. No hidden/hide/show at all is the read, which is what folder_hidden_list asked for. The hidden set in the response is read back from GetHiddenFolders, never echoed. NOT COMPILED and NOT run."
+    },
+    "puerts_camera_shake": {
+      "canonical_capability": "pie.camera_shake",
+      "capability_category": "pie",
+      "cpp_builder": "AutoPIEHelper",
+      "cpp_entry_point": "PlayCameraShakeOnPlayer",
+      "verification": "implemented",
+      "live_evidence": [],
+      "notes": "re-front of UAutoPIEHelper::PlayCameraShakeOnPlayer, which owns the PIE World to PlayerController(0) to PlayerCameraManager chain. Runtime only: nothing persisted, nothing to undo. Refuses by name when PIE is not running rather than reporting a shake nobody could have seen. UE4.27 note: UCameraShakeBase with StartCameraShake, not the older names. NOT COMPILED and NOT run."
+    },
+    "puerts_pie_agent_query": {
+      "canonical_capability": "pie.agent_query",
+      "capability_category": "pie",
+      "cpp_builder": "MCPBridgePIEAgent",
+      "verification": "implemented",
+      "live_evidence": [],
+      "notes": "the READ-ONLY half of UPIEAgentLibrary: observe, status, expect. The write half (move_to, look_at, press, record_start, record_stop, replay) is deliberately absent because AGENTS.md requires the user to ask before any pie_agent_ tool runs, which makes the read half both the safe half and the one worth having first. One behaviour difference from the legacy pie_agent_expect: the native command starts the check and returns operation_id rather than blocking until the verdict; poll op=status. NOT COMPILED and NOT run."
+    },
+    "puerts_spawn_actor": {
+      "canonical_capability": "actors.spawn",
+      "capability_category": "actors",
+      "verification": "live_partial",
+      "live_evidence": [
+        "docs/UE427_PUERST_MCP_HANDOFF_2026-07-31.md"
+      ],
+      "notes": "handoff: implemented, code/schema present; no dedicated live regression recorded"
+    },
+    "puerts_delete_actor": {
+      "canonical_capability": "actors.delete",
+      "capability_category": "actors",
+      "verification": "live_partial",
+      "live_evidence": [
+        "docs/UE427_PUERST_MCP_HANDOFF_2026-07-31.md"
+      ],
+      "notes": "handoff: final delete regression absent"
+    },
+    "puerts_call_function": {
+      "canonical_capability": "reflection.call_function",
+      "capability_category": "properties",
+      "verification": "live_partial",
+      "live_evidence": [
+        "docs/UE427_PUERST_MCP_HANDOFF_2026-07-31.md"
+      ],
+      "notes": "handoff: full live coverage not recorded; 3-function default allowlist"
+    },
+    "puerts_physics_build": {
+      "canonical_capability": "physics.scene_build",
+      "capability_category": "gameplay-setup",
+      "verification": "live_partial",
+      "live_evidence": [
+        "Scripts/puerts-live-smoke.mjs"
+      ],
+      "notes": "handoff: final physics smoke not re-run"
+    },
+    "puerts_physics_observe": {
+      "canonical_capability": "physics.scene_observe",
+      "capability_category": "gameplay-setup",
+      "verification": "live_partial",
+      "live_evidence": [
+        "Scripts/puerts-live-smoke.mjs"
+      ],
+      "notes": "handoff: final physics smoke not re-run"
+    },
+    "puerts_pie_start": {
+      "canonical_capability": "editor.pie_start",
+      "capability_category": "pie",
+      "verification": "live_partial",
+      "live_evidence": [
+        "docs/UE427_PUERST_MCP_HANDOFF_2026-07-31.md"
+      ],
+      "notes": "handoff: implemented, partial history; timing coverage weak"
+    },
+    "puerts_pie_stop": {
+      "canonical_capability": "editor.pie_stop",
+      "capability_category": "pie",
+      "verification": "live_partial",
+      "live_evidence": [
+        "docs/UE427_PUERST_MCP_HANDOFF_2026-07-31.md"
+      ],
+      "notes": "handoff: implemented, partial history"
+    },
+    "puerts_get_logs": {
+      "canonical_capability": "editor.logs",
+      "capability_category": "editor-ops",
+      "verification": "live_partial",
+      "live_evidence": [
+        "docs/UE427_PUERST_MCP_HANDOFF_2026-07-31.md"
+      ],
+      "notes": "used ad hoc across live sessions; no scripted acceptance exercises it"
+    },
+    "puerts_viewport_screenshot": {
+      "canonical_capability": "viewport.screenshot",
+      "capability_category": "viewport",
+      "verification": "live_verified",
+      "live_evidence": [
+        "docs/UE427_PUERST_MCP_HANDOFF_2026-07-31.md"
+      ],
+      "notes": "handoff: tested successfully, aurora PNG visually reviewed"
+    },
+    "puerts_sky_shader_create": {
+      "canonical_capability": "materials.sky_demo",
+      "capability_category": "materials",
+      "verification": "live_verified",
+      "live_evidence": [
+        "docs/UE427_PUERST_MCP_HANDOFF_2026-07-31.md"
+      ],
+      "notes": "specialized demo, not generic material editing"
+    },
+    "puerts_material_inspect": {
+      "canonical_capability": "materials.inspect",
+      "capability_category": "materials",
+      "cpp_builder": "MCPPuerTSBridgeService",
+      "cpp_entry_point": "InspectMaterialJson",
+      "verification": "implemented",
+      "live_evidence": [],
+      "notes": "the read half material authoring never had, for UMaterial and UMaterialInstanceConstant at one tool name; observed expression identity (a material expression's UObject name is unique in its package and is serialized, unlike a UMG widget or a BT node); canonical structure hash over the parameter set, override flags, expressions and links, values excluded so retinting an instance does not read as a reshape. For master material GRAPHS this is the only half: UMaterialEditingLibrary::CreateMaterialExpressionEx (MaterialEditingLibrary.cpp:469) and ConnectMaterialExpressions (:631) both write without calling Modify, so a failed multi-node build cannot be rolled back and no write command was shipped. NOT compiled and NOT run: the lane that added this launched no editor."
+    },
+    "puerts_material_instance_build": {
+      "canonical_capability": "materials.instance_build",
+      "capability_category": "materials",
+      "cpp_builder": "MCPPuerTSBridgeService",
+      "cpp_entry_point": "BuildMaterialInstanceJson",
+      "verification": "implemented",
+      "live_evidence": [],
+      "notes": "re-front of UMaterialEditingLibrary's material instance setters plus the boundary that library does not have: the /Game/MCPGenerated/ limit, whole-request validation against the parent before any asset is created, Modify() so the writes are in the undo record at all (the library's setters call SetScalarParameterValueEditorOnly and friends without it, MaterialEditingLibrary.cpp:966/:987/:1008, which also return a hardcoded false), one rollback boundary, a compile whose result is reported rather than assumed, an independent read-back that decides whether the writes landed, and a save only after that read-back passes. compile.instance_own_resource distinguishes the instance's own static permutation from the parent's inherited resource, so a parent's pre-existing compile errors are not blamed on this request. NOT compiled and NOT run: the lane that added this launched no editor."
+    },
+    "engine_source_search": {
+      "canonical_capability": "engine_source.search",
+      "capability_category": "engine-source",
+      "verification": "live_verified",
+      "notes": "no editor involved; unit tests run against the real installed engine source"
+    },
+    "engine_source_read": {
+      "canonical_capability": "engine_source.read",
+      "capability_category": "engine-source",
+      "verification": "live_verified",
+      "notes": "no editor involved; unit tests run against the real installed engine source"
+    },
+    "bridge_command_status": {
+      "canonical_capability": "bridge.command_status",
+      "capability_category": "status",
+      "verification": "pending_live",
+      "notes": "reads Saved/MCPPuerTSBridge/status.json off disk; never contacts the editor. Needs MCP_PUERTS_STATUS=1 in the editor environment at launch, so the live half is unproven until an editor runs with it set"
+    },
+    "actor_spawn": {
+      "canonical_capability": "actors.spawn",
+      "migration_action": "ALIAS",
+      "replacement_tool": "puerts_spawn_actor"
+    },
+    "actor_delete": {
+      "canonical_capability": "actors.delete",
+      "migration_action": "ALIAS",
+      "replacement_tool": "puerts_delete_actor"
+    },
+    "actor_modify": {
+      "canonical_capability": "properties.set",
+      "migration_action": "ALIAS",
+      "replacement_tool": "puerts_set_property"
+    },
+    "batch_spawn": {
+      "canonical_capability": "actors.batch_spawn",
+      "migration_action": "MERGE",
+      "replacement_tool": "puerts_spawn_actor",
+      "notes": "future batch primitive; native spawn is single-actor today"
+    },
+    "actor_duplicate": {
+      "migration_action": "PORT",
+      "notes": "layer: new_native_wrapper (transactions plus template copy)"
+    },
+    "actor_snap_to_socket": {
+      "migration_action": "PORT",
+      "notes": "layer: new_native_wrapper"
+    },
+    "placement_validate": {
+      "migration_action": "PORT",
+      "notes": "layer: puerts_workflow over properties.get"
+    },
+    "blueprint_inspect": {
+      "canonical_capability": "blueprints.inspect",
+      "migration_action": "ALIAS",
+      "replacement_tool": "puerts_graph_inspect",
+      "notes": "alias not yet written; the native replacement is live-verified"
+    },
+    "blueprint_build_from_json": {
+      "canonical_capability": "blueprints.build",
+      "migration_action": "ALIAS",
+      "replacement_tool": "puerts_blueprint_build",
+      "notes": "alias not yet written; the native replacement is live-verified"
+    },
+    "blueprint_create": {
+      "canonical_capability": "blueprints.build",
+      "migration_action": "MERGE",
+      "replacement_tool": "puerts_blueprint_build"
+    },
+    "blueprint_compile": {
+      "migration_action": "REFRONT",
+      "cpp_builder": "BlueprintGraphBuilderLibrary",
+      "cpp_entry_point": "CompileAndReport"
+    },
+    "blueprint_info": {
+      "canonical_capability": "blueprints.inspect",
+      "migration_action": "MERGE",
+      "replacement_tool": "puerts_graph_inspect"
+    },
+    "blueprint_list": {
+      "canonical_capability": "assets.find",
+      "migration_action": "MERGE",
+      "replacement_tool": "puerts_find_assets"
+    },
+    "blueprint_document": {
+      "migration_action": "PORT",
+      "notes": "layer: puerts_workflow over blueprints.inspect"
+    },
+    "blueprint_build_from_description": {
+      "migration_action": "PORT",
+      "notes": "layer: puerts_workflow"
+    },
+    "anim_blueprint_build_from_json": {
+      "canonical_capability": "animation.blueprint_build",
+      "migration_action": "REFRONT",
+      "cpp_builder": "AnimBlueprintBuilderLibrary",
+      "cpp_entry_point": "BuildAnimBlueprintFromJSON",
+      "notes": "highest-value REFRONT: builder v1 complete, same shape as behavior_tree_build"
+    },
+    "data_table_create": {
+      "migration_action": "REFRONT",
+      "cpp_builder": "MCPBridgeDataLibrary",
+      "cpp_entry_point": "FillDataTableFromJSON"
+    },
+    "data_table_fill_from_json": {
+      "migration_action": "REFRONT",
+      "cpp_builder": "MCPBridgeDataLibrary",
+      "cpp_entry_point": "FillDataTableFromJSON"
+    },
+    "level_new": {
+      "migration_action": "PORT",
+      "migration_risk": "high",
+      "notes": "no native map-load or map-create exists (findings defect 5); layer: new_native_wrapper"
+    },
+    "camera_shake_play": {
+      "migration_action": "ALIAS",
+      "replacement_tool": "puerts_camera_shake",
+      "cpp_builder": "AutoPIEHelper",
+      "cpp_entry_point": "PlayCameraShakeOnPlayer"
+    },
+    "camera_shake_trigger": {
+      "migration_action": "REFRONT",
+      "cpp_builder": "AutoPIEHelper",
+      "cpp_entry_point": "PlayCameraShakeByPath"
+    },
+    "camera_shake_spawn": {
+      "migration_action": "REFRONT",
+      "cpp_builder": "AutoPIEHelper"
+    },
+    "camera_shake_blueprint": {
+      "migration_action": "PORT",
+      "notes": "layer: existing_native_builder (BlueprintGraphBuilderLibrary) once camera-shake node types are in the vocabulary"
+    },
+    "behavior_tree_create": {
+      "canonical_capability": "ai.behavior_tree_build",
+      "migration_action": "ALIAS",
+      "replacement_tool": "puerts_behavior_tree_build",
+      "notes": "alias not yet written; native replacement is pending_live"
+    },
+    "blackboard_create": {
+      "canonical_capability": "ai.behavior_tree_build",
+      "migration_action": "ALIAS",
+      "replacement_tool": "puerts_behavior_tree_build",
+      "notes": "blackboard creation is part of the native BT build; alias not yet written"
+    },
+    "input_mapping_add": {
+      "migration_action": "ALIAS",
+      "replacement_tool": "puerts_input_mapping_patch",
+      "cpp_builder": "MCPBridgeInputLibrary",
+      "cpp_entry_point": "AddActionMapping"
+    },
+    "input_mapping_remove": {
+      "migration_action": "ALIAS",
+      "replacement_tool": "puerts_input_mapping_patch",
+      "cpp_builder": "MCPBridgeInputLibrary",
+      "cpp_entry_point": "RemoveActionMapping"
+    },
+    "input_preset_apply": {
+      "migration_action": "ALIAS",
+      "replacement_tool": "puerts_input_mapping_patch",
+      "cpp_builder": "MCPBridgeInputLibrary"
+    },
+    "input_mapping_info": {
+      "migration_action": "ALIAS",
+      "replacement_tool": "puerts_input_mapping_info",
+      "cpp_builder": "MCPBridgeInputLibrary"
+    },
+    "ai_nav_rebuild": {
+      "migration_action": "PORT",
+      "notes": "layer: new_native_wrapper (UNavigationSystemV1)"
+    },
+    "gameplay_pie_start": {
+      "canonical_capability": "editor.pie_start",
+      "migration_action": "ALIAS",
+      "replacement_tool": "puerts_pie_start"
+    },
+    "gameplay_pie_stop": {
+      "canonical_capability": "editor.pie_stop",
+      "migration_action": "ALIAS",
+      "replacement_tool": "puerts_pie_stop"
+    },
+    "gameplay_pie_status": {
+      "canonical_capability": "bridge.diagnostic",
+      "migration_action": "MERGE",
+      "replacement_tool": "puerts_diagnostic"
+    },
+    "pie_agent_observe": {
+      "migration_action": "ALIAS",
+      "replacement_tool": "puerts_pie_agent_query",
+      "cpp_builder": "MCPBridgePIEAgent"
+    },
+    "pie_agent_status": {
+      "migration_action": "ALIAS",
+      "replacement_tool": "puerts_pie_agent_query",
+      "cpp_builder": "MCPBridgePIEAgent"
+    },
+    "pie_agent_expect": {
+      "migration_action": "ALIAS",
+      "replacement_tool": "puerts_pie_agent_query",
+      "cpp_builder": "MCPBridgePIEAgent"
+    },
+    "blueprint_add_variable": {
+      "migration_action": "ALIAS",
+      "replacement_tool": "puerts_blueprint_member_patch",
+      "cpp_builder": "BlueprintMutatorLibrary",
+      "cpp_entry_point": "AddVariable"
+    },
+    "blueprint_remove_variable": {
+      "migration_action": "ALIAS",
+      "replacement_tool": "puerts_blueprint_member_patch",
+      "cpp_builder": "BlueprintMutatorLibrary",
+      "cpp_entry_point": "RemoveVariable"
+    },
+    "blueprint_set_variable_default": {
+      "migration_action": "ALIAS",
+      "replacement_tool": "puerts_blueprint_member_patch",
+      "cpp_builder": "BlueprintMutatorLibrary",
+      "cpp_entry_point": "SetVariableDefault"
+    },
+    "blueprint_add_function": {
+      "migration_action": "ALIAS",
+      "replacement_tool": "puerts_blueprint_member_patch",
+      "cpp_builder": "BlueprintMutatorLibrary",
+      "cpp_entry_point": "AddFunction"
+    },
+    "blueprint_remove_function": {
+      "migration_action": "ALIAS",
+      "replacement_tool": "puerts_blueprint_member_patch",
+      "cpp_builder": "BlueprintMutatorLibrary",
+      "cpp_entry_point": "RemoveFunction"
+    },
+    "blueprint_add_event_dispatcher": {
+      "migration_action": "ALIAS",
+      "replacement_tool": "puerts_blueprint_member_patch",
+      "cpp_builder": "BlueprintMutatorLibrary",
+      "cpp_entry_point": "AddEventDispatcher"
+    },
+    "blueprint_remove_event_dispatcher": {
+      "migration_action": "ALIAS",
+      "replacement_tool": "puerts_blueprint_member_patch",
+      "cpp_builder": "BlueprintMutatorLibrary",
+      "cpp_entry_point": "RemoveEventDispatcher"
+    },
+    "blueprint_add_interface": {
+      "migration_action": "ALIAS",
+      "replacement_tool": "puerts_blueprint_member_patch",
+      "cpp_builder": "BlueprintMutatorLibrary",
+      "cpp_entry_point": "AddInterfaceImplementation"
+    },
+    "blueprint_remove_interface": {
+      "migration_action": "ALIAS",
+      "replacement_tool": "puerts_blueprint_member_patch",
+      "cpp_builder": "BlueprintMutatorLibrary",
+      "cpp_entry_point": "RemoveInterfaceImplementation"
+    },
+    "blueprint_component_remove": {
+      "migration_action": "ALIAS",
+      "replacement_tool": "puerts_blueprint_member_patch",
+      "cpp_builder": "BlueprintMutatorLibrary",
+      "cpp_entry_point": "RemoveSCSNode"
+    },
+    "blueprint_component_rename": {
+      "migration_action": "ALIAS",
+      "replacement_tool": "puerts_blueprint_member_patch",
+      "cpp_builder": "BlueprintMutatorLibrary",
+      "cpp_entry_point": "RenameSCSNode"
+    },
+    "blueprint_node_add": {
+      "migration_action": "ALIAS",
+      "replacement_tool": "puerts_blueprint_graph_patch",
+      "cpp_builder": "BlueprintGraphBuilderLibrary"
+    },
+    "blueprint_node_delete": {
+      "migration_action": "ALIAS",
+      "replacement_tool": "puerts_blueprint_graph_patch",
+      "cpp_builder": "BlueprintGraphBuilderLibrary"
+    },
+    "blueprint_node_move": {
+      "migration_action": "ALIAS",
+      "replacement_tool": "puerts_blueprint_graph_patch",
+      "cpp_builder": "BlueprintGraphBuilderLibrary"
+    },
+    "blueprint_pins_connect": {
+      "migration_action": "ALIAS",
+      "replacement_tool": "puerts_blueprint_graph_patch",
+      "cpp_builder": "BlueprintGraphBuilderLibrary"
+    },
+    "gameplay_telemetry_snapshot": {
+      "migration_action": "REFRONT",
+      "cpp_builder": "MCPBridgePIEAgent"
+    },
+    "gameplay_run_acceptance_tests": {
+      "migration_action": "KEEP",
+      "notes": "legacy acceptance harness; replaced by per-capability native acceptance scripts over time"
+    },
+    "level_actors": {
+      "canonical_capability": "actors.find",
+      "migration_action": "ALIAS",
+      "replacement_tool": "puerts_find_actors"
+    },
+    "level_save": {
+      "canonical_capability": "assets.save",
+      "migration_action": "ALIAS",
+      "replacement_tool": "puerts_save"
+    },
+    "level_outliner": {
+      "canonical_capability": "actors.find",
+      "migration_action": "MERGE",
+      "replacement_tool": "puerts_find_actors"
+    },
+    "undo": {
+      "canonical_capability": "editor.undo",
+      "migration_action": "ALIAS",
+      "replacement_tool": "puerts_undo"
+    },
+    "redo": {
+      "migration_action": "PORT",
+      "migration_risk": "medium",
+      "capability_loss_risk": "medium",
+      "notes": "no native redo exists; this is a legacy capability with no current replacement"
+    },
+    "checkpoint_create": {
+      "migration_action": "KEEP",
+      "notes": "source-control checkpoint; transport-independent"
+    },
+    "checkpoint_restore": {
+      "migration_action": "KEEP",
+      "capability_loss_risk": "medium",
+      "notes": "restore is destructive; keep the proven path until a native equivalent has parity tests"
+    },
+    "batch_operations": {
+      "migration_action": "MERGE",
+      "replacement_tool": "puerts_blueprint_build",
+      "notes": "the batch concept moves into per-domain batch primitives, not one generic executor"
+    },
+    "history_list": {
+      "migration_action": "PORT",
+      "notes": "layer: new_native_wrapper over the native transaction history"
+    },
+    "asset_list": {
+      "canonical_capability": "assets.find",
+      "migration_action": "ALIAS",
+      "replacement_tool": "puerts_find_assets"
+    },
+    "asset_info": {
+      "canonical_capability": "assets.find",
+      "migration_action": "MERGE",
+      "replacement_tool": "puerts_find_assets"
+    },
+    "asset_save_many": {
+      "canonical_capability": "assets.save",
+      "migration_action": "ALIAS",
+      "replacement_tool": "puerts_save"
+    },
+    "folder_hide": {
+      "migration_action": "ALIAS",
+      "replacement_tool": "puerts_folder_visibility",
+      "cpp_builder": "FolderVisibilityLibrary",
+      "cpp_entry_point": "HideFolder",
+      "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/folder_visibility.py"
+    },
+    "folder_show": {
+      "migration_action": "ALIAS",
+      "replacement_tool": "puerts_folder_visibility",
+      "cpp_builder": "FolderVisibilityLibrary",
+      "cpp_entry_point": "ShowFolder",
+      "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/folder_visibility.py"
+    },
+    "folder_hidden_list": {
+      "migration_action": "ALIAS",
+      "replacement_tool": "puerts_folder_visibility",
+      "cpp_builder": "FolderVisibilityLibrary",
+      "cpp_entry_point": "GetHiddenFolders",
+      "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/folder_visibility.py"
+    },
+    "widget_build_from_json": {
+      "canonical_capability": "widgets.build",
+      "migration_action": "ALIAS",
+      "replacement_tool": "puerts_widget_build",
+      "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/widgets.py",
+      "notes": "alias not yet written; native replacement is live-verified"
+    },
+    "widget_lower_third_create": {
+      "migration_action": "REFRONT",
+      "cpp_builder": "WidgetBlueprintBuilderLibrary",
+      "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/widgets.py"
+    },
+    "widget_title_card_create": {
+      "migration_action": "REFRONT",
+      "cpp_builder": "WidgetBlueprintBuilderLibrary",
+      "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/widgets.py"
+    },
+    "widget_title_template": {
+      "migration_action": "REFRONT",
+      "cpp_builder": "WidgetBlueprintBuilderLibrary",
+      "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/widgets.py"
+    },
+    "title_widget_build_from_manifest": {
+      "migration_action": "REFRONT",
+      "cpp_builder": "WidgetBlueprintBuilderLibrary"
+    },
+    "python_proxy": {
+      "migration_action": "RETIRE",
+      "capability_loss_risk": "high",
+      "lifecycle": "blocked",
+      "notes": "RETIRE proposed, human sign-off required: arbitrary Python execution is outside every native safety control (handoff risk register, High). Replacement is the allowlisted native catalog itself; the lost generality is deliberate. Blocked until a human approves the loss.",
+      "live_evidence": [
+        "docs/UE427_PUERST_MCP_HANDOFF_2026-07-31.md"
+      ],
+      "replacement_tool": "puerts_call_function"
+    },
+    "ue_logs": {
+      "canonical_capability": "editor.logs",
+      "migration_action": "ALIAS",
+      "replacement_tool": "puerts_get_logs"
+    },
+    "viewport_screenshot": {
+      "canonical_capability": "viewport.screenshot",
+      "migration_action": "ALIAS",
+      "replacement_tool": "puerts_viewport_screenshot"
+    },
+    "viewport_focus": {
+      "canonical_capability": "viewport.screenshot",
+      "migration_action": "MERGE",
+      "replacement_tool": "puerts_viewport_screenshot",
+      "notes": "native screenshot already fits requested actors"
+    },
+    "viewport_fit": {
+      "canonical_capability": "viewport.screenshot",
+      "migration_action": "MERGE",
+      "replacement_tool": "puerts_viewport_screenshot"
+    }
   }
 }

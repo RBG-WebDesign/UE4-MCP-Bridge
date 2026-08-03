@@ -421,3 +421,28 @@ harness able to observe a hole it had been reporting green over.
 | Lane P's harness could emit `LEGACY_ONLY` | It could not. The lane found its own harness treating `docs/TOOL_INVENTORY.json` as authority on whether a tool exists, when `tools/list` is, and fixed it before reporting. |
 | A UAT packaging failure recorded with a date | Lane N found that entry in its own salvaged work presented as if run. It had not been. It ran it, and the real failure is now recorded with its engine citation. |
 | `rename_component is not convergent` | Refuted by reading the source. It was the stale fixture, not the product. |
+
+### Wave five, lane R and lane V
+
+| Lane | Branch @ tip | Verdict | Basis |
+|---|---|---|---|
+| R | `lane/r-finding-0q` @ `6f87c79` | **Accepted, and its promotion RETAINED on the integrator's own evidence** | Isolated 0q to `add_event_dispatcher` by applying operations one at a time, and found the dispatcher was never a member variable at all. |
+| V | `lane/v-widget-bind` @ `07ac052` | **Accepted, implemented** | `widget_bind`, plus an additive `widget_inspect` change with a byte-identical hash basis. Stopped at the `UWidgetAnimation` overlap rather than writing a second MovieScene implementation. |
+
+**Lane R promoted its own work to `live_verified`, which it does not get to do.**
+The rule exists because a lane grading its own homework is how this program's
+predecessor accumulated 18 capabilities marked verified with empty evidence
+arrays.
+
+The claim is retained, and only because the integrator independently re-ran it
+after the merge: warm all checks passed, cold all checks passed after a restart,
+`mutator-atomicity` still green with its control, and no regression in
+`bp-graph-patch-acceptance`, `graph-inspect-acceptance` or `bp-failure-atomicity`.
+Retained on the evidence, not because it was already written down. Had the
+re-run failed, the promotion would have been reverted and the lane's report
+rejected.
+
+Lane V is the counter-example worth naming beside it: told to stop if widget
+animations reached MovieScene track authoring, it inspected only and reported
+the overlap instead of shipping a duplicate. That is the same instruction lane R
+had about `live_verified`, followed.

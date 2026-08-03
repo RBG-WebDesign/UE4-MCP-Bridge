@@ -2087,3 +2087,63 @@ refusal text, because a failed request returns an empty `data`.
    `clean_shape`. `bp-member-patch-acceptance.mjs` uses a substring test on that
    field and so does not see it. Not chased: one capability per session, and this
    is a different one.
+
+## Finding 0q: SETTLED, and the warning was the small half
+
+Settled 2026-08-03 by lane R, independently re-verified by the integrator.
+
+The first warning-producing operation was not the component work the finding
+predicted. Operations applied one at a time:
+
+```
+UpToDate               fixture built, never patched
+UpToDate               0: add_variable Delta
+UpToDate               1: set_variable_default Label
+UpToDate               2: remove_variable Doomed
+UpToDate               3: add_function ProbeStep
+UpToDateWithWarnings   4: add_event_dispatcher OnProbed     <- here
+UpToDateWithWarnings   5: rename_component Lamp -> Beacon
+UpToDateWithWarnings   6: remove_component Muzzle
+```
+
+Operations 5 and 6 only carry op 4's warning forward. The orphaned-graph-
+reference hypothesis was checkable and wrong: the fixture's graph never
+referenced either component.
+
+Exact text, `KismetCompiler.cpp:2044`: `No delegate property found for
+OnProbed`, emitted when `FindFProperty<FMulticastDelegateProperty>` returns null
+for a graph in `DelegateSignatureGraphs`.
+
+**The defect is worse than the warning.** An event dispatcher is TWO objects: a
+multicast delegate member variable, which is what callers bind and call, and the
+graph that gives it a signature. `AddEventDispatcher` created only the graph. So
+every dispatcher this command ever made was **not bindable, not callable and not
+a member**, while the command reported success and `graph_inspect` listed it.
+The compiler warning was the only outward sign, and the acceptance was asserting
+on compile status rather than on whether the dispatcher worked, which is why a
+silent corruption showed up as a cosmetic red.
+
+Fixed by mirroring `FBlueprintEditor::OnAddNewDelegate` step for step, with
+`RemoveEventDispatcher` mirroring `SMyBlueprint::OnDeleteDelegate`, and
+`ListVariables` skipping `PC_MCDelegate` descriptions exactly as the editor's own
+variable list does.
+
+**The compile-message gap needed no new primitive.** `CompileAndReport` had
+always collected the `FCompilerResultsLog` messages and `blueprint_build` had
+always surfaced them; `blueprint_member_patch` read `success` and `status` from
+the same report and dropped the arrays. It now returns `compile_warnings` and
+`compile_errors`. Because a batch compiles whether or not anything applied, a
+converged call is now the way to read any Blueprint's compiler messages.
+
+`puerts_blueprint_member_patch` is promoted to `live_verified` on the
+integrator's own runs: warm all checks passed, cold all checks passed after a
+restart, and `mutator-atomicity` still green with its control.
+
+### New Unknown, recorded not chased
+
+`set_variable_default Label "patched"` reads back `"\"patched\""` while
+`blueprint_build` with the same value reads back `"patched"`. Both go through the
+same CDO reader, so one of the two WRITERS is storing the JSON quoting. Evidence
+in `docs/evidence/member-warning-diagnosis.json`. The acceptance uses a substring
+test on that field, which is why it never saw it: a substring assertion passes on
+a value that has been quoted twice.
