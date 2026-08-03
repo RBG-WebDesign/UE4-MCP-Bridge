@@ -1,5 +1,5 @@
 {
-  "generated_by": "integration lead, 2026-08-02, wave two complete. Counts read from docs/TOOL_INVENTORY.json and docs/TOOL_CAPABILITY_METADATA.json in this session.",
+  "generated_by": "integration lead, 2026-08-02, wave three partial. Nine of ten lanes were cut off by an account session token limit, not by defects.",
   "not_generated_from": "prose counts. Every number below was read out of a generated file or counted from source in this session.",
   "integration_branch": "bridge/native-consolidation-2026-07-31",
   "integration_head": "bridge/native-consolidation-2026-07-31, lanes D, E and F merged",
@@ -44,7 +44,7 @@
     "capabilities_with_live_evidence": 18,
     "capabilities_needing_evidence_or_work": 147,
     "percent_live_verified_of_unique": 10.9,
-    "caveat": "Still 18. Wave two added a registered command and moved the live count by ZERO, on purpose. blueprint_member_patch compiles, links, passes verify at 209 tools and then fails 8 of its live checks, including writing a default the variable type cannot hold. Lanes D and F registered no MCP tool by design."
+    "caveat": "18 registered capabilities carry live evidence. Wave three proved a PLATFORM property (mutator failure atomicity across 19 entry points) rather than registering a new tool, which is why the count does not move. blueprint_member_patch is down from 8 red checks to 2 and stays implemented."
   },
   "waves": [
     {
@@ -180,6 +180,26 @@
           "basis": "14/14 session refusal checks, 50-check fresh-install acceptance, packaging verdict NO."
         }
       }
+    },
+    {
+      "wave": 3,
+      "state": "partial, cut off by an account session token limit",
+      "launched_at": "2026-08-02",
+      "lanes_merged": {
+        "H": "lane/h-member-patch @ 6801d70, deterministic acceptance, accepted",
+        "G": "lane/g-mutator-atomicity @ 3ba4580, foundation fix, accepted and proven live"
+      },
+      "lanes_salvaged_wip": {
+        "I": "a5053a7 material",
+        "J": "19a4c31 animation",
+        "K": "4ba3cf6 ai",
+        "L": "ce5983b level",
+        "M": "5e5b91e refront",
+        "N": "ef7257a packaging",
+        "O": "5962855 perf",
+        "P": "32c2161 slices"
+      },
+      "note": "All eight WIP branches are committed as implemented_unverified. NOT compiled, NOT reviewed. Resumable from a real branch state. Nothing was lost."
     }
   ],
   "roadmap_rows_open": 19,
@@ -195,6 +215,18 @@
   ],
   "blockers": [
     {
+      "id": "member_patch_default_not_persisted",
+      "severity": "blocks promotion of blueprint_member_patch",
+      "description": "graph_inspect reports default_value empty for floats member_patch just set and saved. Finding 0p records three candidates and the one cheap measurement that distinguishes them. Check the READER before the writer.",
+      "external": false
+    },
+    {
+      "id": "account_session_token_limit",
+      "severity": "stopped nine of ten lanes",
+      "description": "All nine remaining wave three lanes terminated mid-write on an account session token limit that resets at 18:20 America/Los_Angeles. External. Not a defect and not a decision. Work salvaged to branches.",
+      "external": true
+    },
+    {
       "id": "packaging_requires_puerts_bundle",
       "severity": "blocks release candidate",
       "description": "MCPBridge.uplugin requires the Puerts plugin and MCPBridgePuerTS.Build.cs depends on its JsEnv module. The 369 MB pinned bundle is not in the package and is not mentioned inside it. package-mcp-bridge.ps1 -RunUAT has never been run: no Releases/, no evidence file.",
@@ -202,22 +234,10 @@
       "external": true
     },
     {
-      "id": "mutator_commits_on_failure",
-      "severity": "blocks REFRONT group 1 (18 of 54)",
-      "description": "BlueprintMutator/BPMutatorHelpers.cpp:27-37 returns false on failure without calling Cancel(), so the FScopedTransaction destructs and commits partial writes. All 19 UBlueprintMutatorLibrary entry points. Repo-wide only 3 of 11 REFRONT builders open a transaction at all.",
-      "external": false
-    },
-    {
       "id": "member_patch_type_check",
       "severity": "blocks promotion of blueprint_member_patch",
       "description": "A default the variable type cannot hold is not refused, the operation beside it is applied, and something reaches disk. Convergence classification also counts an already-true operation as applied.",
       "external": false
-    },
-    {
-      "id": "orphan_agents",
-      "severity": "process",
-      "description": "Duplicate lane agents from a previous session shared worktrees, reverted edits, committed to branches they did not own and ran install:sync into the shared target mid-acceptance. Not stoppable from inside the session. Mitigated by install:check before every live run.",
-      "external": true
     },
     {
       "id": "single_installed_target",
@@ -237,17 +257,15 @@
     }
   ],
   "next_wave": {
-    "wave": 3,
+    "wave": 4,
+    "prerequisite": "The account session limit resets at 18:20 America/Los_Angeles. Resume the eight WIP branches BEFORE starting anything new: they are mid-implementation, not designs.",
     "ready_now": [
-      "G: fix BPMutatorHelpers Cancel() on the failure path, then re-front REFRONT group 1 (18 Blueprint editing tools) onto the now failure-atomic mutator",
-      "H: fix blueprint_member_patch type check and convergence classification, then re-run bp-member-patch-acceptance warm and cold",
-      "I: run the perf harness live and produce the first perf-run evidence file, which no run has ever produced",
-      "J: execute the teammate install proof and the fresh-project install end to end"
-    ],
-    "blocked": [
-      "packaging vertical slice, until the PuerTS bundle dependency has a distribution answer"
-    ],
-    "prerequisite": "Stop the orphan agents before launching wave three, or they will share worktrees again. This is the one thing wave two could not do from inside itself."
+      "Resume lanes I J K L M N O P from their WIP commits. Each needs review, a compile and its own report. None has been compiled.",
+      "Diagnose finding 0p with the CDO-versus-inspector comparison, fix whichever of reader or writer is wrong, then re-run bp-member-patch-acceptance warm and cold.",
+      "Re-front REFRONT group 1, the 18 Blueprint editing tools, now UNBLOCKED because the library they sit on is failure-atomic and proven so.",
+      "Lane G never delivered its 19-point mutator audit. Coverage of every entry point is argued from one shared wrapper, not established. Redo that audit.",
+      "Run the perf harness live for the first evidence file, and the teammate and fresh-project install proofs."
+    ]
   },
   "packaging_verdict": {
     "installable_artifact": false,
@@ -327,5 +345,15 @@
       "source control and packaging proofs absent",
       "Ponytail final audit not run"
     ]
-  }
+  },
+  "live_verified_added_this_wave": [
+    "mutator failure atomicity: Scripts/mutator-atomicity.mjs, all checks passed INCLUDING the control, against a verified install with the editor restarted between builds"
+  ],
+  "resolved_this_wave": [
+    "mutator_commits_on_failure: BPMutatorHelpers now cancels on the failure path. Proven live, all atomicity checks plus the control.",
+    "member_patch_type_check: floats now reject values the type cannot hold, through one shared helper rather than three copies.",
+    "ValueToJsonText mangled every default value into a leading comma and newline via FJsonSerializer's identifier overload. Fixed by wrapping the value in a throwaway object.",
+    "mutator-atomicity.mjs exited 0 having tested nothing: its Windows file:// entry guard never matched. Fixed with pathToFileURL. bridge-install.mjs carried the same dead clause behind an endsWith fallback.",
+    "orphan_agents: the previous-session agent tree was killed and every commit it produced is preserved as an ancestor of HEAD."
+  ]
 }
