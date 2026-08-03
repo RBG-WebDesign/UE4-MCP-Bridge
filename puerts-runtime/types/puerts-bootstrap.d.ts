@@ -1,6 +1,12 @@
 declare function require(id: string): unknown;
 declare const process: {
   chdir(directory: string): void;
+  // Optional on purpose. The PuerTS Node backend does provide process.env, but
+  // this declaration is the only description of that object the runtime has,
+  // and it is loaded during bootstrap: a throw here takes the whole bridge down
+  // before it publishes a session, which is not a price worth paying to read
+  // one feature flag.
+  readonly env?: Readonly<Record<string, string | undefined>>;
 };
 
 declare module "puerts" {

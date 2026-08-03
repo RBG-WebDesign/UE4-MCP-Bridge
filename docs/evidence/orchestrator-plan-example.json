@@ -1,0 +1,49 @@
+{
+  "name": "example",
+  "_comment": [
+    "A runnable plan for Scripts/bridge-orchestrator.mjs. Every field here is a",
+    "real puerts_blueprint_build / puerts_blueprint_graph_patch field; nothing is",
+    "an orchestrator invention except name, expect and repair_operations.",
+    "",
+    "It authors a Blueprint under /Game/MCPGenerated/ (the only root native",
+    "authoring accepts), asks the independent inspector whether the component,",
+    "the variable and the graph really arrived, and if they did not, applies one",
+    "graph patch and re-inspects.",
+    "",
+    "expect.min_nodes is 3 and not 4, because the plan states four nodes and one",
+    "of them is a Comment. Set it to what you require, not to what you hope for:",
+    "an expectation copied from the spec turns the read-back into a tautology.",
+    "",
+    "  node Scripts/bridge-orchestrator.mjs --plan docs/evidence/orchestrator-plan-example.json",
+    "",
+    "Delete this _comment key before using it as a template for anything real."
+  ],
+  "blueprint": {
+    "asset_path": "/Game/MCPGenerated/BP_OrchestratorExample",
+    "parent_class": "Actor",
+    "components": [{ "class": "StaticMeshComponent", "name": "ExampleMesh" }],
+    "variables": [{ "name": "ExampleCount", "type": "int", "default": 3 }],
+    "graph": {
+      "nodes": [
+        { "id": "begin", "type": "BeginPlay" },
+        { "id": "print", "type": "PrintString", "x": 300, "y": 0, "params": { "InString": "orchestrator example" } },
+        { "id": "setv", "type": "VariableSet", "x": 600, "y": 0, "params": { "var_name": "ExampleCount" } },
+        { "id": "note", "type": "Comment", "x": 0, "y": -300, "params": { "text": "authored by bridge-orchestrator", "width": 900, "height": 250 } }
+      ],
+      "connections": [
+        { "from": "begin.then", "to": "print.exec" },
+        { "from": "print.then", "to": "setv.exec" }
+      ]
+    }
+  },
+  "expect": {
+    "graph": "EventGraph",
+    "components": ["ExampleMesh"],
+    "variables": ["ExampleCount"],
+    "min_nodes": 3,
+    "no_unmapped_nodes": true
+  },
+  "repair_operations": [
+    { "op": "connect_pins", "from": { "target": { "type": "BeginPlay" }, "pin": "then" }, "to": { "target": { "type": "PrintString", "x": 300, "y": 0 }, "pin": "exec" } }
+  ]
+}

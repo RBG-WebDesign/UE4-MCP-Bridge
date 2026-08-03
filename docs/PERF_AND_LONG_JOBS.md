@@ -544,21 +544,81 @@ where no transaction is opened at all.
 None of steps 1 to 4 is a client-side change, and no client-side change can
 substitute for any of them.
 
+### 6.9 What was built for step 2, and where it diverged from 6.3
+
+Step 2 is implemented, with one substitution: **a file, not a second pipe.**
+
+6.3 proposed a background `FRunnable` serving a second named pipe. The blocked
+resource is the game thread, and a file needs no runtime participation to be
+read: the record is written before the blocking call is entered, and the
+operating system serves the read while the game thread is inside it. That
+removes the second pipe, the second ACL and the second auth decision, and
+delivers the same information. Everything 6.3 said still holds. F1 to F6 are
+untouched, `AcceptCommand` is untouched, this is not a command, and nothing here
+is cancellable.
+
+| Piece | Where |
+|---|---|
+| The record | `<project>/Saved/MCPPuerTSBridge/status.json`, staged and renamed like the session manifest |
+| The writer | `puerts-runtime/src/status.ts`, called from `bootstrap.ts` either side of `registry.execute` |
+| The reader | `bridge_command_status` in `mcp-server/src/tools/status.ts`. Server-local: it opens a file and never addresses the pipe |
+| The tests | `mcp-server/tests/status-tool.test.ts`, in `npm test` |
+
+What it reports: the stage (`idle` or `native_call`), which tool is executing,
+its command id, how long it has been running, and the last command that
+finished. The field is named `stage`, and the answer carries
+`percent_available: false` with the reason, so no caller can read a fraction
+into it.
+
+What it does not report, and cannot without the C++ checkpoints 6.3 describes:
+how far through that tool it is. By F4 every registered tool body is one
+straight-line synchronous native call, so between `begin` and `end` the runtime
+never regains control. "blueprint_build, 42 s" is the honest maximum, and it is
+still the difference between a caller that waits and one that gives up.
+
+Two things to know before relying on it:
+
+- **Off unless `MCP_PUERTS_STATUS=1` is in the editor's environment at launch.**
+  Two synchronous file writes per command land on the round-trip floor of the
+  cheapest commands, and that cost has not been measured. Measure it with
+  `Scripts/perf-benchmark.mjs` before deciding the default. With the variable
+  unset, `bridge_command_status` refuses with `status_record_absent`; it never
+  reports an idle editor it cannot see.
+- **A record from a previous editor session is detected and refused**, by
+  comparing it against `created_at` in the session manifest. A leftover record
+  looks exactly like a live one and would name a command that finished before
+  this editor started.
+
+Cancellation was not built, and 6.4 is why: the seconds are inside
+`CompileBlueprint` and `SavePackages`, which are uninterruptible, and the bridge
+owns no cancel point in between. A status channel cannot deliver one.
+
 ## 7. Running the pieces
 
 ```bash
-npm run test:perf                # unit tests, no editor needed; also in npm run verify
-node Scripts/perf-benchmark.mjs  # live run; options are in the file header and the runbook
+npm run test:perf                   # unit tests, no editor needed; also in npm run verify
+npm run test:orchestrator           # the same, for the orchestrator's decisions
+node Scripts/perf-benchmark.mjs     # live run; options are in the file header and the runbook
+node Scripts/bridge-orchestrator.mjs --plan docs/evidence/orchestrator-plan-example.json
 ```
 
-`npm run test:perf` is `node Scripts/perf-stats.test.mjs` and is chained into
-`npm run verify` in the root `package.json`, so the harness cannot rot silently.
-It covers the order statistics against known inputs, the results-file schema
-round trip and its rejections, all three scenario runners against a stub `call`
-including every skip path, the editor-startup derivation, and both refusal paths
-(no project root, and a project root no editor is serving).
+`npm run test:perf` is `node Scripts/perf-stats.test.mjs` and `npm run
+test:orchestrator` is `node Scripts/orchestrator.test.mjs`; both are chained
+into `npm run verify` in the root `package.json`, so neither harness can rot
+silently. Between them they cover the order statistics against known inputs, the
+results-file schema round trip and its rejections, all three scenario runners
+against a stub `call` including every skip path, the editor-startup derivation,
+both refusal paths (no project root, and a project root no editor is serving),
+and the orchestrator's build verdict, read-back comparison, plan fingerprint and
+resume decisions.
 
-**What it does not cover, and cannot:** a measured run. Everything above is a
+Every place either harness reads a field out of a live response now asserts the
+shape first and prints the payload it actually got when the assertion fails
+(`checkShape` in `Scripts/perf-stats.mjs`). That is the difference between "the
+bridge is slow" and "this field was renamed", and the two are fixed by different
+people.
+
+**What they do not cover, and cannot:** a measured run. Everything above is a
 stub or a mock. No number in this document was produced by a live editor, and
 compilation and mocks are not live verification. `docs/evidence/PERF_RUNBOOK.md`
 is the procedure that produces the first real one.

@@ -478,6 +478,13 @@ export function assertInstallCurrent(projectRoot) {
 // also matched any other file with this basename. mutator-atomicity.mjs copied
 // the broken half without the fallback and silently no-opped.
 if (import.meta.url === pathToFileURL(process.argv[1]).href) {
+// pathToFileURL, not a hand-built `file://${path}`: import.meta.url
+// percent-encodes the spaces in "D:\Unreal Projects", so the hand-built form
+// never matched on Windows and only the endsWith() fallback below it was ever
+// doing the work. That fallback fired on ANY argv[1] ending in the same
+// basename, so it is gone too.
+if (process.argv[1]
+  && pathToFileURL(process.argv[1]).href.toLowerCase() === import.meta.url.toLowerCase()) {
   const argv = process.argv.slice(2);
   const at = argv.indexOf('--project');
   const project = at >= 0 ? argv[at + 1] : undefined;

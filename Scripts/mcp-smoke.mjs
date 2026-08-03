@@ -133,10 +133,15 @@ async function main() {
   const startupWarning = stderrBuf.includes("missing annotations");
   record("no annotation warning at startup", !startupWarning);
 
+  // Named one by one rather than by prefix: a server-local tool contacts no
+  // editor, so it is not part of the native lane and must not be waved through
+  // by a prefix somebody picks later. Adding one here is a deliberate act.
+  const SERVER_LOCAL_TOOLS = new Set(["bridge_command_status"]);
   const unexpectedTools = tools
     .map((tool) => tool.name)
-    .filter((name) => !name.startsWith("puerts_") && !name.startsWith("engine_source_"));
-  record("default catalog is native-only", unexpectedTools.length === 0,
+    .filter((name) => !name.startsWith("puerts_") && !name.startsWith("engine_source_")
+      && !SERVER_LOCAL_TOOLS.has(name));
+  record("default catalog is native-only or declared server-local", unexpectedTools.length === 0,
     unexpectedTools.length ? `unexpected: ${unexpectedTools.join(", ")}` : undefined);
   record("legacy HTTP tools are hidden", !tools.some((tool) => tool.name === "test_connection"));
   record("native diagnostic is registered", tools.some((tool) => tool.name === "puerts_diagnostic"));

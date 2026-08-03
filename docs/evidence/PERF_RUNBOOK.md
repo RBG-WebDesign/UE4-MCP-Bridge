@@ -57,6 +57,24 @@ Get-Content "$env:MCP_UNREAL_PROJECT_ROOT\Saved\MCPPuerTSBridge\session.json"
 the file is absent, the editor did not publish a session and the harness will
 refuse with `session_missing`.
 
+**If you also want to exercise `bridge_command_status`,** set this *before*
+launching, in the environment the editor inherits. It cannot be turned on
+afterwards, and it is off by default because two synchronous file writes per
+command land on the round-trip floor and nobody has measured that yet:
+
+```powershell
+$env:MCP_PUERTS_STATUS = '1'
+.\Scripts\start-ue4-project.ps1 -Project 'D:\Unreal Projects\BridgeInstallTest'
+```
+
+Then, while a slow command is in flight from another shell, `bridge_command_status`
+answers off disk without touching the pipe. Two things worth measuring while you
+are there: the cost of the writes (run the baseline pair once with the variable
+set and once without, and compare `diagnostic`), and whether the record is
+readable *during* a compile rather than only after it. The second is the whole
+claim; if the answer only arrives once the command has returned, say so and the
+design is wrong.
+
 ## 3. The read-only baseline
 
 Run this first, every time. It mutates nothing except one property it writes
@@ -154,7 +172,53 @@ A good run:
 | p95 far above p50 across every scenario | the machine was busy. Repeat the run. Do not average the two. |
 | a p95 improvement with a higher `totals.round_trips` | not an improvement. AGENTS.md optimises for fewest round trips; check whether a workflow grew a step. |
 
-## 8. What to commit
+## 8. The orchestrator
+
+`Scripts/bridge-orchestrator.mjs` is the other live script. It composes existing
+commands only: `blueprint_build`, `graph_inspect`, `blueprint_graph_patch`,
+`get_logs`, `viewport_screenshot`, `pie_start` / `pie_stop`. No second
+transport, no rollback of its own, no inspection or registry system.
+
+```powershell
+$env:MCP_UNREAL_PROJECT_ROOT = 'D:\Unreal Projects\BridgeInstallTest'
+node Scripts\bridge-orchestrator.mjs --plan docs\evidence\orchestrator-plan-example.json
+```
+
+Six stages, in order. Each one prints what it observed, what it changed, and
+what it cost in round trips.
+
+| Stage | What it does | Resumable |
+|---|---|---|
+| `probe` | `puerts_diagnostic`. Refuses the whole run with the client's own `session_error_code` if no editor is addressed. | No. An editor that answered an hour ago proves nothing about this run |
+| `build` | `blueprint_build` with compile and save on. On failure only, a second build with compile off, to separate "the graph does not build" from "it does not compile" | Yes |
+| `inspect` | `graph_inspect`, compared against the plan's `expect`. Runs even when the build failed, because what is in the asset is what a repair needs | Yes |
+| `repair` | The plan's `repair_operations` through `blueprint_graph_patch` if it has them, otherwise the desired state again, which converges. Bounded by `--max-repairs` (default 1) and re-inspected after every attempt | Yes |
+| `review` | `get_logs`, and `viewport_screenshot` only with `--screenshot` | Yes |
+| `pie` | Skipped unless `--pie` is passed. AGENTS.md requires the user to ask | Yes |
+
+`expect` is checked against the **inspector's** answer, never the builder's.
+A builder that reports success and an inspector that cannot find the node
+disagree, and only one of them was uninvolved in the writing.
+
+**Resuming.** `--resume` reads the state file and skips stages it recorded as
+`ok`, but only if the plan's fingerprint still matches. The fingerprint covers
+`blueprint`, `expect` and `repair_operations` and ignores `name`. Everything
+after the first stage that is not `ok` is re-run regardless of what the file
+says about it, because a later stage's result describes a state that was never
+reached.
+
+```powershell
+node Scripts\bridge-orchestrator.mjs --plan my-plan.json --resume
+```
+
+Exit codes: 0 all stages ok, 1 a stage failed or a repair did not converge,
+2 refused because no editor was addressed. A refusal writes no state file.
+
+State goes to `docs/evidence/orchestrator-<plan name>.json` unless `--state`
+says otherwise, and is rewritten after every stage, so a run killed in the
+middle still leaves a resumable file.
+
+## 9. What to commit
 
 Commit the results files under `docs/evidence/`. They are small, they are the
 only durable record of a live run, and the schema makes them readable by a later

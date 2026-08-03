@@ -13,6 +13,7 @@
     "test": "npm test --workspace=mcp-server",
     "test:integration": "npm run test:integration --workspace=mcp-server",
     "test:perf": "node Scripts/perf-stats.test.mjs",
+    "test:orchestrator": "node Scripts/orchestrator.test.mjs",
     "doctor": "node Scripts/bridge-doctor.mjs",
     "check:puerts": "node Scripts/check-puerts-pin.mjs",
     "check:inventory": "node Scripts/generate-tool-inventory.mjs",
@@ -40,6 +41,7 @@
     "slice:cinematics": "node Scripts/slice-cinematics.mjs",
     "slice:summary": "node Scripts/slice-summary.mjs",
     "verify": "npm run build && npm test && npm run test:perf && npm run check:puerts && npm run check:inventory && npm run smoke",
+    "verify": "npm run build && npm test && npm run test:perf && npm run test:orchestrator && npm run check:puerts && npm run check:inventory && npm run smoke",
     "inspect": "mcp-inspector node mcp-server/dist/index.js",
     "inspect:list": "mcp-inspector --cli node mcp-server/dist/index.js --method tools/list"
   },
