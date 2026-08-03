@@ -144,3 +144,40 @@ integrator batches their compiles after merging.
 
 The seven slice harnesses currently need 16 distinct primitives. Ten were
 unowned before this wave. After it, the unowned set should be empty or named.
+
+# Wave six ownership, 2026-08-03
+
+Three lanes, not six. The bottleneck is now the single installed target: five of
+the remaining items need live iteration against an editor, and splitting one
+editor five ways would serialise them anyway while multiplying merge conflicts.
+
+| Lane | Branch | Scope | Rights |
+|---|---|---|---|
+| X | `lane/x-slice-green` | UI, AI, gameplay, materials, level slices to green, in that order | **editor AND build lock, exclusive** |
+| Y | `lane/y-animbp-snapshot` | AnimBlueprint content snapshot, then patch only if it restores | none |
+| Z | `lane/z-async-jobs` | The general async job API, then sequence_render on top | none |
+
+Lane X is deliberately one lane covering five slices rather than five lanes
+covering one each. They share the harness, they contend for the one editor, and
+gameplay's problem is explicitly a JOIN between commands rather than a missing
+command, which is work that wants one person holding the whole workflow.
+
+## Why these three and not the obvious six
+
+The two architectural blockers are the only items that do not need an editor
+until they compile, so they parallelise for free. Everything else is slice
+debugging against one editor.
+
+Lane Z is the highest-leverage item in the wave and the reason it is not folded
+into lane X: `lighting_build` and `nav_build` have ALREADY each hand-rolled a
+start-then-poll shape, independently, in different lanes. Two independent
+implementations of the same idea is the point at which the abstraction is real
+rather than speculative, and builds, shader compilation, cooking, packaging and
+long PIE tests all need the same thing.
+
+## Standing instruction carried into all three
+
+Cancellation is not uniform and must not be pretended uniform. A separate
+process can be killed; Lightmass exposes no public abort. `job_cancel` reports
+per job whether cancellation is supported and refuses honestly where it is not,
+because a cancel that returns success and does nothing is worse than no cancel.
