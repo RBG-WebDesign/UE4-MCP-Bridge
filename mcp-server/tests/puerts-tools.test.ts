@@ -73,7 +73,7 @@ async function main(): Promise<void> {
     });
     const client = new PuerTSClient();
     const tools = createPuertsTools(client);
-    assert(tools.length === 28, "expected all 28 PuerTS tools");
+    assert(tools.length === 29, "expected all 29 PuerTS tools");
     assert(tools.some((tool) => tool.name === "puerts_behavior_tree_build"), "native Behavior Tree builder tool is missing");
     assert(tools.some((tool) => tool.name === "puerts_behavior_tree_inspect"), "native Behavior Tree inspector tool is missing");
     assert(tools.some((tool) => tool.name === "puerts_sky_shader_create"), "native sky shader tool is missing");
@@ -85,6 +85,7 @@ async function main(): Promise<void> {
     assert(tools.some((tool) => tool.name === "puerts_anim_blueprint_build"), "native Animation Blueprint builder tool is missing");
     assert(tools.some((tool) => tool.name === "puerts_anim_blueprint_inspect"), "native Animation Blueprint inspector tool is missing");
     assert(tools.some((tool) => tool.name === "puerts_anim_montage_inspect"), "native Animation Montage inspector tool is missing");
+    assert(tools.some((tool) => tool.name === "puerts_anim_blend_space_inspect"), "native Blend Space inspector tool is missing");
     const response = await client.call("find_actors", {});
     assert(response.success && response.message === "Actors found.", "valid response was rejected");
     const actorTool = tools.find((tool) => tool.name === "puerts_find_actors");
@@ -1285,7 +1286,11 @@ async function widgetInspectSuite(): Promise<void> {
        send a caller to save something that no longer exists. */
 async function animationSuite(): Promise<void> {
   const { toolAnnotations } = await import("../src/annotations.js");
-  for (const name of ["puerts_anim_blueprint_inspect", "puerts_anim_montage_inspect"]) {
+  for (const name of [
+    "puerts_anim_blueprint_inspect",
+    "puerts_anim_montage_inspect",
+    "puerts_anim_blend_space_inspect",
+  ]) {
     const annotations = toolAnnotations[name];
     assert(annotations !== undefined, `${name} has no annotation`);
     assert(annotations.readOnlyHint === true, `${name} is not annotated read-only`);
@@ -1417,6 +1422,17 @@ async function animationSuite(): Promise<void> {
       "a rolled-back Animation Blueprint build still named a changed asset",
     );
 
+    const blendSpace = tools.find((entry) => entry.name === "puerts_anim_blend_space_inspect");
+    assert(blendSpace !== undefined, "the Blend Space inspector is missing");
+    const blendRead = await blendSpace.handler({ asset_path: "/Game/Anim/BS_Locomotion" });
+    const blendPayload = JSON.parse(blendRead.content[0]?.text ?? "null") as Record<string, unknown>;
+    assert(blendPayload.success === true, "a valid Blend Space inspection was rejected");
+    assert(blendPayload.transaction_id === "", "a read-only Blend Space inspection returned a transaction id");
+    assert(
+      received[received.length - 1]?.__tool === "anim_blend_space_inspect",
+      "the Blend Space runtime command name is wrong",
+    );
+
     const sentSoFar = received.length;
     const outsideRoot = await build.handler({
       asset_path: "/Game/Elsewhere/ABP_Hero",
@@ -1446,7 +1462,7 @@ async function animationSuite(): Promise<void> {
       "the Animation Blueprint inspector accepted an authoring key",
     );
     assert(received.length === sentSoFar, "a rejected animation request still reached the pipe");
-    console.log("  PASS  animation authoring: read-only inspectors, create-only build, rollback envelope");
+    console.log("  PASS  animation: three read-only inspectors, create-only build, rollback envelope");
   } finally {
     await new Promise<void>((resolve) => server.close(() => resolve()));
     await rm(directory, { recursive: true, force: true });

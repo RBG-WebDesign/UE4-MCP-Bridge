@@ -691,6 +691,30 @@ async function inspectAnimMontage(context: ToolContext, input: JsonObject): Prom
   return result;
 }
 
+/** Read a Blend Space, Blend Space 1D or Aim Offset back as JSON: axes and
+    samples. Read-only with no write counterpart, for the reason recorded on
+    InspectAnimBlendSpaceJson. */
+async function inspectAnimBlendSpace(context: ToolContext, input: JsonObject): Promise<CommandResponse> {
+  const assetPath = requireString(input, "asset_path");
+  if (!assetPath.startsWith("/Game/") && !assetPath.startsWith("/Engine/")) {
+    throw new Error("Blend Space inspection is limited to /Game and /Engine");
+  }
+  const request: JsonObject = { asset_path: assetPath };
+
+  const resultJson = puerts.$ref<string>("");
+  const error = puerts.$ref<string>("");
+  if (!context.bridge.InspectAnimBlendSpaceJson(JSON.stringify(request), resultJson, error)) {
+    throw new Error(puerts.$unref(error));
+  }
+  const parsed = JSON.parse(puerts.$unref(resultJson)) as JsonObject;
+  const warnings = stringArray(parsed, "warnings");
+  delete parsed.warnings;
+
+  const result = response(true, "Blend Space inspected.", parsed);
+  result.warnings.push(...warnings);
+  return result;
+}
+
 /** Create a NEW Animation Blueprint from one JSON spec. The spec grammar
     belongs to UAnimBlueprintBuilderLibrary, reached through the native
     service; this function owns nothing but the envelope, exactly as
@@ -888,6 +912,7 @@ export const toolDefinitions: readonly ToolDefinition[] = [
   { name: "anim_blueprint_build", inputSchema: schema({ asset_path: { type: "string" }, skeleton_path: { type: "string" }, variables: { type: "array", items: { type: "object" } }, anim_graph: { type: "object" }, state_machine: { type: "object" }, event_graph: { type: "object" }, save: { type: "boolean" } }, ["asset_path", "skeleton_path", "anim_graph", "state_machine"]), outputSchema, permissions: ["assets.write"], executionTimeoutMs: 60000, execute: buildAnimBlueprint },
   { name: "anim_blueprint_inspect", inputSchema: schema({ asset_path: { type: "string" } }, ["asset_path"]), outputSchema, permissions: ["assets.read"], executionTimeoutMs: 15000, execute: inspectAnimBlueprint },
   { name: "anim_montage_inspect", inputSchema: schema({ asset_path: { type: "string" } }, ["asset_path"]), outputSchema, permissions: ["assets.read"], executionTimeoutMs: 15000, execute: inspectAnimMontage },
+  { name: "anim_blend_space_inspect", inputSchema: schema({ asset_path: { type: "string" } }, ["asset_path"]), outputSchema, permissions: ["assets.read"], executionTimeoutMs: 15000, execute: inspectAnimBlendSpace },
   { name: "physics_build", inputSchema: schema({ actors: { type: "array", items: { type: "object" } } }, ["actors"]), outputSchema, permissions: ["actors.spawn"], executionTimeoutMs: 10000, execute: buildPhysics },
   { name: "physics_observe", inputSchema: schema({ actors: { type: "array", items: { type: "string" } } }), outputSchema, permissions: ["actors.read"], executionTimeoutMs: 2000, execute: observePhysics },
   { name: "viewport_screenshot", inputSchema: schema({ actors: { type: "array", items: { type: "string" } }, filename: { type: "string" } }), outputSchema, permissions: ["viewport.capture"], executionTimeoutMs: 2000, execute: captureViewport },

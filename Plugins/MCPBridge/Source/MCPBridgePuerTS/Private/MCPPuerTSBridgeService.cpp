@@ -201,7 +201,8 @@ bool UMCPPuerTSBridgeService::Initialize(FString& OutError)
             // Read only. Deliberately absent from IsToolMutating below, so they
             // open no transaction and return no transaction id.
             TEXT("graph_inspect"), TEXT("behavior_tree_inspect"), TEXT("widget_inspect"),
-            TEXT("anim_blueprint_inspect"), TEXT("anim_montage_inspect")
+            TEXT("anim_blueprint_inspect"), TEXT("anim_montage_inspect"),
+            TEXT("anim_blend_space_inspect")
         };
         for (const TCHAR* Value : Defaults) { AllowedTools.Add(Value); }
     }

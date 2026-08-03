@@ -268,12 +268,15 @@ existing Animation Blueprint stays out of the catalog.
 |---|---|---|---|---|
 | `anim_blueprint_build_from_json` | BuildAnimBlueprintFromJSON | `puerts_anim_blueprint_build` (this lane, implemented, uncompiled) | no | MUTATING (create-only) |
 
-Two read tools were added beside it and front nothing legacy:
-`puerts_anim_blueprint_inspect` and `puerts_anim_montage_inspect`. The montage
-reader has no write counterpart on purpose: UE4.27 exposes no atomic operation
-for rebuilding a montage's `NextSectionName` chain or re-linking its
-`FAnimLinkableElement` notifies, so a montage writer could not be
-failure-atomic.
+Three read tools were added beside it and front nothing legacy:
+`puerts_anim_blueprint_inspect`, `puerts_anim_montage_inspect` and
+`puerts_anim_blend_space_inspect`. The last two have no write counterpart on
+purpose. UE4.27 exposes no atomic operation for rebuilding a montage's
+`NextSectionName` chain or re-linking its `FAnimLinkableElement` notifies, and
+it rebuilds a blend space's triangulation from the sample set rather than
+offering an atomic sample-set replacement. In both cases a half-applied edit
+leaves an asset that plays or interpolates the wrong thing rather than one that
+fails, so neither writer could be failure-atomic.
 
 ### WidgetBlueprintBuilderLibrary (4)
 

@@ -122,6 +122,16 @@ bool UMCPPuerTSBridgeService::BuildAnimBlueprintJson(
     FString& OutResultJson,
     FString& OutError)
 {
+    // The same guard BuildBehaviorTreeJson and BuildWidgetJson open with. It is
+    // the only thing standing between an allowlist that lists this command and
+    // an IsToolMutating that forgets it: without the transaction, a failure
+    // path would have nothing to cancel.
+    if (ActiveTransaction == nullptr)
+    {
+        OutError = TEXT("Animation Blueprint build requires an active transaction.");
+        return false;
+    }
+
     TSharedPtr<FJsonObject> Spec;
     TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(SpecJson);
     if (!FJsonSerializer::Deserialize(Reader, Spec) || !Spec.IsValid())

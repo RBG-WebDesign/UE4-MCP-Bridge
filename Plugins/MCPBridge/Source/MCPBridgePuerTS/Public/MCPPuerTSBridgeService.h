@@ -338,6 +338,28 @@ public:
         FString& OutResultJson,
         FString& OutError) const;
 
+    /** Read a Blend Space, Blend Space 1D or Aim Offset back as
+        machine-readable JSON: the target skeleton, all three blend axes with
+        their display name, range and grid divisions, and every sample with its
+        animation, position and rate scale.
+
+        READ ONLY, on the same terms as the other inspectors, and read-only for
+        the same kind of reason the montage reader is: UE4.27 rebuilds a blend
+        space's triangulation from its sample set, so a partially applied sample
+        edit leaves a space that interpolates wrong rather than one that fails,
+        and there is no atomic sample-set replacement to wrap.
+
+        Samples are sorted by position and animation rather than reported in
+        array order, because a blend space's array order carries no meaning:
+        sorting is what makes two reads of an unchanged asset agree by hash. All
+        three axes are reported because UE4.27 exposes no dimension count; the
+        class is what distinguishes 1D from 2D. */
+    UFUNCTION(BlueprintCallable, Category="MCP PuerTS Bridge")
+    bool InspectAnimBlendSpaceJson(
+        const FString& RequestJson,
+        FString& OutResultJson,
+        FString& OutError) const;
+
     /** Create a NEW Animation Blueprint from one JSON spec, handed to the
         existing UAnimBlueprintBuilderLibrary: variables, the anim graph
         pipeline, a state machine with its states and transitions, and an

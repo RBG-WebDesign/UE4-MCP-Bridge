@@ -1,8 +1,12 @@
 // Copyright 2026 RareBird Games. All Rights Reserved.
 //
-// Read-only Animation Blueprint and Animation Montage inspection: the
-// independent read half of anim_blueprint_build, in the same shape and spelling
-// graph_inspect, behavior_tree_inspect and widget_inspect use.
+// Read-only Animation Blueprint, Animation Montage and Blend Space inspection:
+// the independent read half of anim_blueprint_build, in the same shape and
+// spelling graph_inspect, behavior_tree_inspect and widget_inspect use.
+//
+// Only the Animation Blueprint reader has a write counterpart. The montage and
+// blend space readers do not, and that is a finding rather than an omission:
+// see the note on each declaration in MCPPuerTSBridgeService.h.
 //
 // Why it exists first: docs/REFRONT_MAP.md lists AnimBlueprintBuilderLibrary in
 // group 5 with no independent inspector, which is why its native front was
@@ -41,7 +45,9 @@
 #include "Animation/AnimMontage.h"
 #include "Animation/AnimNotifies/AnimNotify.h"
 #include "Animation/AnimNotifies/AnimNotifyState.h"
+#include "Animation/AnimSequence.h"
 #include "Animation/AnimSequenceBase.h"
+#include "Animation/BlendSpaceBase.h"
 #include "Animation/Skeleton.h"
 #include "AssetRegistryModule.h"
 #include "EdGraph/EdGraph.h"
@@ -292,8 +298,8 @@ namespace
         }
         States.Sort([](const UAnimStateNodeBase& A, const UAnimStateNodeBase& B)
         {
-            const FString NameA = const_cast<UAnimStateNodeBase&>(A).GetStateName();
-            const FString NameB = const_cast<UAnimStateNodeBase&>(B).GetStateName();
+            const FString NameA = A.GetStateName();
+            const FString NameB = B.GetStateName();
             if (NameA != NameB) { return NameA < NameB; }
             return A.GetName() < B.GetName();
         });
@@ -855,6 +861,130 @@ bool UMCPPuerTSBridgeService::InspectAnimMontageJson(
     Result->SetNumberField(TEXT("section_count"), SectionJson.Num());
     Result->SetNumberField(TEXT("slot_count"), SlotJson.Num());
     Result->SetNumberField(TEXT("notify_count"), NotifyJson.Num());
+    Result->SetStringField(TEXT("structure_hash_sha1"), HashHex(HashLines));
+    Result->SetArrayField(TEXT("warnings"), Warnings);
+    OutResultJson = SerializeJson(Result);
+    return true;
+}
+
+bool UMCPPuerTSBridgeService::InspectAnimBlendSpaceJson(
+    const FString& RequestJson,
+    FString& OutResultJson,
+    FString& OutError) const
+{
+    TSharedPtr<FJsonObject> Request;
+    TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(RequestJson);
+    if (!FJsonSerializer::Deserialize(Reader, Request) || !Request.IsValid())
+    {
+        OutError = TEXT("Inspection request must be a JSON object.");
+        return false;
+    }
+
+    FString AssetPath;
+    Request->TryGetStringField(TEXT("asset_path"), AssetPath);
+
+    FAssetData AssetData;
+    FString PackagePath;
+    FString ObjectPath;
+    if (!ResolveReadableAsset(
+            AssetPath, TEXT("Blend Space"), AssetData, PackagePath, ObjectPath, OutError))
+    {
+        return false;
+    }
+    UBlendSpaceBase* BlendSpace = Cast<UBlendSpaceBase>(AssetData.GetAsset());
+    if (BlendSpace == nullptr)
+    {
+        OutError = FString::Printf(
+            TEXT("The asset at '%s' is a %s, not a BlendSpace, BlendSpace1D or AimOffset."),
+            *ObjectPath, *AssetData.AssetClass.ToString());
+        return false;
+    }
+
+    const UPackage* Package = BlendSpace->GetOutermost();
+    const bool bDirtyBefore = Package != nullptr && Package->IsDirty();
+
+    TArray<TSharedPtr<FJsonValue>> Warnings;
+    FString HashLines;
+
+    // All three axes are reported rather than only the ones a 1D space uses.
+    // UE4.27 has no accessor for a blend space's dimension count, so the class
+    // is what tells 1D from 2D, and an axis a subclass ignores is visible as an
+    // unnamed one rather than as a gap the caller has to infer.
+    TArray<TSharedPtr<FJsonValue>> AxisJson;
+    for (int32 Index = 0; Index < 3; ++Index)
+    {
+        const FBlendParameter& Parameter = BlendSpace->GetBlendParameter(Index);
+        TSharedPtr<FJsonObject> Entry = MakeShared<FJsonObject>();
+        Entry->SetNumberField(TEXT("index"), Index);
+        Entry->SetStringField(TEXT("display_name"), Parameter.DisplayName);
+        Entry->SetNumberField(TEXT("min"), Parameter.Min);
+        Entry->SetNumberField(TEXT("max"), Parameter.Max);
+        Entry->SetNumberField(TEXT("grid_divisions"), Parameter.GridNum);
+        AxisJson.Add(MakeShared<FJsonValueObject>(Entry));
+        HashLines += FString::Printf(TEXT("axis|%d|%s|%d\n"),
+            Index, *Parameter.DisplayName, Parameter.GridNum);
+    }
+
+    // Samples are sorted, unlike montage sections: a blend space's sample array
+    // order carries no meaning (position in the space does), so sorting is what
+    // makes two reads of an unchanged asset produce the same hash.
+    struct FSampleEntry
+    {
+        FString Key;
+        FString Animation;
+        FVector Value;
+        float RateScale;
+    };
+    TArray<FSampleEntry> Samples;
+    for (const FBlendSample& Sample : BlendSpace->GetBlendSamples())
+    {
+        const FString Animation =
+            Sample.Animation != nullptr ? Sample.Animation->GetPathName() : FString();
+        Samples.Add({
+            FString::Printf(TEXT("%s|%s"), *Sample.SampleValue.ToString(), *Animation),
+            Animation, Sample.SampleValue, Sample.RateScale });
+        if (Sample.Animation == nullptr)
+        {
+            Warnings.Add(MakeShared<FJsonValueString>(FString::Printf(
+                TEXT("A blend sample at %s has no animation. It contributes nothing at runtime."),
+                *Sample.SampleValue.ToString())));
+        }
+    }
+    Samples.Sort([](const FSampleEntry& A, const FSampleEntry& B) { return A.Key < B.Key; });
+
+    TArray<TSharedPtr<FJsonValue>> SampleJson;
+    for (const FSampleEntry& Sample : Samples)
+    {
+        TSharedPtr<FJsonObject> Entry = MakeShared<FJsonObject>();
+        Entry->SetStringField(TEXT("animation"), Sample.Animation);
+        Entry->SetNumberField(TEXT("x"), Sample.Value.X);
+        Entry->SetNumberField(TEXT("y"), Sample.Value.Y);
+        Entry->SetNumberField(TEXT("z"), Sample.Value.Z);
+        Entry->SetNumberField(TEXT("rate_scale"), Sample.RateScale);
+        SampleJson.Add(MakeShared<FJsonValueObject>(Entry));
+        HashLines += TEXT("sample|") + Sample.Key + TEXT("\n");
+    }
+
+    const bool bDirtyAfter = Package != nullptr && Package->IsDirty();
+    if (bDirtyAfter && !bDirtyBefore)
+    {
+        Warnings.Add(MakeShared<FJsonValueString>(
+            TEXT("Reading this Blend Space dirtied its package. That is a defect in the "
+                 "inspector, not a property of the asset: report it.")));
+    }
+
+    TSharedPtr<FJsonObject> Result = MakeShared<FJsonObject>();
+    Result->SetStringField(TEXT("asset_path"), PackagePath);
+    Result->SetStringField(TEXT("object_path"), BlendSpace->GetPathName());
+    Result->SetStringField(TEXT("blend_space_class"), BlendSpace->GetClass()->GetPathName());
+    Result->SetStringField(TEXT("skeleton"),
+        BlendSpace->GetSkeleton() != nullptr ? BlendSpace->GetSkeleton()->GetPathName() : FString());
+    Result->SetBoolField(TEXT("package_dirty_before"), bDirtyBefore);
+    Result->SetBoolField(TEXT("package_dirty_after"), bDirtyAfter);
+    Result->SetStringField(TEXT("identity_kind"), TEXT("derived"));
+    Result->SetArrayField(TEXT("axes"), AxisJson);
+    Result->SetArrayField(TEXT("samples"), SampleJson);
+    Result->SetNumberField(TEXT("sample_count"), SampleJson.Num());
     Result->SetStringField(TEXT("structure_hash_sha1"), HashHex(HashLines));
     Result->SetArrayField(TEXT("warnings"), Warnings);
     OutResultJson = SerializeJson(Result);

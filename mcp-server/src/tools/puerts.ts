@@ -648,6 +648,27 @@ const specs = [
         + "path other tools hand back. Limited to /Game and /Engine.",
       ),
     }).strict()],
+  ["puerts_anim_blend_space_inspect", "anim_blend_space_inspect",
+    "Read an existing UE4.27 Blend Space, Blend Space 1D or Aim Offset back as machine-readable "
+    + "JSON. READ ONLY, on the same terms as the other inspectors: no transaction, no compile, "
+    + "no save, and the package dirty flag reported before and after. Returns the target "
+    + "skeleton, blend_space_class (which is what tells 1D from 2D, since UE4.27 exposes no "
+    + "dimension count), all three axes with display_name, min, max and grid_divisions, and "
+    + "every sample with its animation, x/y/z position and rate_scale. Samples are SORTED by "
+    + "position and animation rather than reported in array order, because a blend space's "
+    + "array order carries no meaning, so structure_hash_sha1 is stable across two reads of an "
+    + "unchanged asset. A sample with no animation is reported as a warning rather than a silent "
+    + "row: it contributes nothing at runtime. "
+    + "There is deliberately no blend space write tool: UE4.27 rebuilds the triangulation from "
+    + "the sample set, so a partly applied sample edit leaves a space that interpolates wrong "
+    + "rather than one that fails, and there is no atomic sample-set replacement to wrap. "
+    + "Reading is allowed anywhere under /Game and /Engine.",
+    z.object({
+      asset_path: z.string().describe(
+        "The Blend Space, as a package path (\"/Game/Anim/BS_Locomotion\") or the object path "
+        + "other tools hand back. Limited to /Game and /Engine.",
+      ),
+    }).strict()],
   ["puerts_anim_blueprint_build", "anim_blueprint_build",
     "Create a NEW UE4.27 Animation Blueprint from one JSON spec, in one transaction: member "
     + "variables, the anim graph pipeline, a state machine with its states and transitions, "
@@ -812,6 +833,7 @@ const commandTimeouts: Readonly<Record<string, number>> = {
   puerts_anim_blueprint_build: 60000,
   puerts_anim_blueprint_inspect: 15000,
   puerts_anim_montage_inspect: 15000,
+  puerts_anim_blend_space_inspect: 15000,
   // Reading is cheaper than building, but a 200-node graph with include_pins
   // is a large serialization on the game thread and the 7 second default is
   // close enough to it to report a failure for work that succeeds.
