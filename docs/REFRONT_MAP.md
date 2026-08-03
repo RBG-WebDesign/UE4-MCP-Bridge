@@ -240,15 +240,40 @@ one with a proven native front today.
 
 ### AnimBlueprintBuilderLibrary (1)
 
-- Transactional: **no**
-- Rollback on failure: **no**
-- Independent inspector: **none**
-- Convergent: partial, skips existing variables
-- **Ships as: BLOCKED**
+Three of the four columns were closed at the command layer rather than in the
+library, the same way `blueprint_member_patch` closed them for
+`UBlueprintMutatorLibrary`. The fourth was not, and the shape of the command is
+the consequence.
+
+- Transactional: yes, via `IsToolMutating` in `MCPPuerTSBridgeService`
+- Rollback on failure: yes, `FBridgeAssetRollback` around asset creation, with
+  the transaction cancelled before the boundary runs
+- Independent inspector: yes, `InspectAnimBlueprintJson`
+- Convergent: **no**, and not fixable at this layer.
+  `AnimBlueprintBuilder/ABPBuilder.cpp:147-148` says in its own comment that
+  `Rebuild` assumes a clean AnimBlueprint and clears nothing, so rebuilding over
+  an existing graph appends a second state machine rather than converging. That
+  damage is unrecoverable here: `FBridgeAssetRollback` can delete an asset the
+  command created but cannot restore the previous contents of one that already
+  existed, and the builder compiles between the transaction and any undo.
+- **Ships as: MUTATING, create-only.** The command refuses an existing asset, so
+  the only mutation reachable is creating an asset that did not exist, and that
+  is failure-atomic. A rerun is a refusal, not a no-op.
+
+To unblock a patch command: add the clear pass `Rebuild` is missing, then a
+content snapshot the boundary can restore. Until both exist, editing an
+existing Animation Blueprint stays out of the catalog.
 
 | legacy tool | C++ entry point | native command it would front | read-only today | ships as |
 |---|---|---|---|---|
-| `anim_blueprint_build_from_json` | BuildAnimBlueprintFromJSON | `puerts_anim_blueprint_build` (does not exist) | no | BLOCKED |
+| `anim_blueprint_build_from_json` | BuildAnimBlueprintFromJSON | `puerts_anim_blueprint_build` (this lane, implemented, uncompiled) | no | MUTATING (create-only) |
+
+Two read tools were added beside it and front nothing legacy:
+`puerts_anim_blueprint_inspect` and `puerts_anim_montage_inspect`. The montage
+reader has no write counterpart on purpose: UE4.27 exposes no atomic operation
+for rebuilding a montage's `NextSectionName` chain or re-linking its
+`FAnimLinkableElement` notifies, so a montage writer could not be
+failure-atomic.
 
 ### WidgetBlueprintBuilderLibrary (4)
 

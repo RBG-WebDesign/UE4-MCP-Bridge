@@ -73,7 +73,7 @@ async function main(): Promise<void> {
     });
     const client = new PuerTSClient();
     const tools = createPuertsTools(client);
-    assert(tools.length === 25, "expected all 25 PuerTS tools");
+    assert(tools.length === 28, "expected all 28 PuerTS tools");
     assert(tools.some((tool) => tool.name === "puerts_behavior_tree_build"), "native Behavior Tree builder tool is missing");
     assert(tools.some((tool) => tool.name === "puerts_behavior_tree_inspect"), "native Behavior Tree inspector tool is missing");
     assert(tools.some((tool) => tool.name === "puerts_sky_shader_create"), "native sky shader tool is missing");
@@ -82,6 +82,9 @@ async function main(): Promise<void> {
     assert(tools.some((tool) => tool.name === "puerts_graph_inspect"), "native Blueprint inspector tool is missing");
     assert(tools.some((tool) => tool.name === "puerts_widget_inspect"), "native widget inspector tool is missing");
     assert(tools.some((tool) => tool.name === "puerts_blueprint_member_patch"), "native Blueprint member patch tool is missing");
+    assert(tools.some((tool) => tool.name === "puerts_anim_blueprint_build"), "native Animation Blueprint builder tool is missing");
+    assert(tools.some((tool) => tool.name === "puerts_anim_blueprint_inspect"), "native Animation Blueprint inspector tool is missing");
+    assert(tools.some((tool) => tool.name === "puerts_anim_montage_inspect"), "native Animation Montage inspector tool is missing");
     const response = await client.call("find_actors", {});
     assert(response.success && response.message === "Actors found.", "valid response was rejected");
     const actorTool = tools.find((tool) => tool.name === "puerts_find_actors");
@@ -1270,6 +1273,188 @@ async function widgetInspectSuite(): Promise<void> {
   }
 }
 
+/** The animation lane's three tools. Two contracts are tested here that the
+    other builders do not have:
+
+    1. puerts_anim_blueprint_build is annotated mutating and NOT idempotent, on
+       purpose. It creates a new Animation Blueprint and refuses one that
+       exists, so a rerun fails rather than converging, and an idempotent hint
+       would tell a caller the opposite.
+    2. A rolled-back build must report success:false and claim no changed
+       assets. A build that rolled back and still named a changed asset would
+       send a caller to save something that no longer exists. */
+async function animationSuite(): Promise<void> {
+  const { toolAnnotations } = await import("../src/annotations.js");
+  for (const name of ["puerts_anim_blueprint_inspect", "puerts_anim_montage_inspect"]) {
+    const annotations = toolAnnotations[name];
+    assert(annotations !== undefined, `${name} has no annotation`);
+    assert(annotations.readOnlyHint === true, `${name} is not annotated read-only`);
+  }
+  const buildAnnotations = toolAnnotations.puerts_anim_blueprint_build;
+  assert(buildAnnotations !== undefined, "puerts_anim_blueprint_build has no annotation");
+  assert(buildAnnotations.readOnlyHint === false, "the Animation Blueprint builder is annotated read-only");
+  assert(
+    buildAnnotations.idempotentHint === false,
+    "the Animation Blueprint builder is annotated idempotent, but it refuses an existing asset",
+  );
+  assert(
+    buildAnnotations.destructiveHint === false,
+    "the Animation Blueprint builder is annotated destructive, but it never touches an existing asset",
+  );
+
+  const directory = await mkdtemp(join(tmpdir(), "ue4-puerts-anim-"));
+  const tokenPath = join(directory, "token.txt");
+  const pipeName = `\\\\.\\pipe\\ue4-puerts-anim-${process.pid}-${Date.now()}`;
+  await writeFile(tokenPath, "test-token", "utf8");
+  process.env.MCP_PUERTS_TOKEN_PATH = tokenPath;
+  process.env.MCP_PUERTS_PIPE = pipeName;
+  await advertiseSession(pipeName);
+
+  const received: Record<string, unknown>[] = [];
+  const server = createServer((socket) => socket.once("data", (data: Buffer) => {
+    const request = JSON.parse(data.toString("utf8")) as {
+      tool?: string; params?: Record<string, unknown>; timeout_ms?: number;
+    };
+    received.push({ ...request.params, __tool: request.tool, __timeout: request.timeout_ms });
+    // A build aimed at ABP_Broken answers as a rolled-back failure, so both
+    // halves of the envelope are covered by one listener.
+    const broken = request.tool === "anim_blueprint_build"
+      && String(request.params?.asset_path ?? "").endsWith("ABP_Broken");
+    socket.end(JSON.stringify({
+      session: RESPONSE_SESSION,
+      success: !broken,
+      message: broken ? "Animation Blueprint build reported errors and was rolled back." : "ok",
+      data: broken
+        ? { asset_path: "/Game/MCPGenerated/ABP_Broken", created: false, compile_status: "RolledBack" }
+        : {
+          asset_path: "/Game/MCPGenerated/ABP_Hero",
+          object_path: "/Game/MCPGenerated/ABP_Hero.ABP_Hero",
+          identity_kind: "derived",
+          package_dirty_before: false,
+          package_dirty_after: false,
+          structure_hash_sha1: "0".repeat(40),
+        },
+      changed_assets: broken || request.tool !== "anim_blueprint_build"
+        ? [] : ["/Game/MCPGenerated/ABP_Hero.ABP_Hero"],
+      changed_actors: [],
+      warnings: [],
+      errors: broken ? ["state 'Walk' is missing after read-back"] : [],
+      log_output: [],
+      transaction_id: broken || request.tool !== "anim_blueprint_build" ? "" : "tx-anim-1",
+    }) + "\n");
+  }));
+
+  try {
+    await new Promise<void>((resolve, reject) => {
+      server.once("error", reject);
+      server.listen(pipeName, resolve);
+    });
+    const tools = createPuertsTools(new PuerTSClient());
+    const inspect = tools.find((entry) => entry.name === "puerts_anim_blueprint_inspect");
+    const montage = tools.find((entry) => entry.name === "puerts_anim_montage_inspect");
+    const build = tools.find((entry) => entry.name === "puerts_anim_blueprint_build");
+    assert(inspect !== undefined && montage !== undefined && build !== undefined, "an animation tool is missing");
+
+    const read = await inspect.handler({ asset_path: "/Game/MCPGenerated/ABP_Hero" });
+    const readPayload = JSON.parse(read.content[0]?.text ?? "null") as Record<string, unknown>;
+    assert(readPayload.success === true, "a valid Animation Blueprint inspection was rejected");
+    assert(readPayload.transaction_id === "", "a read-only Animation Blueprint inspection returned a transaction id");
+    assert(
+      Array.isArray(readPayload.changed_assets) && (readPayload.changed_assets as unknown[]).length === 0,
+      "an Animation Blueprint read reported a changed asset",
+    );
+    assert(received[0]?.__tool === "anim_blueprint_inspect", "the inspector runtime command name is wrong");
+    assert(
+      typeof received[0]?.__timeout === "number" && (received[0].__timeout as number) > 5000,
+      "Animation Blueprint inspection did not get its own timeout budget",
+    );
+
+    // Reading is wider than authoring: an engine-shipped AnimBP is readable.
+    const engineRead = await inspect.handler({ asset_path: "/Engine/Anim/ABP_Thing" });
+    assert(
+      JSON.parse(engineRead.content[0]?.text ?? "null").success === true,
+      "the Animation Blueprint inspector refused an /Engine path",
+    );
+
+    const montageRead = await montage.handler({ asset_path: "/Game/Anim/AM_Attack" });
+    assert(
+      JSON.parse(montageRead.content[0]?.text ?? "null").success === true,
+      "a valid Animation Montage inspection was rejected",
+    );
+    assert(received[2]?.__tool === "anim_montage_inspect", "the montage runtime command name is wrong");
+
+    const built = await build.handler({
+      asset_path: "/Game/MCPGenerated/ABP_Hero",
+      skeleton_path: "/Game/Characters/Hero_Skeleton",
+      anim_graph: { pipeline: [{ id: "sm", type: "StateMachine", name: "Locomotion" }] },
+      state_machine: {
+        states: [{ id: "idle", name: "Idle", animation: "/Game/Anim/Idle", is_entry: true }],
+        transitions: [],
+      },
+    });
+    const builtPayload = JSON.parse(built.content[0]?.text ?? "null") as Record<string, unknown>;
+    assert(builtPayload.success === true, "a valid Animation Blueprint build was rejected");
+    assert(received[3]?.__tool === "anim_blueprint_build", "the builder runtime command name is wrong");
+    assert(
+      typeof received[3]?.__timeout === "number" && (received[3].__timeout as number) > 30000,
+      "the Animation Blueprint build did not get a compile-sized timeout budget",
+    );
+
+    const rolledBack = await build.handler({
+      asset_path: "/Game/MCPGenerated/ABP_Broken",
+      skeleton_path: "/Game/Characters/Hero_Skeleton",
+      anim_graph: { pipeline: [{ id: "sm", type: "StateMachine", name: "Locomotion" }] },
+      state_machine: {
+        states: [{ id: "walk", name: "Walk", animation: "/Game/Anim/Walk", is_entry: true }],
+        transitions: [],
+      },
+    });
+    const rolledBackPayload = JSON.parse(rolledBack.content[0]?.text ?? "null") as Record<string, unknown>;
+    assert(rolledBackPayload.success === false, "a rolled-back Animation Blueprint build reported success");
+    assert(
+      Array.isArray(rolledBackPayload.changed_assets)
+      && (rolledBackPayload.changed_assets as unknown[]).length === 0,
+      "a rolled-back Animation Blueprint build still named a changed asset",
+    );
+
+    const sentSoFar = received.length;
+    const outsideRoot = await build.handler({
+      asset_path: "/Game/Elsewhere/ABP_Hero",
+      skeleton_path: "/Game/Characters/Hero_Skeleton",
+      anim_graph: { pipeline: [] },
+      state_machine: { states: [], transitions: [] },
+    });
+    assert(
+      JSON.parse(outsideRoot.content[0]?.text ?? "null").success === false,
+      "the Animation Blueprint builder accepted a path outside /Game/MCPGenerated/",
+    );
+    const noSkeleton = await build.handler({
+      asset_path: "/Game/MCPGenerated/ABP_Hero",
+      anim_graph: { pipeline: [] },
+      state_machine: { states: [], transitions: [] },
+    });
+    assert(
+      JSON.parse(noSkeleton.content[0]?.text ?? "null").success === false,
+      "the Animation Blueprint builder accepted a spec with no skeleton_path",
+    );
+    const authoringKey = await inspect.handler({
+      asset_path: "/Game/MCPGenerated/ABP_Hero",
+      state_machine: { states: [] },
+    });
+    assert(
+      JSON.parse(authoringKey.content[0]?.text ?? "null").success === false,
+      "the Animation Blueprint inspector accepted an authoring key",
+    );
+    assert(received.length === sentSoFar, "a rejected animation request still reached the pipe");
+    console.log("  PASS  animation authoring: read-only inspectors, create-only build, rollback envelope");
+  } finally {
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+    await rm(directory, { recursive: true, force: true });
+    delete process.env.MCP_PUERTS_TOKEN_PATH;
+    delete process.env.MCP_PUERTS_PIPE;
+  }
+}
+
 main()
   .then(marshalingSuite)
   .then(blueprintBuildSuite)
@@ -1277,6 +1462,7 @@ main()
   .then(behaviorTreeInspectSuite)
   .then(widgetBuildSuite)
   .then(widgetInspectSuite)
+  .then(animationSuite)
   .then(connectionContractSuite)
   .then(nonActorParentSuite)
   .then(graphInspectSuite)
