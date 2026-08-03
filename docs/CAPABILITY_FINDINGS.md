@@ -2233,3 +2233,50 @@ not from a run. What a live run has to prove, in order:
    the transaction and leaves an existing material hashing to what it hashed
    before, through `material_inspect` rather than through this command.
 3. A rerun of an identical spec produces the same `structure_hash_sha1`.
+## Finding 0s: five legacy parameters did not survive the native migration
+
+Found by lane P's vertical slices, fixed by lane U on 2026-08-03. Recorded here
+because the shape of it matters more than the five parameters.
+
+AGENTS.md requires legacy capability to be preserved across the migration.
+These five were not, and the compat aliases said so in their own descriptions
+rather than treating it as a defect:
+
+| Legacy tool | Parameter | Native tool | What the alias did |
+|---|---|---|---|
+| `actor_spawn` | `name` | `puerts_spawn_actor` | refused, "rename it with call_function" |
+| `actor_spawn` | `folder` | `puerts_spawn_actor` | refused, "there is no native folder command" |
+| `actor_spawn` | `scale` | `puerts_spawn_actor` | refused, "spawns at unit scale" |
+| `level_actors` | `folder_filter` | `puerts_find_actors` | refused, "filter client-side" |
+| `level_actors` | `include_transforms` | `puerts_find_actors` | accepted only as `true` |
+
+Verified against `docs/TOOL_INVENTORY.json`, which carries the legacy schemas,
+rather than against the aliases: `actor_spawn` is recorded there with
+`asset_path, location?, rotation?, scale?, name?, folder?, validate?` and
+`level_actors` with `class_filter?, name_filter?, folder_filter?,
+include_transforms?, include_components?, limit?`.
+
+**The failure mode is that nothing broke.** Every test passed the whole time. A
+parameter that is gone is invisible to a suite that never names it, and the
+refusal messages read as design notes rather than as regressions, so they
+survived review. `mcp-server/tests/puerts-tools.test.ts::levelCompletionSuite`
+now names all five, which is the only thing that makes their absence a failure.
+
+Restored under the SAME names, additively, on 2026-08-03:
+
+- `puerts_spawn_actor` takes `name`, `folder` and `scale`. It finishes the spawn
+  through `ApplySceneBatchJson` inside the one transaction the command already
+  opens, rather than growing three more native parameters: that command already
+  labels, folders and scales an actor, refuses a label another actor holds, and
+  verifies by reading the level back.
+- `puerts_find_actors` takes `folder_filter` (a PREFIX match, which is what the
+  legacy handler's `folder.startswith` did) and `include_transforms`. Either one
+  routes the read through `InspectSceneJson`, the same snapshot `scene_inspect`
+  reports; neither is on the default path, so the ordinary read stays the cheap
+  actor iteration it was, and the response keys a caller already reads (`name`,
+  `class_name`, `location`) are unchanged.
+
+`include_transforms` defaulted to true legacy-side and defaults to false on the
+native tool. The `level_actors` compat alias states the legacy default rather
+than inheriting the native one, so an old caller that never passed the flag
+still gets what it always got.

@@ -201,6 +201,20 @@ export const toolAnnotations: Record<string, ToolAnnotations> = {
   // throughout: a rerun applies nothing, reports converged, and the level does
   // not get dirtier.
   puerts_scene_batch: destructiveIdempotent,
+  // Mutating and idempotent: starting a build that is already needed twice is
+  // the same request, and Lightmass has one active build, so a second start is
+  // refused rather than queued. Not read-only - it starts real work and the
+  // finished build writes the level's map build data - and not destructive: a
+  // rebuild replaces lighting data that is itself derived, and nothing a caller
+  // authored is lost.
+  puerts_lighting_build: mutatingIdempotent,
+  // Mutating and idempotent, NOT destructive: it writes only the class defaults
+  // it was given, a value already equal to the request is reported unchanged and
+  // not rewritten, and nothing is ever cleared. Worth knowing rather than
+  // inferring from this classification: editor undo does not cover a CDO write
+  // (finding 0r), so "mutating" here means the command's own restore boundary is
+  // the way back, not Ctrl+Z.
+  puerts_class_defaults_patch: mutatingIdempotent,
   puerts_delete_actor: destructiveIdempotent,
   puerts_save: destructive,
   puerts_undo: destructive,

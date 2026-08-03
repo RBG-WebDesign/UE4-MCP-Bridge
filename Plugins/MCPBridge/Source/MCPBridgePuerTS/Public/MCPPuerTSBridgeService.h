@@ -982,6 +982,67 @@ private:
         FString& OutResultJson,
         FString& OutError);
 
+    /** Start a Lightmass lighting build for the editor's current level, or
+        report the state of one, so a level authored through scene_batch can be
+        lit rather than left showing the "Lighting needs to be rebuilt" banner.
+
+        IT DOES NOT WAIT, and the response says so in `waited` and `completion`
+        rather than implying otherwise. UEditorEngine::BuildLighting hands the
+        level to FStaticLightingManager and returns; the build then advances on
+        UpdateBuildLighting from the editor's own tick, over minutes at
+        Production quality. A command that blocked on that would sit far past
+        any request timeout this bridge allows, and a timeout reported while the
+        editor kept building is wrong in both directions.
+
+        What the start DOES pay for synchronously is the scene gather and the
+        Lightmass export. On a large level that alone is slow, which is why the
+        tool carries a long budget for a command that does not wait.
+
+        Whether a build actually began is read back from
+        IsLightingBuildCurrentlyRunning rather than assumed:
+        CreateStaticLightingSystem returns void and swallows a refused start.
+        Poll with action="status", and read lighting_unbuilt_objects - the
+        counter behind the editor's own banner - to decide whether the level
+        still needs a rebuild. Refused during PIE, because Lightmass reads GWorld
+        and that is the play world while play is running. */
+    UFUNCTION(BlueprintCallable, Category="MCP PuerTS Bridge")
+    bool BuildLightingJson(
+        const FString& SpecJson,
+        FString& OutResultJson,
+        FString& OutError);
+
+    /** Set INHERITED class-default (CDO) values on a generated Blueprint:
+        AIControllerClass and AutoPossessAI on a pawn, and anything else on the
+        writable-property allowlist. blueprint_build writes component template
+        properties and member variable defaults and has no section for the
+        actor's own class defaults, so an authored pawn could never be possessed
+        by an authored controller.
+
+        A variable the Blueprint itself declares is REFUSED here and pointed at
+        blueprint_member_patch: its default lives on FBPVariableDescription as
+        well as on the CDO, and writing only one of the two leaves them
+        disagreeing until the next compile picks a winner.
+
+        The transaction is deliberately not the rollback. Finding 0r, measured:
+        UObject::Modify delegates to SaveToTransactionBuffer, which silently does
+        nothing for an object that is not RF_Transactional, and a class default
+        object is not - so a cancelled transaction leaves a CDO write standing.
+        This command snapshots the exported text of every property it will touch,
+        restores it on any failure, and decides whether the restore worked by
+        reading the values again. Modify()'s return value is reported as
+        transaction_covers_cdo rather than discarded.
+
+        Convergent: a value already equal to the request is reported unchanged
+        and not rewritten, so a rerun dirties nothing and saves nothing. The
+        comparison is between two exported strings produced by the same
+        import-and-export path, not by a hand-written JSON comparator, and an
+        invalid value is rejected on a scratch copy before the CDO is touched. */
+    UFUNCTION(BlueprintCallable, Category="MCP PuerTS Bridge")
+    bool PatchClassDefaultsJson(
+        const FString& SpecJson,
+        FString& OutResultJson,
+        FString& OutError);
+
     /** Read the project's input action and axis mappings back as JSON.
         THE MISSING INSPECTOR. UMCPBridgeInputLibrary could add and remove
         mappings and had no reader at all, so a mutation could only ever be

@@ -203,6 +203,12 @@ bool UMCPPuerTSBridgeService::Initialize(FString& OutError)
             TEXT("behavior_tree_build"), TEXT("anim_blueprint_build"), TEXT("blackboard_build"), TEXT("ai_perception_build"),
             TEXT("material_instance_build"), TEXT("scene_batch"), TEXT("input_mapping_patch"), TEXT("folder_visibility"),
             TEXT("camera_shake"), TEXT("material_build"), TEXT("texture_import"),
+            TEXT("camera_shake"), TEXT("class_defaults_patch"),
+            // Starts a Lightmass build and returns; it opens no transaction and
+            // is absent from IsToolMutating for the same reason the viewport
+            // commands are. A lighting build is not something a transaction can
+            // take back.
+            TEXT("lighting_build"),
             // Read only. Deliberately absent from IsToolMutating below, so they
             // open no transaction and return no transaction id.
             TEXT("diagnostic"), TEXT("find_assets"), TEXT("find_actors"), TEXT("read_property"),
@@ -237,7 +243,12 @@ bool UMCPPuerTSBridgeService::Initialize(FString& OutError)
             TEXT("PostProcessVolume.BlendRadius"), TEXT("PostProcessVolume.BlendWeight"),
             TEXT("PostProcessVolume.bEnabled"), TEXT("PostProcessVolume.bUnbound"),
             TEXT("BoxComponent.BoxExtent"),
-            TEXT("StaticMeshComponent.StaticMesh")
+            TEXT("StaticMeshComponent.StaticMesh"),
+            // Widened for class_defaults_patch, by name, and no wider than the
+            // AI slice needs: without these two an authored pawn can never be
+            // possessed by an authored AIController, which is the whole gap.
+            // Both are inherited APawn class defaults, not Blueprint variables.
+            TEXT("Pawn.AIControllerClass"), TEXT("Pawn.AutoPossessAI")
         };
         for (const TCHAR* Value : Defaults) { AllowedWritableProperties.Add(Value); }
     }
@@ -1466,6 +1477,13 @@ bool UMCPPuerTSBridgeService::IsToolMutating(const FString& ToolName) const
         // undo entry and nothing else.
         || ToolName == TEXT("material_build")
         || ToolName == TEXT("texture_import")
+        // Writes a class default object. The transaction it opens provably does
+        // NOT cover that write (finding 0r), and the command says so in
+        // transaction_covers_cdo rather than relying on it; it is here because
+        // the write is still an asset mutation and everything else about the
+        // envelope - the transaction id, the undo entry, the changed_assets
+        // report - belongs to a mutating command.
+        || ToolName == TEXT("class_defaults_patch")
         || ToolName == TEXT("scene_batch");
 }
 

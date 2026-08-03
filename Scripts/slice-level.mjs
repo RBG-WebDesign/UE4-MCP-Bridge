@@ -156,25 +156,36 @@ await runSlice({
     }
   }
 
-  h.request("puerts_lighting_build",
-    "build lighting so the placed lights are baked rather than preview-only. Nothing in the catalog, native or "
-    + "legacy, triggers a lighting build, so a screenshot of an authored scene shows unbuilt lighting and the "
-    + "Unreal 'Lighting needs to be rebuilt' banner",
-    {
-      tool: "puerts_lighting_build",
-      params: { quality: "Preview | Medium | High | Production", wait_for_completion: "boolean", timeout_ms: "number" },
-      returns: "{ built: boolean, quality, mapped_lights, elapsed_ms, warnings }",
+  // Lighting. Nothing in the catalog triggered a build until lane U, so a
+  // screenshot of an authored scene showed the "Lighting needs to be rebuilt"
+  // banner over unlit geometry.
+  const lit = await h.call("puerts_lighting_build", { action: "start", quality: "Preview" }, {
+    label: "4. start a lighting build so the placed lights are baked rather than preview-only",
+    why: "a scene authored with lights and never lit is a screenshot of the banner",
+  });
+  if (lit?.success === true) {
+    h.check(lit.data?.waited === false,
+      "4. the build command says plainly that it did not wait",
+      "a Lightmass build runs for minutes; a command that claimed completion here would be lying");
+    const status = await h.call("puerts_lighting_build", { action: "status" }, {
+      label: "5. poll the build rather than assuming it finished",
     });
+    h.note("5. lighting build state at the end of this slice",
+      `build_running=${status?.data?.build_running}, `
+      + `lighting_unbuilt_objects=${status?.data?.lighting_unbuilt_objects}. A run that ends with `
+      + "build_running true has a build still going; the level below is saved either way, because "
+      + "the map build data lands when the build completes.");
+  }
 
   await h.call("puerts_save", {}, {
-    label: "4. persist the level, which scene_batch deliberately does not do",
+    label: "6. persist the level, which scene_batch deliberately does not do",
   });
 
   await h.call("puerts_viewport_screenshot", {}, {
-    label: "5. capture the courtyard",
+    label: "7. capture the courtyard",
   });
 
-  h.note("6. this slice seals no artifact for the cold phase",
+  h.note("8. this slice seals no artifact for the cold phase",
     "the generic cold check re-reads by asset_path, and puerts_scene_inspect addresses the loaded level rather "
     + "than an asset path. Proving a level survives a restart needs a cold check written against level_path.");
 });

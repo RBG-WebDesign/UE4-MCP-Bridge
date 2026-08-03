@@ -180,7 +180,14 @@ async function main(): Promise<void> {
     const routings: Array<[string, Record<string, unknown>, string, Record<string, unknown>]> = [
       ["actor_delete", { actor_name: "Cube_1" }, "delete_actor", { actor: "Cube_1", confirm: true }],
       ["actor_modify", { actor_name: "Cube_1", visible: false }, "set_property", { actor: "Cube_1", property: "bHidden", value: true }],
-      ["level_actors", { class_filter: "StaticMeshActor", name_filter: "Cube", limit: 5 }, "find_actors", { type: "StaticMeshActor", name: "Cube", limit: 5 }],
+      ["level_actors", { class_filter: "StaticMeshActor", name_filter: "Cube", limit: 5 }, "find_actors", { type: "StaticMeshActor", name: "Cube", include_transforms: true, limit: 5 }],
+      // The capability legacy shipped and the native migration dropped. Both
+      // parameters are native again, under their legacy names, and the alias
+      // states the legacy default for include_transforms rather than inheriting
+      // the native one.
+      ["level_actors", { folder_filter: "Courtyard", include_transforms: false }, "find_actors", { folder_filter: "Courtyard", include_transforms: false }],
+      ["actor_spawn", { asset_path: "/Script/Engine.StaticMeshActor", name: "Pillar_NE", folder: "Courtyard/Structure", scale: { x: 1, y: 1, z: 4 } },
+        "spawn_actor", { class_path: "/Script/Engine.StaticMeshActor", name: "Pillar_NE", folder: "Courtyard/Structure", scale: { x: 1, y: 1, z: 4 } }],
       ["level_save", {}, "save", {}],
       ["asset_save_many", { paths: "/Game/Maps/Test" }, "save", { assets: ["/Game/Maps/Test"] }],
       ["asset_list", { path: "/Game/Meshes", asset_type: "StaticMesh", name_pattern: "SM_" }, "find_assets", { path: "/Game/Meshes", type: "StaticMesh", name: "SM_" }],
@@ -275,11 +282,10 @@ async function main(): Promise<void> {
     const unmappable: Array<[string, Record<string, unknown>, string]> = [
       ["undo", { count: 1 }, "transaction_id"],
       ["undo", { count: 3, transaction_id: "tx-9" }, "count"],
-      ["actor_spawn", { asset_path: "/Game/Meshes/SM_Cube", folder: "Props" }, "folder"],
-      ["actor_spawn", { asset_path: "/Game/Meshes/SM_Cube", scale: { x: 2, y: 2, z: 2 } }, "scale"],
+      ["actor_spawn", { asset_path: "/Game/Meshes/SM_Cube", validate: false }, "validate"],
       ["actor_modify", { actor_name: "Cube_1", location: { x: 1, y: 2, z: 3 } }, "location"],
       ["actor_delete", { actor_name: "Cube_*" }, "actor_name"],
-      ["level_actors", { folder_filter: "Props" }, "folder_filter"],
+      ["level_actors", { include_components: true }, "include_components"],
       ["level_actors", { name_filter: "Cube_*" }, "name_filter"],
       ["level_save", { save_all: true }, "save_all"],
       ["viewport_screenshot", { resolution: { width: 640 } }, "resolution"],

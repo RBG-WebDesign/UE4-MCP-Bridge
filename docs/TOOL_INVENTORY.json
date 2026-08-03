@@ -23,12 +23,12 @@
     "native_live_partial": "live acceptance passed, but part of the evidence is the builder own report because no independent reader exists yet",
     "legacy_untested": "no live editor proof of any kind; a non-null test_file covers only the mock listener"
   },
-  "tool_count": 259,
+  "tool_count": 261,
   "by_backend": {
     "legacy_http": 170,
     "native_pipe_alias": 38,
     "server_local": 3,
-    "native_pipe": 48
+    "native_pipe": 50
   },
   "tools": [
     {
@@ -392,7 +392,7 @@
       "backend": "native_pipe_alias",
       "migration_state": "wrap",
       "target_replacement": "puerts_spawn_actor",
-      "description": "[COMPAT ALIAS -> puerts_spawn_actor] Spawn an actor from an asset path at a given location/rotation. asset_path becomes class_path. scale, name and folder have no native equivalent and are refused rather than dropped.",
+      "description": "[COMPAT ALIAS -> puerts_spawn_actor] Spawn an actor from an asset path at a given location/rotation/scale. asset_path becomes class_path. scale, name and folder pass straight through: puerts_spawn_actor takes all three again.",
       "schema": {
         "kind": "object",
         "params": {
@@ -4736,7 +4736,7 @@
       "backend": "native_pipe_alias",
       "migration_state": "wrap",
       "target_replacement": "puerts_find_actors",
-      "description": "[COMPAT ALIAS -> puerts_find_actors] List actors in the current level. class_filter becomes type, name_filter becomes name, limit passes through. Native filters are substring matches, so wildcard patterns and folder filtering are refused.",
+      "description": "[COMPAT ALIAS -> puerts_find_actors] List actors in the current level. class_filter becomes type, name_filter becomes name, folder_filter, include_transforms and limit pass through. Native filters are substring matches, so wildcard patterns are refused.",
       "schema": {
         "kind": "object",
         "params": {
@@ -7776,6 +7776,47 @@
       "verification": "implemented"
     },
     {
+      "name": "puerts_class_defaults_patch",
+      "module": "mcp-server/src/tools/puerts.ts",
+      "backend": "native_pipe",
+      "migration_state": "native_pending_live",
+      "target_replacement": null,
+      "description": "[PRIMARY NATIVE IPC] Set INHERITED class-default (CDO) values on a generated Blueprint as desired state: AIControllerClass and AutoPossessAI on a pawn, and anything else on the bridge's writable-property allowlist. puerts_blueprint_build writes component template properties and member variable defaults and has no section for the actor's own class defaults, which is why an authored pawn could not be possessed by an authored AIController until this existed. A variable the Blueprint ITSELF declares is refused here and pointed at puerts_blueprint_member_patch: its default lives on the variable description as well as on the CDO, and writing only one of the two leaves them disagreeing until the next compile picks a winner. The transaction is deliberately NOT the rollback. UObject::Modify does nothing for an object that is not RF_Transactional and a class default object is not one, so a cancelled transaction leaves a CDO write standing - measured, not assumed (finding 0r). This command snapshots every property it will touch, restores them on any failure, decides rollback_succeeded by reading the values again, and reports Modify()'s own return value as transaction_covers_cdo. When that is false, editor undo will NOT take this change back. Convergent: a value already equal to the request is reported in unchanged_properties and not rewritten, so a rerun dirties nothing and saves nothing. An invalid value is rejected on a scratch copy before the CDO is touched, and an unknown property name is answered with the closest names on the class. It writes the CLASS default: actors already placed in a level keep the value they were placed with, and puerts_scene_batch is what changes those.",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "asset_path": "string",
+          "properties": "record",
+          "plan_only": "boolean?",
+          "verify": "boolean?",
+          "save": "boolean?"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": "mcp-server/tests/puerts-tools.test.ts",
+      "capability_category": "blueprints",
+      "canonical_capability": "blueprints.class_defaults_patch",
+      "owner": "MCPBridgePuerTS service",
+      "lifecycle": "active",
+      "migration_action": "KEEP",
+      "replacement_tool": null,
+      "compatibility_alias": false,
+      "cpp_builder": "MCPPuerTSBridgeService",
+      "cpp_entry_point": "PatchClassDefaultsJson",
+      "python_handler": null,
+      "live_evidence": [],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": "sets inherited class-default (CDO) values on a generated Blueprint, which blueprint_build has no section for: AIControllerClass and AutoPossessAI are the gap the AI slice hit, and both are added to AllowedWritableProperties by name. A variable the Blueprint itself declares is refused and pointed at blueprint_member_patch, whose set_variable_default writes the FBPVariableDescription default as well as the CDO. The transaction is deliberately not the rollback: finding 0r measured that UObject::Modify does nothing for a non-RF_Transactional object and a CDO is one, so this command snapshots the exported text of every property it will touch, restores it on failure, decides rollback_succeeded by reading the values again, and reports Modify() return value as transaction_covers_cdo. Convergence is decided by comparing two exported strings produced by the same import-and-export path, on a scratch copy, so an invalid value is rejected before the CDO is touched. UNCOMPILED: lane U holds no build rights, so no editor has run this code.",
+      "verification": "implemented"
+    },
+    {
       "name": "puerts_delete_actor",
       "module": "mcp-server/src/tools/puerts.ts",
       "backend": "native_pipe",
@@ -7898,12 +7939,14 @@
       "backend": "native_pipe",
       "migration_state": "native",
       "target_replacement": null,
-      "description": "[PRIMARY NATIVE IPC] Find actors in the current editor level.",
+      "description": "[PRIMARY NATIVE IPC] Find actors in the current editor level. name and type are case-insensitive SUBSTRING matches, not wildcards. folder_filter and include_transforms are the legacy level_actors parameters, restored: either one reads the level through the same snapshot puerts_scene_inspect reports, so the answer cannot disagree with the inspector, and both are absent by default so the ordinary read stays the cheap actor iteration it always was. For bounds, components, attachment or a structure hash, use puerts_scene_inspect: this tool is the quick lookup, not the level inspector.",
       "schema": {
         "kind": "object",
         "params": {
           "name": "string?",
           "type": "string?",
+          "folder_filter": "string?",
+          "include_transforms": "boolean?",
           "limit": "number?"
         }
       },
@@ -8176,6 +8219,46 @@
       "migration_risk": "low",
       "capability_loss_risk": "low",
       "notes": "re-front of UMCPBridgeInputLibrary behind one reconciling command: the legacy lane spent one round trip per binding across three tools and a control scheme is eleven bindings. The library per-mapping validation and duplicate rejection are reused; the command adds classify-before-write, presets expanded client side, and the boundary the library never had. DefaultInput.ini is not a UObject, so instead of a transaction the command snapshots both mapping arrays, restores them on any failure, and decides rollback_succeeded by re-reading and comparing the hash. NOT COMPILED and NOT run.",
+      "verification": "implemented"
+    },
+    {
+      "name": "puerts_lighting_build",
+      "module": "mcp-server/src/tools/puerts.ts",
+      "backend": "native_pipe",
+      "migration_state": "native_pending_live",
+      "target_replacement": null,
+      "description": "[PRIMARY NATIVE IPC] Build lighting for the level the editor has open, so placed lights are baked rather than preview-only and the level stops showing Unreal's \"Lighting needs to be rebuilt\" banner. IT DOES NOT WAIT FOR THE BUILD. A Lightmass build runs for minutes at the higher quality levels, far past any request budget this bridge allows, so action=\"start\" starts it and returns; the response carries waited:false and a completion note saying exactly that. Poll with action=\"status\" until build_running is false, and read lighting_unbuilt_objects - the counter behind the editor's own banner - to see whether the level still needs a rebuild. Screenshotting or saving before build_running goes false captures the state mid-build. What the start DOES block on is the scene gather and the Lightmass export, which is seconds on a small level and longer on a large one. started is read back from the editor rather than assumed: UE4.27 swallows a refused build, so a start that Lightmass declined answers started:false with the reason, and the two common causes (World Settings bForceNoPrecomputedLighting, and r.AllowStaticLighting=0) are refused by name before the build is asked for. Refused during Play In Editor: Lightmass reads GWorld, which is the play world while play is running, so a build started then would gather the wrong scene. There is no cancel: UE4.27 exposes no public entry point for aborting a build.",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "action": "enum?",
+          "quality": "enum?",
+          "only_current_level": "boolean?",
+          "level_path": "string?"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": "mcp-server/tests/puerts-tools.test.ts",
+      "capability_category": "level",
+      "canonical_capability": "level.lighting_build",
+      "owner": "MCPBridgePuerTS service",
+      "lifecycle": "active",
+      "migration_action": "KEEP",
+      "replacement_tool": null,
+      "compatibility_alias": false,
+      "cpp_builder": "MCPPuerTSBridgeService",
+      "cpp_entry_point": "BuildLightingJson",
+      "python_handler": null,
+      "live_evidence": [],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": "starts a Lightmass build for the level the editor has open, or reports the state of one. IT DOES NOT WAIT: UEditorEngine::BuildLighting hands the level to FStaticLightingManager and returns, and the build then advances on UpdateBuildLighting from the editor tick over minutes; a command that blocked on that would sit far past any request budget this bridge allows, and a timeout reported while the editor kept building is wrong in both directions. So action=start returns waited:false with a completion note, and action=status is the poll. started is read back from IsLightingBuildCurrentlyRunning rather than assumed, because CreateStaticLightingSystem returns void and swallows a refused start; bForceNoPrecomputedLighting and r.AllowStaticLighting=0 are refused by name first. Refused during PIE: Lightmass reads GWorld. No cancel: UE4.27 exposes no public abort. UNCOMPILED: lane U holds no build rights, so no editor has run this code.",
       "verification": "implemented"
     },
     {
@@ -8823,13 +8906,16 @@
       "backend": "native_pipe",
       "migration_state": "native_live_partial",
       "target_replacement": null,
-      "description": "[PRIMARY NATIVE IPC] Spawn an actor in a transaction.",
+      "description": "[PRIMARY NATIVE IPC] Spawn one actor in a transaction. name, folder and scale are the legacy actor_spawn parameters, restored: the spawn is finished through the same desired-state path puerts_scene_batch uses, inside the one transaction this command opens, so a label that already belongs to another actor is a refusal and the whole spawn is rolled back rather than left half-applied. For more than one actor, or to change an actor that already exists, use puerts_scene_batch: it takes the whole scene in one call and this one takes one actor.",
       "schema": {
         "kind": "object",
         "params": {
           "class_path": "string",
           "location": "object?",
-          "rotation": "object?"
+          "rotation": "object?",
+          "scale": "object?",
+          "name": "string?",
+          "folder": "string?"
         }
       },
       "annotations": {

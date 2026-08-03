@@ -1163,6 +1163,24 @@
       "verification": "implemented",
       "live_evidence": [],
       "notes": "UNCOMPILED. The C++ was written and never built. Closes the gap docs/GAP_AUDIT-2026-07-29.md recorded as no texture tools at all: material_instance_build accepts a textures map and material_build accepts a texture parameter default, and nothing could produce a texture for either. GENERATES a solid colour or checker UTexture2D rather than importing from disk. FTextureSource::Init(W,H,1,1,TSF_BGRA8,bytes) with PostEditChange building the platform mip chain, the same shape FImageUtils::CreateTexture2D uses for a colour buffer. File import is deliberately absent rather than half-built: it needs an allowed import root this bridge does not define, engine_source_read's engine root is for reading engine source and not user content, and inventing a second filesystem trust root is a decision for the integrator. A spec naming source_file is refused by name with that reason. Convergent by construction: the same spec produces identical source bytes, so a rerun memcmps equal, reports unchanged, opens no write and dirties nothing. Modify() return value checked, source pixels read back and compared byte for byte before any save. Size is capped at 2048 and restricted to powers of two because generation runs on the game thread. sRGB changes the bytes written (FLinearColor::ToFColor) rather than only a flag, and defaults from the compression choice so a Normalmap is not silently gamma encoded."
+    },
+    "puerts_lighting_build": {
+      "canonical_capability": "level.lighting_build",
+      "capability_category": "level",
+      "cpp_builder": "MCPPuerTSBridgeService",
+      "cpp_entry_point": "BuildLightingJson",
+      "verification": "implemented",
+      "live_evidence": [],
+      "notes": "starts a Lightmass build for the level the editor has open, or reports the state of one. IT DOES NOT WAIT: UEditorEngine::BuildLighting hands the level to FStaticLightingManager and returns, and the build then advances on UpdateBuildLighting from the editor tick over minutes; a command that blocked on that would sit far past any request budget this bridge allows, and a timeout reported while the editor kept building is wrong in both directions. So action=start returns waited:false with a completion note, and action=status is the poll. started is read back from IsLightingBuildCurrentlyRunning rather than assumed, because CreateStaticLightingSystem returns void and swallows a refused start; bForceNoPrecomputedLighting and r.AllowStaticLighting=0 are refused by name first. Refused during PIE: Lightmass reads GWorld. No cancel: UE4.27 exposes no public abort. UNCOMPILED: lane U holds no build rights, so no editor has run this code."
+    },
+    "puerts_class_defaults_patch": {
+      "canonical_capability": "blueprints.class_defaults_patch",
+      "capability_category": "blueprints",
+      "cpp_builder": "MCPPuerTSBridgeService",
+      "cpp_entry_point": "PatchClassDefaultsJson",
+      "verification": "implemented",
+      "live_evidence": [],
+      "notes": "sets inherited class-default (CDO) values on a generated Blueprint, which blueprint_build has no section for: AIControllerClass and AutoPossessAI are the gap the AI slice hit, and both are added to AllowedWritableProperties by name. A variable the Blueprint itself declares is refused and pointed at blueprint_member_patch, whose set_variable_default writes the FBPVariableDescription default as well as the CDO. The transaction is deliberately not the rollback: finding 0r measured that UObject::Modify does nothing for a non-RF_Transactional object and a CDO is one, so this command snapshots the exported text of every property it will touch, restores it on failure, decides rollback_succeeded by reading the values again, and reports Modify() return value as transaction_covers_cdo. Convergence is decided by comparing two exported strings produced by the same import-and-export path, on a scratch copy, so an invalid value is rejected before the CDO is touched. UNCOMPILED: lane U holds no build rights, so no editor has run this code."
     }
   }
 }
