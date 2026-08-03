@@ -465,7 +465,12 @@ namespace
                 // template, no PIE (LevelSequence.cpp:360-375). It needs the
                 // actor loaded, so it answers empty when the level that holds it
                 // is not open, which is reported rather than hidden.
-                for (UObject* Bound : Sequence->LocateBoundObjects(Possessable.GetGuid(), Context))
+                // 4.27's LocateBoundObjects is void with an out-parameter, not a
+                // returning function. The range-for form compiled in nobody's
+                // build; it is the shape a later engine uses.
+                TArray<UObject*, TInlineAllocator<1>> BoundObjects;
+                Sequence->LocateBoundObjects(Possessable.GetGuid(), Context, BoundObjects);
+                for (UObject* Bound : BoundObjects)
                 {
                     if (Bound == nullptr) { continue; }
                     TSharedPtr<FJsonObject> Actor = MakeShared<FJsonObject>();
@@ -1600,7 +1605,9 @@ bool UMCPPuerTSBridgeService::BuildLevelSequenceJson(
                 // A possessable can exist and point at the wrong actor, or at
                 // nothing, so "it exists" is not "it is satisfied".
                 bool bBoundCorrectly = false;
-                for (UObject* Bound : Sequence->LocateBoundObjects(Existing, World))
+                TArray<UObject*, TInlineAllocator<1>> BoundObjects;
+                Sequence->LocateBoundObjects(Existing, World, BoundObjects);
+                for (UObject* Bound : BoundObjects)
                 {
                     if (Bound == Binding.Actor) { bBoundCorrectly = true; break; }
                 }
