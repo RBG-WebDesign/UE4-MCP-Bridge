@@ -374,9 +374,9 @@
       "cpp_entry_point": "AddVariable",
       "verification": "live_verified",
       "live_evidence": [
-        "Scripts/bp-member-patch-acceptance.mjs (warm, all checks passed)",
-        "Scripts/bp-member-patch-acceptance.mjs --phase=cold (all checks passed after editor restart)",
-        "Scripts/mutator-atomicity.mjs (failure atomicity, control included)"
+        "Scripts/bp-member-patch-acceptance.mjs",
+        "Scripts/mutator-atomicity.mjs",
+        "Scripts/member-rollback-diagnosis.mjs"
       ],
       "notes": "re-front of UBlueprintMutatorLibrary through the native pipe: the member half of incremental Blueprint editing, which blueprint_graph_patch cannot reach and blueprint_build reaches only by restating the whole asset. Eleven operations over variables, functions, interfaces, event dispatchers and components. The mutations are entirely the existing library; the command adds the classify-before-mutate pass (every mutator entry point recompiles, so a half-applied batch is expensive), one rollback boundary, the compile gate, a per-operation independent read-back, and save only after verification. pre_member_hash / post_member_hash are the same value graph_inspect now returns as member_structure_hash_sha1, so a caller verifies against an independent read. Live acceptance passes warm and cold against BridgeInstallTest (2026-08-03), all checks, twice consecutively warm. compile_status is accompanied by compile_warnings and compile_errors off the same FCompilerResultsLog blueprint_build already reported, so UpToDateWithWarnings is readable without opening the editor; a converged batch still compiles, which makes a no-op call the way to read any Blueprint's compiler messages. Finding 0q settled here: add_event_dispatcher created a signature graph without its multicast delegate property, so every later compile warned and the dispatcher was not bindable."
     },
@@ -1145,6 +1145,24 @@
       "canonical_capability": "viewport.screenshot",
       "migration_action": "MERGE",
       "replacement_tool": "puerts_viewport_screenshot"
+    },
+    "puerts_material_build": {
+      "canonical_capability": "materials.graph_build",
+      "capability_category": "materials",
+      "cpp_builder": "MCPPuerTSBridgeService",
+      "cpp_entry_point": "BuildMaterialJson",
+      "verification": "implemented",
+      "live_evidence": [],
+      "notes": "UNCOMPILED. The C++ was written and never built: the lane that added it holds no build rights, so nothing here has been through UBT, let alone an editor. Authors a whole UMaterial graph from a desired-state spec: expression nodes, named scalar/vector/texture/static-switch parameters, node-to-node links, and links into BaseColor, EmissiveColor, Roughness, Normal and the rest. This REPLACES the read-only verdict material_instance_build shipped with. That verdict rested on UMaterialEditingLibrary::CreateMaterialExpressionEx (MaterialEditingLibrary.cpp:469) adding to UMaterial::Expressions with no Material->Modify(), and ConnectMaterialExpressions (:631) writing through FExpressionInput::Connect the same way - both confirmed here. What it missed is that the engine's own material editor has the same problem and owns Modify() at the call site: FMaterialEditor::CreateNewMaterialExpression (MaterialEditor.cpp:4344) opens an FScopedTransaction, calls Material->Modify(), then calls CreateMaterialExpressionEx. UObject::Modify (Obj.cpp:1206) forwards to SaveToTransactionBuffer (UObjectGlobals.cpp:2197), which calls GUndo->SaveObject - a serialized pre-mutation snapshot - so one Modify() puts the Expressions array and the material's own FExpressionInput members in the undo record. That covers the material and not a pre-existing expression's own inputs, so this command never rewrites one: FULL GRAPH REPLACEMENT means every expression it connects is one it created inside the same transaction, and the UMaterial is the only pre-existing object it mutates. Old expressions are dropped from the array and deliberately NOT marked pending kill, so a cancel restores pointers to live objects. Modify()'s return value is CHECKED and the command refuses before writing anything if it is false, because finding 0r is what a discarded Modify() result costs. Rollback is verified by re-reading: the Asset Registry on a create, the structure hash on a replace. Compile result reported rather than assumed; save only after an independent read-back through the material_inspect reader agrees every link, material output and parameter landed. Bypasses CreateMaterialExpressionEx and ConnectMaterialExpressions entirely (NewObject plus Expressions.Add plus FExpressionInput::Connect, the same path puerts_sky_shader_create already takes) so the Modify() ownership is explicit rather than buried in a library call. destructiveIdempotent: the spec is the whole graph."
+    },
+    "puerts_texture_import": {
+      "canonical_capability": "materials.texture_build",
+      "capability_category": "materials",
+      "cpp_builder": "MCPPuerTSBridgeService",
+      "cpp_entry_point": "ImportTextureJson",
+      "verification": "implemented",
+      "live_evidence": [],
+      "notes": "UNCOMPILED. The C++ was written and never built. Closes the gap docs/GAP_AUDIT-2026-07-29.md recorded as no texture tools at all: material_instance_build accepts a textures map and material_build accepts a texture parameter default, and nothing could produce a texture for either. GENERATES a solid colour or checker UTexture2D rather than importing from disk. FTextureSource::Init(W,H,1,1,TSF_BGRA8,bytes) with PostEditChange building the platform mip chain, the same shape FImageUtils::CreateTexture2D uses for a colour buffer. File import is deliberately absent rather than half-built: it needs an allowed import root this bridge does not define, engine_source_read's engine root is for reading engine source and not user content, and inventing a second filesystem trust root is a decision for the integrator. A spec naming source_file is refused by name with that reason. Convergent by construction: the same spec produces identical source bytes, so a rerun memcmps equal, reports unchanged, opens no write and dirties nothing. Modify() return value checked, source pixels read back and compared byte for byte before any save. Size is capped at 2048 and restricted to powers of two because generation runs on the game thread. sRGB changes the bytes written (FLinearColor::ToFColor) rather than only a flag, and defaults from the compression choice so a Normalmap is not silently gamma encoded."
     }
   }
 }

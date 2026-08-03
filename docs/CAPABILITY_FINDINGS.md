@@ -2147,3 +2147,89 @@ same CDO reader, so one of the two WRITERS is storing the JSON quoting. Evidence
 in `docs/evidence/member-warning-diagnosis.json`. The acceptance uses a substring
 test on that field, which is why it never saw it: a substring assertion passes on
 a value that has been quoted twice.
+## Finding 0s: the material graph read-only verdict was wrong, and Modify() is the caller's job
+
+Lane I shipped master material graphs READ ONLY, and recorded the reason at the
+bottom of `MCPPuerTSBridgeMaterialInstance.cpp` and in the
+`material_instance_build` tool description: UE4.27's graph mutators write
+outside the undo record, so a failed multi-node build cannot be rolled back.
+
+The evidence was correct. The conclusion was not.
+
+### What is confirmed, by reading 4.27 source
+
+- `UMaterialEditingLibrary::CreateMaterialExpressionEx`
+  (`MaterialEditingLibrary.cpp:469`) does `Material->Expressions.Add(NewExpression)`
+  with no `Material->Modify()`. Confirmed.
+- `ConnectMaterialExpressions` (`:631`) does `Input->Connect(FromIndex, FromExpression)`
+  where `Input` is an `FExpressionInput` on the TARGET expression, with no
+  `Modify()` on that expression either. Confirmed.
+
+### What that evidence does not mean
+
+The engine's own material editor has exactly the same problem and solves it by
+owning `Modify()` at the call site rather than expecting the library to:
+
+    FMaterialEditor::CreateNewMaterialExpression, MaterialEditor.cpp:4344
+        const FScopedTransaction Transaction(...);
+        Material->Modify();
+        ...
+        NewExpression = UMaterialEditingLibrary::CreateMaterialExpressionEx(...);
+
+`Modify()` is the caller's responsibility by design. `UObject::Modify`
+(`Obj.cpp:1206`) forwards to `SaveToTransactionBuffer` (`UObjectGlobals.cpp:2197`),
+which calls `GUndo->SaveObject(Object)` - a serialized snapshot of the object as
+it is BEFORE the mutation. One `Modify()` on the UMaterial therefore puts its
+`Expressions` array and its own `FExpressionInput` members (BaseColor,
+EmissiveColor, Roughness, Normal, ...) into the undo record, and a cancelled
+transaction restores them.
+
+### The part that is a real constraint, and what it forces
+
+`Material->Modify()` covers the UMaterial and nothing else. A pre-existing
+`UMaterialExpression` whose own inputs get rewritten is NOT covered, because
+those inputs live on the expression.
+
+So `material_build` never rewrites one. **Full graph replacement**: every
+expression it connects is one it created inside the same transaction, so the
+UMaterial is the only pre-existing object it mutates. The old expressions are
+dropped from `Material->Expressions` and deliberately NOT marked pending kill,
+so a cancel restores an array of pointers to objects that are still alive with
+their inputs untouched.
+
+That constraint is also what makes the command convergent, so it costs nothing
+that was wanted: the spec is the whole graph, and a rerun produces the same
+graph. It is the same bargain `blueprint_build` and `widget_build` already make,
+and it is why the annotation is `destructiveIdempotent`.
+
+### The return value is checked, because of finding 0r
+
+`Modify()` returns false when there is no transactor, when the object is not
+`RF_Transactional`, or when it lives in a script package. Any of those means the
+graph write lands outside the undo record - the exact condition that makes a
+multi-node build unrecoverable. `material_build` and `texture_import` both check
+it and refuse before writing anything. Finding 0r is the cautionary tale: a
+`Modify()` returning false was discarded there and a whole rollback silently did
+nothing.
+
+Neither command uses `CreateMaterialExpressionEx` or `ConnectMaterialExpressions`
+at all. `NewObject` plus `Expressions.Add` plus `FExpressionInput::Connect` is
+the path `puerts_sky_shader_create` already takes, and doing the array write
+directly keeps the `Modify()` ownership visible at the call site instead of
+buried in a library that does not do it.
+
+### Status
+
+UNCOMPILED. The lane that wrote this holds no build rights, so nothing here has
+been through UBT, let alone an editor. The reasoning above is from 4.27 source,
+not from a run. What a live run has to prove, in order:
+
+1. `Material->Modify()` returns TRUE for a `UMaterialFactoryNew` asset created
+   with `RF_Public | RF_Standalone | RF_Transactional`, and for one loaded off
+   disk. If it returns false, the command refuses and says so, which is the
+   designed outcome, not a silent failure - but it would mean master material
+   graphs really are read-only and this finding is wrong.
+2. A deliberately broken spec (a link to an input that does not exist) cancels
+   the transaction and leaves an existing material hashing to what it hashed
+   before, through `material_inspect` rather than through this command.
+3. A rerun of an identical spec produces the same `structure_hash_sha1`.

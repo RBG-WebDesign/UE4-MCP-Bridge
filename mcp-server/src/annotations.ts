@@ -155,6 +155,16 @@ export const toolAnnotations: Record<string, ToolAnnotations> = {
   // desired state and does drop unnamed overrides, but it is opt-in and off by
   // default, which is why the classification here is the non-destructive one.
   puerts_material_instance_build: mutatingIdempotent,
+  // Converges on a rerun, and DESTRUCTIVE for the same reason blueprint_build
+  // and widget_build are: the spec is the whole graph, so a build aimed at an
+  // existing material replaces the nodes and links it had. That replacement is
+  // not opt-in and cannot be, because it is what makes the operation
+  // desired-state and what makes one Modify() enough to roll the build back.
+  puerts_material_build: destructiveIdempotent,
+  // Mutating and idempotent, NOT destructive: it writes one texture asset and
+  // touches nothing else, and a spec that already matches is reported unchanged
+  // and not rewritten.
+  puerts_texture_import: mutatingIdempotent,
   puerts_spawn_actor: mutating,
   puerts_sky_shader_create: mutating,
   puerts_physics_build: mutating,
