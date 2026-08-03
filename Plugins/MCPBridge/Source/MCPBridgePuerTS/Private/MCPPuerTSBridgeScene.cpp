@@ -5,11 +5,18 @@
 #include "MCPBridgeAssetRollback.h"
 #include "MCPBridgeSceneSnapshot.h"
 
+#include "BSPOps.h"
+#include "Builders/CubeBuilder.h"
+#include "Components/BrushComponent.h"
 #include "Editor.h"
+#include "Engine/Brush.h"
+#include "Engine/Polys.h"
 #include "Engine/World.h"
 #include "GameFramework/Actor.h"
+#include "GameFramework/Volume.h"
 #include "Json.h"
 #include "Misc/PackageName.h"
+#include "Model.h"
 #include "UObject/Package.h"
 
 namespace
@@ -140,9 +147,20 @@ namespace
         bool bSatisfied = false;
     };
 
-    AActor* ResolveOne(UWorld* World, const FResolvedOp& R)
+    /**
+     * The single actor a selector addresses right now, and how many it matched.
+     *
+     * The count is an output rather than a detail, because collapsing "matched
+     * two" into "matched none" is wrong in both directions: an upsert would
+     * spawn a third actor beside the two it could not tell apart, and a
+     * delete_actor would read as already satisfied and skip. Pass 1 refuses
+     * ambiguity against the pre-batch level; this is what catches the ambiguity
+     * an earlier operation in the same batch created.
+     */
+    AActor* ResolveOne(UWorld* World, const FResolvedOp& R, int32& OutMatchCount)
     {
         const TArray<AActor*> Matches = MatchActors(World, R.SelectKind, R.SelectValue);
+        OutMatchCount = Matches.Num();
         return Matches.Num() == 1 ? Matches[0] : nullptr;
     }
 
@@ -194,7 +212,14 @@ namespace
      */
     bool IsOpSatisfied(const UMCPPuerTSBridgeService& Service, UWorld* World, const FResolvedOp& R)
     {
-        AActor* Actor = ResolveOne(World, R);
+        int32 MatchCount = 0;
+        AActor* Actor = ResolveOne(World, R, MatchCount);
+
+        // An ambiguous selector is never satisfied, for either op. Two actors
+        // answer to it, so there is no single actor whose state could be the
+        // one the request asked for, and the apply loop refuses on the same
+        // count rather than guessing which one was meant.
+        if (MatchCount > 1) { return false; }
 
         if (R.Op == TEXT("delete_actor"))
         {
@@ -317,6 +342,57 @@ namespace
             if (Walk == Root) { return true; }
         }
         return false;
+    }
+
+    /**
+     * Give a freshly spawned volume the box brush the editor would have given
+     * it, and answer whether it now has one.
+     *
+     * GEditor->AddActor calls World->SpawnActor directly. That is the whole
+     * placement path for a normal actor, but it is only half of one for an
+     * AVolume: the Place Actors panel reaches a volume through
+     * UActorFactoryBoxVolume, whose PostSpawnActor is what builds the cube.
+     * Spawned without it, a TriggerVolume, BlockingVolume, PostProcessVolume or
+     * NavMeshBoundsVolume has a null Brush, zero bounds and no collision. That
+     * is not a cosmetic gap: an empty volume triggers nothing, blocks nothing
+     * and bounds no navmesh, and its zero extent would walk straight through
+     * the PlayerStart clearance check below and report a pass that measured
+     * nothing.
+     *
+     * The engine's own helper for this, CreateBrushForVolumeActor, is a free
+     * function in UnrealEd's ActorFactory.cpp with no declaration in any
+     * header, so it cannot be called from here. This is that function, less the
+     * builder choice: a 200-unit cube, the same one the editor places, sized
+     * from there by the operation's scale.
+     */
+    bool EnsureVolumeBrush(AActor* Actor)
+    {
+        AVolume* Volume = Cast<AVolume>(Actor);
+        if (Volume == nullptr) { return true; }
+        if (Volume->Brush != nullptr) { return true; }
+
+        UCubeBuilder* Builder = NewObject<UCubeBuilder>();
+        Builder->X = 200.0f;
+        Builder->Y = 200.0f;
+        Builder->Z = 200.0f;
+
+        Volume->PreEditChange(nullptr);
+        const EObjectFlags BrushFlags = Volume->GetFlags() & (RF_Transient | RF_Transactional);
+        Volume->PolyFlags = 0;
+        Volume->Brush = NewObject<UModel>(Volume, NAME_None, BrushFlags);
+        Volume->Brush->Initialize(nullptr, true);
+        Volume->Brush->Polys = NewObject<UPolys>(Volume->Brush, NAME_None, BrushFlags);
+        Volume->GetBrushComponent()->Brush = Volume->Brush;
+        Volume->BrushBuilder = DuplicateObject<UBrushBuilder>(Builder, Volume);
+        Builder->Build(Volume->GetWorld(), Volume);
+        FBSPOps::csgPrepMovingBrush(Volume);
+
+        // Untextured, so a volume forms no dependency on a material it never
+        // renders. The engine helper does the same and gives the same reason.
+        for (FPoly& Poly : Volume->Brush->Polys->Element) { Poly.Material = nullptr; }
+        Volume->PostEditChange();
+
+        return Volume->Brush != nullptr && Volume->Brush->Polys->Element.Num() > 0;
     }
 
     /** Actor classes scene_batch may spawn. The same limit spawn_actor carries,
@@ -978,7 +1054,23 @@ bool UMCPPuerTSBridgeService::ApplySceneBatchJson(
             continue;
         }
 
-        AActor* Actor = ResolveOne(World, R);
+        int32 MatchCount = 0;
+        AActor* Actor = ResolveOne(World, R, MatchCount);
+        if (MatchCount > 1)
+        {
+            // Pass 1 refused ambiguity against the pre-batch level and found
+            // none, so an earlier operation in this batch created it. Name the
+            // matches for the same reason pass 1 does.
+            TArray<FString> Named;
+            for (const AActor* Match : MatchActors(World, R.SelectKind, R.SelectValue))
+            {
+                Named.Add(FString::Printf(TEXT("%s (label '%s')"), *Match->GetName(), *Match->GetActorLabel()));
+            }
+            return FailWithRollback(FString::Printf(
+                TEXT("operation %d (%s): by the time this operation ran the selector matched %d "
+                     "actors: %s. An earlier operation in this batch created the ambiguity."),
+                R.Index, *R.Label, MatchCount, *FString::Join(Named, TEXT("; "))));
+        }
 
         if (R.Op == TEXT("delete_actor"))
         {
@@ -1041,6 +1133,16 @@ bool UMCPPuerTSBridgeService::ApplySceneBatchJson(
             {
                 return FailWithRollback(FString::Printf(
                     TEXT("operation %d (%s): Unreal could not spawn a %s."),
+                    R.Index, *R.Label, *R.SpawnClass->GetPathName()));
+            }
+            // A volume spawned through AddActor has no brush; see
+            // EnsureVolumeBrush. Refused rather than warned, because a volume
+            // with no geometry looks placed and does nothing.
+            if (!EnsureVolumeBrush(Actor))
+            {
+                return FailWithRollback(FString::Printf(
+                    TEXT("operation %d (%s): the %s was spawned but its box brush could not be "
+                         "built, so it would have zero bounds and trigger, block or bound nothing."),
                     R.Index, *R.Label, *R.SpawnClass->GetPathName()));
             }
             bSpawned = true;

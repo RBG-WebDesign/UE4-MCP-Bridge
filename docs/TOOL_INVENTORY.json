@@ -23,12 +23,12 @@
     "native_live_partial": "live acceptance passed, but part of the evidence is the builder own report because no independent reader exists yet",
     "legacy_untested": "no live editor proof of any kind; a non-null test_file covers only the mock listener"
   },
-  "tool_count": 209,
+  "tool_count": 211,
   "by_backend": {
     "legacy_http": 170,
     "native_pipe_alias": 12,
     "server_local": 2,
-    "native_pipe": 25
+    "native_pipe": 27
   },
   "tools": [
     {
@@ -6849,6 +6849,86 @@
       "capability_loss_risk": "low",
       "notes": null,
       "verification": "live_verified"
+    },
+    {
+      "name": "puerts_scene_batch",
+      "module": "mcp-server/src/tools/puerts.ts",
+      "backend": "native_pipe",
+      "migration_state": "native_pending_live",
+      "target_replacement": null,
+      "description": "[PRIMARY NATIVE IPC] Apply a desired-state description of many actors to the editor's current level in ONE transaction: spawn, modify, delete, reparent, set folders, tags and reflected properties on actors and on the components they already have. This is the level-authoring answer to the round-trip problem: a scene that would take fifty puerts_spawn_actor and puerts_set_property calls is one call. operations is an ordered batch of exactly two op kinds, because a desired-state description of a level needs two: {op:\"upsert_actor\", ...} and {op:\"delete_actor\", select}. Lights, post-process volumes, trigger volumes, blocking volumes and nav mesh bounds volumes are all upsert_actor with a class path and properties; there is no separate lighting or volume tool. An actor is addressed by select {name} (the object name, unique within a level), {path}, or {label}; a selector matching more than one actor is a refusal that NAMES the matches with their classes, never a guess. An upsert with no select uses its label as the identity and spawns when no actor has it, so one operation covers spawn and modify. Two operations on the same actor in one batch is a refusal: there is no single desired state to converge on. The whole batch resolves and refuses before the first mutation, and then each operation's satisfied-ness is re-evaluated immediately before it runs rather than read from the plan, because a batch is ordered and an earlier operation may have moved the state a later one depends on. Trigger volumes carry the AGENTS.md PlayerStart rule automatically: a volume that CONTAINS a PlayerStart refuses the whole batch, because OnBeginOverlap never fires for a player who spawns already inside; one within 1.5x its own extent warns. The check runs against the actor's real bounds after placement, inside the rollback boundary. player_starts is reported either way so a caller can pre-check. plan_only is read-only and returns operations_to_apply, unchanged_operations, expected_change_count, pre_structure_hash and player_starts; predicted_structure_hash is given only for a no-op batch, where it is the current hash by definition. Any failure cancels the transaction, runs the rollback boundary, and decides whether the level actually came back by hashing it again rather than trusting the undo; that answer is rollback_succeeded. Rerunning the same batch applies nothing and reports converged true. pre_structure_hash and post_structure_hash are the same value puerts_scene_inspect returns as structure_hash_sha1, so a caller verifies against an independent read. IT NEVER SAVES. The level is left dirty in the editor and level_package_dirty says so; writing it to disk is puerts_save's call, and keeping it out of here is what lets a failed batch leave nothing on disk to clean up.",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "level_path": "string?",
+          "operations": "array",
+          "plan_only": "boolean?",
+          "verify": "boolean?"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": "mcp-server/tests/puerts-tools.test.ts",
+      "capability_category": "level",
+      "canonical_capability": "level.scene_batch",
+      "owner": "MCPBridgePuerTS service",
+      "lifecycle": "active",
+      "migration_action": "KEEP",
+      "replacement_tool": null,
+      "compatibility_alias": false,
+      "cpp_builder": "MCPPuerTSBridgeService",
+      "cpp_entry_point": "ApplySceneBatchJson",
+      "python_handler": null,
+      "live_evidence": [],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": "desired-state level authoring in one transaction, modelled on blueprint_graph_patch and blueprint_member_patch. Two operations, upsert_actor and delete_actor, cover spawn, modify, delete, reparent, folder, tags and reflected properties on actors and on components they already have; lights and post-process/trigger/blocking/nav-mesh-bounds volumes are upsert_actor with a class path and properties rather than tools of their own. Carries the lane A lesson: satisfied-ness is re-evaluated immediately before each mutation, never read from the plan. Trigger volumes enforce the AGENTS.md PlayerStart rule (a volume containing a PlayerStart refuses the batch; inside 1.5x its extent warns) against real GetActorBounds after placement, inside the rollback boundary. Failure cancels the transaction, runs FBridgeAssetRollback over the level package, and decides rollback_succeeded by re-hashing rather than trusting the undo. It never saves: the level is left dirty and puerts_save writes it, which is what lets a failed batch leave nothing on disk. Property writes are gated by AllowedWritableProperties, widened here by name for light shaping, post-process volume settings, box extent and StaticMeshComponent.StaticMesh. UNCOMPILED and NOT live: no build rights in this lane, no live acceptance script yet.",
+      "verification": "implemented"
+    },
+    {
+      "name": "puerts_scene_inspect",
+      "module": "mcp-server/src/tools/puerts.ts",
+      "backend": "native_pipe",
+      "migration_state": "native_pending_live",
+      "target_replacement": null,
+      "description": "[PRIMARY NATIVE IPC] Read the editor's current level back as machine-readable JSON: every actor with its object name, label, class, world transform, folder, tags, bounds, attachment and components, plus every PlayerStart and a canonical structure_hash_sha1. The read half of puerts_scene_batch, and READ ONLY: no transaction is opened, the response carries no transaction id, nothing is saved, and the level package's dirty flag is reported before and after the read (package_dirty_before / package_dirty_after) so the claim is checkable. Actor identity is OBSERVED (identity_kind: \"observed\"): the id is the actor's object name, which is unique within a level and stable, unlike the label, which is neither. Transforms are WORLD transforms, the same space puerts_scene_batch writes, so the read and the write cannot disagree about what a location means. Arrays are canonically ordered - actors by object name, components by component name - so two reads of an unchanged level produce the same content and the same hash. The hash always covers the WHOLE level: an actors filter narrows what is reported and never what is hashed, because a hash of a filter is a hash of the request. level_path is an assertion, not a target: it refuses when the editor has a different level open rather than loading one, because an empty success against the wrong map cannot be told apart from an empty map.",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "level_path": "string?",
+          "actors": "array?",
+          "include_components": "boolean?",
+          "include_properties": "array?"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": "mcp-server/tests/puerts-tools.test.ts",
+      "capability_category": "level",
+      "canonical_capability": "level.scene_inspect",
+      "owner": "MCPBridgePuerTS service",
+      "lifecycle": "active",
+      "migration_action": "KEEP",
+      "replacement_tool": null,
+      "compatibility_alias": false,
+      "cpp_builder": "MCPPuerTSBridgeService",
+      "cpp_entry_point": "InspectSceneJson",
+      "python_handler": null,
+      "live_evidence": [],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": "canonical read of the editor's current level: actors with class, world transform, folder, tags, bounds, attachment and components, plus PlayerStarts and structure_hash_sha1. Shares one snapshot definition with scene_batch (Private/MCPBridgeSceneSnapshot.h), for the reason graph_inspect and blueprint_member_patch share MCPBridgeBlueprintMembers.h: a batch that measured convergence with a different reader than the inspector a caller verifies with could report a change the inspector cannot see. Actor identity is observed (object name, unique within a level), not derived. The hash always covers the whole level; an actors filter narrows the report only, because a hash of a filter is a hash of the request. Read-only on the same terms as graph_inspect: absent from IsToolMutating, reports package_dirty_before/after. UNCOMPILED: lane L holds no build rights, so no editor has run this code.",
+      "verification": "implemented"
     },
     {
       "name": "puerts_set_property",

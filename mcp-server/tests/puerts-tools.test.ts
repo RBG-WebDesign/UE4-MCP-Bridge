@@ -1363,8 +1363,13 @@ async function sceneSuite(): Promise<void> {
       Array.isArray(sentBatch?.operations),
       "operations arrived as text rather than an array; the structured-parameter decode is missing",
     );
+    // The editor's budget is the client's minus a 2 second margin, so a 60s
+    // entry in commandTimeouts reaches the pipe as 58000. Asserting 60000 here
+    // asserts against a number that cannot appear on the wire; what matters is
+    // that it is a batch budget and not the 7 second default, which arrives as
+    // 5000.
     assert(
-      typeof sentBatch?.__timeout === "number" && (sentBatch.__timeout as number) >= 60000,
+      typeof sentBatch?.__timeout === "number" && (sentBatch.__timeout as number) >= 50000,
       "scene_batch did not get a batch-sized timeout budget",
     );
     console.log("  PASS  scene inspect and batch contract");
