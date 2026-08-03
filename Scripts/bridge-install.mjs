@@ -27,7 +27,7 @@ import {
   copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync,
 } from 'node:fs';
 import { dirname, join, relative } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 export const MANIFEST_NAME = 'MCPBridgeInstall.json';
 
@@ -472,8 +472,12 @@ export function assertInstallCurrent(projectRoot) {
     'Run: npm run install:sync -- --project <path>');
 }
 
-if (import.meta.url === `file://${process.argv[1].replaceAll('\\', '/')}`
-  || process.argv[1].endsWith('bridge-install.mjs')) {
+// pathToFileURL, not a hand-built 'file://' + path: on Windows the hand-built
+// form never matches import.meta.url (three slashes, percent-encoded spaces).
+// This file only ever ran because of the endsWith fallback beside it, which
+// also matched any other file with this basename. mutator-atomicity.mjs copied
+// the broken half without the fallback and silently no-opped.
+if (import.meta.url === pathToFileURL(process.argv[1]).href) {
   const argv = process.argv.slice(2);
   const at = argv.indexOf('--project');
   const project = at >= 0 ? argv[at + 1] : undefined;

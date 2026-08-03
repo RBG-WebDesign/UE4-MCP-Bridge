@@ -1,0 +1,469 @@
+{
+  "asset": "/Game/MCPGenerated/BP_MutatorAtomicity",
+  "levers": [
+    {
+      "label": "(1) set_variable_default, a float value the property type cannot hold",
+      "caught_by": "validate-before-mutate",
+      "before": {
+        "file_exists": true,
+        "file_sha256": "6f84229cd6ea60c20fddb2b4d81c0c47e09dbe4cd2e0088ffc14d27407a18d36",
+        "member_hash": "ac2017eed18c588807484a7efbf7371619566b68",
+        "package_dirty": false,
+        "p4_opened": null,
+        "inspect_ok": true
+      },
+      "after": {
+        "file_exists": true,
+        "file_sha256": "6f84229cd6ea60c20fddb2b4d81c0c47e09dbe4cd2e0088ffc14d27407a18d36",
+        "member_hash": "ac2017eed18c588807484a7efbf7371619566b68",
+        "package_dirty": false,
+        "p4_opened": null,
+        "inspect_ok": true
+      },
+      "response": {
+        "success": false,
+        "message": "Command failed.",
+        "data": {},
+        "changed_assets": [],
+        "changed_actors": [],
+        "warnings": [
+          "A failed mutating command may be undone with its transaction_id."
+        ],
+        "errors": [
+          "operation 0 (set_variable_default Ratio): 'not-a-number' is not a value FloatProperty can hold (variable 'Ratio')."
+        ],
+        "log_output": [
+          "[LogBlueprintInspector] ListSCSNodes: BP_MutatorAtomicity",
+          "[LogBlueprintInspector] ListVariables: BP_MutatorAtomicity",
+          "[LogBlueprintInspector] ListInterfaces: BP_MutatorAtomicity",
+          "[LogBlueprintInspector] ListFunctions: BP_MutatorAtomicity",
+          "[LogBlueprintInspector] ListEventDispatchers: BP_MutatorAtomicity",
+          "[LogBlueprintMutator] ImportDefaultValue: FloatProperty read only part of 'not-a-number' and stopped at 'not-a-number'. Treated as a refusal, not a value."
+        ],
+        "transaction_id": "B087E4E5-40BB-9EC8-9112-009428193058",
+        "transport": "named_pipe",
+        "execution_context": "puerts_node_v8_in_process",
+        "is_game_thread": true,
+        "thread_id": 37824,
+        "native_duration_ms": 1.820400357246399,
+        "session": {
+          "session_id": "80b248c1-4669-d41d-5d75-aababd24d477",
+          "editor_pid": 38608,
+          "process_start_time": "0426-08-03T06:51:19.966Z",
+          "project_path": "D:/Unreal Projects/BridgeInstallTest",
+          "uproject_path": "D:/Unreal Projects/BridgeInstallTest/BridgeInstallTest.uproject",
+          "pipe_name": "\\\\.\\pipe\\UE427PuerTSMCP_BridgeInstallTest_eb10ef4f"
+        }
+      }
+    },
+    {
+      "label": "(2) add_variable, a NEW float variable whose default cannot be held",
+      "caught_by": "the mutator, after the write",
+      "before": {
+        "file_exists": true,
+        "file_sha256": "6f84229cd6ea60c20fddb2b4d81c0c47e09dbe4cd2e0088ffc14d27407a18d36",
+        "member_hash": "ac2017eed18c588807484a7efbf7371619566b68",
+        "package_dirty": false,
+        "p4_opened": null,
+        "inspect_ok": true
+      },
+      "after": {
+        "file_exists": true,
+        "file_sha256": "6f84229cd6ea60c20fddb2b4d81c0c47e09dbe4cd2e0088ffc14d27407a18d36",
+        "member_hash": "ac2017eed18c588807484a7efbf7371619566b68",
+        "package_dirty": false,
+        "p4_opened": null,
+        "inspect_ok": true
+      },
+      "response": {
+        "success": false,
+        "message": "Command failed.",
+        "data": {},
+        "changed_assets": [],
+        "changed_actors": [],
+        "warnings": [
+          "A failed mutating command may be undone with its transaction_id."
+        ],
+        "errors": [
+          "operation 0 (add_variable BadFloat) failed inside the mutator; see the LogBlueprintMutator output for the reason. The whole batch is rolled back rather than left half-applied."
+        ],
+        "log_output": [
+          "[LogBlueprintInspector] ListSCSNodes: BP_MutatorAtomicity",
+          "[LogBlueprintInspector] ListVariables: BP_MutatorAtomicity",
+          "[LogBlueprintInspector] ListInterfaces: BP_MutatorAtomicity",
+          "[LogBlueprintInspector] ListFunctions: BP_MutatorAtomicity",
+          "[LogBlueprintInspector] ListEventDispatchers: BP_MutatorAtomicity",
+          "[LogBlueprintMutator] RunMutation begin: 'Soul Juice: Add Variable' on BP_MutatorAtomicity",
+          "[LogBlueprint] [AssetLog] D:\\Unreal Projects\\BridgeInstallTest\\Content\\MCPGenerated\\BP_MutatorAtomicity.uasset: [Compiler] Can't parse default value 'not-a-number' for  . Property: BadFloat.",
+          "[LogUObjectHash] Compacting FUObjectHashTables data took   1.17ms",
+          "[LogBlueprintMutator] RunMutation end: 'Soul Juice: Add Variable' on BP_MutatorAtomicity",
+          "[LogBlueprintMutator] ImportDefaultValue: FloatProperty read only part of 'not-a-number' and stopped at 'not-a-number'. Treated as a refusal, not a value.",
+          "[LogBlueprintMutator] AddVariable: 'not-a-number' is not a value FloatProperty can hold (variable 'BadFloat'). The check can only run after the variable exists, so this fails AFTER the mutation and the enclosing transaction owns undoing it.",
+          "[LogOutputDevice] \n\nScript Stack (1 frames):\nMCPPuerTSBridgeService.PatchBlueprintMembersJson\n",
+          "[LogStats] FPlatformStackWalk::StackWalkAndDump -  0.895 s",
+          "[LogOutputDevice] === Handled ensure: ===",
+          "[LogOutputDevice] ",
+          "[LogOutputDevice] Ensure condition failed: CurrentTransaction [File:D:/Build/++UE4/Sync/Engine/Source/Editor/UnrealEd/Private/EditorTransaction.cpp] [Line: 1662]",
+          "[LogOutputDevice] ",
+          "[LogOutputDevice] Stack: ",
+          "[LogOutputDevice] [Callstack] 0x00007ffce2f86109 UE4Editor-UnrealEd.dll!<lambda_078b24dfd9df32a327baaae3944477c8>::operator()() [D:\\Build\\++UE4\\Sync\\Engine\\Source\\Editor\\UnrealEd\\Private\\EditorTransaction.cpp:1662]",
+          "[LogOutputDevice] [Callstack] 0x00007ffce24296ae UE4Editor-UnrealEd.dll!UTransBuffer::IsObjectTransacting() [D:\\Build\\++UE4\\Sync\\Engine\\Source\\Editor\\UnrealEd\\Private\\EditorTransaction.cpp:1662]",
+          "[LogOutputDevice] [Callstack] 0x00007ffce41c8ba8 UE4Editor-Engine.dll!UEdGraphPin::SerializePinArray() [D:\\Build\\++UE4\\Sync\\Engine\\Source\\Runtime\\Engine\\Private\\EdGraph\\EdGraphPin.cpp:1864]",
+          "[LogOutputDevice] [Callstack] 0x00007ffd00d83568 UE4Editor-BlueprintGraph.dll!UK2Node::Serialize() [D:\\Build\\++UE4\\Sync\\Engine\\Source\\Editor\\BlueprintGraph\\Private\\K2Node.cpp:131]",
+          "[LogOutputDevice] [Callstack] 0x00007ffd00d839cc UE4Editor-BlueprintGraph.dll!UK2Node_CallFunction::Serialize() [D:\\Build\\++UE4\\Sync\\Engine\\Source\\Editor\\BlueprintGraph\\Private\\K2Node_CallFunction.cpp:2159]",
+          "[LogOutputDevice] [Callstack] 0x00007ffce24439f6 UE4Editor-UnrealEd.dll!FTransaction::FObjectRecord::SerializeObject() [D:\\Build\\++UE4\\Sync\\Engine\\Source\\Editor\\UnrealEd\\Private\\EditorTransaction.cpp:183]",
+          "[LogOutputDevice] [Callstack] 0x00007ffce242a415 UE4Editor-UnrealEd.dll!FTransaction::FObjectRecord::Load() [D:\\Build\\++UE4\\Sync\\Engine\\Source\\Editor\\UnrealEd\\Private\\EditorTransaction.cpp:267]",
+          "[LogOutputDevice] [Callstack] 0x00007ffce23ff6cb UE4Editor-UnrealEd.dll!FTransaction::Apply() [D:\\Build\\++UE4\\Sync\\Engine\\Source\\Editor\\UnrealEd\\Private\\EditorTransaction.cpp:922]",
+          "[LogOutputDevice] [Callstack] 0x00007ffcadab95ae UE4Editor-MCPBridgeGraphBuilder.dll!UBlueprintMutatorLibrary::RevertAndCancelTransaction() [D:\\Unreal Projects\\BridgeInstallTest\\Plugins\\MCPBridge\\Source\\MCPBridgeGraphBuilder\\Private\\BlueprintMutator\\BlueprintMutatorLibrary.cpp:31]",
+          "[LogOutputDevice] [Callstack] 0x00007ffcaa387b34 UE4Editor-MCPBridgePuerTS.dll!<lambda_dcff95f5bde45740e8cb10ab03811cdc>::operator()() [D:\\Unreal Projects\\BridgeInstallTest\\Plugins\\MCPBridge\\Source\\MCPBridgePuerTS\\Private\\MCPPuerTSBridgeBlueprintMember.cpp:737]",
+          "[LogOutputDevice] [Callstack] 0x00007ffcaa3c8d46 UE4Editor-MCPBridgePuerTS.dll!UMCPPuerTSBridgeService::PatchBlueprintMembersJson() [D:\\Unreal Projects\\BridgeInstallTest\\Plugins\\MCPBridge\\Source\\MCPBridgePuerTS\\Private\\MCPPuerTSBridgeBlueprintMember.cpp:868]",
+          "[LogOutputDevice] [Callstack] 0x00007ffcaa3dbee8 UE4Editor-MCPBridgePuerTS.dll!UMCPPuerTSBridgeService::execPatchBlueprintMembersJson() [D:\\Unreal Projects\\BridgeInstallTest\\Plugins\\MCPBridge\\Intermediate\\Build\\Win64\\UE4Editor\\Inc\\MCPBridgePuerTS\\MCPPuerTSBridgeService.gen.cpp:218]",
+          "[LogOutputDevice] [Callstack] 0x00007ffd598819c4 UE4Editor-CoreUObject.dll!UFunction::Invoke() [D:\\Build\\++UE4\\Sync\\Engine\\Source\\Runtime\\CoreUObject\\Private\\UObject\\Class.cpp:5679]",
+          "[LogOutputDevice] [Callstack] 0x00007ffcb50bbbb9 UE4Editor-JsEnv.dll!puerts::FFunctionTranslator::FastCall() [D:\\Unreal Projects\\BridgeInstallTest\\Plugins\\Puerts\\Source\\JsEnv\\Private\\FunctionTranslator.cpp:388]",
+          "[LogOutputDevice] [Callstack] 0x00007ffcb50a858b UE4Editor-JsEnv.dll!puerts::FFunctionTranslator::Call() [D:\\Unreal Projects\\BridgeInstallTest\\Plugins\\Puerts\\Source\\JsEnv\\Private\\FunctionTranslator.cpp:270]",
+          "[LogOutputDevice] [Callstack] 0x00007ffcb50a8630 UE4Editor-JsEnv.dll!puerts::FFunctionTranslator::Call() [D:\\Unreal Projects\\BridgeInstallTest\\Plugins\\Puerts\\Source\\JsEnv\\Private\\FunctionTranslator.cpp:226]",
+          "[LogOutputDevice] [Callstack] 0x00007ffcb614e316 libnode.dll!UnknownFunction []",
+          "[LogOutputDevice] [Callstack] 0x00007ffcb614dd79 libnode.dll!UnknownFunction []",
+          "[LogOutputDevice] [Callstack] 0x00007ffcb614e16c libnode.dll!UnknownFunction []",
+          "[LogOutputDevice] [Callstack] 0x00007ffcb614dfc0 libnode.dll!UnknownFunction []",
+          "[LogOutputDevice] [Callstack] 0x00007ffcb69dcdd1 libnode.dll!UnknownFunction []",
+          "[LogOutputDevice] [Callstack] 0x00007ffcb696f27e libnode.dll!UnknownFunction []",
+          "[LogOutputDevice] [Callstack] 0x00007ffcb696f27e libnode.dll!UnknownFunction []",
+          "[LogOutputDevice] [Callstack] 0x00007ffcb696f27e libnode.dll!UnknownFunction []",
+          "[LogOutputDevice] [Callstack] 0x00007ffcb696f27e libnode.dll!UnknownFunction []",
+          "[LogOutputDevice] [Callstack] 0x00007ffcb6a25562 libnode.dll!UnknownFunction []",
+          "[LogOutputDevice] [Callstack] 0x00007ffcb699118a libnode.dll!UnknownFunction []",
+          "[LogOutputDevice] [Callstack] 0x00007ffcb696d38b libnode.dll!UnknownFunction []",
+          "[LogOutputDevice] [Callstack] 0x00007ffcb5ccd4bb libnode.dll!UnknownFunction []",
+          "[LogOutputDevice] [Callstack] 0x00007ffcb5ccd71b libnode.dll!UnknownFunction []",
+          "[LogOutputDevice] [Callstack] 0x00007ffcb5cce44a libnode.dll!UnknownFunction []",
+          "[LogOutputDevice] [Callstack] 0x00007ffcb5df94ea libnode.dll!UnknownFunction []",
+          "[LogOutputDevice] [Callstack] 0x00007ffcb5df91ca libnode.dll!UnknownFunction []",
+          "[LogOutputDevice] [Callstack] 0x00007ffcb5dcb794 libnode.dll!UnknownFunction []",
+          "[LogOutputDevice] [Callstack] 0x00007ffcb5c3dbe3 libnode.dll!UnknownFunction []",
+          "[LogOutputDevice] [Callstack] 0x00007ffcb5c43f54 libnode.dll!UnknownFunction []",
+          "[LogOutputDevice] [Callstack] 0x00007ffcb53f8861 libnode.dll!UnknownFunction []",
+          "[LogOutputDevice] [Callstack] 0x00007ffcb54161f4 libnode.dll!UnknownFunction []",
+          "[LogOutputDevice] [Callstack] 0x00007ffcb5638fd3 libnode.dll!UnknownFunction []",
+          "[LogOutputDevice] [Callstack] 0x00007ffcb5639f9f libnode.dll!UnknownFunction []",
+          "[LogOutputDevice] [Callstack] 0x00007ffcb563f4f4 libnode.dll!UnknownFunction []",
+          "[LogOutputDevice] [Callstack] 0x00007ffcb576b1c2 libnode.dll!UnknownFunction []",
+          "[LogOutputDevice] [Callstack] 0x00007ffcb576ec32 libnode.dll!UnknownFunction []",
+          "[LogOutputDevice] [Callstack] 0x00007ffcb577caec libnode.dll!UnknownFunction []",
+          "[LogOutputDevice] [Callstack] 0x00007ffcb577ceab libnode.dll!UnknownFunction []",
+          "[LogOutputDevice] [Callstack] 0x00007ffcb51e55a7 UE4Editor-JsEnv.dll!puerts::FJsEnvImpl::UvRunOnce() [D:\\Unreal Projects\\BridgeInstallTest\\Plugins\\Puerts\\Source\\JsEnv\\Private\\JsEnvImpl.cpp:234]",
+          "[LogOutputDevice] [Callstack] 0x00007ffcb50bb0f7 UE4Editor-JsEnv.dll!TGraphTask<TFunctionGraphTaskImpl<void __cdecl(void),0> >::ExecuteTask() [D:\\UE\\UE_4.27\\Engine\\Source\\Runtime\\Core\\Public\\Async\\TaskGraphInterfaces.h:886]",
+          "[LogOutputDevice] [Callstack] 0x00007ffd57542398 UE4Editor-Core.dll!FNamedTaskThread::ProcessTasksNamedThread() [D:\\Build\\++UE4\\Sync\\Engine\\Source\\Runtime\\Core\\Private\\Async\\TaskGraph.cpp:710]",
+          "[LogOutputDevice] [Callstack] 0x00007ffd575427ce UE4Editor-Core.dll!FNamedTaskThread::ProcessTasksUntilQuit() [D:\\Build\\++UE4\\Sync\\Engine\\Source\\Runtime\\Core\\Private\\Async\\TaskGraph.cpp:602]",
+          "[LogOutputDevice] [Callstack] 0x00007ffd575540bd UE4Editor-Core.dll!FTaskGraphImplementation::WaitUntilTasksComplete() [D:\\Build\\++UE4\\Sync\\Engine\\Source\\Runtime\\Core\\Private\\Async\\TaskGraph.cpp:1532]",
+          "[LogOutputDevice] [Callstack] 0x00007ffce4d093be UE4Editor-Engine.dll!FTickTaskSequencer::ReleaseTickGroup() [D:\\Build\\++UE4\\Sync\\Engine\\Source\\Runtime\\Engine\\Private\\TickTaskManager.cpp:564]",
+          "[LogOutputDevice] [Callstack] 0x00007ffce4d0faba UE4Editor-Engine.dll!FTickTaskManager::RunTickGroup() [D:\\Build\\++UE4\\Sync\\Engine\\Source\\Runtime\\Engine\\Private\\TickTaskManager.cpp:1585]",
+          "[LogOutputDevice] [Callstack] 0x00007ffce43f349f UE4Editor-Engine.dll!UWorld::RunTickGroup() [D:\\Build\\++UE4\\Sync\\Engine\\Source\\Runtime\\Engine\\Private\\LevelTick.cpp:785]",
+          "[LogOutputDevice] [Callstack] 0x00007ffce4400536 UE4Editor-Engine.dll!UWorld::Tick() [D:\\Build\\++UE4\\Sync\\Engine\\Source\\Runtime\\Engine\\Private\\LevelTick.cpp:1610]",
+          "[LogOutputDevice] [Callstack] 0x00007ffce2370862 UE4Editor-UnrealEd.dll!UEditorEngine::Tick() [D:\\Build\\++UE4\\Sync\\Engine\\Source\\Editor\\UnrealEd\\Private\\EditorEngine.cpp:1534]",
+          "[LogOutputDevice] [Callstack] 0x00007ffce2c72ba6 UE4Editor-UnrealEd.dll!UUnrealEdEngine::Tick() [D:\\Build\\++UE4\\Sync\\Engine\\Source\\Editor\\UnrealEd\\Private\\UnrealEdEngine.cpp:426]",
+          "[LogOutputDevice] [Callstack] 0x00007ff7f74887a0 UE4Editor.exe!FEngineLoop::Tick() [D:\\Build\\++UE4\\Sync\\Engine\\Source\\Runtime\\Launch\\Private\\LaunchEngineLoop.cpp:4921]",
+          "[LogOutputDevice] [Callstack] 0x00007ff7f74a0fcc UE4Editor.exe!GuardedMain() [D:\\Build\\++UE4\\Sync\\Engine\\Source\\Runtime\\Launch\\Private\\Launch.cpp:178]",
+          "[LogOutputDevice] [Callstack] 0x00007ff7f74a10ba UE4Editor.exe!GuardedMainWrapper() [D:\\Build\\++UE4\\Sync\\Engine\\Source\\Runtime\\Launch\\Private\\Windows\\LaunchWindows.cpp:137]",
+          "[LogOutputDevice] [Callstack] 0x00007ff7f74a40dd UE4Editor.exe!LaunchWindowsStartup() [D:\\Build\\++UE4\\Sync\\Engine\\Source\\Runtime\\Launch\\Private\\Windows\\LaunchWindows.cpp:273]",
+          "[LogOutputDevice] [Callstack] 0x00007ff7f74b5984 UE4Editor.exe!WinMain() [D:\\Build\\++UE4\\Sync\\Engine\\Source\\Runtime\\Launch\\Private\\Windows\\LaunchWindows.cpp:320]",
+          "[LogOutputDevice] [Callstack] 0x00007ff7f74b853a UE4Editor.exe!__scrt_common_main_seh() [d:\\agent\\_work\\5\\s\\src\\vctools\\crt\\vcstartup\\src\\startup\\exe_common.inl:288]",
+          "[LogOutputDevice] [Callstack] 0x00007ffda77c7374 KERNEL32.DLL!UnknownFunction []",
+          "[LogOutputDevice] [Callstack] 0x00007ffda8ebcc91 ntdll.dll!UnknownFunction []",
+          "[LogOutputDevice] ",
+          "[LogStats]                SubmitErrorReport -  0.000 s",
+          "[LogStats]                    SendNewReport -  3.477 s",
+          "[LogStats]             FDebug::EnsureFailed -  4.378 s",
+          "[LogBlueprintInspector] ListSCSNodes: BP_MutatorAtomicity",
+          "[LogBlueprintInspector] ListVariables: BP_MutatorAtomicity",
+          "[LogBlueprintInspector] ListInterfaces: BP_MutatorAtomicity",
+          "[LogBlueprintInspector] ListFunctions: BP_MutatorAtomicity",
+          "[LogBlueprintInspector] ListEventDispatchers: BP_MutatorAtomicity"
+        ],
+        "transaction_id": "523A6728-4D2F-F56F-A10F-B8AD30154A13",
+        "transport": "named_pipe",
+        "execution_context": "puerts_node_v8_in_process",
+        "is_game_thread": true,
+        "thread_id": 37824,
+        "native_duration_ms": 4391.766399145126,
+        "session": {
+          "session_id": "80b248c1-4669-d41d-5d75-aababd24d477",
+          "editor_pid": 38608,
+          "process_start_time": "0426-08-03T06:51:19.966Z",
+          "project_path": "D:/Unreal Projects/BridgeInstallTest",
+          "uproject_path": "D:/Unreal Projects/BridgeInstallTest/BridgeInstallTest.uproject",
+          "pipe_name": "\\\\.\\pipe\\UE427PuerTSMCP_BridgeInstallTest_eb10ef4f"
+        }
+      }
+    },
+    {
+      "label": "(3) a batch whose first operation lands and whose second cannot",
+      "caught_by": "the mutator, after two writes",
+      "before": {
+        "file_exists": true,
+        "file_sha256": "6f84229cd6ea60c20fddb2b4d81c0c47e09dbe4cd2e0088ffc14d27407a18d36",
+        "member_hash": "ac2017eed18c588807484a7efbf7371619566b68",
+        "package_dirty": false,
+        "p4_opened": null,
+        "inspect_ok": true
+      },
+      "after": {
+        "file_exists": true,
+        "file_sha256": "6f84229cd6ea60c20fddb2b4d81c0c47e09dbe4cd2e0088ffc14d27407a18d36",
+        "member_hash": "ac2017eed18c588807484a7efbf7371619566b68",
+        "package_dirty": false,
+        "p4_opened": null,
+        "inspect_ok": true
+      },
+      "response": {
+        "success": false,
+        "message": "Command failed.",
+        "data": {},
+        "changed_assets": [],
+        "changed_actors": [],
+        "warnings": [
+          "A failed mutating command may be undone with its transaction_id."
+        ],
+        "errors": [
+          "operation 1 (add_variable BadFloat) failed inside the mutator; see the LogBlueprintMutator output for the reason. The whole batch is rolled back rather than left half-applied."
+        ],
+        "log_output": [
+          "[LogBlueprintInspector] ListSCSNodes: BP_MutatorAtomicity",
+          "[LogBlueprintInspector] ListVariables: BP_MutatorAtomicity",
+          "[LogBlueprintInspector] ListInterfaces: BP_MutatorAtomicity",
+          "[LogBlueprintInspector] ListFunctions: BP_MutatorAtomicity",
+          "[LogBlueprintInspector] ListEventDispatchers: BP_MutatorAtomicity",
+          "[LogBlueprintMutator] RunMutation begin: 'Soul Juice: Set Variable Default' on BP_MutatorAtomicity",
+          "[LogUObjectHash] Compacting FUObjectHashTables data took   1.02ms",
+          "[LogBlueprintMutator] RunMutation end: 'Soul Juice: Set Variable Default' on BP_MutatorAtomicity",
+          "[LogBlueprintMutator] RunMutation begin: 'Soul Juice: Add Variable' on BP_MutatorAtomicity",
+          "[LogBlueprint] [AssetLog] D:\\Unreal Projects\\BridgeInstallTest\\Content\\MCPGenerated\\BP_MutatorAtomicity.uasset: [Compiler] Can't parse default value 'not-a-number' for  . Property: BadFloat.",
+          "[LogUObjectHash] Compacting FUObjectHashTables data took   0.79ms",
+          "[LogBlueprintMutator] RunMutation end: 'Soul Juice: Add Variable' on BP_MutatorAtomicity",
+          "[LogBlueprintMutator] ImportDefaultValue: FloatProperty read only part of 'not-a-number' and stopped at 'not-a-number'. Treated as a refusal, not a value.",
+          "[LogBlueprintMutator] AddVariable: 'not-a-number' is not a value FloatProperty can hold (variable 'BadFloat'). The check can only run after the variable exists, so this fails AFTER the mutation and the enclosing transaction owns undoing it.",
+          "[LogBlueprintInspector] ListSCSNodes: BP_MutatorAtomicity",
+          "[LogBlueprintInspector] ListVariables: BP_MutatorAtomicity",
+          "[LogBlueprintInspector] ListInterfaces: BP_MutatorAtomicity",
+          "[LogBlueprintInspector] ListFunctions: BP_MutatorAtomicity",
+          "[LogBlueprintInspector] ListEventDispatchers: BP_MutatorAtomicity"
+        ],
+        "transaction_id": "59A81D36-4F6A-7890-EC56-A88127DFB161",
+        "transport": "named_pipe",
+        "execution_context": "puerts_node_v8_in_process",
+        "is_game_thread": true,
+        "thread_id": 37824,
+        "native_duration_ms": 23.203399032354355,
+        "session": {
+          "session_id": "80b248c1-4669-d41d-5d75-aababd24d477",
+          "editor_pid": 38608,
+          "process_start_time": "0426-08-03T06:51:19.966Z",
+          "project_path": "D:/Unreal Projects/BridgeInstallTest",
+          "uproject_path": "D:/Unreal Projects/BridgeInstallTest/BridgeInstallTest.uproject",
+          "pipe_name": "\\\\.\\pipe\\UE427PuerTSMCP_BridgeInstallTest_eb10ef4f"
+        }
+      }
+    },
+    {
+      "label": "(4) control",
+      "before": {
+        "file_exists": true,
+        "file_sha256": "6f84229cd6ea60c20fddb2b4d81c0c47e09dbe4cd2e0088ffc14d27407a18d36",
+        "member_hash": "ac2017eed18c588807484a7efbf7371619566b68",
+        "package_dirty": false,
+        "p4_opened": null,
+        "inspect_ok": true
+      },
+      "after": {
+        "file_exists": true,
+        "file_sha256": "2823392d993b08a51c9d7b6749d019352d0f5fdfb161c7dd8cb9ccd5230827f7",
+        "member_hash": "fdcd58eb8e16c85ea2ace27e512b4298a76e3e2f",
+        "package_dirty": false,
+        "p4_opened": null,
+        "inspect_ok": true
+      },
+      "response": {
+        "success": true,
+        "message": "Blueprint members patched.",
+        "data": {
+          "asset_path": "/Game/MCPGenerated/BP_MutatorAtomicity",
+          "requested_operation_count": 1,
+          "operations_to_apply": [
+            "add_variable AtomicityControl"
+          ],
+          "unchanged_operations": [],
+          "expected_change_count": 1,
+          "pre_member_hash": "ac2017eed18c588807484a7efbf7371619566b68",
+          "compile_status": "UpToDate",
+          "post_member_hash": "fdcd58eb8e16c85ea2ace27e512b4298a76e3e2f",
+          "applied_operations": [
+            "add_variable AtomicityControl"
+          ],
+          "applied_operation_count": 1,
+          "converged": false,
+          "verification_mismatches": [],
+          "saved": true,
+          "rollback_attempted": false,
+          "rollback_succeeded": false,
+          "members": {
+            "components": [
+              {
+                "name": "Root",
+                "class_path": "/Script/Engine.SceneComponent",
+                "parent": "",
+                "is_root": true
+              }
+            ],
+            "variables": [
+              {
+                "name": "AtomicityControl",
+                "type": {
+                  "category": "float",
+                  "sub_category": "None",
+                  "sub_category_object": "",
+                  "container_type": "None",
+                  "is_reference": false,
+                  "value_type": null
+                },
+                "category": "Default",
+                "default_value": "",
+                "is_editable": true,
+                "is_replicated": false,
+                "tooltip": ""
+              },
+              {
+                "name": "Count",
+                "type": {
+                  "category": "int",
+                  "sub_category": "None",
+                  "sub_category_object": "",
+                  "container_type": "None",
+                  "is_reference": false,
+                  "value_type": null
+                },
+                "category": "Default",
+                "default_value": "",
+                "is_editable": true,
+                "is_replicated": false,
+                "tooltip": ""
+              },
+              {
+                "name": "Label",
+                "type": {
+                  "category": "string",
+                  "sub_category": "None",
+                  "sub_category_object": "",
+                  "container_type": "None",
+                  "is_reference": false,
+                  "value_type": null
+                },
+                "category": "Default",
+                "default_value": "",
+                "is_editable": true,
+                "is_replicated": false,
+                "tooltip": ""
+              },
+              {
+                "name": "Ratio",
+                "type": {
+                  "category": "float",
+                  "sub_category": "None",
+                  "sub_category_object": "",
+                  "container_type": "None",
+                  "is_reference": false,
+                  "value_type": null
+                },
+                "category": "Default",
+                "default_value": "",
+                "is_editable": true,
+                "is_replicated": false,
+                "tooltip": ""
+              }
+            ],
+            "interfaces": [],
+            "functions": [
+              {
+                "name": "UserConstructionScript",
+                "category": "",
+                "is_pure": false,
+                "is_override": true,
+                "is_const": false,
+                "inputs": [],
+                "outputs": []
+              }
+            ],
+            "event_dispatchers": []
+          },
+          "elapsed_ms": 54.37220000021625,
+          "cleanup": {
+            "rollback_attempted": false,
+            "rollback_succeeded": false,
+            "created_assets": [],
+            "removed_assets": [],
+            "dirty_packages_before": [],
+            "dirty_packages_after": [],
+            "files_created": [],
+            "files_removed": [],
+            "source_control_before": [
+              "source control disabled"
+            ],
+            "source_control_after": [
+              "source control disabled"
+            ],
+            "cleanup_errors": []
+          }
+        },
+        "changed_assets": [
+          "/Game/MCPGenerated/BP_MutatorAtomicity"
+        ],
+        "changed_actors": [],
+        "warnings": [],
+        "errors": [],
+        "log_output": [
+          "[LogBlueprintInspector] ListSCSNodes: BP_MutatorAtomicity",
+          "[LogBlueprintInspector] ListVariables: BP_MutatorAtomicity",
+          "[LogBlueprintInspector] ListInterfaces: BP_MutatorAtomicity",
+          "[LogBlueprintInspector] ListFunctions: BP_MutatorAtomicity",
+          "[LogBlueprintInspector] ListEventDispatchers: BP_MutatorAtomicity",
+          "[LogBlueprintMutator] RunMutation begin: 'Soul Juice: Add Variable' on BP_MutatorAtomicity",
+          "[LogUObjectHash] Compacting FUObjectHashTables data took   0.99ms",
+          "[LogBlueprintMutator] RunMutation end: 'Soul Juice: Add Variable' on BP_MutatorAtomicity",
+          "[LogUObjectHash] Compacting FUObjectHashTables data took   0.84ms",
+          "[LogBlueprintInspector] ListSCSNodes: BP_MutatorAtomicity",
+          "[LogBlueprintInspector] ListVariables: BP_MutatorAtomicity",
+          "[LogBlueprintInspector] ListInterfaces: BP_MutatorAtomicity",
+          "[LogBlueprintInspector] ListFunctions: BP_MutatorAtomicity",
+          "[LogBlueprintInspector] ListEventDispatchers: BP_MutatorAtomicity",
+          "[LogBlueprintInspector] ListSCSNodes: BP_MutatorAtomicity",
+          "[LogBlueprintInspector] ListVariables: BP_MutatorAtomicity",
+          "[LogBlueprintInspector] ListInterfaces: BP_MutatorAtomicity",
+          "[LogBlueprintInspector] ListFunctions: BP_MutatorAtomicity",
+          "[LogBlueprintInspector] ListEventDispatchers: BP_MutatorAtomicity",
+          "[None] Message dialog closed, result: Ok, title: Unable to Check Out From Source Control!, text: The following assets could not be successfully checked out from source control:\n/Game/MCPGenerated/BP_MutatorAtomicity",
+          "[Cmd] OBJ SAVEPACKAGE PACKAGE=\"/Game/MCPGenerated/BP_MutatorAtomicity\" FILE=\"../../../../../Unreal Projects/BridgeInstallTest/Content/MCPGenerated/BP_MutatorAtomicity.uasset\" SILENT=true",
+          "[LogSavePackage] Moving '../../../../../Unreal Projects/BridgeInstallTest/Saved/BP_MutatorAtomicity51767BAB4912CA5B0347479241C83FA6.tmp' to '../../../../../Unreal Projects/BridgeInstallTest/Content/MCPGenerated/BP_MutatorAtomicity.uasset'",
+          "[None] Message dialog closed, result: Ok, title: Unable to Check Out From Source Control!, text: The following assets could not be successfully checked out from source control:\n/Game/MCPGenerated/BP_MutatorAtomicity",
+          "[LogBlueprintInspector] ListSCSNodes: BP_MutatorAtomicity",
+          "[LogBlueprintInspector] ListVariables: BP_MutatorAtomicity",
+          "[LogBlueprintInspector] ListInterfaces: BP_MutatorAtomicity",
+          "[LogBlueprintInspector] ListFunctions: BP_MutatorAtomicity",
+          "[LogBlueprintInspector] ListEventDispatchers: BP_MutatorAtomicity"
+        ],
+        "transaction_id": "E13BFD8C-47D8-227E-7C26-80A886608719",
+        "transport": "named_pipe",
+        "execution_context": "puerts_node_v8_in_process",
+        "is_game_thread": true,
+        "thread_id": 37824,
+        "native_duration_ms": 55.420298129320145,
+        "session": {
+          "session_id": "80b248c1-4669-d41d-5d75-aababd24d477",
+          "editor_pid": 38608,
+          "process_start_time": "0426-08-03T06:51:19.966Z",
+          "project_path": "D:/Unreal Projects/BridgeInstallTest",
+          "uproject_path": "D:/Unreal Projects/BridgeInstallTest/BridgeInstallTest.uproject",
+          "pipe_name": "\\\\.\\pipe\\UE427PuerTSMCP_BridgeInstallTest_eb10ef4f"
+        }
+      }
+    }
+  ]
+}

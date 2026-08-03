@@ -92,14 +92,42 @@ namespace
         return DesiredText == ActualText;
     }
 
-    /** Serialize any JSON value to the compact text the mutator entry points take. */
+    /** Serialize any JSON value to the compact text the mutator entry points take.
+     *
+     *  CONDENSED, not the default writer. TJsonWriter<>'s default print policy is
+     *  the pretty one, and serializing a bare value under an empty identifier
+     *  emits a separator and a newline first, so 0.75 left here as ",\r\n0.75".
+     *  ImportText then stopped at the comma, consumed nothing, and reported
+     *  success while writing 0.0. That is why a valid float was rejected the
+     *  moment the type check started requiring the whole buffer to be consumed:
+     *  the value had been mangled all along and nothing looked. */
     FString ValueToJsonText(const TSharedPtr<FJsonValue>& Value)
     {
         if (!Value.IsValid()) { return FString(); }
+
+        // Serialize the value as the single field of a throwaway object, then
+        // drop the wrapper. FJsonSerializer has no bare-value entry point: the
+        // identifier overload goes through the writer's named-value path, which
+        // writes a separator prefix, so 0.75 came out as ",0.75" (and as
+        // ",\r\n0.75" under the default pretty policy).
+        //
+        // Wrapping is the lazy correct fix rather than a hand-written switch on
+        // EJson: escaping, number formatting and nested objects and arrays all
+        // stay the serializer's job, which is where they belong.
+        TSharedPtr<FJsonObject> Wrapper = MakeShared<FJsonObject>();
+        Wrapper->SetField(TEXT("v"), Value);
+
         FString Text;
-        TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&Text);
-        FJsonSerializer::Serialize(Value, TEXT(""), Writer);
-        return Text;
+        TSharedRef<TJsonWriter<TCHAR, TCondensedJsonPrintPolicy<TCHAR>>> Writer =
+            TJsonWriterFactory<TCHAR, TCondensedJsonPrintPolicy<TCHAR>>::Create(&Text);
+        if (!FJsonSerializer::Serialize(Wrapper.ToSharedRef(), Writer)) { return FString(); }
+
+        // Condensed output is exactly {"v":<value>}. Refuse rather than guess if
+        // it is not, so a print-policy change surfaces here instead of silently
+        // corrupting every default value again.
+        const FString Prefix = TEXT("{\"v\":");
+        if (!Text.StartsWith(Prefix) || !Text.EndsWith(TEXT("}"))) { return FString(); }
+        return Text.Mid(Prefix.Len(), Text.Len() - Prefix.Len() - 1);
     }
 
     const FBPVariableDescription* FindVariable(const UBlueprint* Blueprint, const FString& Name)

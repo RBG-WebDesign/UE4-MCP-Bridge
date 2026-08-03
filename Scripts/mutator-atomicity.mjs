@@ -33,7 +33,7 @@ import { execSync, spawn } from "node:child_process";
 import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { requireCurrentInstall } from "./bridge-install.mjs";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
@@ -223,7 +223,7 @@ const LEVERS = [
     // path through FBPMutatorHelpers::RunMutation's failure branch and the
     // command boundary's revert.
     caught_by: "the mutator, after the write",
-    operations: [{ op: "add_variable", name: "BadFloat", type: "float", default: "not-a-number" }],
+    operations: [{ op: "add_variable", name: "BadFloat", type: { category: "float" }, default: "not-a-number" }],
   },
   {
     label: "(3) a batch whose first operation lands and whose second cannot",
@@ -233,7 +233,7 @@ const LEVERS = [
     caught_by: "the mutator, after two writes",
     operations: [
       { op: "set_variable_default", name: "Ratio", default: 0.75 },
-      { op: "add_variable", name: "BadFloat", type: "float", default: "not-a-number" },
+      { op: "add_variable", name: "BadFloat", type: { category: "float" }, default: "not-a-number" },
     ],
   },
 ];
@@ -275,7 +275,7 @@ async function main() {
       expectFailure: false,
       mutate: () => bridge.call("puerts_blueprint_member_patch", {
         asset_path: BP,
-        operations: [{ op: "add_variable", name: "AtomicityControl", type: "float", default: 1 }],
+        operations: [{ op: "add_variable", name: "AtomicityControl", type: { category: "float" }, default: 1 }],
         compile: true, save: true, verify: true,
       }),
     });
@@ -303,6 +303,12 @@ async function main() {
 }
 
 // Importing this file must not launch an editor session; only running it does.
-if (process.argv[1] && import.meta.url === `file://${process.argv[1].replaceAll("\\", "/")}`) {
+//
+// pathToFileURL, not a hand-built "file://" + path. On Windows the hand-built
+// form produced file://D:/Unreal Projects/... while import.meta.url is
+// file:///D:/Unreal%20Projects/... - three slashes and a percent-encoded space.
+// They never matched, so main() never ran and this script exited 0 having
+// tested nothing, which is the one result a test must never produce.
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   await main();
 }
