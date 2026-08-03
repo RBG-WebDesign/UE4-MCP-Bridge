@@ -8,6 +8,7 @@ import {
   Permission,
   ToolContext,
   ToolDefinition,
+  allPermissions,
   optionalBoolean,
   optionalNumber,
   optionalString,
@@ -24,12 +25,6 @@ import {
   resolveObject,
   stringArray,
 } from "./runtime";
-
-const allPermissions: readonly Permission[] = [
-  "assets.read", "assets.write", "actors.read", "actors.spawn", "actors.delete",
-  "reflection.read", "reflection.write", "functions.call", "level.save", "editor.pie",
-  "logs.read", "viewport.capture", "transactions.undo",
-];
 
 const targetProperties = {
   actor: { type: "string" },
@@ -2095,6 +2090,101 @@ async function undo(context: ToolContext, input: JsonObject): Promise<CommandRes
   return result;
 }
 
+/** The one entry point behind job_status, job_result and job_cancel. Every
+    decision - is it running, may it be cancelled, has the result already been
+    collected - is the native command's, because all of it depends on live
+    engine state this layer cannot see. See MCPPuerTSBridgeJobs.cpp. */
+async function controlJob(
+  context: ToolContext,
+  input: JsonObject,
+  op: "status" | "result" | "cancel",
+): Promise<CommandResponse> {
+  const request: JsonObject = { op };
+  const jobId = optionalString(input, "job_id");
+  if (jobId !== undefined) { request.job_id = jobId; }
+  if (op !== "status" && request.job_id === undefined) {
+    throw new Error(`job_${op} needs a job_id. Call job_status with no job_id to list them.`);
+  }
+
+  const resultJson = puerts.$ref<string>("");
+  const error = puerts.$ref<string>("");
+  if (!context.bridge.ControlJobJson(JSON.stringify(request), resultJson, error)) {
+    // A refusal carries job_error_code and, where a job was found, its whole
+    // record. Throwing would discard both and leave the caller unable to tell
+    // "your editor restarted" from "no such job".
+    const body = puerts.$unref(resultJson);
+    if (body.length > 0) {
+      return commandFailure(new Error(puerts.$unref(error)), JSON.parse(body) as JsonObject);
+    }
+    throw new Error(puerts.$unref(error));
+  }
+  const parsed = JSON.parse(puerts.$unref(resultJson)) as JsonObject;
+  const job = optionalObject(parsed, "job");
+  const state = job !== undefined && typeof job.state === "string" ? job.state : "";
+  const message = op === "status"
+    ? (jobId === undefined ? "Job list read." : `Job is ${state}.`)
+    : op === "result"
+      ? `Job result collected; the job is ${state}.`
+      : parsed.stopped_now === true
+        ? "Job cancelled; it has already stopped."
+        : "Cancel requested. It takes effect at the job's next check, not now.";
+  return response(true, message, parsed);
+}
+
+async function jobStatus(context: ToolContext, input: JsonObject): Promise<CommandResponse> {
+  return controlJob(context, input, "status");
+}
+async function jobResult(context: ToolContext, input: JsonObject): Promise<CommandResponse> {
+  return controlJob(context, input, "result");
+}
+async function jobCancel(context: ToolContext, input: JsonObject): Promise<CommandResponse> {
+  return controlJob(context, input, "cancel");
+}
+
+/** Start an out-of-process ULevelSequence render and return a job id. Nothing
+    is rendered when this returns; that is the point. */
+async function startSequenceRender(context: ToolContext, input: JsonObject): Promise<CommandResponse> {
+  const assetPath = requireString(input, "asset_path");
+  if (!assetPath.startsWith("/Game/")) {
+    throw new Error("Sequence rendering is limited to /Game");
+  }
+  const spec: JsonObject = { asset_path: assetPath };
+  for (const key of ["output_directory", "format", "output_format"]) {
+    const value = optionalString(input, key);
+    if (value !== undefined) { spec[key] = value; }
+  }
+  for (const key of ["resolution_x", "resolution_y", "frame_rate", "warm_up_frames"]) {
+    if (input[key] !== undefined) { spec[key] = optionalNumber(input, key, 0); }
+  }
+  for (const key of ["overwrite_existing", "plan_only"]) {
+    if (input[key] !== undefined) { spec[key] = optionalBoolean(input, key, false); }
+  }
+
+  const resultJson = puerts.$ref<string>("");
+  const error = puerts.$ref<string>("");
+  if (!context.bridge.RenderLevelSequenceJson(JSON.stringify(spec), resultJson, error)) {
+    throw new Error(puerts.$unref(error));
+  }
+  const parsed = JSON.parse(puerts.$unref(resultJson)) as JsonObject;
+  const planned = parsed.status === "planned";
+  const result = response(
+    true,
+    planned
+      ? "Sequence render planned; no process was started."
+      : "Sequence render STARTED in a second process. It is not finished.",
+    parsed,
+  );
+  if (!planned) {
+    // No changed_assets. A render writes image files, not assets: nothing in
+    // the content browser changed and there is nothing to save.
+    result.warnings.push(
+      "Nothing is rendered yet. Poll puerts_job_status with the job_id until state is no longer "
+      + "\"running\", then collect with puerts_job_result. puerts_job_cancel kills the render "
+      + "process; frames already written stay on disk.");
+  }
+  return result;
+}
+
 export const toolDefinitions: readonly ToolDefinition[] = [
   { name: "diagnostic", inputSchema: schema({ actor_limit: { type: "number" } }), outputSchema, permissions: ["actors.read"], executionTimeoutMs: 2000, execute: diagnostic },
   { name: "find_assets", inputSchema: schema({ path: { type: "string" }, type: { type: "string" }, name: { type: "string" }, recursive: { type: "boolean" }, limit: { type: "number" } }), outputSchema, permissions: ["assets.read"], executionTimeoutMs: 4000, execute: findAssets },
@@ -2170,6 +2260,15 @@ export const toolDefinitions: readonly ToolDefinition[] = [
   { name: "pie_stop", inputSchema: schema({}), outputSchema, permissions: ["editor.pie"], executionTimeoutMs: 2000, execute: stopPie },
   { name: "get_logs", inputSchema: schema({ maximum_lines: { type: "number" } }), outputSchema, permissions: ["logs.read"], executionTimeoutMs: 1000, execute: getLogs },
   { name: "undo", inputSchema: schema({ transaction_id: { type: "string" } }, ["transaction_id"]), outputSchema, permissions: ["transactions.undo"], executionTimeoutMs: 2000, execute: undo },
+  // The job API. All three are short reads of an in-memory record plus one
+  // live query, so their budgets are small on purpose: a job command that took
+  // seconds would be occupying the command slot the job needs free.
+  { name: "job_status", inputSchema: schema({ job_id: { type: "string" } }), outputSchema, permissions: ["jobs.control"], executionTimeoutMs: 5000, execute: jobStatus },
+  { name: "job_result", inputSchema: schema({ job_id: { type: "string" } }, ["job_id"]), outputSchema, permissions: ["jobs.control"], executionTimeoutMs: 5000, execute: jobResult },
+  { name: "job_cancel", inputSchema: schema({ job_id: { type: "string" } }, ["job_id"]), outputSchema, permissions: ["jobs.control"], executionTimeoutMs: 5000, execute: jobCancel },
+  // Loads the sequence, writes a manifest and spawns a process. It does not
+  // wait for the render, so the budget covers the asset load and the spawn.
+  { name: "sequence_render_start", inputSchema: schema({ asset_path: { type: "string" }, output_directory: { type: "string" }, format: { type: "string" }, output_format: { type: "string" }, resolution_x: { type: "number" }, resolution_y: { type: "number" }, frame_rate: { type: "number" }, warm_up_frames: { type: "number" }, overwrite_existing: { type: "boolean" }, plan_only: { type: "boolean" } }, ["asset_path"]), outputSchema, permissions: ["assets.read", "jobs.control"], executionTimeoutMs: 20000, execute: startSequenceRender },
 ];
 
 export class ToolRegistry {

@@ -233,6 +233,31 @@ export const toolAnnotations: Record<string, ToolAnnotations> = {
   // rebuild replaces lighting data that is itself derived, and nothing a caller
   // authored is lost.
   puerts_lighting_build: mutatingIdempotent,
+  // The job API. job_status changes nothing anywhere, so it is plainly
+  // read-only.
+  puerts_job_status: readOnly,
+  // Read-only about the EDITOR - it opens no transaction, dirties nothing and
+  // spawns nothing - but deliberately not idempotent: it delivers a finished
+  // job's output once and refuses the second call with job_result_consumed. A
+  // client that retries on a dropped connection must expect that refusal, so
+  // the hint says so rather than promising a safe retry.
+  puerts_job_result: {
+    readOnlyHint: true,
+    destructiveHint: false,
+    idempotentHint: false,
+    openWorldHint: false,
+  },
+  // Destructive, and convergent. Destructive because stopping work part way
+  // leaves it part way: a cancelled navigation build leaves a partial navmesh,
+  // a cancelled render leaves the frames it already wrote, and nothing is
+  // rolled back. Idempotent because a second cancel of the same job refuses
+  // with job_not_running rather than doing anything again.
+  puerts_job_cancel: destructiveIdempotent,
+  // Destructive and NOT idempotent. It spawns a second UE process and, with
+  // overwrite_existing (the default), overwrites whatever is already in the
+  // output directory; a second call starts a second render rather than
+  // converging. It touches no asset, so there is nothing for undo to cover.
+  puerts_sequence_render_start: destructive,
   // Mutating and idempotent, NOT destructive: it writes only the class defaults
   // it was given, a value already equal to the request is reported unchanged and
   // not rewritten, and nothing is ever cleared. Worth knowing rather than

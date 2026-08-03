@@ -1711,6 +1711,7 @@ bool UMCPPuerTSBridgeService::BuildNavigationJson(
     if (bPlanOnly)
     {
         Result->SetStringField(TEXT("status"), TEXT("planned"));
+        Result->SetStringField(TEXT("job_id"), TEXT(""));
         Result->SetBoolField(TEXT("would_build"), true);
         Result->SetNumberField(TEXT("remaining_build_tasks"), TasksBefore);
         Result->SetBoolField(TEXT("is_building"), TasksBefore > 0);
@@ -1732,6 +1733,17 @@ bool UMCPPuerTSBridgeService::BuildNavigationJson(
         // the client has given up. That is why wait defaults to false.
         FNavigationSystem::Build(*World);
         Result->SetStringField(TEXT("status"), TEXT("complete"));
+        // NO JOB, deliberately. A job tracks work the engine advances while the
+        // game thread is free; this call held the game thread until the build
+        // finished, so there is nothing left to poll and nothing that could
+        // have been cancelled. Handing back a job id here would advertise a
+        // cancel for work that is already over.
+        Result->SetStringField(TEXT("job_id"), TEXT(""));
+        Warnings.Add(MakeShared<FJsonValueString>(
+            TEXT("wait: true returns no job_id. It blocked inside the generator, which is exactly "
+                 "the shape the job API cannot cover: nothing in UE4.27 interrupts a running "
+                 "native call. Use the default wait: false to get a job that can be polled and "
+                 "cancelled.")));
     }
     else
     {
@@ -1743,10 +1755,22 @@ bool UMCPPuerTSBridgeService::BuildNavigationJson(
             Data->RebuildAll();
         }
         Result->SetStringField(TEXT("status"), TEXT("building"));
+        // ADDITIVE. wait and plan_only are unchanged, status is still
+        // "building", and puerts_nav_inspect is still a valid way to poll. What
+        // is new is a job_id, so the same started-not-finished shape this
+        // command already had is reachable through the one job API - and so the
+        // rebuild can be cancelled, which UNavigationSystemV1::CancelBuild
+        // (NavigationSystem.h:823) makes possible and nothing here exposed
+        // before. Result is shared with the job record.
+        const FString JobId = RegisterJob(
+            EBridgeJobKind::NavigationBuild, TEXT("nav_build"), World->GetPathName(), Result);
+        Result->SetStringField(TEXT("job_id"), JobId);
         Warnings.Add(MakeShared<FJsonValueString>(
-            TEXT("The rebuild was STARTED, not finished. Poll puerts_nav_inspect until "
-                 "remaining_build_tasks is zero before running puerts_nav_query, or re-run with "
-                 "wait: true to block until the generator is done.")));
+            TEXT("The rebuild was STARTED, not finished. Poll puerts_job_status with the job_id, "
+                 "or puerts_nav_inspect until remaining_build_tasks is zero, before running "
+                 "puerts_nav_query. puerts_job_cancel stops the generator; a cancelled navmesh is "
+                 "partial, and the recovery is another build. Re-run with wait: true to block "
+                 "until the generator is done instead.")));
     }
 
     const int32 TasksAfter = NavSystem->GetNumRemainingBuildTasks();

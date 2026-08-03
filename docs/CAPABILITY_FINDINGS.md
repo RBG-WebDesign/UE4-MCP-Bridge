@@ -2282,6 +2282,12 @@ than inheriting the native one, so an old caller that never passed the flag
 still gets what it always got.
 ### Finding 0s, NOT A DEFECT: `puerts_sequence_render` was not shipped, and why
 
+**RESOLVED by finding 0u.** It shipped as `puerts_sequence_render_start` on the
+asynchronous job API, in exactly the three-command shape this note specified.
+Everything below about UE4.27 is still true and is why. One claim it repeated is
+not: Lightmass and the render both DO have a public abort in 4.27, see finding
+0t.
+
 Lane S built the two Sequencer primitives `docs/VERTICAL_SLICES.md` names first,
 `puerts_sequence_inspect` and `puerts_sequence_build`. It did not build the third,
 `puerts_sequence_render`, and the reason is a property of UE4.27 rather than a
@@ -2531,3 +2537,148 @@ belongs in the final environment vertical slice, where static lighting is part
 of what is being proven, and there Swarm genuinely must work. Any earlier test
 that triggers a lighting build is buying a multi-minute external dependency for
 a check it does not need.
+
+## Finding 0t: the asynchronous job API, and the class of work it can carry
+
+Lane Z, implemented, UNCOMPILED. `job_status`, `job_result`, `job_cancel`, and
+`sequence_render_start`. The whole model lives in `docs/PERF_AND_LONG_JOBS.md`
+6.10; this entry records what was learned rather than restating the design.
+
+**The abstraction was real, not speculative.** Two shipped commands had already
+hand-rolled half of it. `lighting_build` grew `action: "start" | "status"`
+because a Lightmass build outlives any command budget. `nav_build` grew
+`wait: false` plus a poll against `nav_inspect` for the same reason. Both were
+solving the same problem in different vocabularies, and a caller had to learn
+each one separately. They are migrated onto one job API **additively**: no
+parameter renamed, no parameter removed, no behaviour changed, one field
+(`job_id`) added to each.
+
+**The load-bearing distinction is which thread the work runs on, and it is not
+the one the earlier analysis leads you to expect.** `PERF_AND_LONG_JOBS` 6.5
+concluded that job-based work needs chunked execution on a ticker, a job slot
+beside the command slot, and job-owned transactions, and 6.6 listed six things
+each of those breaks. None of that was needed here, because none of these three
+jobs holds the game thread in the first place: Lightmass advances on the
+editor's own tick, Recast's generator runs background tasks, and a render is a
+second process. The job API is a *record*, not an executor. It contains no
+`FTicker`, no state machine, no transaction and no second pipe.
+
+The rule that falls out, and the one to check before adding a job kind: **if the
+work holds the game thread, a job id around it is decoration.** `nav_build` with
+`wait: true` is exactly that, and it returns an empty `job_id` with a warning
+saying so rather than a handle to something that cannot be polled or cancelled.
+
+### Correction: Lightmass DOES expose a public abort in UE4.27
+
+`lighting_build`'s description and the `sequence_render` note both said "There
+is no cancel: UE4.27 exposes no public entry point for aborting a Lightmass
+build." That is wrong, and it was wrong when written.
+
+```cpp
+// Editor/UnrealEd/Classes/Editor/EditorEngine.h:816    virtual, public
+// Editor/UnrealEd/Classes/Editor/UnrealEdEngine.h:201  the real override
+GEditor->SetMapBuildCancelled(true);
+```
+
+It is what the editor's own cancel button reaches:
+`FStaticLightingManager::CancelLightingBuild` calls it when the build is async
+(`StaticLightingSystem.cpp:182-193`), and the build progress dialog calls the
+`FUnrealEdMisc` setter directly (`SBuildProgress.cpp:212`). Lightmass reads the
+flag between units of its export and import work (`Lightmass.cpp:726`, `:1312`,
+`:3385`, `:3479`), so a cancel takes effect at the next check, not at the call.
+That is reported as `cancel_effect: "deferred"` rather than papered over.
+
+`UNavigationSystemV1::CancelBuild()` is public too (`NavigationSystem.h:823`),
+which nothing in the bridge exposed before.
+
+**The companion change this forces.** `bCancelBuild` is a single global
+`FUnrealEdMisc` flag, also read by the CSG builder (`EditorCsg.cpp:303`) and the
+streaming-level loops (`EditorServer.cpp:1594`, `:1632`).
+`FEditorBuildUtils::EditorBuild` clears it before every build
+(`EditorBuildUtils.cpp:248`); `UEditorEngine::BuildLighting`, which is what
+`lighting_build` calls, does **not**. So `lighting_build`'s start path now
+clears it. Without that one line, a single `job_cancel` would poison every later
+build in the editor session: the next start would abort on its first check and
+report a build that never ran, which is the empty-success failure this document
+exists to catalogue.
+
+### What a job cannot report, which is a percent
+
+Nothing here reports a fraction, and the response says so with a reason, the
+same way lane O's status record does. No UE4.27 entry point on any of the three
+paths exposes one. What is reported is the counter the engine itself keeps and
+which has no denominator: `lighting_unbuilt_objects`, `remaining_build_tasks`,
+and for a render `output_file_count`, the number of files written so far. The
+render's frame total lives inside the child process and this editor cannot ask
+it.
+
+### Two integration defects found on the way, both the same shape
+
+Both are a lane adding to one list and not to its twin, and both were silent.
+
+1. **Four registered tools could not be called at all.** `project.config.read`,
+   `project.config.write` and `pie.observe` were added to the `Permission` union
+   in `puerts-runtime/src/types.ts` but not to `allPermissions` in
+   `registry.ts`, which is the set `ToolRegistry.execute` checks against.
+   `input_mapping_info`, `input_mapping_patch`, `folder_visibility` and
+   `pie_agent_query` therefore answered "Permission denied. Missing permission:
+   ..." on every call. Fixed at the root: the array moved into `types.ts` and
+   the union is now derived from it (`typeof allPermissions[number]`), so there
+   is one list and it cannot drift.
+
+2. **Two tools were missing from the native allowlist because of a missing
+   comma.** In `MCPPuerTSBridgeService.cpp`, `TEXT("sequence_inspect")` was
+   followed by `TEXT("audio_inspect")` with no comma between them. Adjacent
+   string literals concatenate, so the array held
+   `"sequence_inspectaudio_inspect"` and both real names were absent;
+   `AcceptCommand` would have refused both as unknown tools with nothing in the
+   build to say why.
+
+Neither would have been caught by `npm run verify`: the first lives in the
+runtime that only executes inside the editor, the second in C++ nobody has
+compiled. That is worth a check of its own, and it does not exist yet.
+
+## Finding 0u: sequence_render shipped, asynchronously, and finding 0s was right about why
+
+Lane Z, implemented, UNCOMPILED. `puerts_sequence_render_start`.
+
+Finding 0s concluded that `sequence_render` could not ship as a synchronous
+command and specified the shape it would need: a start that returns a job id, a
+status poll, and an editor-side registry keyed by id that survives the client
+disconnecting. That is what was built, on the general job API rather than as
+three per-verb commands.
+
+**Legacy MovieSceneCapture, not Movie Render Queue**, for the reason 0s gave:
+MRQ exists in 4.27 at `Engine/Plugins/MovieScene/MovieRenderPipeline` and ships
+`"EnabledByDefault": false`, so a command built on it would refuse on most
+projects. The legacy path is the one the editor's own Render Movie button takes
+in separate-process mode: serialize a `UAutomatedLevelSequenceCapture` to a
+manifest, launch a second UE process with `-MovieSceneCaptureManifest`
+(`MovieSceneCaptureDialogModule.cpp:678-744`).
+
+Three decisions worth recording:
+
+- **The manifest is produced from the real UObject**, not hand-written JSON. The
+  child reconstructs it with `FJsonObjectConverter::JsonAttributesToUStruct`
+  after resolving the class named in `Type`
+  (`MovieSceneCaptureModule.cpp:104-160`), so a hand-rolled manifest would have
+  to match property names this repository cannot check. Cost: two module
+  dependencies, `MovieSceneCapture` (Runtime) and `MovieSceneTools` (Editor).
+  This module is already editor-only.
+- **One manifest per render**, under `Saved/MCPPuerTSBridge/render-<guid>.json`.
+  The editor's dialog writes a single `Saved/MovieSceneCapture/Manifest.json`,
+  which two concurrent renders would clobber.
+- **The refusals are the work.** The second process reads the level and the
+  sequence FROM DISK. An unsaved level, a never-saved level, or an unsaved
+  sequence would render the previous version and exit zero, which a caller
+  cannot tell from a good render. All three are refused by name, before anything
+  is spawned, along with PIE and an output directory that resolves outside the
+  project.
+
+This is the one job in the bridge whose cancellation is immediate, and for a
+boring reason: it is a separate process, so `FPlatformProcess::TerminateProc`
+stops it. It is also the one job whose work outlives the editor, so a
+`job_status` call after a restart says the record is gone AND that the render
+may still be running, and names the output directory as the only handle left.
+
+Not verified live. No editor has compiled this code.

@@ -1,11 +1,57 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "HAL/PlatformProcess.h"
 #include "UObject/Object.h"
 #include "MCPPuerTSBridgeService.generated.h"
 
 class FScopedTransaction;
+class FJsonObject;
 class AActor;
+
+/** What kind of work a job tracks. The kind decides how the job is polled and
+    whether it can be cancelled; there is no generic answer to either, and
+    pretending there is would be the one failure mode that matters here.
+
+    Plain C++ at file scope rather than a nested type inside the UCLASS: nothing
+    about a job is reflected, and UnrealHeaderTool has no reason to read it. */
+enum class EBridgeJobKind : uint8
+{
+    LightingBuild,
+    NavigationBuild,
+    SequenceRender,
+};
+
+/** One tracked job.
+
+    Deliberately small, and deliberately NOT a snapshot of progress: nothing
+    here is written while the work runs. Every live field is derived at poll
+    time from the engine or the operating system. A cached "how far along" is
+    exactly the lie this repository has been bitten by before, and it would go
+    stale the moment the editor restarted. */
+struct FBridgeJob
+{
+    FString JobId;
+    EBridgeJobKind Kind = EBridgeJobKind::LightingBuild;
+    FString Tool;
+    /** running | succeeded | failed | cancelled. A terminal state is latched by
+        a poll and never revisited. */
+    FString State = TEXT("running");
+    FString Detail;
+    double StartedAtSeconds = 0.0;
+    double FinishedAtSeconds = 0.0;
+    bool bCancelRequested = false;
+    bool bConsumed = false;
+    /** Whatever the starting command answered, kept so job_result can hand the
+        finished output back without the caller having stored it. */
+    TSharedPtr<FJsonObject> StartResult;
+    /** SequenceRender only. */
+    FProcHandle ProcessHandle;
+    uint32 ProcessId = 0;
+    int32 ReturnCode = 0;
+    FString OutputDirectory;
+    FString ManifestPath;
+};
 
 UCLASS()
 class MCPBRIDGEPUERTS_API UMCPPuerTSBridgeService : public UObject
@@ -1331,4 +1377,62 @@ private:
         const FString& SpecJson,
         FString& OutResultJson,
         FString& OutError);
+
+    // -----------------------------------------------------------------------
+    // The asynchronous job API. See MCPPuerTSBridgeJobs.cpp for the whole
+    // model and docs/PERF_AND_LONG_JOBS.md 6.10 for why it is shaped this way.
+    // -----------------------------------------------------------------------
+
+    /** Read, collect or cancel a registered job.
+        {"op": "status"|"result"|"cancel", "job_id": "..."}; job_id may be
+        omitted for op="status", which then lists every job this editor holds.
+        A short command like any other: it reads a small in-memory record and
+        asks the live engine source for that job's current state. It never
+        blocks and never waits. */
+    UFUNCTION(BlueprintCallable, Category="MCP PuerTS Bridge")
+    bool ControlJobJson(
+        const FString& RequestJson,
+        FString& OutResultJson,
+        FString& OutError);
+
+    /** Start an out-of-process render of a ULevelSequence and return a job id.
+
+        This is the legacy MovieSceneCapture path the editor's own Render Movie
+        button takes for "separate process": serialize a
+        UAutomatedLevelSequenceCapture to a manifest, then launch a SECOND UE
+        process with -MovieSceneCaptureManifest
+        (MovieSceneCaptureDialogModule.cpp:678-744). It is the only 4.27 render
+        path that needs no optional plugin: Movie Render Queue exists in 4.27 but
+        ships EnabledByDefault=false, so a command built on it would refuse on
+        most projects.
+
+        NOTHING IS RENDERED WHEN THIS RETURNS. The call spawns a process and
+        answers; poll job_status and collect with job_result. The render is the
+        one job in this bridge that is cancellable immediately, because killing a
+        process is something the operating system can actually do.
+
+        Refuses by name rather than rendering the wrong thing: the second process
+        loads the level and the sequence FROM DISK, so an unsaved level or an
+        unsaved sequence would render the previous contents and report success. */
+    UFUNCTION(BlueprintCallable, Category="MCP PuerTS Bridge")
+    bool RenderLevelSequenceJson(
+        const FString& SpecJson,
+        FString& OutResultJson,
+        FString& OutError);
+
+    /** Register a job and return its id. Called by the start half of a command
+        that has already handed real work to something that advances without the
+        game thread. Never call it for work that is already finished. */
+    FString RegisterJob(EBridgeJobKind Kind, const FString& Tool, const FString& Detail,
+        const TSharedPtr<FJsonObject>& StartResult);
+    /** Bring one job's State up to date by asking its live source. */
+    void PollJob(FBridgeJob& Job);
+    /** Serialize one job the way every job answer reports it. */
+    TSharedPtr<FJsonObject> DescribeJob(const FBridgeJob& Job) const;
+    /** Close any process handle a terminal job still owns, and drop the oldest
+        finished jobs past the cap so the map cannot grow without bound. */
+    void ReapJobs();
+
+    TArray<FBridgeJob> Jobs;
+    int32 JobSerial = 0;
 };
