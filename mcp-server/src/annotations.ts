@@ -186,6 +186,26 @@ export const toolAnnotations: Record<string, ToolAnnotations> = {
   puerts_delete_actor: destructiveIdempotent,
   puerts_save: destructive,
   puerts_undo: destructive,
+  // The missing inspector for UMCPBridgeInputLibrary. Read-only in the same
+  // sense the asset inspectors are: kept out of IsToolMutating on the native
+  // side, and it calls only const accessors on UInputSettings.
+  puerts_input_mapping_info: readOnly,
+  // Convergent by construction: a binding already present is reported
+  // unchanged, so a rerun writes nothing. Destructive, and the distinction
+  // matters here more than for most: remove_unlisted prunes bindings the
+  // request did not name, and DefaultInput.ini is not covered by editor undo,
+  // so what this removes is recovered from source control or not at all.
+  puerts_input_mapping_patch: destructiveIdempotent,
+  // Display-only Content Browser state, ini-persisted, and the reverse of any
+  // change is another call to the same tool. Same classification the legacy
+  // folder_hide / folder_show pair carries.
+  puerts_folder_visibility: mutatingIdempotent,
+  // Runtime-only PIE effect. Nothing is persisted, so nothing can be lost;
+  // not idempotent because playing a shake twice plays it twice.
+  puerts_camera_shake: mutating,
+  // The read half of the PIE agent: observes a running world, edits nothing.
+  // op=expect starts an in-engine condition check that only reads.
+  puerts_pie_agent_query: readOnly,
   // --- Performance analysis and optimization -------------------------------
   // Audits and catalogs are pure reads. Captures drive the viewport and write
   // screenshots or reports under Saved/, so they are mutating-but-convergent
@@ -416,4 +436,57 @@ export const compatAliasAnnotations: Record<string, ToolAnnotations> = {
   gameplay_pie_stop: mutatingIdempotent,  // -> puerts_pie_stop
   ue_logs: readOnly,                      // -> puerts_get_logs
   undo: destructive,                      // -> puerts_undo
+
+  // Input mappings. puerts_input_mapping_patch is destructiveIdempotent
+  // because remove_unlisted can prune bindings the request did not name and
+  // DefaultInput.ini is outside editor undo. None of these three aliases can
+  // reach that: the translations emit one add, one targeted removal, or a
+  // preset, and never remove_unlisted. Classified by what the alias can
+  // actually cause, which is the point of the hint.
+  input_mapping_info: readOnly,           // -> puerts_input_mapping_info
+  input_mapping_add: mutatingIdempotent,  // -> puerts_input_mapping_patch (adds only)
+  input_mapping_remove: destructiveIdempotent, // -> puerts_input_mapping_patch (named removals)
+  input_preset_apply: mutatingIdempotent, // -> puerts_input_mapping_patch (preset, additive)
+
+  // Folder visibility: display-only, ini-persisted, reversible by another
+  // call. folder_hidden_list sends no hidden/hide/show, which the native
+  // command treats as the read.
+  folder_hide: mutatingIdempotent,        // -> puerts_folder_visibility
+  folder_show: mutatingIdempotent,        // -> puerts_folder_visibility
+  folder_hidden_list: readOnly,           // -> puerts_folder_visibility (read path)
+
+  camera_shake_play: mutating,            // -> puerts_camera_shake (runtime only, nothing persisted)
+
+  // PIE agent read half. pie_agent_expect is readOnly here where the legacy
+  // twin was too: it starts an in-engine check that only reads. What changed
+  // is when it answers, not what it touches; the alias description says so.
+  pie_agent_observe: readOnly,            // -> puerts_pie_agent_query
+  pie_agent_status: readOnly,             // -> puerts_pie_agent_query
+  pie_agent_expect: readOnly,             // -> puerts_pie_agent_query
+
+  // Blueprint members -> puerts_blueprint_member_patch. Every add here is
+  // idempotent where its legacy twin above is plain mutating, and that is not
+  // a relabelling: the native command classifies each operation against live
+  // state and reports an operation whose result is already present as
+  // unchanged, so a rerun applies nothing and does not dirty the package. The
+  // legacy tools rerun into a failure.
+  blueprint_add_variable: mutatingIdempotent,
+  blueprint_remove_variable: destructiveIdempotent,
+  blueprint_set_variable_default: mutatingIdempotent,
+  blueprint_add_function: mutatingIdempotent,
+  blueprint_remove_function: destructiveIdempotent,
+  blueprint_add_event_dispatcher: mutatingIdempotent,
+  blueprint_remove_event_dispatcher: destructiveIdempotent,
+  blueprint_add_interface: mutatingIdempotent,
+  blueprint_remove_interface: destructiveIdempotent,
+  blueprint_component_remove: destructiveIdempotent,
+  blueprint_component_rename: mutatingIdempotent,
+
+  // Blueprint graph -> puerts_blueprint_graph_patch. Same reasoning: a move to
+  // the position a node already holds, or a link that already exists, is
+  // reported unchanged rather than rewritten.
+  blueprint_node_add: mutating,           // adding a node twice adds two nodes
+  blueprint_node_delete: destructiveIdempotent,
+  blueprint_node_move: mutatingIdempotent,
+  blueprint_pins_connect: mutatingIdempotent,
 };

@@ -43,5 +43,12 @@ public class MCPBridgePuerTS : ModuleRules
         // selects the FMaterialResource whose compile errors are reported
         // instead of assumed.
         PrivateDependencyModuleNames.AddRange(new string[] { "AIModule", "AssetRegistry", "BlueprintGraph", "GameplayTasks", "Json", "JsonUtilities", "JsEnv", "MaterialEditor", "MCPBridgeGraphBuilder", "Projects", "RenderCore", "RHI", "SourceControl", "UMG", "UMGEditor", "UnrealEd" });
+        // InputCore is for input_mapping_info and input_mapping_patch: an input
+        // mapping is identified by its FKey, which is that module's type, and
+        // reading one back requires resolving and printing it.
+        // MCPBridgePIEAgent is a dependency for the same reason
+        // MCPBridgeGraphBuilder is: pie_agent_query re-fronts UPIEAgentLibrary
+        // rather than reimplementing the runtime observation it already owns.
+        PrivateDependencyModuleNames.AddRange(new string[] { "AIModule", "AssetRegistry", "BlueprintGraph", "GameplayTasks", "InputCore", "Json", "JsonUtilities", "JsEnv", "MCPBridgeGraphBuilder", "MCPBridgePIEAgent", "Projects", "SourceControl", "UMG", "UMGEditor", "UnrealEd" });
     }
 }

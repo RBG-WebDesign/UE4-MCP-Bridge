@@ -1173,6 +1173,270 @@ async function applySceneBatch(context: ToolContext, input: JsonObject): Promise
   return result;
 }
 
+/** Read the project's input mappings. The missing inspector for
+    UMCPBridgeInputLibrary: the library could add and remove bindings and had no
+    reader, so every mutation was only ever confirmed by the mutator's own
+    report. READ ONLY - no transaction, and the native side touches only const
+    accessors on UInputSettings. */
+/** The control schemes input_preset_apply shipped, kept here rather than in
+    C++ because a preset is a project recipe, not an engine primitive: AGENTS.md
+    puts recipes in the PuerTS layer and keeps the native side to the mapping
+    operations themselves. The values are the legacy handler's, unchanged, so an
+    old prompt naming a preset gets the same bindings it always did. */
+const inputPresets: Readonly<Record<string, { actions: JsonObject[]; axes: JsonObject[] }>> = {
+  first_person: {
+    axes: [
+      { name: "MoveForward", key: "W", scale: 1.0 },
+      { name: "MoveForward", key: "S", scale: -1.0 },
+      { name: "MoveRight", key: "D", scale: 1.0 },
+      { name: "MoveRight", key: "A", scale: -1.0 },
+      { name: "Turn", key: "MouseX", scale: 1.0 },
+      { name: "LookUp", key: "MouseY", scale: -1.0 },
+    ],
+    actions: [
+      { name: "Jump", key: "SpaceBar" },
+      { name: "Fire", key: "LeftMouseButton" },
+      { name: "Interact", key: "E" },
+      { name: "Crouch", key: "LeftControl" },
+      { name: "Sprint", key: "LeftShift" },
+    ],
+  },
+  third_person: {
+    axes: [
+      { name: "MoveForward", key: "W", scale: 1.0 },
+      { name: "MoveForward", key: "S", scale: -1.0 },
+      { name: "MoveRight", key: "D", scale: 1.0 },
+      { name: "MoveRight", key: "A", scale: -1.0 },
+      { name: "Turn", key: "MouseX", scale: 1.0 },
+      { name: "LookUp", key: "MouseY", scale: -1.0 },
+    ],
+    actions: [
+      { name: "Jump", key: "SpaceBar" },
+      { name: "Interact", key: "E" },
+      { name: "Sprint", key: "LeftShift" },
+    ],
+  },
+  top_down: {
+    axes: [
+      { name: "MoveForward", key: "W", scale: 1.0 },
+      { name: "MoveForward", key: "S", scale: -1.0 },
+      { name: "MoveRight", key: "D", scale: 1.0 },
+      { name: "MoveRight", key: "A", scale: -1.0 },
+    ],
+    actions: [
+      { name: "Interact", key: "E" },
+      { name: "PrimaryAction", key: "LeftMouseButton" },
+    ],
+  },
+  tank: {
+    axes: [
+      { name: "MoveForward", key: "W", scale: 1.0 },
+      { name: "MoveForward", key: "S", scale: -1.0 },
+      { name: "TurnBody", key: "D", scale: 1.0 },
+      { name: "TurnBody", key: "A", scale: -1.0 },
+    ],
+    actions: [
+      { name: "Fire", key: "SpaceBar" },
+      { name: "Interact", key: "E" },
+    ],
+  },
+};
+
+async function inspectInputMappings(context: ToolContext, input: JsonObject): Promise<CommandResponse> {
+  const request: JsonObject = {};
+  for (const key of ["action_name", "axis_name", "key"]) {
+    const value = optionalString(input, key);
+    if (value !== undefined) { request[key] = value; }
+  }
+  const resultJson = puerts.$ref<string>("");
+  const error = puerts.$ref<string>("");
+  if (!context.bridge.InspectInputMappingsJson(JSON.stringify(request), resultJson, error)) {
+    throw new Error(puerts.$unref(error));
+  }
+  const parsed = JSON.parse(puerts.$unref(resultJson)) as JsonObject;
+  // No changed_assets on purpose: reading the input settings changed nothing.
+  return response(true, "Input mappings read.", parsed);
+}
+
+/** Reconcile the project's input mappings against a desired set.
+
+    One reconciling call rather than four setters: the legacy lane had
+    input_mapping_add, input_mapping_remove and input_preset_apply as three
+    round trips per binding, and a control scheme is eleven bindings. The whole
+    desired set travels once, is classified against what exists before anything
+    is written, and a binding already present is reported unchanged rather than
+    reapplied.
+
+    A preset expands here, into the same actions and axes arrays a caller could
+    have written by hand, so there is one code path and a preset cannot mean
+    something the explicit form cannot express. */
+async function patchInputMappings(context: ToolContext, input: JsonObject): Promise<CommandResponse> {
+  const spec: JsonObject = {};
+  const presetName = optionalString(input, "preset");
+  const actions = objectArray(input, "actions");
+  const axes = objectArray(input, "axes");
+  if (presetName !== undefined) {
+    const preset = inputPresets[presetName];
+    if (preset === undefined) {
+      throw new Error(
+        "Unknown input preset '" + presetName + "'. Available: "
+        + Object.keys(inputPresets).sort().join(", "),
+      );
+    }
+    // Explicit entries win by being appended after the preset's: the native
+    // side classifies the whole list against live state, and an exact duplicate
+    // is reported unchanged rather than applied twice.
+    spec.actions = [...preset.actions, ...actions] as unknown as JsonValue;
+    spec.axes = [...preset.axes, ...axes] as unknown as JsonValue;
+  } else {
+    if (input.actions !== undefined) { spec.actions = actions as unknown as JsonValue; }
+    if (input.axes !== undefined) { spec.axes = axes as unknown as JsonValue; }
+  }
+  for (const key of ["remove_actions", "remove_axes"]) {
+    if (input[key] !== undefined) { spec[key] = objectArray(input, key) as unknown as JsonValue; }
+  }
+  for (const flag of ["remove_unlisted", "plan_only"]) {
+    if (input[flag] !== undefined) { spec[flag] = optionalBoolean(input, flag, false); }
+  }
+  if (spec.actions === undefined && spec.axes === undefined
+    && spec.remove_actions === undefined && spec.remove_axes === undefined) {
+    throw new Error(
+      "input_mapping_patch needs at least one of preset, actions, axes, remove_actions or "
+      + "remove_axes. A patch with nothing in it is not a request; call puerts_input_mapping_info "
+      + "to read the current bindings.",
+    );
+  }
+
+  const resultJson = puerts.$ref<string>("");
+  const error = puerts.$ref<string>("");
+  if (!context.bridge.PatchInputMappingsJson(JSON.stringify(spec), resultJson, error)) {
+    // A refused patch carries the rollback verdict and the per-operation
+    // reasons; throwing here would discard them and leave the caller unable to
+    // tell a restored project from a half-written one.
+    const failureBody = puerts.$unref(resultJson);
+    if (failureBody.length > 0) {
+      return commandFailure(new Error(puerts.$unref(error)), JSON.parse(failureBody) as JsonObject);
+    }
+    throw new Error(puerts.$unref(error));
+  }
+  const parsed = JSON.parse(puerts.$unref(resultJson)) as JsonObject;
+  const errors = stringArray(parsed, "errors");
+  delete parsed.errors;
+  const applied = typeof parsed.applied_change_count === "number" ? parsed.applied_change_count : 0;
+  const planOnly = parsed.plan_only === true;
+  const result = response(
+    errors.length === 0,
+    planOnly
+      ? "Input mapping patch planned."
+      : applied === 0 ? "Input mappings already match the patch." : "Input mappings patched.",
+    parsed,
+  );
+  result.errors.push(...errors);
+  // Config/DefaultInput.ini is not an asset, so nothing goes in changed_assets:
+  // telling a client to save a package that was never dirtied would be a lie
+  // that costs it a round trip.
+  return result;
+}
+
+/** Hide or show Content Browser folders, or read the hidden set.
+
+    Display-only editor state in Config/FolderVisibility.ini. Calling with no
+    hidden, hide or show is the read: it changes nothing and answers with the
+    hidden set, which is what folder_hidden_list asked for. */
+async function setFolderVisibility(context: ToolContext, input: JsonObject): Promise<CommandResponse> {
+  const spec: JsonObject = {};
+  for (const key of ["hidden", "hide", "show"]) {
+    if (input[key] !== undefined) { spec[key] = stringArray(input, key) as unknown as JsonValue; }
+  }
+  if (input.plan_only !== undefined) { spec.plan_only = optionalBoolean(input, "plan_only", false); }
+
+  const resultJson = puerts.$ref<string>("");
+  const error = puerts.$ref<string>("");
+  if (!context.bridge.SetFolderVisibilityJson(JSON.stringify(spec), resultJson, error)) {
+    const failureBody = puerts.$unref(resultJson);
+    if (failureBody.length > 0) {
+      return commandFailure(new Error(puerts.$unref(error)), JSON.parse(failureBody) as JsonObject);
+    }
+    throw new Error(puerts.$unref(error));
+  }
+  const parsed = JSON.parse(puerts.$unref(resultJson)) as JsonObject;
+  const errors = stringArray(parsed, "errors");
+  delete parsed.errors;
+  const applied = typeof parsed.applied_change_count === "number" ? parsed.applied_change_count : 0;
+  const readOnlyCall = spec.hidden === undefined && spec.hide === undefined && spec.show === undefined;
+  const result = response(
+    errors.length === 0,
+    readOnlyCall
+      ? "Hidden Content Browser folders read."
+      : applied === 0 ? "Folder visibility already matches the request." : "Folder visibility changed.",
+    parsed,
+  );
+  result.errors.push(...errors);
+  return result;
+}
+
+/** Play a camera shake on the running PIE session's player camera. Runtime
+    only: nothing is persisted, so there is nothing to save and nothing to undo.
+    The native side refuses when PIE is not running rather than reporting a
+    shake nobody could have seen. */
+async function playCameraShake(context: ToolContext, input: JsonObject): Promise<CommandResponse> {
+  const spec: JsonObject = { shake_class: requireString(input, "shake_class") };
+  if (input.scale !== undefined) { spec.scale = optionalNumber(input, "scale", 1.0); }
+
+  const resultJson = puerts.$ref<string>("");
+  const error = puerts.$ref<string>("");
+  if (!context.bridge.PlayCameraShakeJson(JSON.stringify(spec), resultJson, error)) {
+    throw new Error(puerts.$unref(error));
+  }
+  return response(true, "Camera shake played.", JSON.parse(puerts.$unref(resultJson)) as JsonObject);
+}
+
+/** The read-only half of the PIE agent: observe, status, expect.
+
+    The write half (move_to, look_at, press, record_start, record_stop, replay)
+    is deliberately absent. AGENTS.md requires the user to ask before any
+    pie_agent_* tool runs, so the half that only reads is both the safe one and
+    the one worth having first.
+
+    The agent answers with its own {success, data, error} envelope; this maps it
+    onto the bridge envelope without reshaping data, so the native lane and the
+    legacy listener cannot disagree about what the agent said. */
+async function queryPIEAgent(context: ToolContext, input: JsonObject): Promise<CommandResponse> {
+  const op = requireString(input, "op");
+  if (op !== "observe" && op !== "status" && op !== "expect") {
+    throw new Error(
+      "pie_agent_query op must be observe, status or expect. The write half of the PIE agent is "
+      + "not exposed natively yet.",
+    );
+  }
+  const request: JsonObject = { op };
+  for (const key of ["radius", "class_filter", "log_lines", "operation_id", "conditions", "within_seconds"]) {
+    if (input[key] !== undefined) { request[key] = input[key] as JsonValue; }
+  }
+
+  const resultJson = puerts.$ref<string>("");
+  const error = puerts.$ref<string>("");
+  if (!context.bridge.QueryPIEAgentJson(JSON.stringify(request), resultJson, error)) {
+    throw new Error(puerts.$unref(error));
+  }
+  const agent = JSON.parse(puerts.$unref(resultJson)) as {
+    success?: boolean; data?: JsonValue; error?: string | null;
+  };
+  const succeeded = agent.success === true;
+  const data = agent.data === undefined || agent.data === null ? {} : agent.data;
+  const result = response(
+    succeeded,
+    succeeded ? "PIE agent " + op + " complete." : "PIE agent " + op + " failed.",
+    data,
+  );
+  if (!succeeded) {
+    result.errors.push(typeof agent.error === "string" && agent.error.length > 0
+      ? agent.error
+      : "The PIE agent refused without giving a reason.");
+  }
+  return result;
+}
+
 async function buildPhysics(context: ToolContext, input: JsonObject): Promise<CommandResponse> {
   const actors = input.actors;
   if (!Array.isArray(actors) || actors.length === 0 || actors.length > 200) {
@@ -1322,6 +1586,11 @@ export const toolDefinitions: readonly ToolDefinition[] = [
   { name: "material_instance_build", inputSchema: schema({ asset_path: { type: "string" }, parent_path: { type: "string" }, scalars: { type: "object" }, vectors: { type: "object" }, textures: { type: "object" }, switches: { type: "object" }, clear_unlisted: { type: "boolean" }, plan_only: { type: "boolean" }, save: { type: "boolean" } }, ["asset_path"]), outputSchema, permissions: ["assets.write"], executionTimeoutMs: 30000, execute: buildMaterialInstance },
   { name: "scene_inspect", inputSchema: schema({ level_path: { type: "string" }, actors: { type: "array", items: { type: "string" } }, include_components: { type: "boolean" }, include_properties: { type: "array", items: { type: "string" } } }), outputSchema, permissions: ["actors.read", "reflection.read"], executionTimeoutMs: 15000, execute: inspectScene },
   { name: "scene_batch", inputSchema: schema({ level_path: { type: "string" }, operations: { type: "array", items: { type: "object" } }, plan_only: { type: "boolean" }, verify: { type: "boolean" } }, ["operations"]), outputSchema, permissions: ["actors.spawn", "actors.delete", "reflection.write"], executionTimeoutMs: 60000, execute: applySceneBatch },
+  { name: "input_mapping_info", inputSchema: schema({ action_name: { type: "string" }, axis_name: { type: "string" }, key: { type: "string" } }), outputSchema, permissions: ["project.config.read"], executionTimeoutMs: 3000, execute: inspectInputMappings },
+  { name: "input_mapping_patch", inputSchema: schema({ preset: { type: "string" }, actions: { type: "array", items: { type: "object" } }, axes: { type: "array", items: { type: "object" } }, remove_actions: { type: "array", items: { type: "object" } }, remove_axes: { type: "array", items: { type: "object" } }, remove_unlisted: { type: "boolean" }, plan_only: { type: "boolean" } }), outputSchema, permissions: ["project.config.read", "project.config.write"], executionTimeoutMs: 10000, execute: patchInputMappings },
+  { name: "folder_visibility", inputSchema: schema({ hidden: { type: "array", items: { type: "string" } }, hide: { type: "array", items: { type: "string" } }, show: { type: "array", items: { type: "string" } }, plan_only: { type: "boolean" } }), outputSchema, permissions: ["project.config.read", "project.config.write"], executionTimeoutMs: 5000, execute: setFolderVisibility },
+  { name: "camera_shake", inputSchema: schema({ shake_class: { type: "string" }, scale: { type: "number" } }, ["shake_class"]), outputSchema, permissions: ["editor.pie"], executionTimeoutMs: 3000, execute: playCameraShake },
+  { name: "pie_agent_query", inputSchema: schema({ op: { type: "string" }, radius: { type: "number" }, class_filter: { type: "string" }, log_lines: { type: "number" }, operation_id: { type: "number" }, conditions: { type: "array", items: { type: "string" } }, within_seconds: { type: "number" } }, ["op"]), outputSchema, permissions: ["pie.observe"], executionTimeoutMs: 5000, execute: queryPIEAgent },
   { name: "physics_build", inputSchema: schema({ actors: { type: "array", items: { type: "object" } } }, ["actors"]), outputSchema, permissions: ["actors.spawn"], executionTimeoutMs: 10000, execute: buildPhysics },
   { name: "physics_observe", inputSchema: schema({ actors: { type: "array", items: { type: "string" } } }), outputSchema, permissions: ["actors.read"], executionTimeoutMs: 2000, execute: observePhysics },
   { name: "viewport_screenshot", inputSchema: schema({ actors: { type: "array", items: { type: "string" } }, filename: { type: "string" } }), outputSchema, permissions: ["viewport.capture"], executionTimeoutMs: 2000, execute: captureViewport },

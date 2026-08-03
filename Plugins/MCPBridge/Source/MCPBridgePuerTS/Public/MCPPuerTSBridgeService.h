@@ -354,6 +354,20 @@ public:
         filter is a hash of the request. */
     UFUNCTION(BlueprintCallable, Category="MCP PuerTS Bridge")
     bool InspectSceneJson(
+    /** Read the project's input action and axis mappings back as JSON.
+        THE MISSING INSPECTOR. UMCPBridgeInputLibrary could add and remove
+        mappings and had no reader at all, so a mutation could only ever be
+        confirmed by the mutator's own report. Nothing else in this module
+        would accept that from a Blueprint builder, and input settings are not
+        a lesser kind of state for being an ini rather than a uasset.
+
+        READ ONLY: absent from IsToolMutating, so no transaction opens; it
+        touches only const accessors on UInputSettings. Both arrays are
+        canonically ordered and reduced to mapping_hash_sha1, which is what
+        input_mapping_patch reports as pre_mapping_hash / post_mapping_hash, so
+        a patch can be verified against an independent read. */
+    UFUNCTION(BlueprintCallable, Category="MCP PuerTS Bridge")
+    bool InspectInputMappingsJson(
         const FString& RequestJson,
         FString& OutResultJson,
         FString& OutError) const;
@@ -494,6 +508,25 @@ public:
         because the extent of an unspawned brush volume is a guess. */
     UFUNCTION(BlueprintCallable, Category="MCP PuerTS Bridge")
     bool ApplySceneBatchJson(
+    /** Reconcile the project's input mappings against a desired set.
+
+        A re-front of UMCPBridgeInputLibrary, which exists because UE4.27
+        Python cannot construct an FKey. The library's per-mapping validation
+        and exact-duplicate rejection are reused; what this command adds is the
+        boundary the library never had. The whole batch is classified against
+        the mappings that exist before the first write, so a mapping already
+        present is reported unchanged rather than reapplied, and a rerun writes
+        nothing.
+
+        Input mappings live in DefaultInput.ini, not in a UObject, so the asset
+        transaction boundary does not apply and this command is deliberately
+        absent from IsToolMutating. The boundary it owns instead is a snapshot:
+        the full action and axis arrays are copied before the first mutation,
+        restored exactly on any failure, and whether the restore worked is
+        decided by reading the mappings again and comparing the hash, not by
+        trusting the restore. */
+    UFUNCTION(BlueprintCallable, Category="MCP PuerTS Bridge")
+    bool PatchInputMappingsJson(
         const FString& SpecJson,
         FString& OutResultJson,
         FString& OutError);
@@ -594,6 +627,21 @@ public:
         right. */
     UFUNCTION(BlueprintCallable, Category="MCP PuerTS Bridge")
     bool BuildAIPerceptionJson(
+    /** Hide or show Content Browser folders, or read the hidden set.
+
+        A re-front of UFolderVisibilityLibrary. Display-only editor state
+        persisted in Config/FolderVisibility.ini: hidden folders stay on disk,
+        referenced and cookable. Not a UObject, so no transaction, and absent
+        from IsToolMutating for the same reason viewport commands are.
+
+        Desired-state first: "hidden" is the whole set and the command
+        converges onto it. "hide" and "show" are the delta form the legacy
+        pair used, and the two shapes are mutually exclusive rather than
+        merged, because a request that says both a full set and a delta has no
+        single correct reading. The hidden set is always read back from
+        GetHiddenFolders after the work, never echoed from the request. */
+    UFUNCTION(BlueprintCallable, Category="MCP PuerTS Bridge")
+    bool SetFolderVisibilityJson(
         const FString& SpecJson,
         FString& OutResultJson,
         FString& OutError);
@@ -613,6 +661,37 @@ public:
         MarkPackageDirty, and the package dirty flag is reported both sides. */
     UFUNCTION(BlueprintCallable, Category="MCP PuerTS Bridge")
     bool InspectAIControllerJson(
+    /** Play a camera shake on the running PIE session's player camera.
+
+        A re-front of UAutoPIEHelper::PlayCameraShakeOnPlayer, which owns the
+        PIE World -> PlayerController(0) -> PlayerCameraManager chain. Runtime
+        effect only: nothing is persisted, no asset is touched, and there is
+        nothing to roll back. Refuses with a named reason when PIE is not
+        running, rather than reporting a shake nobody could have seen.
+
+        UE4.27 note: this build uses UCameraShakeBase with StartCameraShake(),
+        which is what AutoPIEHelper already calls. */
+    UFUNCTION(BlueprintCallable, Category="MCP PuerTS Bridge")
+    bool PlayCameraShakeJson(
+        const FString& SpecJson,
+        FString& OutResultJson,
+        FString& OutError) const;
+
+    /** The read-only half of the PIE agent: observe, status, expect.
+
+        A re-front of UPIEAgentLibrary. These three change no asset and no
+        world state; they read the running session, poll an operation, or start
+        an in-engine condition check that only reads. The write half (move_to,
+        look_at, press, record, replay) is deliberately NOT here: AGENTS.md
+        requires the user to ask before any pie_agent_* tool runs, so the read
+        half is both the safe half and the useful one.
+
+        The library answers with its own {success, data, error} JSON; this
+        command forwards that verbatim rather than reshaping it, so the native
+        lane and the legacy listener cannot disagree about what the agent
+        said. */
+    UFUNCTION(BlueprintCallable, Category="MCP PuerTS Bridge")
+    bool QueryPIEAgentJson(
         const FString& RequestJson,
         FString& OutResultJson,
         FString& OutError) const;

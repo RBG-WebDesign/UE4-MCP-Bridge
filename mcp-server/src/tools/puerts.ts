@@ -1183,6 +1183,134 @@ const specs = [
         + "Turning this off removes the only check that distinguishes a change from a report of one.",
       ),
     }).strict()],
+  ["puerts_input_mapping_info", "input_mapping_info",
+    "Read the project's input action and axis mappings. The independent read half of "
+    + "puerts_input_mapping_patch, and READ ONLY: no transaction is opened, nothing is written, "
+    + "and the native side touches only const accessors on UInputSettings. "
+    + "Both arrays are canonically sorted, so two reads of an unchanged project return the same "
+    + "content, and mapping_hash_sha1 is the same digest the patch command reports as "
+    + "pre_mapping_hash_sha1 / post_mapping_hash_sha1 - so a patch can be verified against a read "
+    + "that did not perform it. The hash always covers the WHOLE mapping set, never the filtered "
+    + "view, and action_total / axis_total say how much a filtered read did not show. "
+    + "Key names are FKey string form: W, SpaceBar, LeftMouseButton, MouseX, Gamepad_LeftTrigger. "
+    + "Filters are exact matches, not substrings.",
+    z.object({
+      action_name: z.string().optional().describe("Exact action name to filter, such as PF_Pause."),
+      axis_name: z.string().optional().describe("Exact axis name to filter, such as MoveForward."),
+      key: z.string().optional().describe("Exact FKey name to filter, such as Escape."),
+    }).strict()],
+  ["puerts_input_mapping_patch", "input_mapping_patch",
+    "Reconcile the project's input mappings against a desired set, in one call. "
+    + "The legacy lane spent one round trip per binding across three tools; a control scheme is "
+    + "eleven bindings. Here the whole desired set travels once, is classified against the "
+    + "mappings that exist before anything is written, and a binding already present is reported "
+    + "in unchanged_operations rather than reapplied - so a rerun applies nothing and reports "
+    + "converged. "
+    + "preset expands into the same actions and axes a caller could write by hand "
+    + "(first_person, third_person, top_down, tank), so a preset can never mean something the "
+    + "explicit form cannot express; explicit entries are appended to the preset's. "
+    + "remove_actions and remove_axes name mappings to delete: {name} alone removes every key "
+    + "bound to that name, {name, key} removes one. remove_unlisted additionally prunes anything "
+    + "not in the desired set, but only within the halves the request actually states, and it is "
+    + "refused outright when neither actions nor axes is given, because a bare remove_unlisted "
+    + "would erase the project's whole input configuration from a request that named nothing. "
+    + "An unresolvable key name is refused by name before any mapping is written. "
+    + "plan_only is read-only and returns mappings_to_add, mappings_to_remove, "
+    + "unchanged_operations, expected_change_count and pre_mapping_hash_sha1. "
+    + "These are ini writes (Config/DefaultInput.ini), not asset writes, so there is no UE4 "
+    + "transaction and no undo to trust. The boundary is a snapshot instead: both mapping arrays "
+    + "are copied before the first write, restored exactly on any failure, and rollback_succeeded "
+    + "reports whether a re-read of the mappings matches the pre-patch hash.",
+    z.object({
+      preset: z.enum(["first_person", "third_person", "top_down", "tank"]).optional().describe(
+        "A standard control scheme, expanded client-side into actions and axes.",
+      ),
+      actions: z.array(z.object({
+        name: z.string().min(1).describe("Action name, e.g. Jump."),
+        key: z.string().min(1).describe("FKey name, e.g. SpaceBar."),
+        shift: z.boolean().optional(),
+        ctrl: z.boolean().optional(),
+        alt: z.boolean().optional(),
+        cmd: z.boolean().optional(),
+      }).strict()).max(200).optional(),
+      axes: z.array(z.object({
+        name: z.string().min(1).describe("Axis name, e.g. MoveForward."),
+        key: z.string().min(1).describe("FKey name, e.g. W or MouseX."),
+        scale: z.number().optional().describe("Default 1.0. Use -1.0 for the opposite direction."),
+      }).strict()).max(200).optional(),
+      remove_actions: z.array(z.object({
+        name: z.string().min(1),
+        key: z.string().optional().describe("Omit to remove every key bound to this action."),
+      }).strict()).max(200).optional(),
+      remove_axes: z.array(z.object({
+        name: z.string().min(1),
+        key: z.string().optional().describe("Omit to remove every key bound to this axis."),
+      }).strict()).max(200).optional(),
+      remove_unlisted: z.boolean().optional().describe(
+        "Default false. Prune existing mappings not in the desired set, within the stated halves only.",
+      ),
+      plan_only: z.boolean().optional().describe("Default false. Classify the batch and write nothing."),
+    }).strict()],
+  ["puerts_folder_visibility", "folder_visibility",
+    "Hide or show Content Browser folders, or read the hidden set. Display-only: a hidden folder "
+    + "stays on disk, referenced and cookable, and only the browser stops showing it. The list "
+    + "persists in Config/FolderVisibility.ini and is re-applied at editor startup. "
+    + "hidden is the whole desired set and the command converges onto it: folders in it that are "
+    + "not hidden get hidden, folders hidden that are not in it get shown, and hidden: [] unhides "
+    + "everything. hide and show are the delta form. The two shapes are mutually exclusive and a "
+    + "request carrying both is refused rather than resolved by a rule the caller cannot see. "
+    + "Calling with none of the three is the read: it changes nothing and answers with the hidden "
+    + "set. The hidden set in the response is always read back from the editor after the work, "
+    + "never echoed from the request. "
+    + "Editor view state, not asset state, so there is no transaction; the reverse of any change "
+    + "is another call to this command. /Game itself cannot be hidden.",
+    z.object({
+      hidden: z.array(z.string()).max(200).optional().describe(
+        "The complete set of folders that should be hidden. Mutually exclusive with hide/show.",
+      ),
+      hide: z.array(z.string()).max(200).optional().describe("Folders to hide, e.g. /Game/HorrorEngine."),
+      show: z.array(z.string()).max(200).optional().describe("Folders to unhide."),
+      plan_only: z.boolean().optional().describe("Default false. Report the plan and change nothing."),
+    }).strict()],
+  ["puerts_camera_shake", "camera_shake",
+    "Play a camera shake on the running PIE session's player camera, through the full "
+    + "PIE World -> PlayerController(0) -> PlayerCameraManager chain. Runtime effect only: no "
+    + "asset is touched, nothing is persisted, and there is nothing to undo. "
+    + "Refused with a named reason when PIE is not running, rather than reporting a shake nobody "
+    + "could have seen. shake_class is the path to a CameraShake class; a Blueprint's runtime "
+    + "class path usually ends in _C. "
+    + "UE4.27 note: this build uses UCameraShakeBase with StartCameraShake(), not the older "
+    + "UCameraShake / PlayCameraShake names.",
+    z.object({
+      shake_class: z.string().describe(
+        "CameraShake class path, e.g. /Game/CameraShakes/CS_Explosion.CS_Explosion_C.",
+      ),
+      scale: z.number().positive().optional().describe(
+        "Intensity multiplier, default 1.0. Must be greater than zero: a zero-amplitude shake "
+        + "cannot be told apart from one that did not play.",
+      ),
+    }).strict()],
+  ["puerts_pie_agent_query", "pie_agent_query",
+    "The READ-ONLY half of the PIE gameplay agent: observe, status, expect. "
+    + "op=observe captures the running session - pawn transform and velocity, nearby actors with "
+    + "physics and collision state, on-screen widgets, player counters, and the Output Log tail. "
+    + "op=status polls an asynchronous agent operation; operation_id 0 means the latest. "
+    + "op=expect starts an in-engine check of declarative conditions and returns its operation_id; "
+    + "it does not block until the conditions pass, so poll op=status for the verdict. "
+    + "The write half (move_to, look_at, press, record_start, record_stop, replay) is NOT here. "
+    + "AGENTS.md requires the user to ask before any pie_agent_* tool runs, which makes the "
+    + "read half both the safe half and the one worth having first. "
+    + "Every op needs a live PIE session and refuses cleanly without one. Nothing is transacted: "
+    + "these read a running world, they do not edit assets.",
+    z.object({
+      op: z.enum(["observe", "status", "expect"]),
+      radius: z.number().positive().optional().describe("observe: actor scan radius around the pawn in uu (default 1500)."),
+      class_filter: z.string().optional().describe("observe: only include actors whose class name contains this text."),
+      log_lines: z.number().int().min(0).optional().describe("observe: Output Log tail length (default 20)."),
+      operation_id: z.number().int().nonnegative().optional().describe("status: which operation to poll; 0 means the latest."),
+      conditions: z.array(z.string()).min(1).optional().describe("expect: declarative actor_count, counter and log regex assertions."),
+      within_seconds: z.number().positive().optional().describe("expect: deadline in seconds (default 5)."),
+    }).strict()],
   ["puerts_physics_build", "physics_build", "Build a validated static-mesh rigid-body scene in one transaction.", z.object({ actors: z.array(physicsActor).min(1).max(200) }).strict()],
   ["puerts_physics_observe", "physics_observe", "Read rigid-body transforms and velocities from the editor or PIE world.", z.object({ actors: z.array(z.string()).max(200).optional() }).strict()],
   ["puerts_viewport_screenshot", "viewport_screenshot", "Fit requested actors and save a PNG of the active editor viewport.", z.object({ actors: z.array(z.string()).max(200).optional(), filename: z.string().optional() }).strict()],
@@ -1251,6 +1379,9 @@ const structuredParameters: Readonly<Record<string, readonly string[]>> = {
   puerts_save: ["assets"],
   puerts_blueprint_build: ["components", "variables", "graph"],
   puerts_widget_build: ["tree"],
+  puerts_input_mapping_patch: ["actions", "axes", "remove_actions", "remove_axes"],
+  puerts_folder_visibility: ["hidden", "hide", "show"],
+  puerts_pie_agent_query: ["conditions"],
   puerts_scene_inspect: ["actors", "include_properties"],
   puerts_scene_batch: ["operations"],
   puerts_material_instance_build: ["scalars", "vectors", "textures", "switches"],
@@ -1272,6 +1403,7 @@ const commandTimeouts: Readonly<Record<string, number>> = {
   // build and too tight for a ten-operation member batch.
   puerts_blueprint_member_patch: 60000,
   puerts_widget_build: 30000,
+  puerts_input_mapping_patch: 15000,
   puerts_scene_batch: 60000,
   puerts_scene_inspect: 15000,
   puerts_material_inspect: 15000,

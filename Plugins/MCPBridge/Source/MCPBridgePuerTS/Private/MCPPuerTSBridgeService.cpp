@@ -216,6 +216,18 @@ bool UMCPPuerTSBridgeService::Initialize(FString& OutError)
             // open no transaction and return no transaction id.
             TEXT("graph_inspect"), TEXT("behavior_tree_inspect"), TEXT("widget_inspect"),
             TEXT("scene_inspect")
+            // Non-asset state: ini-persisted input mappings, ini-persisted
+            // Content Browser folder visibility, and a runtime-only PIE camera
+            // shake. All three write something, and none of them writes a
+            // UObject, so all three are absent from IsToolMutating below for
+            // the same reason viewport commands are: an FScopedTransaction
+            // around an ini write produces an undo that silently does nothing.
+            // input_mapping_patch owns a snapshot-and-restore boundary instead.
+            TEXT("input_mapping_patch"), TEXT("folder_visibility"), TEXT("camera_shake"),
+            // Read only. Deliberately absent from IsToolMutating below, so they
+            // open no transaction and return no transaction id.
+            TEXT("graph_inspect"), TEXT("behavior_tree_inspect"), TEXT("widget_inspect"),
+            TEXT("input_mapping_info"), TEXT("pie_agent_query")
         };
         for (const TCHAR* Value : Defaults) { AllowedTools.Add(Value); }
     }

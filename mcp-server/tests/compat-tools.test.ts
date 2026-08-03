@@ -97,10 +97,13 @@ async function main(): Promise<void> {
     const compat = createCompatTools(client);
 
     // --- catalog shape ----------------------------------------------------
-    assert(compat.length === 12, `expected 12 compat aliases, got ${compat.length}`);
+    // A literal on purpose: this is the canary that catches an alias silently
+    // disappearing. Raise it deliberately when a wave adds legacy names.
+    const ALIAS_COUNT = 38;
+    assert(compat.length === ALIAS_COUNT, `expected ${ALIAS_COUNT} compat aliases, got ${compat.length}`);
     assert(
-      Object.keys(compatAliasTargets).length === 12,
-      "compatAliasTargets must name all 12 aliases for the inventory generator",
+      Object.keys(compatAliasTargets).length === ALIAS_COUNT,
+      `compatAliasTargets must name all ${ALIAS_COUNT} aliases for the inventory generator`,
     );
     const nativeNames = new Set(native.map((tool) => tool.name));
     const badTargets = Object.entries(compatAliasTargets)
@@ -118,7 +121,7 @@ async function main(): Promise<void> {
     const wrongValue = registerCompatAliases([], client, { env: { MCP_COMPAT_ALIASES: "true" }, warn: () => {} });
     assert(wrongValue.length === 0, "only the exact value 1 enables aliases");
     const on = registerCompatAliases(native, client, { env: { MCP_COMPAT_ALIASES: "1" }, warn: () => {} });
-    assert(on.length === 12, `expected 12 aliases with the flag set, got ${on.length}`);
+    assert(on.length === ALIAS_COUNT, `expected ${ALIAS_COUNT} aliases with the flag set, got ${on.length}`);
 
     // --- a name a real tool already owns is skipped, not fatal ------------
     const warnings: string[] = [];
@@ -130,7 +133,10 @@ async function main(): Promise<void> {
       env: { MCP_COMPAT_ALIASES: "1" },
       warn: (message) => warnings.push(message),
     });
-    assert(withCollision.length === 11, `collision must skip exactly the colliding alias, got ${withCollision.length}`);
+    assert(
+      withCollision.length === ALIAS_COUNT - 1,
+      `collision must skip exactly the colliding alias, got ${withCollision.length}`,
+    );
     assert(
       !withCollision.some((tool) => tool.name === "actor_spawn"),
       "the colliding alias must not be registered",
@@ -183,6 +189,75 @@ async function main(): Promise<void> {
       ["gameplay_pie_stop", {}, "pie_stop", {}],
       ["ue_logs", { maximum_lines: 25 }, "get_logs", { maximum_lines: 25 }],
       ["undo", { transaction_id: "tx-9" }, "undo", { transaction_id: "tx-9" }],
+
+      // Config and non-asset state. The shapes worth pinning are the ones a
+      // reader would have to re-derive: an axis add carries scale and no
+      // modifiers, a remove without a key removes every key bound to the name,
+      // folder_show with no arguments means unhide everything, and
+      // folder_hidden_list is the read because it sends no set and no delta.
+      ["input_mapping_info", { action_name: "PF_Pause" }, "input_mapping_info", { action_name: "PF_Pause" }],
+      ["input_mapping_add", { kind: "action", name: "Jump", key: "SpaceBar", shift: true },
+        "input_mapping_patch", { actions: [{ name: "Jump", key: "SpaceBar", shift: true }] }],
+      ["input_mapping_add", { kind: "axis", name: "MoveForward", key: "S", scale: -1 },
+        "input_mapping_patch", { axes: [{ name: "MoveForward", key: "S", scale: -1 }] }],
+      ["input_mapping_remove", { kind: "action", name: "Jump" },
+        "input_mapping_patch", { remove_actions: [{ name: "Jump" }] }],
+      ["input_preset_apply", { preset: "first_person" }, "input_mapping_patch", { preset: "first_person" }],
+      ["folder_hide", { folders: ["/Game/A", "/Game/B"] }, "folder_visibility", { hide: ["/Game/A", "/Game/B"] }],
+      ["folder_show", {}, "folder_visibility", { hidden: [] }],
+      ["folder_hidden_list", {}, "folder_visibility", {}],
+      ["camera_shake_play", { shake_class: "/Game/CS.CS_C", scale: 2 },
+        "camera_shake", { shake_class: "/Game/CS.CS_C", scale: 2 }],
+      ["pie_agent_observe", { radius: 800 }, "pie_agent_query", { op: "observe", radius: 800 }],
+      ["pie_agent_status", { operation_id: 3 }, "pie_agent_query", { op: "status", operation_id: 3 }],
+      ["pie_agent_expect", { conditions: ["actor_count:Cube:1"] },
+        "pie_agent_query", { op: "expect", conditions: ["actor_count:Cube:1"] }],
+
+      // Blueprint members: one legacy call is one operation of the batch
+      // command. The four with renamed parameters are the ones pinned here.
+      ["blueprint_add_variable",
+        { blueprint_path: "/Game/MCPGenerated/BP_A", name: "Health", type: { category: "float" }, default_value: 5 },
+        "blueprint_member_patch",
+        { asset_path: "/Game/MCPGenerated/BP_A", operations: [{ op: "add_variable", name: "Health", type: { category: "float" }, default: 5 }] }],
+      ["blueprint_set_variable_default",
+        { blueprint_path: "/Game/MCPGenerated/BP_A", name: "Health", default_value: 7 },
+        "blueprint_member_patch",
+        { asset_path: "/Game/MCPGenerated/BP_A", operations: [{ op: "set_variable_default", name: "Health", default: 7 }] }],
+      ["blueprint_add_interface",
+        { blueprint_path: "/Game/MCPGenerated/BP_A", interface_class: "/Game/BPI_X.BPI_X_C" },
+        "blueprint_member_patch",
+        { asset_path: "/Game/MCPGenerated/BP_A", operations: [{ op: "add_interface", path: "/Game/BPI_X.BPI_X_C" }] }],
+      ["blueprint_add_event_dispatcher",
+        { blueprint_path: "/Game/MCPGenerated/BP_A", name: "OnHit", signature: { parameters: [{ name: "Amount", type: { category: "float" } }] } },
+        "blueprint_member_patch",
+        { asset_path: "/Game/MCPGenerated/BP_A", operations: [{ op: "add_event_dispatcher", name: "OnHit", parameters: [{ name: "Amount", type: { category: "float" } }] }] }],
+      ["blueprint_component_rename",
+        { blueprint_path: "/Game/MCPGenerated/BP_A", old_name: "Mesh", new_name: "Body" },
+        "blueprint_member_patch",
+        { asset_path: "/Game/MCPGenerated/BP_A", operations: [{ op: "rename_component", from: "Mesh", to: "Body" }] }],
+      ["blueprint_component_remove",
+        { blueprint_path: "/Game/MCPGenerated/BP_A", component_name: "Mesh" },
+        "blueprint_member_patch",
+        { asset_path: "/Game/MCPGenerated/BP_A", operations: [{ op: "remove_component", name: "Mesh" }] }],
+
+      // Blueprint graph: the node_guid becomes a selector, and the three
+      // respelled config keys are the reason this alias is not a pass-through.
+      ["blueprint_node_add",
+        { blueprint_path: "/Game/MCPGenerated/BP_A", graph_name: "EventGraph", node_type: "CallFunction", position: [10, 20], config: { targetClass: "/Script/Engine.KismetSystemLibrary", functionName: "PrintString" } },
+        "blueprint_graph_patch",
+        { asset_path: "/Game/MCPGenerated/BP_A", graph: "EventGraph", operations: [{ op: "add_node", new_id: "compat_added_node", node: { id: "compat_added_node", type: "CallFunction", params: { class: "/Script/Engine.KismetSystemLibrary", function: "PrintString" }, x: 10, y: 20 } }] }],
+      ["blueprint_node_delete",
+        { blueprint_path: "/Game/MCPGenerated/BP_A", graph_name: "EventGraph", node_guid: "abc" },
+        "blueprint_graph_patch",
+        { asset_path: "/Game/MCPGenerated/BP_A", graph: "EventGraph", operations: [{ op: "remove_node", target: { node_guid: "abc" } }] }],
+      ["blueprint_node_move",
+        { blueprint_path: "/Game/MCPGenerated/BP_A", graph_name: "EventGraph", node_guid: "abc", position: [3, 4] },
+        "blueprint_graph_patch",
+        { asset_path: "/Game/MCPGenerated/BP_A", graph: "EventGraph", operations: [{ op: "move_node", target: { node_guid: "abc" }, x: 3, y: 4 }] }],
+      ["blueprint_pins_connect",
+        { blueprint_path: "/Game/MCPGenerated/BP_A", graph_name: "EventGraph", source_node_guid: "a", source_pin: "then", target_node_guid: "b", target_pin: "execute" },
+        "blueprint_graph_patch",
+        { asset_path: "/Game/MCPGenerated/BP_A", graph: "EventGraph", operations: [{ op: "connect_pins", from: { target: { node_guid: "a" }, pin: "then" }, to: { target: { node_guid: "b" }, pin: "execute" } }] }],
     ];
     for (const [alias, input, command, expected] of routings) {
       seen.length = 0;
@@ -211,6 +286,15 @@ async function main(): Promise<void> {
       ["viewport_screenshot", { show_ui: true }, "show_ui"],
       ["gameplay_pie_start", { level_path: "/Game/Maps/Test" }, "level_path"],
       ["ue_logs", { severity: "Error" }, "severity"],
+      ["camera_shake_play", { shake_class: "/Game/CS.CS_C", play_space: "World" }, "play_space"],
+      ["input_mapping_add", { kind: "axis", name: "MoveForward", key: "W", shift: true }, "shift"],
+      ["input_mapping_add", { kind: "action", name: "Jump", key: "SpaceBar", scale: 2 }, "scale"],
+      ["folder_hide", {}, "folder"],
+      // A node type the native builder has no factory for is refused by name.
+      // Silently dropping it would build a graph that compiles and does nothing.
+      ["blueprint_node_add",
+        { blueprint_path: "/Game/MCPGenerated/BP_A", graph_name: "EventGraph", node_type: "InputAction" },
+        "node_type"],
     ];
     for (const [alias, input, parameter] of unmappable) {
       seen.length = 0;
