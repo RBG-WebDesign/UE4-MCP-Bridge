@@ -995,7 +995,7 @@ bool UMCPPuerTSBridgeService::QueryPIEAgentJson(
     FString Op;
     if (!Request->TryGetStringField(TEXT("op"), Op) || Op.IsEmpty())
     {
-        OutError = TEXT("pie_agent_query needs 'op': observe, status or expect.");
+        OutError = TEXT("pie_agent_query needs 'op': observe, read_property, status or expect.");
         return false;
     }
 
@@ -1016,6 +1016,11 @@ bool UMCPPuerTSBridgeService::QueryPIEAgentJson(
         OutResultJson = UPIEAgentLibrary::StartExpect(ForwardJson);
         return true;
     }
+    if (Op == TEXT("read_property"))
+    {
+        OutResultJson = UPIEAgentLibrary::ReadProperty(ForwardJson);
+        return true;
+    }
     if (Op == TEXT("status"))
     {
         double OperationId = 0.0;
@@ -1029,7 +1034,7 @@ bool UMCPPuerTSBridgeService::QueryPIEAgentJson(
 
     OutError = FString::Printf(
         TEXT("Unknown pie_agent_query op '%s'. This command carries the READ-ONLY half of the PIE ")
-        TEXT("agent: observe, status, expect. The write half (move_to, look_at, press, ")
+        TEXT("agent: observe, read_property, status, expect. The write half (move_to, look_at, press, ")
         TEXT("record_start, record_stop, replay) is not exposed natively yet and is user-gated ")
         TEXT("by AGENTS.md in any case."),
         *Op);

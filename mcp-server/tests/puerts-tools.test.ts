@@ -2304,6 +2304,23 @@ async function jobApiSuite(): Promise<void> {
   console.log("  PASS  job API: three job verbs, honest cancel and result annotations, render schema");
 }
 
+async function pieAgentQuerySuite(): Promise<void> {
+  const query = createPuertsTools(new PuerTSClient())
+    .find((tool) => tool.name === "puerts_pie_agent_query");
+  assert(query !== undefined, "puerts_pie_agent_query is missing");
+  assert(
+    query.inputSchema.safeParse({ op: "read_property", actor: "SliceBeacon", property: "IsLit" }).success,
+    "pie_agent_query must accept a runtime property read",
+  );
+  assert(
+    !query.inputSchema.safeParse({
+      op: "read_property", actor: "SliceBeacon", property: "IsLit", unexpected: true,
+    }).success,
+    "pie_agent_query must reject undeclared parameters before sending a pipe command",
+  );
+  console.log("  PASS  PIE agent query: runtime property-read schema");
+}
+
 main()
   .then(marshalingSuite)
   .then(blueprintBuildSuite)
@@ -2318,6 +2335,7 @@ main()
   .then(levelCompletionSuite)
   .then(sequenceSuite)
   .then(jobApiSuite)
+  .then(pieAgentQuerySuite)
   .then(connectionContractSuite)
   .then(nonActorParentSuite)
   .then(graphInspectSuite)

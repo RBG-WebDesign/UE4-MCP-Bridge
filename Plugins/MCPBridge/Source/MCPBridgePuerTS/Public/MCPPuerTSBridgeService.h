@@ -1296,9 +1296,9 @@ private:
         FString& OutResultJson,
         FString& OutError) const;
 
-    /** The read-only half of the PIE agent: observe, status, expect.
+    /** The read-only half of the PIE agent: observe, read_property, status, expect.
 
-        A re-front of UPIEAgentLibrary. These three change no asset and no
+        A re-front of UPIEAgentLibrary. These four change no asset and no
         world state; they read the running session, poll an operation, or start
         an in-engine condition check that only reads. The write half (move_to,
         look_at, press, record, replay) is deliberately NOT here: AGENTS.md
@@ -1310,9 +1310,9 @@ private:
         lane and the legacy listener cannot disagree about what the agent
         said. */
 
-    /** The read-only half of the PIE agent: observe, status, expect.
+    /** The read-only half of the PIE agent: observe, read_property, status, expect.
 
-        A re-front of UPIEAgentLibrary. These three change no asset and no
+        A re-front of UPIEAgentLibrary. These four change no asset and no
         world state; they read the running session, poll an operation, or start
         an in-engine condition check that only reads. The write half (move_to,
         look_at, press, record, replay) is deliberately NOT here: AGENTS.md
