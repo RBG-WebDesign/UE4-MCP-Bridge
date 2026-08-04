@@ -163,6 +163,39 @@ static bool ValidateWidgetPropertyValues(
     return true;
 }
 
+static bool ValidateSlotCompatibility(const FWidgetSlotSpec& Slot, const FString& ParentType, const FString& Path, FString& OutError)
+{
+    TSet<FString> Allowed;
+    if (ParentType == TEXT("CanvasPanel"))
+    {
+        Allowed = { TEXT("position"), TEXT("size"), TEXT("alignment"), TEXT("zOrder"), TEXT("autoSize") };
+    }
+    else if (ParentType == TEXT("VerticalBox") || ParentType == TEXT("HorizontalBox") || ParentType == TEXT("Overlay"))
+    {
+        Allowed = { TEXT("padding"), TEXT("alignment"), TEXT("horizontalAlignment"), TEXT("verticalAlignment") };
+    }
+    else if (ParentType == TEXT("GridPanel"))
+    {
+        Allowed = { TEXT("padding"), TEXT("row"), TEXT("column"), TEXT("rowSpan"), TEXT("columnSpan"), TEXT("horizontalAlignment"), TEXT("verticalAlignment") };
+    }
+    const TPair<const TCHAR*, bool> Fields[] = {
+        { TEXT("position"), Slot.bHasPosition }, { TEXT("size"), Slot.bHasSize },
+        { TEXT("alignment"), Slot.bHasAlignment }, { TEXT("padding"), Slot.bHasPadding },
+        { TEXT("zOrder"), Slot.bHasZOrder }, { TEXT("autoSize"), Slot.bHasAutoSize },
+        { TEXT("row"), Slot.bHasRow }, { TEXT("column"), Slot.bHasColumn },
+        { TEXT("rowSpan"), Slot.bHasRowSpan }, { TEXT("columnSpan"), Slot.bHasColumnSpan },
+        { TEXT("horizontalAlignment"), Slot.bHasHorizontalAlignment }, { TEXT("verticalAlignment"), Slot.bHasVerticalAlignment }
+    };
+    for (const TPair<const TCHAR*, bool>& Field : Fields)
+    {
+        if (Field.Value && !Allowed.Contains(Field.Key))
+        {
+            OutError = FString::Printf(TEXT("[WidgetBuilder] %s.slot: '%s' is incompatible with parent '%s'"), *Path, Field.Key, *ParentType);
+            return false;
+        }
+    }
+    return true;
+}
 bool FWidgetBlueprintValidator::Validate(
 	const FWidgetBlueprintSpec& Spec,
 	const FWidgetClassRegistry& Registry,
@@ -190,7 +223,7 @@ bool FWidgetBlueprintValidator::Validate(
 	}
 
 	TSet<FString> SeenNames;
-	return ValidateNode(Spec.Root, Registry, SeenNames, TEXT(""), OutError);
+	return ValidateNode(Spec.Root, Registry, SeenNames, TEXT(""), TEXT(""), OutError);
 }
 
 bool FWidgetBlueprintValidator::ValidateNode(
@@ -198,6 +231,7 @@ bool FWidgetBlueprintValidator::ValidateNode(
 	const FWidgetClassRegistry& Registry,
 	TSet<FString>& SeenNames,
 	const FString& Path,
+	const FString& ParentType,
 	FString& OutError)
 {
 	FString NodePath = Path.IsEmpty() ? Node.Name : FString::Printf(TEXT("%s.%s"), *Path, *Node.Name);
@@ -294,6 +328,13 @@ bool FWidgetBlueprintValidator::ValidateNode(
 	if (Node.bHasSlot)
 	{
 		const FWidgetSlotSpec& Slot = Node.Slot;
+		if (ParentType.IsEmpty() || !ValidateSlotCompatibility(Slot, ParentType, NodePath, OutError))
+		{
+			OutError = ParentType.IsEmpty()
+				? FString::Printf(TEXT("[WidgetBuilder] %s.slot: root widget cannot have slot properties"), *NodePath)
+				: OutError;
+			return false;
+		}
 
 		if (Slot.bHasRow && Slot.Row < 0)
 		{
@@ -334,7 +375,7 @@ bool FWidgetBlueprintValidator::ValidateNode(
 	// Recurse into children
 	for (const FWidgetNodeSpec& Child : Node.Children)
 	{
-		if (!ValidateNode(Child, Registry, SeenNames, NodePath, OutError))
+		if (!ValidateNode(Child, Registry, SeenNames, NodePath, Node.Type, OutError))
 		{
 			return false;
 		}
