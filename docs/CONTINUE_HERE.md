@@ -339,3 +339,48 @@ Outstanding editor-dependent gates:
 
 Ponytail review: Lean already. Ship. The prior duplicated fixture search was
 removed; no further capability-preserving deletion was found in this wave.
+
+## Editor-free completion wave 3, 2026-08-03
+
+Integration HEAD is `94cf563` on
+`bridge/native-consolidation-2026-07-31`.
+
+Merged work:
+
+- `lane/fp1-pie-query-allowlist` at `e1099b4`, merged by `43f4431`:
+  `pie_agent_query` is now the fourth and only new command allowed during PIE.
+  Authentication, session checks and the mutating `pie_agent_control` block are
+  unchanged. UE4.27 UHT/UBT/link and user-authorized live PIE proof remain.
+- `lane/e2-port-batch3` at `5895ecc`, merged by `36c736a`: re-fronted
+  `anim_blueprint_build_from_json` and the shape-compatible half of
+  `blueprint_inspect`. Macro and node-detail actions refuse loudly.
+- Inventory regenerated from built output in `566649e`: 288 catalog tools,
+  49 native aliases, 66 native commands and 69 exposed native/server-local
+  tools.
+- `lane/e-feature-library-13-18` at `bc1a3c6`, merged by `94cf563`: authored
+  locomotion AnimBP, montage/notifies, material effects, level interaction,
+  Sequencer events and packaged-demo harnesses. Every dependent writer now
+  has an explicit success guard before inspection.
+
+Final `npm run verify` is green: both TypeScript projects build, all suites
+pass, orchestrator 33/0, inventory 288/288, and smoke 8 passed, 0 failed, 4
+expected skips. No integrator editor action, install sync, native compile,
+live bridge call or PIE occurred.
+
+An external writer changed all seven tracked slice evidence files during the
+wave. Raw evidence was preserved without promotion in `e0e13b8`: UI 20/0, AI
+22/0, gameplay 17/0, materials 17/2, level 14/2, then animation and cinematics
+UNPROVEN_NO_EDITOR. Materials reported shader_map_valid false and saved false;
+level save and viewport capture timed out. The batch was not initiated or
+supervised by this integrator, so none of its green results promote evidence.
+
+Precise remaining blockers added by features 13 through 18:
+
+- Montage mutation remains read-only until FAnimLinkableElement relinking and
+  next-section chains are failure-atomic.
+- Sequencer Event tracks need atomic director Blueprint endpoint authoring.
+- Packaged demo needs native project-settings routing and an async cook,
+  stage and package job.
+
+Ponytail review: Lean already. Ship. No capability-preserving deletion remains
+after the shared feature fixture helper and existing orchestrator reuse.

@@ -622,3 +622,31 @@ sync, native compile, live bridge call or PIE action occurred.
 
 Ponytail review: Lean already. Ship. The duplicated feature fixture search was
 deleted into the existing slice harness; no new framework was introduced.
+
+## Editor-free completion wave 3 verdict, 2026-08-03
+
+| Lane | Tip | Integration | Verdict | Outstanding |
+|---|---|---|---|---|
+| `lane/fp1-pie-query-allowlist` | `e1099b4` | `43f4431` | Accepted, implemented_unverified | UBT/link and authorized warm/cold PIE proof |
+| `lane/e2-port-batch3` | `5895ecc` | `36c736a` | Accepted, implemented_unverified | Live result-shape proof |
+| `lane/e-feature-library-13-18` | `bc1a3c6` | `94cf563` | Accepted after integrator guard repair, authored_unrun/partial | Warm/cold, compile, PIE and package proof |
+
+### Rejected claims and provenance
+
+- Unsafe migration candidates remained unmerged: asset_info, level_outliner,
+  gameplay_pie_status, blueprint_list, blueprint_create,
+  blueprint_build_from_json, batch operations/spawn and camera-shake routes.
+- Feature completion was held until every dependent writer had an explicit
+  success guard before its inspector.
+- The seven-slice evidence batch written from 07:04:59Z through 07:05:40Z was
+  preserved as `e0e13b8` but rejected for promotion because the integrator did
+  not initiate or supervise it. Its red results remain useful defect evidence.
+- FP-1 is not compiled or live-verified. The source contract proves only the
+  exact four-name PIE-safe allowlist.
+
+Evidence: FP-1 focused native contract and full verify green; migration compat
+347/0; feature source contract green; final `npm run verify` green at 288
+catalog tools and 69 exposed tools, smoke 8/0/4 expected skips. No integrator
+editor action, install sync, UBT, live bridge call or PIE occurred.
+
+Ponytail review: Lean already. Ship.
