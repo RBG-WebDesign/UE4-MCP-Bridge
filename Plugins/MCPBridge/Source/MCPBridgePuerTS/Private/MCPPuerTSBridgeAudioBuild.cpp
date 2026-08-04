@@ -82,7 +82,8 @@ namespace
                     *Field.Key, *Location, *Object->GetClass()->GetName());
                 return false;
             }
-            if (Field.Key == TEXT("ChildNodes") || Field.Key == TEXT("GraphNode"))
+            if (Field.Key == TEXT("ChildNodes") || Field.Key == TEXT("GraphNode")
+                || Field.Key == TEXT("SoundWaveAssetPtr"))
             {
                 OutError = FString::Printf(
                     TEXT("'%s' at %s is structural and must be expressed through children."),
@@ -177,10 +178,21 @@ namespace
                     Index, *Spec.Id, *InvalidReason.ToString());
                 return false;
             }
-            if (OutById.Contains(Spec.Id))
+            if (Spec.Id.Len() > 64 || OutById.Contains(Spec.Id))
             {
-                OutError = FString::Printf(TEXT("Duplicate sound node id '%s'."), *Spec.Id);
+                OutError = FString::Printf(
+                    TEXT("Sound node id '%s' is longer than 64 characters or duplicated."), *Spec.Id);
                 return false;
+            }
+            for (const TPair<FString, int32>& ExistingId : OutById)
+            {
+                if (FName(*ExistingId.Key) == FName(*Spec.Id))
+                {
+                    OutError = FString::Printf(
+                        TEXT("Sound node ids '%s' and '%s' collide as UE4 FNames."),
+                        *ExistingId.Key, *Spec.Id);
+                    return false;
+                }
             }
             if (SoundNodeClass(Spec.Type) == nullptr)
             {
@@ -216,6 +228,14 @@ namespace
                     TEXT("Wave player '%s' requires sound_wave and cannot have children."), *Spec.Id);
                 return false;
             }
+            if (Spec.Type == TEXT("wave_player")
+                && !Spec.SoundWave.StartsWith(TEXT("/Game/"))
+                && !Spec.SoundWave.StartsWith(TEXT("/Engine/")))
+            {
+                OutError = FString::Printf(
+                    TEXT("Wave player '%s' is limited to /Game and /Engine Sound Waves."), *Spec.Id);
+                return false;
+            }
             if (Spec.Type != TEXT("wave_player") && !Spec.SoundWave.IsEmpty())
             {
                 OutError = FString::Printf(
@@ -232,6 +252,23 @@ namespace
                     TEXT("Node '%s' has %d children, which is invalid for type '%s'."),
                     *Spec.Id, ChildCount, *Spec.Type);
                 return false;
+            }
+            if (Spec.Properties.IsValid())
+            {
+                for (const FString& ArrayName : { FString(TEXT("InputVolume")), FString(TEXT("Weights")) })
+                {
+                    const TSharedPtr<FJsonValue>* ArrayValue = Spec.Properties->Values.Find(ArrayName);
+                    if (ArrayValue == nullptr) { continue; }
+                    const TArray<TSharedPtr<FJsonValue>>* Values = nullptr;
+                    if (!(*ArrayValue)->TryGetArray(Values) || Values == nullptr
+                        || Values->Num() != ChildCount)
+                    {
+                        OutError = FString::Printf(
+                            TEXT("Node '%s' property '%s' must have one value per child (%d)."),
+                            *Spec.Id, *ArrayName, ChildCount);
+                        return false;
+                    }
+                }
             }
             OutById.Add(Spec.Id, OutSpecs.Num());
             OutSpecs.Add(MoveTemp(Spec));

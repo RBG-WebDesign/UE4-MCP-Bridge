@@ -47,6 +47,22 @@ executes it.
 - Do not launch, close, or otherwise manage Unreal Editor until the user
   explicitly asks. Do not start PIE without a separate explicit request.
 
+## Latest checkpoint and gates
+
+- HEAD advanced concurrently to `014bd14` (`Checkpoint offline FP integration
+  and audio build WIP`) during the editor-free test run. This session did not
+  issue that commit and did not amend or reset it.
+- After that checkpoint, one final FP-6 trust-boundary tightening remains
+  uncommitted in MCPPuerTSBridgeAudioBuild.cpp: case-colliding FName ids are
+  refused, Sound Waves are limited to /Game and /Engine, and per-child
+  InputVolume/Weights arrays must match node arity.
+- That exact post-checkpoint source compiled and linked clean in UE4.27, was
+  synced to BridgeInstallTest, passed focused contracts and install:check, and
+  leaves the repository dirty only by the validation file plus this handoff.
+- Full npm run verify passed at 280 registrations, 66 native commands and 69
+  exposed MCP tools. npm run test:editor-free also passed. No live editor test
+  ran, no editor lifecycle action ran, and PIE did not start.
+
 ## Exact next commands
 
 After the user explicitly authorizes editor lifecycle actions, launch with
