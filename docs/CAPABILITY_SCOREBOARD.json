@@ -1,33 +1,33 @@
 {
   "generated_by": "Scripts/generate-tool-inventory.mjs (do not edit by hand)",
-  "total_registrations": 280,
+  "total_registrations": 283,
   "unique_canonical_capabilities": 206,
   "by_backend": {
     "legacy_http": 170,
-    "native_pipe_alias": 41,
+    "native_pipe_alias": 44,
     "server_local": 3,
     "native_pipe": 66
   },
   "by_verification": {
-    "untested": 122,
+    "untested": 119,
     "mock_only": 89,
+    "implemented_unverified": 8,
     "pending_live": 1,
     "live_verified": 19,
     "implemented": 39,
-    "implemented_unverified": 2,
     "live_partial": 8
   },
   "by_migration_action": {
-    "ALIAS": 85,
+    "ALIAS": 91,
     "PORT": 38,
     "REFRONT": 28,
-    "MERGE": 10,
+    "MERGE": 7,
     "KEEP": 118,
     "RETIRE": 1
   },
   "by_capability_category": {
     "actors": 12,
-    "compat": 41,
+    "compat": 44,
     "gameplay-setup": 14,
     "animation": 10,
     "blueprint": 30,

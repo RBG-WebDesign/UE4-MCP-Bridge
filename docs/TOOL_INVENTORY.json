@@ -23,10 +23,10 @@
     "native_live_partial": "live acceptance passed, but part of the evidence is the builder own report because no independent reader exists yet",
     "legacy_untested": "no live editor proof of any kind; a non-null test_file covers only the mock listener"
   },
-  "tool_count": 280,
+  "tool_count": 283,
   "by_backend": {
     "legacy_http": 170,
-    "native_pipe_alias": 41,
+    "native_pipe_alias": 44,
     "server_local": 3,
     "native_pipe": 66
   },
@@ -1857,8 +1857,8 @@
       "name": "blueprint_info",
       "module": "mcp-server/src/tools/blueprints.ts",
       "backend": "legacy_http",
-      "migration_state": "legacy_untested",
-      "target_replacement": null,
+      "migration_state": "hybrid_candidate",
+      "target_replacement": "puerts_graph_inspect",
       "description": "Get detailed Blueprint structure: components, variables, functions, event graphs, parent chain.",
       "schema": {
         "kind": "object",
@@ -1878,17 +1878,54 @@
       "canonical_capability": "blueprints.inspect",
       "owner": "legacy Python listener",
       "lifecycle": "active",
-      "migration_action": "MERGE",
+      "migration_action": "ALIAS",
       "replacement_tool": "puerts_graph_inspect",
-      "compatibility_alias": false,
+      "compatibility_alias": true,
       "cpp_builder": null,
       "cpp_entry_point": null,
       "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/blueprints.py",
       "live_evidence": [],
       "migration_risk": "low",
       "capability_loss_risk": "low",
-      "notes": null,
-      "verification": "untested"
+      "notes": "Compatibility alias routes blueprint_path to the existing native graph and member inspector. Editor-free routing tests pass; live result-shape proof remains.",
+      "verification": "implemented_unverified"
+    },
+    {
+      "name": "blueprint_info",
+      "module": "mcp-server/src/tools/compat.ts",
+      "backend": "native_pipe_alias",
+      "migration_state": "wrap",
+      "target_replacement": "puerts_graph_inspect",
+      "description": "[COMPAT ALIAS -> puerts_graph_inspect] Inspect an existing Blueprint through the native graph and member reader. The native result includes parent class, components, variables, functions, graphs and compile status.",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "blueprint_path": "string"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": "mcp-server/tests/compat-tools.test.ts",
+      "capability_category": "compat",
+      "canonical_capability": "blueprints.inspect",
+      "owner": "compat alias router",
+      "lifecycle": "active",
+      "migration_action": "ALIAS",
+      "replacement_tool": "puerts_graph_inspect",
+      "compatibility_alias": true,
+      "cpp_builder": null,
+      "cpp_entry_point": null,
+      "python_handler": null,
+      "live_evidence": [],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": "Compatibility alias routes blueprint_path to the existing native graph and member inspector. Editor-free routing tests pass; live result-shape proof remains.",
+      "verification": "implemented_unverified"
     },
     {
       "name": "blueprint_inspect",
@@ -10679,10 +10716,48 @@
     },
     {
       "name": "viewport_fit",
+      "module": "mcp-server/src/tools/compat.ts",
+      "backend": "native_pipe_alias",
+      "migration_state": "wrap",
+      "target_replacement": "puerts_viewport_screenshot",
+      "description": "[COMPAT ALIAS -> puerts_viewport_screenshot] Frame named actors and capture the active viewport. The native command has no padding control, so padding is refused rather than ignored. actor_names is required because an omitted list meant fit every actor to the legacy tool but means capture the current view natively.",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "actor_names": "array?",
+          "padding": "number?"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": "mcp-server/tests/compat-tools.test.ts",
+      "capability_category": "compat",
+      "canonical_capability": "viewport.screenshot",
+      "owner": "compat alias router",
+      "lifecycle": "active",
+      "migration_action": "ALIAS",
+      "replacement_tool": "puerts_viewport_screenshot",
+      "compatibility_alias": true,
+      "cpp_builder": null,
+      "cpp_entry_point": null,
+      "python_handler": null,
+      "live_evidence": [],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": "Compatibility alias frames explicit actor_names through the native screenshot command. padding and the legacy fit-all default are refused because the native path has no equivalents. Editor-free routing tests pass; live viewport proof remains.",
+      "verification": "implemented_unverified"
+    },
+    {
+      "name": "viewport_fit",
       "module": "mcp-server/src/tools/viewport.ts",
       "backend": "legacy_http",
-      "migration_state": "legacy_untested",
-      "target_replacement": null,
+      "migration_state": "hybrid_candidate",
+      "target_replacement": "puerts_viewport_screenshot",
       "description": "Fit actors into the viewport frame. If actor_names is empty or omitted, fits all actors in the level.",
       "schema": {
         "kind": "object",
@@ -10703,24 +10778,62 @@
       "canonical_capability": "viewport.screenshot",
       "owner": "legacy Python listener",
       "lifecycle": "active",
-      "migration_action": "MERGE",
+      "migration_action": "ALIAS",
       "replacement_tool": "puerts_viewport_screenshot",
-      "compatibility_alias": false,
+      "compatibility_alias": true,
       "cpp_builder": null,
       "cpp_entry_point": null,
       "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/viewport.py",
       "live_evidence": [],
       "migration_risk": "low",
       "capability_loss_risk": "low",
-      "notes": "layer: new_native_wrapper; MCPPuerTSBridgeViewport.cpp already holds the native focus/capture half",
-      "verification": "untested"
+      "notes": "Compatibility alias frames explicit actor_names through the native screenshot command. padding and the legacy fit-all default are refused because the native path has no equivalents. Editor-free routing tests pass; live viewport proof remains.",
+      "verification": "implemented_unverified"
+    },
+    {
+      "name": "viewport_focus",
+      "module": "mcp-server/src/tools/compat.ts",
+      "backend": "native_pipe_alias",
+      "migration_state": "wrap",
+      "target_replacement": "puerts_viewport_screenshot",
+      "description": "[COMPAT ALIAS -> puerts_viewport_screenshot] Frame one named actor and capture the active viewport. The native command has no distance control, so distance is refused rather than ignored.",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "actor_name": "string",
+          "distance": "number?"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": "mcp-server/tests/compat-tools.test.ts",
+      "capability_category": "compat",
+      "canonical_capability": "viewport.screenshot",
+      "owner": "compat alias router",
+      "lifecycle": "active",
+      "migration_action": "ALIAS",
+      "replacement_tool": "puerts_viewport_screenshot",
+      "compatibility_alias": true,
+      "cpp_builder": null,
+      "cpp_entry_point": null,
+      "python_handler": null,
+      "live_evidence": [],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": "Compatibility alias frames actor_name through the native screenshot command. distance is refused because the native path has no equivalent. Editor-free routing tests pass; live viewport proof remains.",
+      "verification": "implemented_unverified"
     },
     {
       "name": "viewport_focus",
       "module": "mcp-server/src/tools/viewport.ts",
       "backend": "legacy_http",
-      "migration_state": "legacy_untested",
-      "target_replacement": null,
+      "migration_state": "hybrid_candidate",
+      "target_replacement": "puerts_viewport_screenshot",
       "description": "Focus the viewport camera on a named actor. Returns camera state and actor bounding box.",
       "schema": {
         "kind": "object",
@@ -10741,17 +10854,17 @@
       "canonical_capability": "viewport.screenshot",
       "owner": "legacy Python listener",
       "lifecycle": "active",
-      "migration_action": "MERGE",
+      "migration_action": "ALIAS",
       "replacement_tool": "puerts_viewport_screenshot",
-      "compatibility_alias": false,
+      "compatibility_alias": true,
       "cpp_builder": null,
       "cpp_entry_point": null,
       "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/viewport.py",
       "live_evidence": [],
       "migration_risk": "low",
       "capability_loss_risk": "low",
-      "notes": "native screenshot already fits requested actors",
-      "verification": "untested"
+      "notes": "Compatibility alias frames actor_name through the native screenshot command. distance is refused because the native path has no equivalent. Editor-free routing tests pass; live viewport proof remains.",
+      "verification": "implemented_unverified"
     },
     {
       "name": "viewport_look_at",
