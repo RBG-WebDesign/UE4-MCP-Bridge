@@ -8884,7 +8884,7 @@
       "backend": "native_pipe",
       "migration_state": "native_pending_live",
       "target_replacement": null,
-      "description": "[PRIMARY NATIVE IPC] The READ-ONLY half of the PIE gameplay agent: observe, status, expect. op=observe captures the running session - pawn transform and velocity, nearby actors with physics and collision state, on-screen widgets, player counters, and the Output Log tail. op=status polls an asynchronous agent operation; operation_id 0 means the latest. op=expect starts an in-engine check of declarative conditions and returns its operation_id; it does not block until the conditions pass, so poll op=status for the verdict. The write half (move_to, look_at, press, record_start, record_stop, replay) is NOT here. AGENTS.md requires the user to ask before any pie_agent_* tool runs, which makes the read half both the safe half and the one worth having first. Every op needs a live PIE session and refuses cleanly without one. Nothing is transacted: these read a running world, they do not edit assets.",
+      "description": "[PRIMARY NATIVE IPC] The READ-ONLY half of the PIE gameplay agent: observe, read_property, status, expect. op=observe captures the running session - pawn transform and velocity, nearby actors with physics and collision state, on-screen widgets, player counters, and the Output Log tail. op=read_property returns one reflected variable from one uniquely matched PIE actor. op=status polls an asynchronous agent operation; operation_id 0 means the latest. op=expect starts an in-engine check of declarative conditions and returns its operation_id; it does not block until the conditions pass, so poll op=status for the verdict. The write half (move_to, look_at, press, record_start, record_stop, replay) is NOT here. AGENTS.md requires the user to ask before any pie_agent_* tool runs, which makes the read half both the safe half and the one worth having first. Every op needs a live PIE session and refuses cleanly without one. Nothing is transacted: these read a running world, they do not edit assets.",
       "schema": {
         "kind": "object",
         "params": {
@@ -8892,6 +8892,8 @@
           "radius": "number?",
           "class_filter": "string?",
           "log_lines": "number?",
+          "actor": "string?",
+          "property": "string?",
           "operation_id": "number?",
           "conditions": "array?",
           "within_seconds": "number?"
