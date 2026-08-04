@@ -1,15 +1,23 @@
 /**
  * Project intelligence index tests. No editor, no named pipe.
  *
- * Pass 1 and 2 point the indexer at a real UE4.27 project on this machine
- * (D:\Unreal Projects\BridgeInstallTest) read-only: the store is redirected
- * into a temp directory so nothing outside this repo is written.
+ * Pass 1 and 2 point the indexer at a real UE4.27 project with the MCPBridge
+ * plugin installed, read-only: the store is redirected into a temp directory
+ * so nothing outside this repo is written.
  *
  * Pass 3 copies real source out of that project into a temp fixture and
  * mutates it there, which is how the incremental assertions can touch a file
  * without editing the real project.
  *
+ * The project path comes from PROJECT_INDEX_TEST_PROJECT, falling back to a
+ * local dev default that will not exist on another machine or in CI. When
+ * neither exists, this file SKIPs (exit 0) rather than crash: it is one file
+ * out of the chain `npm test` runs, and AGENTS.md documents that chain as
+ * needing no UE4 install. It did, silently, until this hardcoded a personal
+ * path and broke that guarantee for everyone else.
+ *
  * Run: npx tsx mcp-server/tests/project-index.test.ts
+ *      PROJECT_INDEX_TEST_PROJECT="D:\Path\To\Project" npx tsx mcp-server/tests/project-index.test.ts
  */
 
 import { appendFileSync, cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, utimesSync, writeFileSync } from "fs";
@@ -26,7 +34,9 @@ import {
   type ProjectIndex,
 } from "../src/project-index.js";
 
-const REAL_PROJECT = "D:\\Unreal Projects\\BridgeInstallTest";
+const REAL_PROJECT = process.env.PROJECT_INDEX_TEST_PROJECT || "D:\\Unreal Projects\\BridgeInstallTest";
+const REAL_PROJECT_FIXTURE_PATH = join(
+  REAL_PROJECT, "Plugins", "MCPBridge", "Source", "MCPBridgeGraphBuilder", "Public");
 
 // ---- Test runner ----
 
@@ -269,6 +279,13 @@ test("a missing project root fails with an error instead of throwing", () => {
 });
 
 // ---- Run ----
+
+if (!existsSync(REAL_PROJECT_FIXTURE_PATH)) {
+  console.log("Running project index tests...\n");
+  console.log(`  SKIP  entire file - no project with the MCPBridge plugin at ${REAL_PROJECT}`);
+  console.log(`        Set PROJECT_INDEX_TEST_PROJECT to a real UE4.27 project to run these.`);
+  process.exit(0);
+}
 
 setup();
 console.log("Running project index tests...\n");
