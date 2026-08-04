@@ -109,6 +109,17 @@ public:
         FString& OutAssetsJson,
         FString& OutError) const;
 
+    /** Permanently delete one /Game asset. confirm=true is mandatory. force
+        uses UE4.27's ForceDeleteObjects path and may null references. Asset
+        deletion is not transacted and cannot be undone. */
+    UFUNCTION(BlueprintCallable, Category="MCP PuerTS Bridge")
+    bool DeleteAsset(
+        const FString& AssetPath,
+        bool bConfirm,
+        bool bForce,
+        FString& OutResultJson,
+        FString& OutError) const;
+
     UFUNCTION(BlueprintPure, Category="MCP PuerTS Bridge")
     AActor* FindLevelActor(const FString& NameOrPath) const;
 
@@ -389,6 +400,25 @@ public:
 
     UFUNCTION(BlueprintCallable, Category="MCP PuerTS Bridge")
     bool SaveCurrentLevel(const FString& AssetPath, FString& OutSavedPath);
+
+    UFUNCTION(BlueprintCallable, Category="MCP PuerTS Bridge")
+    bool CreateLevelJson(
+        const FString& LevelPath,
+        const FString& TemplatePath,
+        FString& OutResultJson,
+        FString& OutError);
+
+    UFUNCTION(BlueprintCallable, Category="MCP PuerTS Bridge")
+    bool LoadLevelJson(
+        const FString& LevelPath,
+        FString& OutResultJson,
+        FString& OutError);
+
+    UFUNCTION(BlueprintCallable, Category="MCP PuerTS Bridge")
+    bool SaveLevelJson(
+        bool bSaveAll,
+        FString& OutResultJson,
+        FString& OutError);
 
     UFUNCTION(BlueprintCallable, Category="MCP PuerTS Bridge")
     bool StartPlayInEditor(FString& OutError);
@@ -834,6 +864,19 @@ private:
         plan_only runs every precondition and no generator. */
     UFUNCTION(BlueprintCallable, Category="MCP PuerTS Bridge")
     bool BuildNavigationJson(
+        const FString& RequestJson,
+        FString& OutResultJson,
+        FString& OutError);
+
+    /** Build or reconcile a Sound Cue under /Game/MCPGenerated from a desired-state
+        node tree. The playable FirstNode/ChildNodes structure is authored first,
+        then UE4.27 regenerates the editor graph through
+        LinkGraphNodesFromSoundNodes. Existing assets require a clean saved package
+        so FBridgeContentSnapshot can restore a failed replacement; new assets use
+        FBridgeAssetRollback. The result is independently read back through
+        audio_inspect before it may be saved. */
+    UFUNCTION(BlueprintCallable, Category="MCP PuerTS Bridge")
+    bool BuildSoundCueJson(
         const FString& RequestJson,
         FString& OutResultJson,
         FString& OutError);
@@ -1329,6 +1372,13 @@ private:
         FString& OutResultJson,
         FString& OutError) const;
 
+    /** Drive the running PIE session through UPIEAgentLibrary. Runtime-only:
+        no asset is changed and no editor transaction is opened. */
+    UFUNCTION(BlueprintCallable, Category="MCP PuerTS Bridge")
+    bool ControlPIEAgentJson(
+        const FString& RequestJson,
+        FString& OutResultJson,
+        FString& OutError) const;
 
     /** Read a ULevelSequence back as machine-readable JSON: display rate, tick
         resolution, playback range, every possessable and spawnable, every

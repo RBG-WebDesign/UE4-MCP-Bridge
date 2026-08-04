@@ -310,9 +310,18 @@
       "verification": "live_verified",
       "live_evidence": [
         "Scripts/graph-inspect-acceptance.mjs"
-      ]
+      ],
+      "notes": "The base builder is live_verified. FP-4 component downward convergence is implemented, editor-free contract tested, UE4.27 compiled and linked, with warm and cold live acceptance authored in Scripts/bp-remove-unlisted-acceptance.mjs but not yet run. Only MCPManaged components are removable; graph references, bound events and retained children block removal."
     },
-    "puerts_read_property": {
+    "puerts_delete_asset": {
+      "canonical_capability": "assets.delete",
+      "capability_category": "assets",
+      "cpp_builder": "MCPPuerTSBridgeService",
+      "cpp_entry_point": "DeleteAsset",
+      "verification": "implemented",
+      "live_evidence": [],
+      "notes": "FP-3. Permanent, confirmed, idempotent deletion of one /Game asset. The safe path reports disk referencers and lets UE4.27 check memory references; force=true uses ObjectTools::ForceDeleteObjects and may null references. The command refuses the current level and read-only files when source control is disabled, then independently verifies Asset Registry and package-file absence. Both TypeScript projects, focused contract tests, UHT, UBT, final linking and install:check pass. NOT run live."
+    },    "puerts_read_property": {
       "canonical_capability": "properties.get",
       "capability_category": "properties",
       "verification": "live_verified",
@@ -336,6 +345,33 @@
         "Scripts/puerts-live-smoke.mjs"
       ]
     },
+    "puerts_level_create": {
+      "canonical_capability": "level.create",
+      "capability_category": "level",
+      "cpp_builder": "MCPPuerTSBridgeService",
+      "cpp_entry_point": "CreateLevelJson",
+      "verification": "implemented",
+      "live_evidence": [],
+      "notes": "FP-5. Creates a fresh /Game map, optionally from a verified .umap template, saves it and independently checks the loaded package and disk package. Refuses existing targets and any dirty world or content package before switching. TypeScript, editor-free contract tests, UHT, UBT, final link and install:check pass. Warm and cold live acceptance is authored but not run."
+    },
+    "puerts_level_load": {
+      "canonical_capability": "level.load",
+      "capability_category": "level",
+      "cpp_builder": "MCPPuerTSBridgeService",
+      "cpp_entry_point": "LoadLevelJson",
+      "verification": "implemented",
+      "live_evidence": [],
+      "notes": "FP-5. Loads only an existing /Game .umap, refuses dirty packages before switching and treats the already-loaded map as a successful no-op. TypeScript, editor-free contract tests, UHT, UBT, final link and install:check pass. Warm and cold live acceptance is authored but not run."
+    },
+    "puerts_level_save": {
+      "canonical_capability": "level.save",
+      "capability_category": "level",
+      "cpp_builder": "MCPPuerTSBridgeService",
+      "cpp_entry_point": "SaveLevelJson",
+      "verification": "implemented",
+      "live_evidence": [],
+      "notes": "FP-5. Saves the current persisted map and preserves the legacy save_all parameter for all dirty map and content packages. Package writes remain outside editor transactions. TypeScript, editor-free contract tests, UHT, UBT, final link and install:check pass. Warm and cold live acceptance is authored but not run."
+    },
     "puerts_undo": {
       "canonical_capability": "editor.undo",
       "capability_category": "editor-ops",
@@ -352,7 +388,8 @@
       "verification": "live_verified",
       "live_evidence": [
         "Scripts/graph-inspect-acceptance.mjs"
-      ]
+      ],
+      "notes": "The base builder is live_verified. FP-4 component downward convergence is implemented, editor-free contract tested, UE4.27 compiled and linked, with warm and cold live acceptance authored in Scripts/bp-remove-unlisted-acceptance.mjs but not yet run. Only MCPManaged components are removable; graph references, bound events and retained children block removal."
     },
     "puerts_blueprint_graph_patch": {
       "canonical_capability": "blueprints.graph_patch",
@@ -389,6 +426,7 @@
       "live_evidence": [
         "Scripts/graph-inspect-acceptance.mjs"
       ],
+      "notes": "The base builder is live_verified. FP-4 component downward convergence is implemented, editor-free contract tested, UE4.27 compiled and linked, with warm and cold live acceptance authored in Scripts/bp-remove-unlisted-acceptance.mjs but not yet run. Only MCPManaged components are removable; graph references, bound events and retained children block removal.",
       "notes": "also reports event_dispatchers and member_structure_hash_sha1, the canonical member snapshot puerts_blueprint_member_patch compares before and after a batch; those two fields are not covered by the recorded live evidence"
     },
     "puerts_widget_build": {
@@ -614,9 +652,17 @@
       "cpp_builder": "MCPBridgePIEAgent",
       "verification": "implemented",
       "live_evidence": [],
-      "notes": "the READ-ONLY half of UPIEAgentLibrary: observe, status, expect. The write half (move_to, look_at, press, record_start, record_stop, replay) is deliberately absent because AGENTS.md requires the user to ask before any pie_agent_ tool runs, which makes the read half both the safe half and the one worth having first. One behaviour difference from the legacy pie_agent_expect: the native command starts the check and returns operation_id rather than blocking until the verdict; poll op=status. NOT COMPILED and NOT run."
+      "notes": "the READ-ONLY half of UPIEAgentLibrary: observe, read_property, status, expect. One behaviour difference from the legacy pie_agent_expect: the native command starts the check and returns operation_id rather than blocking until the verdict; poll op=status. The runtime control half is puerts_pie_agent_control. NOT COMPILED and NOT run."
     },
-    "puerts_spawn_actor": {
+    "puerts_pie_agent_control": {
+      "canonical_capability": "pie.agent_control",
+      "capability_category": "pie",
+      "cpp_builder": "MCPBridgePIEAgent",
+      "cpp_entry_point": "ControlPIEAgentJson",
+      "verification": "implemented",
+      "live_evidence": [],
+      "notes": "One user-gated native command re-fronts all nine existing UPIEAgentLibrary control operations: move_to, look_at, press, key_state, axis_state, clear_axes, record_start, record_stop and replay. Runtime-only and intentionally outside editor transactions. It never starts PIE. Editor-free schema, annotation and dispatch coverage pass. UBT and final DLL linking pass in BridgeInstallTest; install:check is green. NOT run live."
+    },    "puerts_spawn_actor": {
       "canonical_capability": "actors.spawn",
       "capability_category": "actors",
       "verification": "live_partial",
@@ -833,9 +879,9 @@
       "cpp_entry_point": "FillDataTableFromJSON"
     },
     "level_new": {
-      "migration_action": "PORT",
-      "migration_risk": "high",
-      "notes": "no native map-load or map-create exists (findings defect 5); layer: new_native_wrapper"
+      "canonical_capability": "level.create",
+      "migration_action": "ALIAS",
+      "replacement_tool": "puerts_level_create"
     },
     "camera_shake_play": {
       "migration_action": "ALIAS",
@@ -1024,9 +1070,9 @@
       "replacement_tool": "puerts_find_actors"
     },
     "level_save": {
-      "canonical_capability": "assets.save",
+      "canonical_capability": "level.save",
       "migration_action": "ALIAS",
-      "replacement_tool": "puerts_save"
+      "replacement_tool": "puerts_level_save"
     },
     "level_outliner": {
       "canonical_capability": "actors.find",
@@ -1254,14 +1300,23 @@
       "live_evidence": [],
       "notes": "UNCOMPILED. The write half of the navigation group, closing it beside nav_inspect and nav_query. Rebuilds the editor world navigation so a placed NavMeshBoundsVolume produces an actual navmesh. MUTATING and deliberately NOT transactional, and absent from IsToolMutating for that reason: navmesh tiles are derived data generated by background tasks into a generator the transaction buffer does not record, and UE4.27 own Build Paths calls GEditor->ResetTransaction(\"Rebuilding Navigation\") before triggering the same build (Editor/UnrealEd/Private/EditorBuildUtils.cpp:395), discarding the undo stack outright, so a transaction here would record an undo entry that restores nothing. Not destructive: navigation data is derived from the level, so the recovery from a bad build is another build. Independently inspected by calling InspectNavigationJson for the read-back, the same function puerts_nav_inspect uses, so the two cannot disagree. Two shapes because of time: wait defaults to false and calls the public non-blocking ANavigationData::RebuildAll (Runtime/NavigationSystem/Public/NavigationData.h:619) on every registered nav data, answering status building for the caller to poll nav_inspect until remaining_build_tasks is zero; wait true calls FNavigationSystem::Build (Runtime/Engine/Classes/AI/NavigationSystemBase.h:167), which is what FEditorBuildUtils::TriggerNavigationBuilder does (EditorBuildUtils.cpp:868) and which BLOCKS until every nav data returns from EnsureBuildCompletion (Runtime/NavigationSystem/Private/NavigationSystem.cpp:3329-3335), so on a large level it outlasts the 30s pipe deadline while the build keeps running in the editor. Only the blocking path spawns a missing RecastNavMesh, because UNavigationSystemV1::SpawnMissingNavigationData is protected (NavigationSystem.h:1098, under the protected: at 1024), so wait false refuses a level with bounds volumes and no nav data actor and names wait true as the fix. Every precondition is refused by name BEFORE any generator runs, because UNavigationSystemV1::Build RETURNS SILENTLY when it has no work (NavigationSystem.cpp:3297-3302) and a command that called it blind would report a successful build over a level that still has no navmesh: no navigation system, no NavMeshBoundsVolume, IsNavigationBuildingLocked with the editor auto-update flag masked out exactly as Build masks it (NavigationSystem.h:831, ENavigationBuildLock at :88), and IsThereAnywhereToBuildNavigation false (NavigationSystem.h:605). plan_only runs every precondition and no generator. ADDITIVE CHANGE (lane Z): the wait false path now also returns a job_id, so the started-not-finished shape it already had is pollable with puerts_job_status and cancellable with puerts_job_cancel (UNavigationSystemV1::CancelBuild, NavigationSystem.h:823). wait true returns an EMPTY job_id on purpose: it blocked inside the generator, which is the one shape the job API cannot cover. plan_only returns an empty job_id too. No parameter was renamed and no behaviour changed. NOT COMPILED and NOT run: this lane holds no build rights and no editor has executed this code."
     },
+    "puerts_audio_build": {
+      "canonical_capability": "audio.build",
+      "capability_category": "assets",
+      "cpp_builder": "MCPPuerTSBridgeService",
+      "cpp_entry_point": "BuildSoundCueJson",
+      "verification": "implemented_unverified",
+      "live_evidence": [],
+      "notes": "Desired-state UE4.27 Sound Cue authoring under /Game/MCPGenerated. Supports Wave Player, Mixer, Random, Modulator, Delay, Looping and Concatenator nodes, stable ids, ordered child links, Sound Wave references and reflected editable properties. Validates the full tree and property conversion on transient objects before mutation. Existing cues require a saved clean package and use FBridgeContentSnapshot; new cues use FBridgeAssetRollback. USoundCue::FirstNode and USoundNode::ChildNodes remain the playable truth, and LinkGraphNodesFromSoundNodes derives the editor graph. Every successful mutation is read back through audio_inspect before save. plan_only and convergent reruns do not write. TypeScript contract, UHT, UE4.27 C++ compile, library creation, DLL link and install parity pass. Warm, cold and user-authorized PIE playback evidence remain outstanding."
+    },
     "puerts_audio_inspect": {
       "canonical_capability": "audio.inspect",
       "capability_category": "assets",
       "cpp_builder": "MCPPuerTSBridgeService",
       "cpp_entry_point": "InspectAudioAssetJson",
-      "verification": "implemented",
+      "verification": "implemented_unverified",
       "live_evidence": [],
-      "notes": "UNCOMPILED. The first native command in the audio domain, which had no read at all: the legacy catalog's only audio entry was audio_component_add, a Blueprint component write with no way to see what it pointed at. Reports the common USoundBase fields (Duration, SoundClassObject, AttenuationSettings, all public, Runtime/Engine/Classes/Sound/SoundBase.h:65,144,163) plus every EditAnywhere property by reflected name, so a Sound Wave's NumChannels, SampleRate, SoundGroup, CompressionQuality, bLooping and bStreaming arrive without a field list that would go stale, and SampleRate being protected (SoundWave.h:574) costs nothing. For a USoundCue it walks the whole node graph from FirstNode (SoundCue.h:97, public) through USoundNode::ChildNodes (SoundNode.h:64, public after GENERATED_UCLASS_BODY) and returns each node's id, class, USoundNode::GetTitle (SoundNode.h:179, public, unguarded), ordered children and reflected properties, capped at 500 reachable nodes. The node array uses MCPBridgeBlueprintMembers::SortByStringField and MCPBridgeBlueprintMembers::StructureHash, the same canonical sort and SHA1 the graph, Behavior Tree, Widget and member inspectors use, so structure_hash_sha1 is the same shape and spelling. Each node's CHILDREN are deliberately unsorted: for a Mixer, Random or Concatenator the child index is the meaning. Two things no other read gives: a cue with a null FirstNode plays nothing while looking valid and is warned about, and nodes in the WITH_EDITORONLY_DATA AllNodes list (SoundCue.h:110-116) that are unreachable from FirstNode are counted as orphans. NO audio_build, and unlike eqs_inspect that is scheduling rather than an engine limit: FirstNode and ChildNodes are the source of truth and USoundCue::LinkGraphNodesFromSoundNodes derives the editor graph from them (SoundCue.h:309; Editor/AudioEditor/Private/Factories/SoundCueFactoryNew.cpp:42 builds nodes then calls it), which is the reverse of UEnvironmentQueryGraph::UpdateAsset. What blocks the writer is failure atomicity: replacing an existing cue's node graph needs a content snapshot the rollback boundary can restore, the same gap finding 0t records for anim_blueprint_build. build_unsupported_reason says so in the response. READ ONLY: absent from IsToolMutating, nothing calls Modify or MarkPackageDirty, package_dirty_before/after reported. NOT COMPILED and NOT run: this lane holds no build rights."
+      "notes": "Native read-back for Sound Cues and Sound Waves. Reports common USoundBase fields and every EditAnywhere property. For Sound Cues it walks FirstNode and ordered ChildNodes, reports stable node ids, classes, titles, reflected properties, explicit Sound Wave references and a canonical structure_hash_sha1. It also warns about a missing FirstNode and orphaned AllNodes. This is the independent verifier for puerts_audio_build. Read only, absent from IsToolMutating, and package dirty state is measured before and after. TypeScript contract, UHT, UE4.27 C++ compile, library creation, DLL link and install parity pass. Live warm and cold evidence remains outstanding."
     },
     "puerts_cloth_inspect": {
       "canonical_capability": "cloth.inspect",

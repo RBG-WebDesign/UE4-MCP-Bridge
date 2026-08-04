@@ -14,6 +14,7 @@
 #include "JsonObjectConverter.h"
 #include "EdGraph/EdGraph.h"
 #include "EdGraph/EdGraphNode.h"
+#include "K2Node_ComponentBoundEvent.h"
 #include "K2Node_Variable.h"
 #include "Kismet2/BlueprintEditorUtils.h"
 #include "Kismet2/KismetEditorUtilities.h"
@@ -60,6 +61,19 @@ namespace
         return nullptr;
     }
 
+    bool RemoveComponentNode(UBlueprint* Blueprint, USCS_Node* Target)
+    {
+        USimpleConstructionScript* SCS = Blueprint != nullptr ? Blueprint->SimpleConstructionScript : nullptr;
+        if (SCS == nullptr || Target == nullptr)
+        {
+            return false;
+        }
+
+        Target->Modify();
+        SCS->Modify();
+        SCS->RemoveNodeAndPromoteChildren(Target);
+        return !SCS->GetAllNodes().Contains(Target);
+    }
     /** One requested property of a component template. The order the caller
         wrote them in is kept, so an error message names the property the
         caller can find in its own spec. */
@@ -357,6 +371,24 @@ namespace
             Blueprint, VarName, nullptr, FName(ManagedVariableMetaKey), TEXT("1"));
     }
 
+    const FName ManagedComponentMetaKey(TEXT("MCPManaged"));
+
+    bool IsManagedComponent(const USCS_Node* Node)
+    {
+        return Node != nullptr
+            && Node->FindMetaDataEntryIndexForKey(ManagedComponentMetaKey) != INDEX_NONE
+            && Node->GetMetaData(ManagedComponentMetaKey) == TEXT("1");
+    }
+
+    void MarkComponentManaged(USCS_Node* Node)
+    {
+        if (Node != nullptr)
+        {
+            Node->Modify();
+            Node->SetMetaData(ManagedComponentMetaKey, TEXT("1"));
+        }
+    }
+
     /** Every graph node that reads or writes this variable, as
         "GraphName.NodeName". Reported before a removal rather than after, so a
         caller sees what a removal would break while it is still preventable. */
@@ -383,6 +415,27 @@ namespace
         return Locations;
     }
 
+    TArray<FString> FindComponentReferences(const UBlueprint* Blueprint, const FName& ComponentName)
+    {
+        TArray<FString> Locations = FindVariableReferences(Blueprint, ComponentName);
+        TArray<UK2Node_ComponentBoundEvent*> BoundEvents;
+        FKismetEditorUtilities::FindAllBoundEventsForComponent(Blueprint, ComponentName, BoundEvents);
+        for (const UK2Node_ComponentBoundEvent* Node : BoundEvents)
+        {
+            if (Node != nullptr && Node->GetGraph() != nullptr)
+            {
+                Locations.Add(FString::Printf(TEXT("%s.%s"),
+                    *Node->GetGraph()->GetName(), *Node->GetName()));
+            }
+        }
+        Locations.Sort();
+        TArray<FString> Unique;
+        for (const FString& Location : Locations)
+        {
+            Unique.AddUnique(Location);
+        }
+        return Unique;
+    }
     /** The graph nodes that reference a variable, for deletion under force. */
     TArray<UEdGraphNode*> CollectVariableReferenceNodes(UBlueprint* Blueprint, const FName& VarName)
     {
@@ -807,12 +860,13 @@ bool UMCPPuerTSBridgeService::BuildBlueprintJson(
     // ignored: silently accepting "functions": true would read as a promise to
     // prune functions and quietly not do it, which is worse than refusing.
     bool bRemoveUnlistedVariables = false;
+    bool bRemoveUnlistedComponents = false;
     {
         const TSharedPtr<FJsonObject>* RemoveUnlisted = nullptr;
         if (Spec->TryGetObjectField(TEXT("remove_unlisted"), RemoveUnlisted)
             && RemoveUnlisted != nullptr)
         {
-            static const TCHAR* SupportedScopes[] = { TEXT("variables") };
+            static const TCHAR* SupportedScopes[] = { TEXT("variables"), TEXT("components") };
             static const TCHAR* KnownScopes[] = {
                 TEXT("variables"), TEXT("components"), TEXT("functions"),
                 TEXT("macros"), TEXT("graph_nodes"), TEXT("interfaces") };
@@ -848,13 +902,20 @@ bool UMCPPuerTSBridgeService::BuildBlueprintJson(
                 {
                     OutError = FString::Printf(
                         TEXT("unsupported_scope: remove_unlisted.%s is not implemented yet. Only ")
-                        TEXT("'variables' converges downward today; the other scopes are rejected ")
+                        TEXT("'variables' and 'components' converge downward today; the other scopes are rejected ")
                         TEXT("rather than ignored so a caller is never told a prune happened when ")
                         TEXT("it did not."),
                         *Pair.Key);
                     return false;
                 }
-                bRemoveUnlistedVariables = true;
+                if (Pair.Key.Equals(TEXT("variables"), ESearchCase::IgnoreCase))
+                {
+                    bRemoveUnlistedVariables = true;
+                }
+                else
+                {
+                    bRemoveUnlistedComponents = true;
+                }
             }
         }
     }
@@ -881,13 +942,75 @@ bool UMCPPuerTSBridgeService::BuildBlueprintJson(
             }
         }
     }
+    TSet<FName> DesiredComponents;
+    for (const FValidatedComponent& Component : Components)
+    {
+        DesiredComponents.Add(FName(*Component.Name));
+    }
 
     // The plan, computed against the asset as it stands. Shared by plan_only
     // and by the apply path, so what a caller previews is what runs.
     TArray<FString> PlanToAdd, PlanToUpdate, PlanToRemove, PlanProtected, PlanBlocked;
     TSharedPtr<FJsonObject> ReferencedVariables = MakeShared<FJsonObject>();
+    TArray<FString> PlanComponentsToAdd, PlanComponentsToUpdate, PlanComponentsToRemove;
+    TArray<FString> PlanProtectedComponents, PlanBlockedComponents;
+    TSharedPtr<FJsonObject> ReferencedComponents = MakeShared<FJsonObject>();
     if (Blueprint != nullptr)
     {
+        if (USimpleConstructionScript* SCS = Blueprint->SimpleConstructionScript)
+        {
+            for (USCS_Node* Existing : SCS->GetAllNodes())
+            {
+                if (Existing == nullptr) { continue; }
+                const FString Name = Existing->GetVariableName().ToString();
+                if (DesiredComponents.Contains(Existing->GetVariableName()))
+                {
+                    PlanComponentsToUpdate.Add(Name);
+                    continue;
+                }
+                if (!IsManagedComponent(Existing))
+                {
+                    PlanProtectedComponents.Add(Name);
+                    continue;
+                }
+
+                TArray<FString> References = FindComponentReferences(Blueprint, Existing->GetVariableName());
+                for (USCS_Node* Child : Existing->GetChildNodes())
+                {
+                    if (Child != nullptr
+                        && (DesiredComponents.Contains(Child->GetVariableName()) || !IsManagedComponent(Child)))
+                    {
+                        References.Add(FString::Printf(TEXT("SCS.%s"), *Child->GetVariableName().ToString()));
+                    }
+                }
+                References.Sort();
+                TArray<FString> UniqueReferences;
+                for (const FString& Reference : References)
+                {
+                    if (!UniqueReferences.Contains(Reference))
+                    {
+                        UniqueReferences.Add(Reference);
+                    }
+                }
+                References = MoveTemp(UniqueReferences);
+                if (References.Num() > 0)
+                {
+                    ReferencedComponents->SetArrayField(Name, StringsToJson(References));
+                    PlanBlockedComponents.Add(FString::Printf(
+                        TEXT("%s: referenced by %d graph node(s) or retained child component(s); removal skipped"),
+                        *Name, References.Num()));
+                    continue;
+                }
+                PlanComponentsToRemove.Add(Name);
+            }
+        }
+        for (const FName& Desired : DesiredComponents)
+        {
+            if (FindComponentNode(Blueprint, Desired.ToString()) == nullptr)
+            {
+                PlanComponentsToAdd.Add(Desired.ToString());
+            }
+        }
         for (const FBPVariableDescription& Existing : Blueprint->NewVariables)
         {
             const bool bManaged = IsManagedVariable(Blueprint, Existing.VarName);
@@ -926,9 +1049,12 @@ bool UMCPPuerTSBridgeService::BuildBlueprintJson(
     else
     {
         for (const FName& Desired : DesiredVariables) { PlanToAdd.Add(Desired.ToString()); }
+        for (const FName& Desired : DesiredComponents) { PlanComponentsToAdd.Add(Desired.ToString()); }
     }
     PlanToAdd.Sort(); PlanToUpdate.Sort(); PlanToRemove.Sort();
     PlanProtected.Sort(); PlanBlocked.Sort();
+    PlanComponentsToAdd.Sort(); PlanComponentsToUpdate.Sort(); PlanComponentsToRemove.Sort();
+    PlanProtectedComponents.Sort(); PlanBlockedComponents.Sort();
 
     if (bPlanOnly)
     {
@@ -949,6 +1075,18 @@ bool UMCPPuerTSBridgeService::BuildBlueprintJson(
         TArray<FString> DesiredNames;
         for (const FName& Desired : DesiredVariables) { DesiredNames.Add(Desired.ToString()); }
         DesiredNames.Sort();
+        TArray<FString> CurrentComponentNames;
+        if (Blueprint != nullptr && Blueprint->SimpleConstructionScript != nullptr)
+        {
+            for (USCS_Node* Existing : Blueprint->SimpleConstructionScript->GetAllNodes())
+            {
+                if (Existing != nullptr) { CurrentComponentNames.Add(Existing->GetVariableName().ToString()); }
+            }
+            CurrentComponentNames.Sort();
+        }
+        TArray<FString> DesiredComponentNames;
+        for (const FName& Desired : DesiredComponents) { DesiredComponentNames.Add(Desired.ToString()); }
+        DesiredComponentNames.Sort();
 
         TSharedPtr<FJsonObject> Plan = MakeShared<FJsonObject>();
         Plan->SetStringField(TEXT("asset_path"), AssetPath);
@@ -965,9 +1103,22 @@ bool UMCPPuerTSBridgeService::BuildBlueprintJson(
         Plan->SetObjectField(TEXT("referenced_variables"), ReferencedVariables);
         Plan->SetArrayField(TEXT("blocked_removals"),
             StringsToJson(bRemoveUnlistedVariables ? PlanBlocked : TArray<FString>()));
+        Plan->SetBoolField(TEXT("remove_unlisted_components"), bRemoveUnlistedComponents);
+        Plan->SetArrayField(TEXT("current_components"), StringsToJson(CurrentComponentNames));
+        Plan->SetArrayField(TEXT("desired_components"), StringsToJson(DesiredComponentNames));
+        Plan->SetArrayField(TEXT("components_to_add"), StringsToJson(PlanComponentsToAdd));
+        Plan->SetArrayField(TEXT("components_to_update"), StringsToJson(PlanComponentsToUpdate));
+        Plan->SetArrayField(TEXT("components_to_remove"),
+            StringsToJson(bRemoveUnlistedComponents ? PlanComponentsToRemove : TArray<FString>()));
+        Plan->SetArrayField(TEXT("protected_components"), StringsToJson(PlanProtectedComponents));
+        Plan->SetObjectField(TEXT("referenced_components"), ReferencedComponents);
+        Plan->SetArrayField(TEXT("blocked_component_removals"),
+            StringsToJson(bRemoveUnlistedComponents ? PlanBlockedComponents : TArray<FString>()));
         Plan->SetNumberField(TEXT("expected_change_count"),
             PlanToAdd.Num() + PlanToUpdate.Num()
-            + (bRemoveUnlistedVariables ? PlanToRemove.Num() : 0));
+            + (bRemoveUnlistedVariables ? PlanToRemove.Num() : 0)
+            + PlanComponentsToAdd.Num() + PlanComponentsToUpdate.Num()
+            + (bRemoveUnlistedComponents ? PlanComponentsToRemove.Num() : 0));
         Plan->SetArrayField(TEXT("errors"), TArray<TSharedPtr<FJsonValue>>());
         Plan->SetArrayField(TEXT("warnings"), TArray<TSharedPtr<FJsonValue>>());
         OutResultJson = SerializeJson(Plan);
@@ -1142,6 +1293,40 @@ bool UMCPPuerTSBridgeService::BuildBlueprintJson(
     if (bTemplatesChanged)
     {
         FBlueprintEditorUtils::MarkBlueprintAsStructurallyModified(Blueprint);
+    }
+
+    // Claim ownership of every component this spec declares. Like variables,
+    // only a component created or adopted by this builder can be pruned later.
+    if (Errors.Num() == 0)
+    {
+        for (const FName& Desired : DesiredComponents)
+        {
+            MarkComponentManaged(FindComponentNode(Blueprint, Desired.ToString()));
+        }
+    }
+
+    TArray<FString> RemovedComponents;
+    TArray<FString> SkippedComponents;
+    if (bRemoveUnlistedComponents && Errors.Num() == 0)
+    {
+        SkippedComponents = PlanProtectedComponents;
+        SkippedComponents.Append(PlanBlockedComponents);
+        for (const FString& Name : PlanComponentsToRemove)
+        {
+            if (!RemoveComponentNode(Blueprint, FindComponentNode(Blueprint, Name)))
+            {
+                Errors.Add(MakeShared<FJsonValueString>(FString::Printf(
+                    TEXT("Component '%s' could not be removed."), *Name)));
+                break;
+            }
+            RemovedComponents.Add(Name);
+        }
+        if (RemovedComponents.Num() > 0)
+        {
+            FBlueprintEditorUtils::MarkBlueprintAsStructurallyModified(Blueprint);
+        }
+        RemovedComponents.Sort();
+        SkippedComponents.Sort();
     }
 
     // Variables are applied before the graph, because a VariableGet or
@@ -1828,7 +2013,24 @@ bool UMCPPuerTSBridgeService::BuildBlueprintJson(
         TArray<FString> DesiredNames;
         for (const FName& Desired : DesiredVariables) { DesiredNames.Add(Desired.ToString()); }
         DesiredNames.Sort();
-        const bool bConverged = !bRemoveUnlistedVariables || ManagedAfter == DesiredNames;
+        TArray<FString> ManagedComponentsAfter;
+        if (Blueprint->SimpleConstructionScript != nullptr)
+        {
+            for (USCS_Node* Existing : Blueprint->SimpleConstructionScript->GetAllNodes())
+            {
+                if (IsManagedComponent(Existing))
+                {
+                    ManagedComponentsAfter.Add(Existing->GetVariableName().ToString());
+                }
+            }
+        }
+        ManagedComponentsAfter.Sort();
+        TArray<FString> DesiredComponentNames;
+        for (const FName& Desired : DesiredComponents) { DesiredComponentNames.Add(Desired.ToString()); }
+        DesiredComponentNames.Sort();
+        const bool bVariablesConverged = !bRemoveUnlistedVariables || ManagedAfter == DesiredNames;
+        const bool bComponentsConverged =
+            !bRemoveUnlistedComponents || ManagedComponentsAfter == DesiredComponentNames;
 
         TSharedPtr<FJsonObject> Convergence = MakeShared<FJsonObject>();
         Convergence->SetArrayField(TEXT("added_variables"), StringsToJson(PlanToAdd));
@@ -1837,8 +2039,15 @@ bool UMCPPuerTSBridgeService::BuildBlueprintJson(
         Convergence->SetArrayField(TEXT("skipped_variables"), StringsToJson(SkippedVariables));
         Convergence->SetArrayField(TEXT("removed_reference_nodes"), StringsToJson(RemovedReferenceNodes));
         Convergence->SetArrayField(TEXT("managed_variables_after"), StringsToJson(ManagedAfter));
+        Convergence->SetArrayField(TEXT("added_components"), StringsToJson(PlanComponentsToAdd));
+        Convergence->SetArrayField(TEXT("updated_components"), StringsToJson(PlanComponentsToUpdate));
+        Convergence->SetArrayField(TEXT("removed_components"), StringsToJson(RemovedComponents));
+        Convergence->SetArrayField(TEXT("skipped_components"), StringsToJson(SkippedComponents));
+        Convergence->SetArrayField(TEXT("managed_components_after"), StringsToJson(ManagedComponentsAfter));
         Convergence->SetStringField(TEXT("compile_status"), CompileStatus);
-        Convergence->SetBoolField(TEXT("converged"), bConverged);
+        Convergence->SetBoolField(TEXT("variables_converged"), bVariablesConverged);
+        Convergence->SetBoolField(TEXT("components_converged"), bComponentsConverged);
+        Convergence->SetBoolField(TEXT("converged"), bVariablesConverged && bComponentsConverged);
         Result->SetObjectField(TEXT("convergence"), Convergence);
     }
 

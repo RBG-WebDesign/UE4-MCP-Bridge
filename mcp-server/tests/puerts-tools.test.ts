@@ -73,7 +73,7 @@ async function main(): Promise<void> {
     });
     const client = new PuerTSClient();
     const tools = createPuertsTools(client);
-    assert(tools.length === 60, "expected all 60 PuerTS tools");
+    assert(tools.length === 66, "expected all 66 PuerTS tools");
     assert(tools.some((tool) => tool.name === "puerts_behavior_tree_build"), "native Behavior Tree builder tool is missing");
     assert(tools.some((tool) => tool.name === "puerts_behavior_tree_inspect"), "native Behavior Tree inspector tool is missing");
     assert(tools.some((tool) => tool.name === "puerts_sky_shader_create"), "native sky shader tool is missing");
@@ -83,6 +83,9 @@ async function main(): Promise<void> {
     assert(tools.some((tool) => tool.name === "puerts_widget_inspect"), "native widget inspector tool is missing");
     assert(tools.some((tool) => tool.name === "puerts_widget_bind"), "native widget binder tool is missing");
     assert(tools.some((tool) => tool.name === "puerts_blueprint_member_patch"), "native Blueprint member patch tool is missing");
+    for (const name of ["puerts_level_create", "puerts_level_load", "puerts_level_save"]) {
+      assert(tools.some((tool) => tool.name === name), name + " is missing");
+    }
     for (const name of [
       "puerts_anim_blueprint_build",
       "puerts_anim_blueprint_inspect",
@@ -406,6 +409,20 @@ async function blueprintBuildSuite(): Promise<void> {
       "nested component properties were not decoded before the pipe",
     );
 
+    const componentPrune = await tool.handler({
+      asset_path: "/Game/MCPGenerated/BP_ProbeDoor",
+      components: [],
+      remove_unlisted: { components: true },
+      plan_only: true,
+    });
+    assert(
+      JSON.parse(componentPrune.content[0]?.text ?? "null").success === true,
+      "component convergence scope was rejected by the MCP schema",
+    );
+    assert(
+      (received[4]?.remove_unlisted as { components?: boolean } | undefined)?.components === true,
+      "remove_unlisted.components did not reach the native builder",
+    );
     const badProperties = await tool.handler({
       asset_path: "/Game/MCPGenerated/BP_ProbeDoor",
       components: [{ class: "StaticMeshComponent", name: "DoorMesh", properties: ["StaticMesh"] }],
@@ -414,9 +431,25 @@ async function blueprintBuildSuite(): Promise<void> {
       JSON.parse(badProperties.content[0]?.text ?? "null").success === false,
       "properties as an array was accepted",
     );
-    assert(received.length === 4, "a malformed properties value still reached the editor");
+    assert(received.length === 5, "a malformed properties value still reached the editor");
     console.log("  PASS  Blueprint build schema, structured parameters, and rejected specs");
+    const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
+    const native = await readFile(join(
+      repoRoot, "Plugins", "MCPBridge", "Source", "MCPBridgePuerTS", "Private",
+      "MCPPuerTSBridgeBlueprint.cpp",
+    ), "utf8");
+    for (const contract of [
+      'SupportedScopes[] = { TEXT("variables"), TEXT("components") }',
+      "ManagedComponentMetaKey",
+      "FindAllBoundEventsForComponent",
+      "RemoveNodeAndPromoteChildren",
+      'SetArrayField(TEXT("removed_components")',
+      'SetBoolField(TEXT("components_converged")',
+    ]) {
+      assert(native.includes(contract), `native component-convergence contract is missing: ${contract}`);
+    }
     console.log("  PASS  component template properties reach the pipe in their own shapes");
+    console.log("  PASS  component downward convergence ownership, references and read-back contract");
   } finally {
     await new Promise<void>((resolve) => server.close(() => resolve()));
     await rm(directory, { recursive: true, force: true });
@@ -2304,21 +2337,194 @@ async function jobApiSuite(): Promise<void> {
   console.log("  PASS  job API: three job verbs, honest cancel and result annotations, render schema");
 }
 
-async function pieAgentQuerySuite(): Promise<void> {
-  const query = createPuertsTools(new PuerTSClient())
-    .find((tool) => tool.name === "puerts_pie_agent_query");
+async function assetDeleteSuite(): Promise<void> {
+  const { toolAnnotations } = await import("../src/annotations.js");
+  const tool = createPuertsTools(new PuerTSClient())
+    .find((candidate) => candidate.name === "puerts_delete_asset");
+  assert(tool !== undefined, "puerts_delete_asset is missing");
+  assert(
+    !tool.inputSchema.safeParse({ asset_path: "/Game/MCPGenerated/BP_Probe" }).success,
+    "delete_asset must require confirm=true",
+  );
+  assert(
+    !tool.inputSchema.safeParse({ asset_path: "/Game/MCPGenerated/BP_Probe", confirm: false }).success,
+    "delete_asset must reject confirm=false at the MCP boundary",
+  );
+  assert(
+    !tool.inputSchema.safeParse({ asset_path: "/Engine/BasicShapes/Cube", confirm: true }).success,
+    "delete_asset must reject /Engine assets",
+  );
+  assert(
+    tool.inputSchema.safeParse({
+      asset_path: "/Game/MCPGenerated/BP_Probe.BP_Probe", confirm: true, force: true,
+    }).success,
+    "delete_asset must accept one explicitly confirmed /Game object path",
+  );
+  assert(
+    toolAnnotations.puerts_delete_asset?.destructiveHint === true
+      && toolAnnotations.puerts_delete_asset?.idempotentHint === true,
+    "delete_asset must be destructive and convergent for an already absent asset",
+  );
+
+  const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
+  const native = await readFile(join(
+    repoRoot, "Plugins", "MCPBridge", "Source", "MCPBridgePuerTS", "Private",
+    "MCPPuerTSBridgeService.cpp",
+  ), "utf8");
+  for (const contract of [
+    "delete_asset requires confirm=true",
+    "Asset deletion is limited to a valid package under /Game/",
+    "GetReferencers",
+    "ObjectTools::DeleteAssets",
+    "ObjectTools::ForceDeleteObjects",
+    "already_absent",
+    "registry_absent",
+    "package_absent",
+    "The currently open level cannot be deleted",
+  ]) {
+    assert(native.includes(contract), `native asset-delete contract is missing: ${contract}`);
+  }
+  console.log("  PASS  asset delete: confirmation, containment, reference policy and independent absence checks");
+}
+
+async function levelLifecycleSuite(): Promise<void> {
+  const { toolAnnotations } = await import("../src/annotations.js");
+  const tools = createPuertsTools(new PuerTSClient());
+  const create = tools.find((tool) => tool.name === "puerts_level_create");
+  const load = tools.find((tool) => tool.name === "puerts_level_load");
+  const save = tools.find((tool) => tool.name === "puerts_level_save");
+  assert(create !== undefined && load !== undefined && save !== undefined, "native level lifecycle tools are incomplete");
+  assert(
+    create.inputSchema.safeParse({
+      level_path: "/Game/Maps/NewMap",
+      template_path: "/Game/Maps/Template",
+    }).success,
+    "level_create must preserve level_path and template_path",
+  );
+  assert(!create.inputSchema.safeParse({ path: "/Game/Maps/NewMap" }).success, "level_create must require level_path");
+  assert(load.inputSchema.safeParse({ level_path: "/Game/Maps/NewMap" }).success, "level_load must accept level_path");
+  assert(!load.inputSchema.safeParse({ level_path: "/Game/Maps/NewMap", force: true }).success, "level_load must reject undeclared parameters");
+  assert(save.inputSchema.safeParse({ save_all: true }).success, "level_save must preserve save_all");
+  assert(
+    toolAnnotations.puerts_level_create?.destructiveHint === true
+      && toolAnnotations.puerts_level_load?.readOnlyHint === false
+      && toolAnnotations.puerts_level_save?.destructiveHint === true,
+    "native level lifecycle annotations do not match their disk and editor-state effects",
+  );
+
+  const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
+  const native = await readFile(join(
+    repoRoot, "Plugins", "MCPBridge", "Source", "MCPBridgePuerTS", "Private",
+    "MCPPuerTSBridgeService.cpp",
+  ), "utf8");
+  for (const contract of [
+    "ResolveProjectMapFilename",
+    "FPackageName::GetMapPackageExtension",
+    "RefuseLevelSwitchWithDirtyPackages",
+    "UEditorLoadingAndSavingUtils::NewBlankMap",
+    "UEditorLoadingAndSavingUtils::NewMapFromTemplate",
+    "UEditorLoadingAndSavingUtils::SaveMap",
+    "UEditorLoadingAndSavingUtils::LoadMap",
+    "UEditorLoadingAndSavingUtils::SaveDirtyPackages",
+    "already_loaded",
+    "The current level has no saved /Game map package",
+  ]) {
+    assert(native.includes(contract), "native level lifecycle contract is missing: " + contract);
+  }
+  const mutatingStart = native.indexOf("bool UMCPPuerTSBridgeService::IsToolMutating");
+  const mutatingEnd = native.indexOf("void UMCPPuerTSBridgeService::EndActiveCommand", mutatingStart);
+  const transactionList = native.slice(mutatingStart, mutatingEnd);
+  for (const command of ["level_create", "level_load", "level_save"]) {
+    assert(!transactionList.includes(command), command + " must stay outside editor transactions");
+  }
+  console.log("  PASS  level lifecycle: parameter parity, map validation, dirty refusal and non-transactional saves");
+}
+
+async function audioBuildSuite(): Promise<void> {
+  const { toolAnnotations } = await import("../src/annotations.js");
+  const tool = createPuertsTools(new PuerTSClient()).find(
+    (entry) => entry.name === "puerts_audio_build",
+  );
+  assert(tool !== undefined, "puerts_audio_build is missing");
+  const valid = {
+    asset_path: "/Game/MCPGenerated/SC_Probe",
+    first_node: "root",
+    nodes: [
+      { id: "root", type: "modulator", children: ["wave"], properties: { PitchMin: 0.9 } },
+      { id: "wave", type: "wave_player", sound_wave: "/Engine/EditorSounds/Notifications/CompileSuccess.CompileSuccess" },
+    ],
+    plan_only: true,
+  };
+  assert(tool.inputSchema.safeParse(valid).success, "audio_build rejected a valid desired-state cue");
+  assert(!tool.inputSchema.safeParse({ ...valid, surprise: true }).success, "audio_build accepted an undeclared field");
+  assert(!tool.inputSchema.safeParse({ ...valid, nodes: [{ id: "x", type: "switch" }] }).success, "audio_build accepted an unsupported node type");
+  assert(!tool.inputSchema.safeParse({ asset_path: valid.asset_path, nodes: valid.nodes }).success, "audio_build did not require first_node");
+  assert(
+    toolAnnotations.puerts_audio_build?.readOnlyHint === false
+      && toolAnnotations.puerts_audio_build?.destructiveHint === true
+      && toolAnnotations.puerts_audio_build?.idempotentHint === true,
+    "audio_build must be destructive-idempotent because it replaces an existing cue graph",
+  );
+
+  const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
+  const native = await readFile(join(
+    repoRoot, "Plugins", "MCPBridge", "Source", "MCPBridgePuerTS", "Private",
+    "MCPPuerTSBridgeAudioBuild.cpp",
+  ), "utf8");
+  for (const contract of [
+    "FBridgeContentSnapshot", "FBridgeAssetRollback", "LinkGraphNodesFromSoundNodes",
+    "InspectAudioAssetJson", "Modify() returned false", "audio_build is limited to /Game/MCPGenerated/",
+    "Every sound node must be reachable", "The Sound Cue graph contains a cycle",
+  ]) {
+    assert(native.includes(contract), "native audio builder contract is missing: " + contract);
+  }
+  const saveIndex = native.indexOf("SaveProjectAsset(ObjectPath");
+  const inspectIndex = native.lastIndexOf("InspectAudioAssetJson", saveIndex);
+  assert(inspectIndex >= 0 && inspectIndex < saveIndex, "audio_build saves before independent read-back");
+  console.log("  PASS  audio build: desired-state schema, rollback boundaries and independent read-back");
+}
+
+async function pieAgentSuite(): Promise<void> {
+  const { toolAnnotations } = await import("../src/annotations.js");
+  const tools = createPuertsTools(new PuerTSClient());
+  const query = tools.find((tool) => tool.name === "puerts_pie_agent_query");
+  const control = tools.find((tool) => tool.name === "puerts_pie_agent_control");
   assert(query !== undefined, "puerts_pie_agent_query is missing");
+  assert(control !== undefined, "puerts_pie_agent_control is missing");
   assert(
     query.inputSchema.safeParse({ op: "read_property", actor: "SliceBeacon", property: "IsLit" }).success,
     "pie_agent_query must accept a runtime property read",
   );
   assert(
-    !query.inputSchema.safeParse({
-      op: "read_property", actor: "SliceBeacon", property: "IsLit", unexpected: true,
-    }).success,
-    "pie_agent_query must reject undeclared parameters before sending a pipe command",
+    control.inputSchema.safeParse({ op: "move_to", location: [100, 200, 300] }).success,
+    "pie_agent_control must accept a move target",
   );
-  console.log("  PASS  PIE agent query: runtime property-read schema");
+  assert(
+    !control.inputSchema.safeParse({ op: "axis_state", axis: "MoveForward", value: 2 }).success,
+    "pie_agent_control must reject an axis value outside the runtime range",
+  );
+  assert(
+    !control.inputSchema.safeParse({ op: "record_stop", unexpected: true }).success,
+    "pie_agent_control must reject undeclared parameters before sending a pipe command",
+  );
+  assert(
+    toolAnnotations.puerts_pie_agent_control?.readOnlyHint === false
+      && toolAnnotations.puerts_pie_agent_control?.destructiveHint === false
+      && toolAnnotations.puerts_pie_agent_control?.idempotentHint === false,
+    "pie_agent_control must be classified as an imperative runtime mutation",
+  );
+  const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
+  const native = await readFile(join(
+    repoRoot, "Plugins", "MCPBridge", "Source", "MCPBridgePuerTS", "Private",
+    "MCPPuerTSBridgeEditorState.cpp",
+  ), "utf8");
+  for (const call of [
+    "StartMoveTo", "LookAt", "StartPress", "SetKeyState", "SetAxisState",
+    "ClearAxisState", "RecordStart", "RecordStop", "StartReplay",
+  ]) {
+    assert(native.includes(`UPIEAgentLibrary::${call}`), `native PIE control is missing ${call}`);
+  }
+  console.log("  PASS  PIE agent: read schema and all nine runtime control operations");
 }
 
 main()
@@ -2335,7 +2541,10 @@ main()
   .then(levelCompletionSuite)
   .then(sequenceSuite)
   .then(jobApiSuite)
-  .then(pieAgentQuerySuite)
+  .then(assetDeleteSuite)
+  .then(levelLifecycleSuite)
+  .then(audioBuildSuite)
+  .then(pieAgentSuite)
   .then(connectionContractSuite)
   .then(nonActorParentSuite)
   .then(graphInspectSuite)

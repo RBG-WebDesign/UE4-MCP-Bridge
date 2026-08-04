@@ -99,7 +99,7 @@ async function main(): Promise<void> {
     // --- catalog shape ----------------------------------------------------
     // A literal on purpose: this is the canary that catches an alias silently
     // disappearing. Raise it deliberately when a wave adds legacy names.
-    const ALIAS_COUNT = 40;
+    const ALIAS_COUNT = 41;
     assert(compat.length === ALIAS_COUNT, `expected ${ALIAS_COUNT} compat aliases, got ${compat.length}`);
     assert(
       Object.keys(compatAliasTargets).length === ALIAS_COUNT,
@@ -188,7 +188,11 @@ async function main(): Promise<void> {
       ["level_actors", { folder_filter: "Courtyard", include_transforms: false }, "find_actors", { folder_filter: "Courtyard", include_transforms: false }],
       ["actor_spawn", { asset_path: "/Script/Engine.StaticMeshActor", name: "Pillar_NE", folder: "Courtyard/Structure", scale: { x: 1, y: 1, z: 4 } },
         "spawn_actor", { class_path: "/Script/Engine.StaticMeshActor", name: "Pillar_NE", folder: "Courtyard/Structure", scale: { x: 1, y: 1, z: 4 } }],
-      ["level_save", {}, "save", {}],
+      ["level_save", {}, "level_save", { save_all: false }],
+      ["level_save", { save_all: true }, "level_save", { save_all: true }],
+      ["level_new", { path: "/Game/Maps/NewMap" }, "level_create", { level_path: "/Game/Maps/NewMap" }],
+      ["level_new", { path: "/Game/Maps/Copy", template: "/Game/Maps/Template" }, "level_create",
+        { level_path: "/Game/Maps/Copy", template_path: "/Game/Maps/Template" }],
       ["asset_save_many", { paths: "/Game/Maps/Test" }, "save", { assets: ["/Game/Maps/Test"] }],
       ["asset_list", { path: "/Game/Meshes", asset_type: "StaticMesh", name_pattern: "SM_" }, "find_assets", { path: "/Game/Meshes", type: "StaticMesh", name: "SM_" }],
       ["viewport_screenshot", { filename: "shot.png" }, "viewport_screenshot", { filename: "shot.png" }],
@@ -287,7 +291,7 @@ async function main(): Promise<void> {
       ["actor_delete", { actor_name: "Cube_*" }, "actor_name"],
       ["level_actors", { include_components: true }, "include_components"],
       ["level_actors", { name_filter: "Cube_*" }, "name_filter"],
-      ["level_save", { save_all: true }, "save_all"],
+
       ["viewport_screenshot", { resolution: { width: 640 } }, "resolution"],
       ["viewport_screenshot", { show_ui: true }, "show_ui"],
       ["gameplay_pie_start", { level_path: "/Game/Maps/Test" }, "level_path"],

@@ -507,3 +507,58 @@ has now hit twice in different forms.
 diagnosing finding 0u. It is not owned by any lane and holds no bridge lock. It
 can be left running or closed with no effect on any lane; lighting builds need
 it and nothing else does.
+## Offline integration verdict, 2026-08-03: RL-2 and FP-2
+
+| Work package | Verdict | Evidence | Outstanding |
+|---|---|---|---|
+| RL-2 project-specific default pipe | **Accepted, implemented_unverified** | `npm run test:package` and `npm run test:editor-free` green; UBT and final link pass; install:check green | Two-project collision proof |
+| FP-2 PIE-agent control front | **Accepted, implemented_unverified** | Both TypeScript projects build; focused test covers schema, annotation and all nine native dispatches; full `npm run verify` green at 274 registrations / 61 native commands / 64 exposed tools; UBT and final link pass; install:check green | Explicit user-authorized live behavior proof |
+
+A later UBT run completed final linking for all three modules and install:check
+passed. No process was inspected or stopped, and no editor lifecycle action was
+taken.
+## Offline integration verdict, 2026-08-03: FP-3
+
+| Work package | Verdict | Evidence | Outstanding |
+|---|---|---|---|
+| FP-3 confirmed asset deletion | **Accepted, implemented_unverified** | UE4.27 API traced to `ObjectTools::DeleteAssets` and `ForceDeleteObjects`; TypeScript build and focused safety contract green; UHT, UBT and final linking pass; install:check green | Explicit user-authorized live create-delete-verify proof, including a referenced control |
+
+The command is limited to `/Game`, requires `confirm=true`, refuses the current
+level and an unmanaged read-only file, reports disk referencers, refuses them by
+default, and independently checks both Asset Registry and package-file absence.
+An already absent asset is a successful no-op. `force=true` is deliberately
+loud in the schema because UE4.27 may null references, dirty referencer packages,
+remove Blueprint instances and close affected asset editors.
+## Offline integration verdict, 2026-08-03: FP-4
+
+| Work package | Verdict | Evidence | Outstanding |
+|---|---|---|---|
+| FP-4 component downward convergence | **Accepted, implemented_unverified** | MCP schema forwards `remove_unlisted.components`; native ownership, graph/bound-event/child reference guards and independent convergence fields are contract-tested; UE4.27 compile, final link and install:check pass | Run `Scripts/bp-remove-unlisted-acceptance.mjs` warm and cold after explicit editor authorization |
+
+The implementation reuses UE4.27 `USimpleConstructionScript::RemoveNodeAndPromoteChildren`
+instead of maintaining a second component-tree surgery path. No editor process or PIE
+session was started for this verdict.
+
+## Offline integration verdict, 2026-08-03: FP-5
+
+| Work package | Verdict | Evidence | Outstanding |
+|---|---|---|---|
+| FP-5 native level lifecycle | **Accepted, implemented_unverified** | 65 native tools compile; full npm test green including lifecycle contract and 274 compat assertions; UHT, UBT, final link and install:check pass | Run Scripts/level-lifecycle-acceptance.mjs warm and cold after explicit editor authorization |
+
+The three commands create, load and save UE4.27 maps through native
+UEditorLoadingAndSavingUtils calls. Existing targets, non-map packages and dirty
+state are refused before a switch. Legacy level_new preserves path and template;
+legacy level_save preserves save_all. The live harness uses fresh paths, a
+state-moving actor control, independent scene inspection and package hashes. No
+editor process or PIE session was started for this verdict.
+## Offline integration verdict, 2026-08-03: FP-6
+
+| Work package | Verdict | Evidence | Outstanding |
+|---|---|---|---|
+| FP-6 desired-state Sound Cue builder | **Accepted, implemented_unverified** | 66 native tools; focused TypeScript contract green; UHT, UE4.27 compile, library creation, DLL link, inventory generation and install:check pass | Run Scripts/audio-build-acceptance.mjs warm and cold after explicit editor authorization; PIE playback requires separate authorization |
+
+The builder authors FirstNode and ordered ChildNodes as the playable truth and
+uses UE4.27 LinkGraphNodesFromSoundNodes to derive the editor graph. Existing
+saved clean cues use FBridgeContentSnapshot, new cues use FBridgeAssetRollback,
+and successful writes are independently read through audio_inspect before save.
+No editor process was launched, closed or inspected, and PIE was not started.

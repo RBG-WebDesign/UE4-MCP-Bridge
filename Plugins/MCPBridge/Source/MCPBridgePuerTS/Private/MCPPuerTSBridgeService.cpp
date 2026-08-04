@@ -12,6 +12,8 @@
 #include "HAL/PlatformTLS.h"
 #include "Json.h"
 #include "JsonObjectConverter.h"
+#include "ISourceControlModule.h"
+#include "ObjectTools.h"
 #include "Misc/ConfigCacheIni.h"
 #include "Misc/Crc.h"
 #include "Misc/FileHelper.h"
@@ -150,6 +152,70 @@ TArray<TSharedPtr<FJsonValue>> CopyArrayField(
     }
     return TArray<TSharedPtr<FJsonValue>>();
 }
+
+bool IsProjectPackagePath(const FString& PackagePath)
+{
+    return PackagePath.StartsWith(TEXT("/Game/"))
+        && FPackageName::IsValidLongPackageName(PackagePath, false);
+}
+
+bool ResolveProjectMapFilename(
+    const FString& PackagePath,
+    FString& OutFilename,
+    FString& OutError)
+{
+    if (!IsProjectPackagePath(PackagePath))
+    {
+        OutError = TEXT("Level paths must be valid package paths under /Game/.");
+        return false;
+    }
+    if (!FPackageName::DoesPackageExist(PackagePath, nullptr, &OutFilename))
+    {
+        OutError = FString::Printf(TEXT("Level was not found: %s"), *PackagePath);
+        return false;
+    }
+    if (FPaths::GetExtension(OutFilename, true) != FPackageName::GetMapPackageExtension())
+    {
+        OutError = FString::Printf(TEXT("Package is not a UE4 map: %s"), *PackagePath);
+        return false;
+    }
+    return true;
+}
+
+TArray<FString> DirtyProjectPackageNames()
+{
+    TArray<UPackage*> Packages;
+    FEditorFileUtils::GetDirtyWorldPackages(Packages);
+    FEditorFileUtils::GetDirtyContentPackages(Packages);
+
+    TArray<FString> Names;
+    for (UPackage* Package : Packages)
+    {
+        if (Package != nullptr)
+        {
+            Names.AddUnique(Package->GetName());
+        }
+    }
+    Names.Sort();
+    return Names;
+}
+
+bool RefuseLevelSwitchWithDirtyPackages(FString& OutError)
+{
+    TArray<FString> DirtyNames = DirtyProjectPackageNames();
+    if (DirtyNames.Num() == 0)
+    {
+        return true;
+    }
+    if (DirtyNames.Num() > 10)
+    {
+        DirtyNames.SetNum(10);
+    }
+    OutError = FString::Printf(
+        TEXT("Refusing to switch levels with unsaved packages: %s. Save first with puerts_level_save."),
+        *FString::Join(DirtyNames, TEXT(", ")));
+    return false;
+}
 }
 
 class UMCPPuerTSBridgeService::FBridgeLogCapture final : public FOutputDevice
@@ -226,7 +292,10 @@ bool UMCPPuerTSBridgeService::Initialize(FString& OutError)
             // set hides that, so the duplicates are removed here rather than left
             // for the next reader to wonder about.
             TEXT("set_property"), TEXT("call_function"), TEXT("spawn_actor"), TEXT("delete_actor"),
-            TEXT("save"), TEXT("pie_start"), TEXT("pie_stop"), TEXT("undo"),
+            // Permanent asset deletion. It is not an editor transaction because
+            // neither the package file nor broken references can be restored by undo.
+            TEXT("delete_asset"),
+            TEXT("save"), TEXT("level_create"), TEXT("level_load"), TEXT("level_save"), TEXT("pie_start"), TEXT("pie_stop"), TEXT("undo"),
             TEXT("physics_build"), TEXT("physics_observe"), TEXT("viewport_screenshot"), TEXT("sky_shader_create"),
             TEXT("blueprint_build"), TEXT("blueprint_graph_patch"), TEXT("blueprint_member_patch"), TEXT("widget_build"),
             TEXT("widget_bind"),
@@ -256,13 +325,16 @@ bool UMCPPuerTSBridgeService::Initialize(FString& OutError)
             TEXT("anim_blueprint_inspect"), TEXT("anim_montage_inspect"), TEXT("anim_blend_space_inspect"), TEXT("blackboard_inspect"),
             TEXT("eqs_inspect"), TEXT("nav_inspect"), TEXT("nav_query"), TEXT("ai_controller_inspect"),
             TEXT("material_inspect"), TEXT("scene_inspect"), TEXT("input_mapping_info"), TEXT("pie_agent_query"),
+            // Runtime-only control. Deliberately absent from IsToolMutating:
+            // editor transactions do not record changes inside a PIE world.
+            TEXT("pie_agent_control"),
             // The comma after sequence_inspect is load bearing. Without it the
             // C++ preprocessor concatenates the two adjacent string literals
             // into "sequence_inspectaudio_inspect" and BOTH tools fall off the
             // allowlist, refused as unknown at AcceptCommand with nothing in
             // the build to say why.
             TEXT("sequence_inspect"),
-            TEXT("audio_inspect"), TEXT("cloth_inspect"),
+            TEXT("audio_inspect"), TEXT("audio_build"), TEXT("cloth_inspect"),
             // The job API. job_status, job_result and job_cancel are short
             // commands that read a small in-memory record and ask the live
             // engine source for one job's state; they never block and never
@@ -885,6 +957,153 @@ bool UMCPPuerTSBridgeService::FindAssetsJson(
     OutAssetsJson = SerializeJson(Root);
     return true;
 }
+bool UMCPPuerTSBridgeService::DeleteAsset(
+    const FString& InAssetPath,
+    bool bConfirm,
+    bool bForce,
+    FString& OutResultJson,
+    FString& OutError) const
+{
+    if (!bConfirm)
+    {
+        OutError = TEXT("delete_asset requires confirm=true because asset deletion is permanent.");
+        return false;
+    }
+
+    const FString AssetPath = InAssetPath.TrimStartAndEnd();
+    FString PackagePath = AssetPath.Contains(TEXT("."))
+        ? FPackageName::ObjectPathToPackageName(AssetPath)
+        : AssetPath;
+    if (!PackagePath.StartsWith(TEXT("/Game/")) || !FPackageName::IsValidLongPackageName(PackagePath))
+    {
+        OutError = TEXT("Asset deletion is limited to a valid package under /Game/.");
+        return false;
+    }
+    const FString ObjectPath = AssetPath.Contains(TEXT("."))
+        ? AssetPath
+        : PackagePath + TEXT(".") + FPackageName::GetLongPackageAssetName(PackagePath);
+
+    FAssetRegistryModule& AssetRegistryModule =
+        FModuleManager::LoadModuleChecked<FAssetRegistryModule>(TEXT("AssetRegistry"));
+    IAssetRegistry& AssetRegistry = AssetRegistryModule.Get();
+    const FAssetData AssetData = AssetRegistry.GetAssetByObjectPath(FName(*ObjectPath));
+    if (!AssetData.IsValid())
+    {
+        if (FPackageName::DoesPackageExist(PackagePath))
+        {
+            OutError = FString::Printf(
+                TEXT("The package '%s' exists but the Asset Registry has no asset at '%s'. Refusing to guess."),
+                *PackagePath,
+                *ObjectPath);
+            return false;
+        }
+        TSharedPtr<FJsonObject> Absent = MakeShared<FJsonObject>();
+        Absent->SetStringField(TEXT("asset_path"), PackagePath);
+        Absent->SetStringField(TEXT("object_path"), ObjectPath);
+        Absent->SetBoolField(TEXT("force"), bForce);
+        Absent->SetArrayField(TEXT("referencers"), TArray<TSharedPtr<FJsonValue>>());
+        Absent->SetBoolField(TEXT("deleted"), false);
+        Absent->SetBoolField(TEXT("already_absent"), true);
+        Absent->SetBoolField(TEXT("registry_absent"), true);
+        Absent->SetBoolField(TEXT("package_absent"), true);
+        OutResultJson = SerializeJson(Absent);
+        return true;
+    }
+
+    if (GEditor != nullptr)
+    {
+        UWorld* EditorWorld = GEditor->GetEditorWorldContext().World();
+        if (EditorWorld != nullptr && EditorWorld->GetOutermost()->GetFName() == AssetData.PackageName)
+        {
+            OutError = TEXT("The currently open level cannot be deleted. Load another level first.");
+            return false;
+        }
+    }
+
+    UObject* Asset = AssetData.GetAsset();
+    if (Asset == nullptr)
+    {
+        OutError = FString::Printf(TEXT("The asset at '%s' could not be loaded for deletion."), *ObjectPath);
+        return false;
+    }
+
+    FCanDeleteAssetResult CanDelete;
+    TArray<UObject*> Objects;
+    Objects.Add(Asset);
+    FEditorDelegates::OnAssetsCanDelete.Broadcast(Objects, CanDelete);
+    if (!CanDelete.Get())
+    {
+        OutError = FString::Printf(TEXT("The editor vetoed deletion of '%s'. See the Output Log."), *ObjectPath);
+        return false;
+    }
+
+    FString PackageFilename;
+    if (!ISourceControlModule::Get().IsEnabled()
+        && FPackageName::DoesPackageExist(PackagePath, nullptr, &PackageFilename)
+        && IFileManager::Get().IsReadOnly(*PackageFilename))
+    {
+        OutError = FString::Printf(
+            TEXT("'%s' is read-only and source control is disabled. Make the file writable before deleting it."),
+            *PackageFilename);
+        return false;
+    }
+
+    TArray<FName> ReferencerNames;
+    AssetRegistry.GetReferencers(AssetData.PackageName, ReferencerNames);
+    ReferencerNames.Remove(AssetData.PackageName);
+    ReferencerNames.Sort([](const FName& Left, const FName& Right)
+    {
+        return Left.LexicalLess(Right);
+    });
+    TArray<TSharedPtr<FJsonValue>> Referencers;
+    for (const FName& Referencer : ReferencerNames)
+    {
+        Referencers.Add(MakeShared<FJsonValueString>(Referencer.ToString()));
+    }
+
+    TSharedPtr<FJsonObject> Result = MakeShared<FJsonObject>();
+    Result->SetStringField(TEXT("asset_path"), PackagePath);
+    Result->SetStringField(TEXT("object_path"), ObjectPath);
+    Result->SetBoolField(TEXT("force"), bForce);
+    Result->SetArrayField(TEXT("referencers"), Referencers);
+    if (ReferencerNames.Num() > 0 && !bForce)
+    {
+        Result->SetBoolField(TEXT("deleted"), false);
+        Result->SetBoolField(TEXT("blocked"), true);
+        Result->SetStringField(TEXT("blocked_reason"), TEXT("asset_referenced"));
+        OutResultJson = SerializeJson(Result);
+        return true;
+    }
+
+    int32 DeletedCount = 0;
+    if (bForce)
+    {
+        DeletedCount = ObjectTools::ForceDeleteObjects(Objects, false);
+    }
+    else
+    {
+        TArray<FAssetData> Assets;
+        Assets.Add(AssetData);
+        DeletedCount = ObjectTools::DeleteAssets(Assets, false);
+    }
+
+    const bool bRegistryAbsent = !AssetRegistry.GetAssetByObjectPath(FName(*ObjectPath)).IsValid();
+    const bool bPackageAbsent = !FPackageName::DoesPackageExist(PackagePath);
+    const bool bDeleted = DeletedCount == 1 && bRegistryAbsent && bPackageAbsent;
+    Result->SetNumberField(TEXT("deleted_count"), DeletedCount);
+    Result->SetBoolField(TEXT("registry_absent"), bRegistryAbsent);
+    Result->SetBoolField(TEXT("package_absent"), bPackageAbsent);
+    Result->SetBoolField(TEXT("deleted"), bDeleted);
+    Result->SetBoolField(TEXT("blocked"), false);
+    if (!bDeleted)
+    {
+        Result->SetStringField(
+            TEXT("failure_reason"),
+            TEXT("UE4.27 did not report and verify exactly one deleted asset. It may still have an in-memory reference."));
+    }
+    OutResultJson = SerializeJson(Result);
+    return true;
+}
 AActor* UMCPPuerTSBridgeService::FindLevelActor(const FString& NameOrPath) const
 {
     for (AActor* Actor : GetLevelActors())
@@ -1266,6 +1485,195 @@ bool UMCPPuerTSBridgeService::SaveCurrentLevel(const FString& AssetPath, FString
     return bSaved;
 }
 
+bool UMCPPuerTSBridgeService::CreateLevelJson(
+    const FString& LevelPath,
+    const FString& TemplatePath,
+    FString& OutResultJson,
+    FString& OutError)
+{
+    if (GEditor == nullptr)
+    {
+        OutError = TEXT("GEditor is unavailable.");
+        return false;
+    }
+    if (!IsProjectPackagePath(LevelPath))
+    {
+        OutError = TEXT("level_path must be a valid package path under /Game/.");
+        return false;
+    }
+    if (FPackageName::DoesPackageExist(LevelPath))
+    {
+        OutError = FString::Printf(TEXT("Level target already exists: %s"), *LevelPath);
+        return false;
+    }
+
+    FString TemplateFilename;
+    if (!TemplatePath.IsEmpty()
+        && !ResolveProjectMapFilename(TemplatePath, TemplateFilename, OutError))
+    {
+        OutError = FString::Printf(TEXT("Invalid template_path: %s"), *OutError);
+        return false;
+    }
+    if (!RefuseLevelSwitchWithDirtyPackages(OutError))
+    {
+        return false;
+    }
+
+    UWorld* PreviousWorld = GEditor->GetEditorWorldContext().World();
+    const FString PreviousLevel = PreviousWorld != nullptr
+        ? PreviousWorld->GetOutermost()->GetName()
+        : FString();
+
+    UWorld* World = TemplatePath.IsEmpty()
+        ? UEditorLoadingAndSavingUtils::NewBlankMap(false)
+        : UEditorLoadingAndSavingUtils::NewMapFromTemplate(TemplateFilename, false);
+    if (World == nullptr)
+    {
+        OutError = TEXT("Unreal could not create the new level.");
+        return false;
+    }
+    if (!UEditorLoadingAndSavingUtils::SaveMap(World, LevelPath))
+    {
+        OutError = FString::Printf(
+            TEXT("Level creation reached a new unsaved world, but saving %s failed. The unsaved world remains loaded."),
+            *LevelPath);
+        return false;
+    }
+
+    FString SavedFilename;
+    FString VerifyError;
+    UWorld* LoadedWorld = GEditor->GetEditorWorldContext().World();
+    if (LoadedWorld == nullptr
+        || LoadedWorld->GetOutermost()->GetName() != LevelPath
+        || !ResolveProjectMapFilename(LevelPath, SavedFilename, VerifyError))
+    {
+        OutError = FString::Printf(
+            TEXT("Level save returned success but read-back failed for %s: %s"),
+            *LevelPath,
+            *VerifyError);
+        return false;
+    }
+
+    TSharedPtr<FJsonObject> Result = MakeShared<FJsonObject>();
+    Result->SetStringField(TEXT("level"), LevelPath);
+    Result->SetStringField(TEXT("previous_level"), PreviousLevel);
+    Result->SetStringField(TEXT("template"), TemplatePath);
+    Result->SetBoolField(TEXT("created"), true);
+    Result->SetBoolField(TEXT("loaded"), true);
+    Result->SetBoolField(TEXT("saved"), true);
+    OutResultJson = SerializeJson(Result);
+    return true;
+}
+
+bool UMCPPuerTSBridgeService::LoadLevelJson(
+    const FString& LevelPath,
+    FString& OutResultJson,
+    FString& OutError)
+{
+    if (GEditor == nullptr)
+    {
+        OutError = TEXT("GEditor is unavailable.");
+        return false;
+    }
+
+    FString Filename;
+    if (!ResolveProjectMapFilename(LevelPath, Filename, OutError))
+    {
+        return false;
+    }
+
+    UWorld* CurrentWorld = GEditor->GetEditorWorldContext().World();
+    const FString PreviousLevel = CurrentWorld != nullptr
+        ? CurrentWorld->GetOutermost()->GetName()
+        : FString();
+    const bool bAlreadyLoaded = PreviousLevel == LevelPath;
+    if (!bAlreadyLoaded)
+    {
+        if (!RefuseLevelSwitchWithDirtyPackages(OutError))
+        {
+            return false;
+        }
+        UWorld* LoadedWorld = UEditorLoadingAndSavingUtils::LoadMap(Filename);
+        if (LoadedWorld == nullptr || LoadedWorld->GetOutermost()->GetName() != LevelPath)
+        {
+            OutError = FString::Printf(TEXT("Unreal could not load level: %s"), *LevelPath);
+            return false;
+        }
+    }
+
+    TSharedPtr<FJsonObject> Result = MakeShared<FJsonObject>();
+    Result->SetStringField(TEXT("level"), LevelPath);
+    Result->SetStringField(TEXT("previous_level"), PreviousLevel);
+    Result->SetBoolField(TEXT("loaded"), true);
+    Result->SetBoolField(TEXT("already_loaded"), bAlreadyLoaded);
+    OutResultJson = SerializeJson(Result);
+    return true;
+}
+
+bool UMCPPuerTSBridgeService::SaveLevelJson(
+    bool bSaveAll,
+    FString& OutResultJson,
+    FString& OutError)
+{
+    if (GEditor == nullptr)
+    {
+        OutError = TEXT("GEditor is unavailable.");
+        return false;
+    }
+    UWorld* World = GEditor->GetEditorWorldContext().World();
+    if (World == nullptr || World->PersistentLevel == nullptr)
+    {
+        OutError = TEXT("No editor level is loaded.");
+        return false;
+    }
+
+    const FString LevelPath = World->GetOutermost()->GetName();
+    FString ExistingFilename;
+    if (!ResolveProjectMapFilename(LevelPath, ExistingFilename, OutError))
+    {
+        OutError = TEXT("The current level has no saved /Game map package. Create it with puerts_level_create first.");
+        return false;
+    }
+
+    TArray<UPackage*> DirtyContentPackages;
+    FEditorFileUtils::GetDirtyContentPackages(DirtyContentPackages);
+    TArray<FString> DirtyContentNames;
+    for (UPackage* Package : DirtyContentPackages)
+    {
+        if (Package != nullptr)
+        {
+            DirtyContentNames.AddUnique(Package->GetName());
+        }
+    }
+    DirtyContentNames.Sort();
+
+    bool bSaved = false;
+    if (bSaveAll)
+    {
+        bSaved = UEditorLoadingAndSavingUtils::SaveDirtyPackages(true, true);
+    }
+    else
+    {
+        FString SavedLevel;
+        bSaved = SaveCurrentLevel(TEXT(""), SavedLevel);
+    }
+    if (!bSaved)
+    {
+        OutError = bSaveAll
+            ? TEXT("Saving one or more dirty map or content packages failed.")
+            : FString::Printf(TEXT("Current level save failed: %s"), *LevelPath);
+        return false;
+    }
+
+    TSharedPtr<FJsonObject> Result = MakeShared<FJsonObject>();
+    Result->SetStringField(TEXT("level_saved"), LevelPath);
+    Result->SetNumberField(TEXT("assets_saved_count"), bSaveAll ? DirtyContentNames.Num() : 0);
+    Result->SetArrayField(TEXT("assets_saved"), bSaveAll ? ToJsonArray(DirtyContentNames) : TArray<TSharedPtr<FJsonValue>>());
+    Result->SetBoolField(TEXT("save_all"), bSaveAll);
+    OutResultJson = SerializeJson(Result);
+    return true;
+}
+
 bool UMCPPuerTSBridgeService::StartPlayInEditor(FString& OutError)
 {
     if (GEditor == nullptr)
@@ -1561,6 +1969,7 @@ bool UMCPPuerTSBridgeService::IsToolMutating(const FString& ToolName) const
         // deliberately absent: it opens no transaction and returns no
         // transaction id, like every other inspector here.
         || ToolName == TEXT("sequence_build")
+        || ToolName == TEXT("audio_build")
         || ToolName == TEXT("scene_batch");
 }
 

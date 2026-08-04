@@ -71,6 +71,9 @@ export const toolAnnotations: Record<string, ToolAnnotations> = {
   // --- PuerTS native named-pipe lane ---------------------------------------
   puerts_diagnostic: readOnly,
   puerts_find_assets: readOnly,
+  // Permanent package deletion. Idempotent because an already absent asset is
+  // a successful no-op; force=true may also null references in other packages.
+  puerts_delete_asset: destructiveIdempotent,
   puerts_find_actors: readOnly,
   puerts_read_property: readOnly,
   puerts_get_logs: readOnly,
@@ -152,6 +155,7 @@ export const toolAnnotations: Record<string, ToolAnnotations> = {
   // out of IsToolMutating on the native side, reports the package dirty flag
   // before and after the read. See the tool description for why a cue builder
   // is feasible where an EQS builder is not, and what still blocks it.
+  puerts_audio_build: destructiveIdempotent,
   puerts_audio_inspect: readOnly,
   // The read half of MCPBridgeClothOptimizer, and the only half fronted. Its
   // three writers are not here on purpose: they do not cancel their transaction
@@ -284,6 +288,11 @@ export const toolAnnotations: Record<string, ToolAnnotations> = {
   puerts_sequence_build: mutatingIdempotent,
   puerts_delete_actor: destructiveIdempotent,
   puerts_save: destructive,
+  // Map switching and package writes are outside editor transactions. Creation
+  // refuses existing targets; load refuses dirty packages; save commits to disk.
+  puerts_level_create: destructive,
+  puerts_level_load: mutating,
+  puerts_level_save: destructive,
   puerts_undo: destructive,
   // The missing inspector for UMCPBridgeInputLibrary. Read-only in the same
   // sense the asset inspectors are: kept out of IsToolMutating on the native
@@ -305,6 +314,8 @@ export const toolAnnotations: Record<string, ToolAnnotations> = {
   // The read half of the PIE agent: observes a running world, edits nothing.
   // op=expect starts an in-engine condition check that only reads.
   puerts_pie_agent_query: readOnly,
+  // Runtime-only and imperative. It changes a PIE world but persists no asset.
+  puerts_pie_agent_control: mutating,
   // --- Performance analysis and optimization -------------------------------
   // Audits and catalogs are pure reads. Captures drive the viewport and write
   // screenshots or reports under Saved/, so they are mutating-but-convergent
@@ -529,7 +540,8 @@ export const compatAliasAnnotations: Record<string, ToolAnnotations> = {
   actor_delete: destructiveIdempotent,    // -> puerts_delete_actor
   actor_modify: mutatingIdempotent,       // -> puerts_set_property
   level_actors: readOnly,                 // -> puerts_find_actors
-  level_save: destructive,                // -> puerts_save
+  level_save: destructive,                // -> puerts_level_save
+  level_new: destructive,                 // -> puerts_level_create
   asset_save_many: destructive,           // -> puerts_save
   asset_list: readOnly,                   // -> puerts_find_assets
   viewport_screenshot: mutatingIdempotent, // -> puerts_viewport_screenshot

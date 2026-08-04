@@ -1,4 +1,4 @@
-﻿# Capability findings
+# Capability findings
 
 Live probe results against the UE427PuerTSMCP editor. Each entry states what
 was observed, with the reproduction. Phase P of docs/MASTERY_PLAN_2026-07-31.md
@@ -76,7 +76,7 @@ maintains this file; Phase L consumes it.
 
 | `remove_unlisted.variables` verification status | **live_verified as of 2026-08-02.** Promoted only after the full induced-failure proof passed, which took four sessions and two ruled-out approaches. It is a sub-capability of `puerts_blueprint_build` (already live_verified) and has no separate metadata key, so the status is recorded here rather than by inventing an entry `check:inventory` would reject. Evidence: `Scripts/bp-remove-unlisted-acceptance.mjs` warm and cold, `docs/evidence/bp-remove-unlisted-*.json`. Everything the promotion rests on: convergence downward and upward, protection by ownership stamp, blocked referenced removals, forced removal with node deletion reported, plan_only read-only, and a failing build that leaves the Blueprint byte-identical to how it found it - variables, reference nodes, untouched graph nodes, file hash and package dirty state |
 | Blueprint variable downward convergence (`remove_unlisted`) | Opt-in, off by default, variables scope only. Ownership is an explicit stamp, not a heuristic: `blueprint_build` writes `MCPManaged=1` metadata on every variable it declares, and removal only ever considers stamped variables, so inherited, native C++, engine-generated and human-authored variables are protected **by construction** rather than by an exclusion list, and a Blueprint authored before this change has nothing removable until a build declares its managed set. Live on `BP_ConvergeProbe` (six managed variables, graph nodes referencing two): `plan_only` returned `variables_to_remove ["DropAlsoPlain","DropPlain"]`, `blocked_removals` naming `DropReferenced` with its reference locations, and left inspection byte-identical. An unforced apply removed exactly the two unreferenced ones and left the referenced one alive with no node deleted; `force_remove_referenced` then removed it and reported every deleted node. `graph_inspect` independently confirmed the final set is exactly `["KeptA","KeptB","KeptC"]`, that `KeptA`'s reference node survived, and that BeginPlay/PrintString were untouched. Rerun removes nothing and the inspected variable set is byte-stable; after a restart the cold-loaded asset is still converged (2026-08-02) |
-| Unsupported `remove_unlisted` scopes are rejected, never ignored | `components`, `functions`, `macros`, `graph_nodes` and `interfaces` set `true` each return `unsupported_scope` naming the scope; set `false` they are accepted. Silently accepting them would read as a promise to prune and quietly not do it, which is worse than refusing. An unknown scope key is also rejected (2026-08-02) |
+| Unsupported `remove_unlisted` scopes are rejected, never ignored | `functions`, `macros`, `graph_nodes` and `interfaces` set `true` return `unsupported_scope`; `components` is now implemented by FP-4. False values and known implemented scopes are accepted. An unknown scope key is rejected. FP-4 live evidence is pending (updated 2026-08-03). |
 | Defect 0 reproduced independently, on `VariableGet` | The builder's config key is `varName`; a spec using `params.variable` makes the factory return null while the build still reports `node_count 2` and `node_types ["BeginPlay","VariableGet"]`, and `graph_inspect` sees only `["BeginPlay"]`. Found while writing the `remove_unlisted` fixture: every reference assertion in it passed **vacuously** because the reference nodes did not exist. This is the same phantom-counting defect 0 records for `Cast`, now confirmed on a second node type and caught only by comparing the build's own report against the independent inspector - which is the argument for builder/inspector parity in one line (2026-08-02) |
 
 | Truthful Blueprint build reporting | Defect 0 closed for counting. `node_count` came from `RequestedNodeTypes.Num()` and `NodeMap.Add(NodeId, SpawnedNode)` ran **even when the factory returned null**, so a refused node stayed in the count: a build reported `node_count 2` while `graph_inspect` saw one node. Now the builder reports `OutCreatedNodes`/`OutFailedNodes`, skips null nodes and nodes created in a graph other than the one requested, and the command reports `requested_node_count` / `created_node_count` / `failed_node_count` / `failed_nodes` and the connection triple, on the success **and** failure payloads. A refused node now fails the whole build: partial graph creation is not a success mode. Live: `VariableGet` with `variable` instead of `varName` returns `success false` naming the refused node and its supplied parameters, `created_node_count` excludes it, and the gate `created_node_count == independently inspected node_count` holds on the valid graph (4), the rerun (4) and MultiGate (2). `Cast` with an unresolvable target class behaves the same. No failing case left a dirty package, a file change, a source-control entry or a save prompt. `Scripts/bp-truthful-report-acceptance.mjs`, 27 of 28 checks (2026-08-02) |
@@ -1515,6 +1515,13 @@ content gate works. The build-artifact gate does not exist.
 
 ## Finding 0n: three gaps that make a live fixture impossible to reset
 
+**Status update, 2026-08-03:** items 1 and 2 are implemented. Item 1 is
+`puerts_delete_asset`: confirmed, `/Game`-limited, reference-aware and verified
+against both registry and package-file absence. Item 2 extends
+`blueprint_build.remove_unlisted` to MCPManaged components, protects graph
+references, bound events and retained children, and reports independent
+component convergence. Both pass focused tests, UE4.27 compilation, final link
+and install:check. Their live acceptances remain user-gated. Item 3 remains open.
 Found by lane H, 2026-08-02, while making the member_patch acceptance
 deterministic. Recorded together because they are one practical problem: there
 is no way to return a live editor's asset to a known state.
@@ -2949,3 +2956,39 @@ passed, 0 failed after the editor advertised session
 `d946471b-4747-1ab7-8b70-638fab554d82`; `install:check` passed immediately
 before and after the run. Cold evidence remains part of the wider slice
 restart sweep.
+
+## Finding 0aa: FIXED. Package existence did not prove an input was a level
+
+Found during FP-5 integration on 2026-08-03 before the command was run live.
+
+The lane draft validated level_path and template_path with
+FPackageName::DoesPackageExist. That answers whether any package exists at the
+name. It does not answer whether the package is a map, so a texture, Blueprint
+or material package under /Game could pass preflight and reach LoadMap or
+NewMapFromTemplate.
+
+The distinguishing measurement is UE4.27 FileHelpers.cpp: UEditorLoadingAndSavingUtils::LoadMap
+takes a filename and delegates directly to FEditorFileUtils::LoadMap. The
+package type is not part of DoesPackageExist's contract. The command now
+resolves the actual filename and requires
+FPackageName::GetMapPackageExtension before any dirty check or level switch.
+The same helper guards load, template creation and saving the current map.
+Editor-free tests pin the check, and UHT, UBT and final linking pass. Live warm
+and cold acceptance remains user-gated.
+## Finding 0ab: FIXED. Sound Cue convergence originally ignored the special wave reference and cue properties
+
+Found during FP-6 integration on 2026-08-03 before any live run.
+
+The first comparator checked node ids, classes, ordered children and requested
+node properties. It did not compare the builder's special `sound_wave` field,
+and it did not compare requested properties on the `USoundCue` itself. A cue
+with the requested topology but the wrong wave, volume or pitch could therefore
+be reported as converged and skip the corrective write.
+
+The distinguishing check was the reader, not the writer. `audio_inspect` had no
+explicit wave field, while `audio_build` accepted `sound_wave` outside the
+reflected property bag. The inspector now reports each Wave Player's resolved
+`sound_wave` object path. The builder's convergence and post-write verification
+compare that field and every requested cue property through the same inspector.
+The focused contract, UHT, UE4.27 compile, library creation and DLL link pass.
+Live warm and cold evidence remains user-gated.

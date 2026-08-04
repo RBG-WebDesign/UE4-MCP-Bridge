@@ -336,19 +336,19 @@ can express a compile that changes nothing.
 - Rollback on failure: no
 - Independent inspector: yes, `Observe` / `GetOperationStatus`
 - Convergent: no, imperative API
-- **Ships as: READ-ONLY**
+- **Ships as: READ + user-gated CONTROL; telemetry remains**
 
 | Legacy tool | Native command | Pass-through or wrapper | Status |
 |---|---|---|---|
 | `pie_agent_observe` | `pie_agent_query` op `observe` | pass-through, read only | ALIAS landed |
 | `pie_agent_status` | `pie_agent_query` op `status` | pass-through, read only | ALIAS landed |
 | `pie_agent_expect` | `pie_agent_query` op `expect` | pass-through, read only (polls in-engine) | ALIAS landed |
-| `pie_agent_move_to` | `pie_agent_move_to` | pass-through (async: returns an operation id) | not fronted |
-| `pie_agent_look_at` | `pie_agent_look_at` | pass-through | not fronted |
-| `pie_agent_press` | `pie_agent_press` | pass-through | not fronted |
-| `pie_agent_record_start` | `pie_agent_record_start` | wrapper: owns the recording file path limit | not fronted |
-| `pie_agent_record_stop` | `pie_agent_record_stop` | wrapper: same | not fronted |
-| `pie_agent_replay` | `pie_agent_replay` | wrapper: same | not fronted |
+| `pie_agent_move_to` | `pie_agent_control` op `move_to` | pass-through (async: returns an operation id) | LANDED, live pending |
+| `pie_agent_look_at` | `pie_agent_control` op `look_at` | pass-through | LANDED, live pending |
+| `pie_agent_press` | `pie_agent_control` op `press` | pass-through | LANDED, live pending |
+| `pie_agent_record_start` | `pie_agent_control` op `record_start` | pass-through | LANDED, live pending |
+| `pie_agent_record_stop` | `pie_agent_control` op `record_stop` | pass-through | LANDED, live pending |
+| `pie_agent_replay` | `pie_agent_control` op `replay` | pass-through | LANDED, live pending |
 | `gameplay_telemetry_snapshot` | `pie_telemetry_snapshot` | pass-through, read only | not fronted |
 
 Not transactable and correctly so: these drive a running PIE session, they do not
@@ -357,8 +357,8 @@ requirement that does is that every one of them refuses cleanly when PIE is not
 running, which the allowlist in `utils/editor_state.py` handles today and the
 native service handles itself.
 
-The write half is user-gated by AGENTS.md regardless of readiness, so it cannot
-be proven unattended anyway. That is why the read half shipped first.
+The control half is user-gated by AGENTS.md regardless of readiness. Its source,
+editor-free contract, native compile and final link are complete; live proof remains.
 
 One behaviour difference, in the return rather than the request: the legacy
 `pie_agent_expect` blocked in the MCP server until the conditions passed or the

@@ -21,6 +21,7 @@ export interface JsonObject {
 export const allPermissions = [
   "assets.read",
   "assets.write",
+  "assets.delete",
   "actors.read",
   "actors.spawn",
   "actors.delete",

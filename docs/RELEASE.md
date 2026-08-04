@@ -136,8 +136,9 @@ does not provide `PipeName`, the native service derives a stable name from the
 uproject name and the canonical project path. An explicit ini value still wins.
 `npm run test:package` proves the packaged source contains that fallback, the
 shared header constant is gone, and the release instructions describe the same
-contract. The updated C++ still needs the next native compile and two-project
-live session proof before RL-2 can be marked live-verified.
+contract. UBT and final linking passed in BridgeInstallTest on 2026-08-03, and
+install:check is green. The two-project live session proof remains before RL-2
+can be marked live-verified.
 ### What would change the remaining NO
 
 The binary release needs a packager that builds in a host project with both

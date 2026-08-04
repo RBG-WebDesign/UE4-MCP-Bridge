@@ -117,7 +117,7 @@
           "scope_this_wave": "the real 54-tool REFRONT table derived from the inventory, plus ONE builder group re-fronted end to end through the documented add-a-tool chain. Depth over breadth. Exclusive build rights this wave.",
           "result": "lane/e-refront is an ancestor of HEAD; puerts_blueprint_member_patch is registered and the catalog is 209 tools. 11 of 17 BlueprintMutatorLibrary tools re-fronted as one batched command, and 5 of 17 re-classified from REFRONT to MERGE into blueprint_graph_patch. 38 of 54 REFRONT remain.",
           "held_because": "RESOLVED. It was held pending review of an out-of-scope change to lane A's file; there is no such diff between HEAD and lane/e-refront, so the change had already landed via an earlier merge. Nothing to adjudicate.",
-          "verification": "implemented, NOT live_verified. Its C++ compiled but never linked (LNK1104, an editor held the DLLs) and Scripts/bp-member-patch-acceptance.mjs has never executed. Same treatment lane A got before its live proof."
+          "verification": "implemented, NOT live_verified. Its C++ compiled and linked in the installed target, but Scripts/bp-member-patch-acceptance.mjs has never executed."
         },
         {
           "id": "F",

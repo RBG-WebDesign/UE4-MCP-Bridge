@@ -34,6 +34,24 @@ const reflectedValue = z.union([
   + "an array of strings for Tags.",
 );
 
+const soundCueNode = z.object({
+  id: z.string().min(1).max(64).regex(/^[A-Za-z0-9_]+$/).describe(
+    "Stable UObject name used by audio_inspect and retained across convergent rebuilds.",
+  ),
+  type: z.enum([
+    "wave_player", "mixer", "random", "modulator", "delay", "looping", "concatenator",
+  ]),
+  children: z.array(z.string().min(1).max(64)).optional().describe(
+    "Ordered child ids. Order is meaningful for mixer, random and concatenator nodes.",
+  ),
+  sound_wave: z.string().optional().describe(
+    "Required only for wave_player. A /Game or /Engine USoundWave object path.",
+  ),
+  properties: z.record(reflectedValue).optional().describe(
+    "Editable UE4.27 properties by reflected name, such as PitchMin, DelayMax or bLooping.",
+  ),
+}).strict();
+
 /** One SimpleConstructionScript component of a generated Blueprint. */
 const blueprintComponent = z.object({
   class: z.string().describe(
@@ -376,6 +394,21 @@ const animBlueprintSpecLimits =
 const specs = [
   ["puerts_diagnostic", "diagnostic", "Prove the in-process PuerTS context, game thread, named-pipe transport, and actor-query timing.", z.object({ actor_limit: z.number().optional() }).strict()],
   ["puerts_find_assets", "find_assets", "Find UE4.27 assets by path, type, or name.", z.object({ path: z.string().optional(), type: z.string().optional(), name: z.string().optional(), recursive: z.boolean().optional(), limit: z.number().optional() }).strict()],
+  ["puerts_delete_asset", "delete_asset",
+    "Permanently delete one asset under /Game. confirm=true is mandatory. By default UE4.27 "
+    + "checks both disk and memory references and refuses a referenced asset. force=true uses "
+    + "the engine's force-delete path, which can null references, dirty referencer packages, "
+    + "remove Blueprint instances, and close asset editors holding affected objects. The response "
+    + "lists disk referencers and independently verifies both Asset Registry and package-file "
+    + "absence. Deleting an already absent asset is a successful no-op. This operation is not "
+    + "transacted and cannot be undone; make a source-control checkpoint first.",
+    z.object({
+      asset_path: z.string().regex(/^\/Game\/[A-Za-z0-9_]+(?:\/[A-Za-z0-9_]+)*(?:\.[A-Za-z0-9_]+)?$/),
+      confirm: z.literal(true),
+      force: z.boolean().optional().describe(
+        "Default false. True may break references and requires the same explicit confirmation.",
+      ),
+    }).strict()],
   ["puerts_find_actors", "find_actors",
     "Find actors in the current editor level. name and type are case-insensitive SUBSTRING "
     + "matches, not wildcards. "
@@ -485,20 +518,17 @@ const specs = [
         interfaces: z.boolean().optional(),
       }).strict().optional().describe(
         "Opt-in downward convergence, off by default: nothing is ever removed unless a scope "
-        + "is set true. Only 'variables' is implemented; any other scope set true is REJECTED "
-        + "with an unsupported_scope error rather than ignored, so a caller is never told a "
-        + "prune happened when it did not. Variable removal only ever considers variables this "
-        + "builder previously declared (stamped MCPManaged): inherited variables, native C++ "
-        + "UPROPERTYs, engine-generated variables and anything a human added carry no stamp and "
-        + "are reported as protected_variables instead. A variable referenced by graph nodes is "
-        + "blocked unless force_remove_referenced is also set.",
+        + "is set true. 'variables' and 'components' are implemented; any other true scope is "
+        + "rejected. Removal only considers members previously declared by this builder and "
+        + "stamped MCPManaged. Inherited, native, generated and human-authored members are "
+        + "reported as protected. Variable graph references require force_remove_referenced. "
+        + "A component with graph references, bound events or a retained child is always blocked.",
       ),
       plan_only: z.boolean().optional().describe(
-        "Default false. Return the convergence plan and change nothing: current_variables, "
-        + "desired_variables, variables_to_add/update/remove, protected_variables, "
-        + "referenced_variables, blocked_removals and expected_change_count. Read-only - it "
-        + "returns before the mutation section, so no asset is created and no package is "
-        + "dirtied even when the asset does not exist yet.",
+        "Default false. Return the convergence plan and change nothing. Reports current, desired, "
+        + "added, updated, removed, protected, referenced and blocked state for variables and "
+        + "components, plus expected_change_count. It returns before mutation, so no asset is "
+        + "created and no package is dirtied.",
       ),
       force_remove_referenced: z.boolean().optional().describe(
         "Default false. Allow removal of a managed variable that graph nodes reference, "
@@ -966,6 +996,29 @@ const specs = [
         "Check every precondition and rebuild nothing. Read-only.",
       ),
     }).strict()],
+  ["puerts_audio_build", "audio_build",
+    "Create or reconcile a UE4.27 Sound Cue as one desired-state node tree under "
+    + "/Game/MCPGenerated. Supports Wave Player, Mixer, Random, Modulator, Delay, Looping and "
+    + "Concatenator nodes, ordered child links and reflected editable properties. first_node and "
+    + "children are the playable truth; the native command calls LinkGraphNodesFromSoundNodes to "
+    + "derive the editor graph after authoring. The whole request is validated before mutation, "
+    + "including node ids, types, arity, references, reachability, cycles, wave assets and property "
+    + "conversion. Existing cues must be saved and clean so a package-file snapshot can restore a "
+    + "failed replacement. New cues use the shared asset rollback boundary. Every successful write "
+    + "is independently read back through audio_inspect before save. plan_only mutates nothing, and "
+    + "a repeated matching request is a no-op. Does not start PIE or play audio.",
+    z.object({
+      asset_path: z.string().describe(
+        "Sound Cue package path under /Game/MCPGenerated, without an object suffix.",
+      ),
+      first_node: z.string().min(1).max(64).describe("Id of the playable root node."),
+      nodes: z.array(soundCueNode).min(1).max(100),
+      properties: z.record(reflectedValue).optional().describe(
+        "Editable USoundCue properties by reflected name.",
+      ),
+      plan_only: z.boolean().optional(),
+      save: z.boolean().optional().describe("Save after verified read-back. Defaults true."),
+    }).strict()],
   ["puerts_audio_inspect", "audio_inspect",
     "Read a Sound Cue or a Sound Wave back as machine-readable JSON. This is the first native "
     + "command in the audio domain, which had no read at all: the legacy catalog's only audio "
@@ -984,15 +1037,6 @@ const specs = [
     + "because it plays nothing while looking like a valid asset; and nodes present in AllNodes "
     + "but not reachable from FirstNode are counted as orphans, because they are stored in the "
     + "asset, never play, and are invisible from either list on its own. "
-    + "THERE IS NO audio_build yet, and unlike eqs_inspect that is scheduling rather than an "
-    + "engine limit. A Sound Cue's FirstNode and ChildNodes ARE the source of truth and "
-    + "USoundCue::LinkGraphNodesFromSoundNodes derives the editor graph from them, which is the "
-    + "reverse of an Environment Query; the engine's own SoundCueFactoryNew builds nodes then "
-    + "calls it. What blocked the writer was failure atomicity: replacing an existing cue's node "
-    + "graph needs a content snapshot the rollback boundary can restore. That gap is now closed "
-    + "generically by FBridgeContentSnapshot, which is what unblocked "
-    + "puerts_anim_blueprint_patch, so what remains here is scheduling. The response repeats "
-    + "this in build_unsupported_reason. "
     + "READ ONLY: no transaction, nothing dirtied, and the response reports the package dirty flag "
     + "before and after so a caller can check that rather than take it on trust. Limited to /Game "
     + "and /Engine.",
@@ -1906,6 +1950,38 @@ const specs = [
       conditions: z.array(z.string()).min(1).optional().describe("expect: declarative actor_count, counter and log regex assertions."),
       within_seconds: z.number().positive().optional().describe("expect: deadline in seconds (default 5)."),
     }).strict()],
+  ["puerts_pie_agent_control", "pie_agent_control",
+    "Drive the existing PIE session through the native gameplay agent. Runtime-only: no asset is "
+    + "changed and this tool never starts PIE. op=move_to and op=replay return operation_id for "
+    + "polling through puerts_pie_agent_query op=status. op=look_at, press, key_state, axis_state, "
+    + "clear_axes, record_start and record_stop apply immediately. Every op refuses cleanly when "
+    + "its runtime preconditions are missing. AGENTS.md requires explicit user approval before "
+    + "running this tool.",
+    z.object({
+      op: z.enum([
+        "move_to", "look_at", "press", "key_state", "axis_state", "clear_axes",
+        "record_start", "record_stop", "replay",
+      ]),
+      location: z.tuple([z.number(), z.number(), z.number()]).optional(),
+      actor: z.string().min(1).optional(),
+      timeout: z.number().positive().optional(),
+      acceptance_radius: z.number().positive().optional(),
+      action: z.string().min(1).optional(),
+      key: z.string().min(1).optional(),
+      keys: z.array(z.string().min(1)).min(1).max(32).optional(),
+      hold_seconds: z.number().nonnegative().optional(),
+      pressed: z.boolean().optional(),
+      axis: z.string().min(1).optional(),
+      value: z.number().min(-1).max(1).optional(),
+      events: z.array(z.string()).max(64).optional(),
+      class_filters: z.array(z.string()).max(64).optional(),
+      log_categories: z.array(z.string()).max(64).optional(),
+      max_events: z.number().int().min(1).max(65536).optional(),
+      script: z.array(z.record(z.unknown())).max(1000).optional(),
+      seed: z.number().int().optional(),
+      budget_seconds: z.number().positive().optional(),
+      export: z.boolean().optional(),
+    }).strict()],
   ["puerts_sequence_inspect", "sequence_inspect",
     "Read a UE4.27 ULevelSequence back as machine-readable JSON: display rate, tick resolution, "
     + "playback range, every possessable and spawnable binding, every master and object track with "
@@ -2066,6 +2142,21 @@ const specs = [
   ["puerts_physics_observe", "physics_observe", "Read rigid-body transforms and velocities from the editor or PIE world.", z.object({ actors: z.array(z.string()).max(200).optional() }).strict()],
   ["puerts_viewport_screenshot", "viewport_screenshot", "Fit requested actors and save a PNG of the active editor viewport.", z.object({ actors: z.array(z.string()).max(200).optional(), filename: z.string().optional() }).strict()],
   ["puerts_save", "save", "Save approved project assets and the current level.", z.object({ assets: z.array(z.string()).optional(), level_path: z.string().optional() }).strict()],
+  ["puerts_level_create", "level_create",
+    "Create, save and load a new project map. Refuses an existing target, a non-map template and "
+    + "any dirty map or content package before switching levels.",
+    z.object({
+      level_path: z.string().min(1).describe("New map package path under /Game/, for example /Game/Maps/MyMap."),
+      template_path: z.string().min(1).optional().describe("Existing project map package path to copy from."),
+    }).strict()],
+  ["puerts_level_load", "level_load",
+    "Load an existing project map. Refuses non-map packages and refuses to switch while any map "
+    + "or content package is dirty. Loading the already-current map is a read-only no-op.",
+    z.object({ level_path: z.string().min(1).describe("Existing map package path under /Game/.") }).strict()],
+  ["puerts_level_save", "level_save",
+    "Save the current level and, when save_all is true, every dirty project package. Preserves "
+    + "the legacy level_save schema.",
+    z.object({ save_all: z.boolean().optional().describe("Also save all dirty map and content packages. Default false.") }).strict()],
   ["puerts_pie_start", "pie_start", "Request Play In Editor start.", z.object({}).strict()],
   ["puerts_pie_stop", "pie_stop", "Request Play In Editor stop.", z.object({}).strict()],
   ["puerts_get_logs", "get_logs", "Read captured Unreal logs and command output.", z.object({ maximum_lines: z.number().optional() }).strict()],
@@ -2136,6 +2227,7 @@ const structuredParameters: Readonly<Record<string, readonly string[]>> = {
   puerts_input_mapping_patch: ["actions", "axes", "remove_actions", "remove_axes"],
   puerts_folder_visibility: ["hidden", "hide", "show"],
   puerts_pie_agent_query: ["conditions"],
+  puerts_pie_agent_control: ["location", "keys", "events", "class_filters", "log_categories", "script"],
   puerts_scene_inspect: ["actors", "include_properties"],
   puerts_scene_batch: ["operations"],
   puerts_material_instance_build: ["scalars", "vectors", "textures", "switches"],
@@ -2234,6 +2326,7 @@ const commandTimeouts: Readonly<Record<string, number>> = {
   // A cue graph walk plus reflected properties on every node. Small next to a
   // Blueprint, but the 7 second default is close enough to a large cue on a
   // cold asset load to report a failure for work that succeeds.
+  puerts_audio_build: 30000,
   puerts_audio_inspect: 15000,
   // Walks every LOD's render sections and every clothing asset's physical mesh.
   // A character mesh with several cloth LODs is a much larger read than a

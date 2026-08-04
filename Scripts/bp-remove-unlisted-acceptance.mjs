@@ -74,6 +74,12 @@ const fileSha = (p) => createHash("sha256").update(readFileSync(p)).digest("hex"
 const jsonHash = (v) => createHash("sha256").update(JSON.stringify(canonicalize(v))).digest("hex");
 
 const BP = "/Game/MCPGenerated/BP_ConvergeProbe";
+const COMPONENTS_THREE = [
+  { class: "SceneComponent", name: "Root" },
+  { class: "PointLightComponent", name: "KeepLight", attach_to: "Root" },
+  { class: "AudioComponent", name: "DropAudio" },
+];
+const COMPONENTS_TWO = COMPONENTS_THREE.slice(0, 2);
 const contentFile = (p) =>
   join(projectRoot, "Content", p.replace("/Game/", "").replaceAll("/", "\\") + ".uasset");
 function p4Opened() {
@@ -147,6 +153,24 @@ try {
     assert(rerun.data?.convergence?.removed_variables?.length === 0,
       "(14) a cold rerun removes nothing further");
     assert(rerun.data?.convergence?.converged === true, "(14) still converged");
+
+    const componentBP = recorded.component_asset_path;
+    assert(typeof componentBP === "string" && componentBP.startsWith("/Game/MCPGenerated/BP_ComponentConverge_"),
+      "(15) cold evidence names the fresh component fixture");
+    const componentRead = await call("puerts_graph_inspect", { asset_path: componentBP });
+    assert(componentRead.success === true, "(15) the cold-loaded component fixture inspects");
+    const coldComponents = names((componentRead.data?.components ?? []).map((c) => c.name));
+    assert(JSON.stringify(coldComponents) === JSON.stringify(recorded.final_components),
+      "(15) the cold-loaded component set matches the converged set");
+    const componentRerun = await call("puerts_blueprint_build", {
+      asset_path: componentBP, parent_class: "Actor", components: COMPONENTS_TWO,
+      remove_unlisted: { components: true },
+    });
+    assert(componentRerun.success === true, "(15) the component spec reapplies after restart");
+    assert(componentRerun.data?.convergence?.removed_components?.length === 0,
+      "(15) a cold component rerun removes nothing further");
+    assert(componentRerun.data?.convergence?.components_converged === true,
+      "(15) components remain converged after restart");
   } else {
     console.log("\n-- 1. build the fixture: six managed variables plus a graph");
     const built = await call("puerts_blueprint_build", {
@@ -481,6 +505,132 @@ try {
       remove_unlisted: { variables: true }, force_remove_referenced: true,
     });
 
+    console.log("\n-- 15. components converge downward on a fresh fixture");
+    const componentBP = `/Game/MCPGenerated/BP_ComponentConverge_${Date.now().toString(36)}`;
+    const absent = await call("puerts_graph_inspect", { asset_path: componentBP });
+    assert(absent.success === false, "(15) the component fixture path was unused before this run");
+    const componentBuilt = await call("puerts_blueprint_build", {
+      asset_path: componentBP, parent_class: "Actor", components: COMPONENTS_THREE,
+    });
+    assert(componentBuilt.success === true, "(15) the three-component positive control builds");
+    const componentBefore = await call("puerts_graph_inspect", { asset_path: componentBP });
+    const beforeComponents = names((componentBefore.data?.components ?? []).map((c) => c.name));
+    assert(COMPONENTS_THREE.every((c) => beforeComponents.includes(c.name)),
+      "(15) the positive control moved state and all three components exist");
+
+    const componentPlan = await call("puerts_blueprint_build", {
+      asset_path: componentBP, parent_class: "Actor", components: COMPONENTS_TWO,
+      remove_unlisted: { components: true }, plan_only: true,
+    });
+    assert(componentPlan.success === true, "(15) component plan_only succeeds");
+    assert(names(componentPlan.data?.components_to_remove).join() === "DropAudio",
+      "(15) the plan removes exactly DropAudio");
+    const componentAfterPlan = await call("puerts_graph_inspect", { asset_path: componentBP });
+    assert(componentBefore.data?.member_structure_hash_sha1
+      === componentAfterPlan.data?.member_structure_hash_sha1,
+      "(15) component plan_only leaves the member hash unchanged");
+
+    const componentApplied = await call("puerts_blueprint_build", {
+      asset_path: componentBP, parent_class: "Actor", components: COMPONENTS_TWO,
+      remove_unlisted: { components: true },
+    });
+    assert(componentApplied.success === true, "(15) component downward convergence applies");
+    assert(names(componentApplied.data?.convergence?.removed_components).join() === "DropAudio",
+      "(15) exactly the unlisted managed component is removed");
+    assert(componentApplied.data?.convergence?.components_converged === true,
+      "(15) the native read-back reports component convergence");
+    const componentAfter = await call("puerts_graph_inspect", { asset_path: componentBP });
+    const finalComponents = names((componentAfter.data?.components ?? []).map((c) => c.name));
+    assert(finalComponents.includes("Root") && finalComponents.includes("KeepLight")
+      && !finalComponents.includes("DropAudio"),
+      "(15) independent inspection proves the requested component set");
+    const componentHash = componentAfter.data?.member_structure_hash_sha1;
+    const componentAgain = await call("puerts_blueprint_build", {
+      asset_path: componentBP, parent_class: "Actor", components: COMPONENTS_TWO,
+      remove_unlisted: { components: true },
+    });
+    assert(componentAgain.success === true, "(15) the component spec reruns successfully");
+    assert(componentAgain.data?.convergence?.removed_components?.length === 0,
+      "(15) the component rerun removes nothing further");
+    const componentAfterAgain = await call("puerts_graph_inspect", { asset_path: componentBP });
+    assert(componentAfterAgain.data?.member_structure_hash_sha1 === componentHash,
+      "(15) the component rerun leaves the member hash stable");
+
+    const withHierarchy = [
+      ...COMPONENTS_TWO,
+      { class: "SceneComponent", name: "ManagedParent", attach_to: "Root" },
+      { class: "PointLightComponent", name: "RetainedChild", attach_to: "ManagedParent" },
+    ];
+    const hierarchyBuilt = await call("puerts_blueprint_build", {
+      asset_path: componentBP, parent_class: "Actor", components: withHierarchy,
+    });
+    assert(hierarchyBuilt.success === true, "(15) the retained-child safety control builds");
+    const retainChild = [...COMPONENTS_TWO,
+      { class: "PointLightComponent", name: "RetainedChild", attach_to: "ManagedParent" }];
+    const blockedPlan = await call("puerts_blueprint_build", {
+      asset_path: componentBP, parent_class: "Actor", components: retainChild,
+      remove_unlisted: { components: true }, plan_only: true,
+    });
+    assert(blockedPlan.success === true, "(15) the retained-child plan succeeds");
+    assert((blockedPlan.data?.blocked_component_removals ?? [])
+      .some((item) => item.startsWith("ManagedParent")),
+      "(15) a parent retained by a desired child is blocked before mutation");
+    const blockedApply = await call("puerts_blueprint_build", {
+      asset_path: componentBP, parent_class: "Actor", components: retainChild,
+      remove_unlisted: { components: true },
+    });
+    assert(blockedApply.success === true, "(15) the blocked apply completes safely");
+    const afterBlocked = await call("puerts_graph_inspect", { asset_path: componentBP });
+    assert((afterBlocked.data?.components ?? []).some((c) => c.name === "ManagedParent"),
+      "(15) the blocked parent remains after apply");
+    assert(blockedApply.data?.convergence?.components_converged === false,
+      "(15) the report does not claim convergence while the protected parent remains");
+    const hierarchyCleanup = await call("puerts_blueprint_build", {
+      asset_path: componentBP, parent_class: "Actor", components: COMPONENTS_TWO,
+      remove_unlisted: { components: true },
+    });
+    assert(hierarchyCleanup.success === true
+      && hierarchyCleanup.data?.convergence?.components_converged === true,
+      "(15) parent and child converge away when neither is retained");
+    const afterHierarchyCleanup = await call("puerts_graph_inspect", { asset_path: componentBP });
+    assert(afterHierarchyCleanup.data?.member_structure_hash_sha1 === componentHash,
+      "(15) hierarchy safety control cleans back to the same member hash");
+
+    const failureSeed = await call("puerts_blueprint_build", {
+      asset_path: componentBP, parent_class: "Actor", components: COMPONENTS_THREE,
+    });
+    assert(failureSeed.success === true, "(15) the component rollback control is seeded");
+    const beforeComponentFailure = await call("puerts_graph_inspect", { asset_path: componentBP });
+    const failedComponentRemoval = await call("puerts_blueprint_build", {
+      asset_path: componentBP, parent_class: "Actor", components: COMPONENTS_TWO,
+      remove_unlisted: { components: true },
+      graph: {
+        nodes: [{ id: "a", type: "PrintString" }, { id: "b", type: "PrintString" }],
+        connections: [{ from: "a.no_such_pin", to: "b.exec" }],
+      },
+    });
+    assert(failedComponentRemoval.success === false,
+      "(15) the induced post-removal graph failure is a real failure");
+    const afterComponentFailure = await call("puerts_graph_inspect", { asset_path: componentBP });
+    assert(afterComponentFailure.data?.member_structure_hash_sha1
+      === beforeComponentFailure.data?.member_structure_hash_sha1,
+      "(15) failed component removal restores the exact member hash");
+    assert((afterComponentFailure.data?.components ?? []).some((c) => c.name === "DropAudio"),
+      "(15) failed component removal restores the removed component");
+    const failureCleanup = await call("puerts_blueprint_build", {
+      asset_path: componentBP, parent_class: "Actor", components: COMPONENTS_TWO,
+      remove_unlisted: { components: true },
+    });
+    assert(failureCleanup.success === true
+      && failureCleanup.data?.convergence?.components_converged === true,
+      "(15) the rollback control cleans back to the converged set");
+    const afterFailureCleanup = await call("puerts_graph_inspect", { asset_path: componentBP });
+    assert(afterFailureCleanup.data?.member_structure_hash_sha1 === componentHash,
+      "(15) rollback control cleanup returns to the stable member hash");
+    evidence.steps.component_convergence = componentApplied.data?.convergence;
+    evidence.steps.component_failure_rollback = failedComponentRemoval.data?.cleanup;
+    evidence.steps.component_retained_child = blockedApply.data?.convergence;
+
     const p4After = p4Opened();
     if (p4Before !== null && p4After !== null) {
       assert(p4Before === p4After, "(13) no source-control entry appeared");
@@ -490,7 +640,14 @@ try {
 
     mkdirSync(join(repoRoot, "docs", "evidence"), { recursive: true });
     writeFileSync(join(repoRoot, "docs", "evidence", "bp-remove-unlisted.json"),
-      JSON.stringify({ final_variables: finalVars, plan: plan.data, forced: forced.data?.convergence }, null, 2));
+      JSON.stringify({
+        final_variables: finalVars,
+        plan: plan.data,
+        forced: forced.data?.convergence,
+        component_asset_path: componentBP,
+        final_components: finalComponents,
+        component_plan: componentPlan.data,
+      }, null, 2));
   }
 
   const out = join(repoRoot, "docs", "evidence", `bp-remove-unlisted-${phase}.json`);

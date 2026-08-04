@@ -86,6 +86,7 @@ declare module "ue" {
     IsRuntimeReady(): boolean;
     GetRuntimeToolCount(): number;
     FindAssetsJson(path: string, typeFilter: string, nameFilter: string, recursive: boolean, limit: number, outAssetsJson: $Ref<string>, outError: $Ref<string>): boolean;
+    DeleteAsset(assetPath: string, confirm: boolean, force: boolean, outResultJson: $Ref<string>, outError: $Ref<string>): boolean;
     FindLevelActor(nameOrPath: string): Actor;
     FindObjectByPath(objectPath: string): Object;
     ReadObjectPropertyJson(object: Object, propertyName: string, outValueJson: $Ref<string>, outObjectPath: $Ref<string>, outError: $Ref<string>): boolean;
@@ -116,6 +117,7 @@ declare module "ue" {
     InspectNavigationJson(requestJson: string, outResultJson: $Ref<string>, outError: $Ref<string>): boolean;
     QueryNavigationJson(requestJson: string, outResultJson: $Ref<string>, outError: $Ref<string>): boolean;
     BuildNavigationJson(requestJson: string, outResultJson: $Ref<string>, outError: $Ref<string>): boolean;
+    BuildSoundCueJson(requestJson: string, outResultJson: $Ref<string>, outError: $Ref<string>): boolean;
     InspectAudioAssetJson(requestJson: string, outResultJson: $Ref<string>, outError: $Ref<string>): boolean;
     InspectClothJson(requestJson: string, outResultJson: $Ref<string>, outError: $Ref<string>): boolean;
     BuildAIPerceptionJson(specJson: string, outResultJson: $Ref<string>, outError: $Ref<string>): boolean;
@@ -137,11 +139,15 @@ declare module "ue" {
     SetFolderVisibilityJson(specJson: string, outResultJson: $Ref<string>, outError: $Ref<string>): boolean;
     PlayCameraShakeJson(specJson: string, outResultJson: $Ref<string>, outError: $Ref<string>): boolean;
     QueryPIEAgentJson(requestJson: string, outResultJson: $Ref<string>, outError: $Ref<string>): boolean;
+    ControlPIEAgentJson(requestJson: string, outResultJson: $Ref<string>, outError: $Ref<string>): boolean;
     BuildPhysicsSceneJson(specJson: string, outResultJson: $Ref<string>, outError: $Ref<string>): boolean;
     ObservePhysicsSceneJson(requestJson: string, outResultJson: $Ref<string>, outError: $Ref<string>): boolean;
     CaptureViewportJson(requestJson: string, outResultJson: $Ref<string>, outError: $Ref<string>): boolean;
     SaveProjectAsset(assetPath: string, outError: $Ref<string>): boolean;
     SaveCurrentLevel(assetPath: string, outSavedPath: $Ref<string>): boolean;
+    CreateLevelJson(levelPath: string, templatePath: string, outResultJson: $Ref<string>, outError: $Ref<string>): boolean;
+    LoadLevelJson(levelPath: string, outResultJson: $Ref<string>, outError: $Ref<string>): boolean;
+    SaveLevelJson(saveAll: boolean, outResultJson: $Ref<string>, outError: $Ref<string>): boolean;
     StartPlayInEditor(outError: $Ref<string>): boolean;
     StopPlayInEditor(outError: $Ref<string>): boolean;
     UndoLastMCPTransaction(expectedId: string, outId: $Ref<string>, outError: $Ref<string>): boolean;

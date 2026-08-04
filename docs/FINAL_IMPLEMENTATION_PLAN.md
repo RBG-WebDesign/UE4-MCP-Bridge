@@ -21,17 +21,17 @@ gate, and no item below may be blocked on it.
 
 | Measure | Value |
 |---|---:|
-| Registrations | 273 |
-| Unique canonical capabilities | 196 |
-| Native pipe commands | 60 |
-| Native aliases | 40 |
+| Registrations | 280 |
+| Unique canonical capabilities | 206 |
+| Native pipe commands | 66 |
+| Native aliases | 41 |
 | Server-local | 3 |
 | Legacy HTTP (opt-in only) | 170 |
 | `live_verified` | 19 |
-| `implemented` (compiles, unproven) | 30 |
+| `implemented` or `implemented_unverified` | 41 |
 | `live_partial` | 8 |
-| `untested` | 78 |
-| Migration actions open | REFRONT 28 (6 really MERGE, so 22 genuine), PORT 39, MERGE 10, RETIRE 1 |
+| `untested` | 122 |
+| Migration actions open | REFRONT 28, PORT 38, MERGE 10, RETIRE 1 |
 
 Vertical slices, last live run (all seven exist; five can attempt):
 
@@ -112,11 +112,11 @@ acceptance, rollback, evidence, risk, lane, merge order) is in
 
 ### 2. Missing feature-dev primitives
 - **FP-1** Runtime observation: read a variable/state off a running PIE actor (pie_agent read half exists; join it). Without it no slice proves BEHAVIOUR.
-- **FP-2** Input simulation in PIE (pie_agent press/move re-front, user-gated).
-- **FP-3** Delete-asset primitive (finding 0n; enables fixture reset and downward convergence).
-- **FP-4** remove_unlisted components scope (finding 0n asymmetry).
-- **FP-5** Level save/load/create as commands (level_save exists legacy-only).
-- **FP-6** Sound cue builder (blocked on the 0n/0t snapshot pattern; feasible per lane W).
+- **FP-2** Input simulation in PIE: all nine native control operations are wired, editor-free tested and linked; user-authorized live proof remains.
+- **FP-3** Delete-asset primitive implemented, safety-tested and linked; destructive live create-delete-verify proof remains user-gated.
+- **FP-4** Component downward convergence implemented, contract-tested and linked; warm+cold live proof remains user-gated.
+- **FP-5** Native level create/load/save implemented, contract-tested and linked; warm+cold lifecycle proof remains user-gated.
+- **FP-6** Native desired-state Sound Cue builder implemented, contract-tested and linked; warm+cold and user-authorized PIE playback proof remain.
 
 ### 3. Domain completion — the feature acceptance library
 One script per feature, modelled on bp-graph-patch-acceptance (warm+cold,
@@ -129,7 +129,7 @@ interaction · Sequencer events · packaged feature demo. Each is BOTH the test
 and the recipe; failures name the missing primitive (slice-harness pattern).
 
 ### 4. Legacy preservation and migration
-- 22 genuine REFRONT remaining (PIE agent write half 7, AnimPose 5, Cloth 4 write-blocked, AutoPIE 2, DataTable 2, AnimBP 1, blueprint_compile 1).
+- 16 genuine REFRONT remaining (PIE telemetry 1, AnimPose 5, Cloth 4 write-blocked, AutoPIE 2, DataTable 2, AnimBP 1, blueprint_compile 1).
 - 39 PORT: port or alias-with-evidence each; parameter parity per finding 0s (the spawn_actor lesson: aliases that describe loss as design).
 - 10 MERGE + 1 RETIRE (python_proxy) executed in metadata.
 - Legacy listener stays opt-in; never a fallback.
@@ -146,7 +146,7 @@ and the recipe; failures name the missing primitive (slice-harness pattern).
 
 ### 7. Installer, packaging, CI, security, release
 - **RL-1** Packaged-zip LOADS proof (RELEASE.md 3a steps 5–7; the one unrun step).
-- **RL-2** Zip config: project-derived fallback implemented and editor-free package acceptance green; native compile and two-project live proof remain.
+- **RL-2** Zip config: project-derived fallback implemented, package-tested and linked; two-project live proof remains.
 - **RL-3** Teammate install proof executed by a human once.
 - **RL-4** CI: editor-free jobs green in Actions; live suite list documented as human-run.
 - **RL-5** Binary packaging: permanently blocked in 4.27 (BuildPluginCommand writes a one-plugin descriptor; cited). Source-zip is the ship vehicle. Document as engine limitation.

@@ -333,23 +333,29 @@ const aliases: readonly CompatAlias[] = [
   },
   {
     name: "level_save",
-    canonical: "puerts_save",
+    canonical: "puerts_level_save",
     description:
-      "Save the current level through the native save command. save_all has no native equivalent: " +
-      "puerts_save takes an explicit asset list instead.",
+      "Save the current level and, when requested, every dirty project package through the native "
+      + "level save command.",
     inputSchema: z.object({
-      save_all: z.boolean().optional().describe("Not supported natively; supplying true fails the call"),
+      save_all: z.boolean().optional().describe("Also save all dirty project packages. Default false."),
     }),
-    translate: (params) => {
-      if (params.save_all === true) {
-        return unmappable(
-          ["save_all"],
-          ["save_all: puerts_save never saves every dirty asset. Pass the explicit asset paths to puerts_save (assets) or use the asset_save_many alias."],
-        );
-      }
-      // No assets and no level_path means "save the current level" natively.
-      return routed({});
-    },
+    translate: (params) => routed({ save_all: params.save_all === true }),
+  },
+  {
+    name: "level_new",
+    canonical: "puerts_level_create",
+    description:
+      "Create, save and load a new level through the native map command. Refuses an existing target "
+      + "and unsaved packages before switching levels.",
+    inputSchema: z.object({
+      path: z.string().min(1).describe("New map package path, for example /Game/Maps/MyMap."),
+      template: z.string().min(1).optional().describe("Existing map package path to copy from."),
+    }),
+    translate: (params) => routed({
+      level_path: params.path,
+      ...(params.template === undefined ? {} : { template_path: params.template }),
+    }),
   },
   {
     name: "asset_save_many",

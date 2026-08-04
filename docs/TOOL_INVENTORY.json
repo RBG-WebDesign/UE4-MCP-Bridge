@@ -23,12 +23,12 @@
     "native_live_partial": "live acceptance passed, but part of the evidence is the builder own report because no independent reader exists yet",
     "legacy_untested": "no live editor proof of any kind; a non-null test_file covers only the mock listener"
   },
-  "tool_count": 273,
+  "tool_count": 280,
   "by_backend": {
     "legacy_http": 170,
-    "native_pipe_alias": 40,
+    "native_pipe_alias": 41,
     "server_local": 3,
-    "native_pipe": 60
+    "native_pipe": 66
   },
   "tools": [
     {
@@ -4888,10 +4888,48 @@
     },
     {
       "name": "level_new",
+      "module": "mcp-server/src/tools/compat.ts",
+      "backend": "native_pipe_alias",
+      "migration_state": "wrap",
+      "target_replacement": "puerts_level_create",
+      "description": "[COMPAT ALIAS -> puerts_level_create] Create, save and load a new level through the native map command. Refuses an existing target and unsaved packages before switching levels.",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "path": "string",
+          "template": "string?"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "idempotentHint": false,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": "mcp-server/tests/compat-tools.test.ts",
+      "capability_category": "compat",
+      "canonical_capability": "level.create",
+      "owner": "compat alias router",
+      "lifecycle": "active",
+      "migration_action": "ALIAS",
+      "replacement_tool": "puerts_level_create",
+      "compatibility_alias": true,
+      "cpp_builder": null,
+      "cpp_entry_point": null,
+      "python_handler": null,
+      "live_evidence": [],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": null,
+      "verification": "mock_only"
+    },
+    {
+      "name": "level_new",
       "module": "mcp-server/src/tools/content.ts",
       "backend": "legacy_http",
-      "migration_state": "legacy_untested",
-      "target_replacement": null,
+      "migration_state": "hybrid_candidate",
+      "target_replacement": "puerts_level_create",
       "description": "Create and load a new level (optionally from a template map), then save it. WARNING: switches the editor's loaded level; refuses if unsaved changes exist.",
       "schema": {
         "kind": "object",
@@ -4909,19 +4947,19 @@
       "module_listener_commands": [],
       "test_file": "mcp-server/tests/content-tools.test.ts",
       "capability_category": "assets",
-      "canonical_capability": "assets.level_new",
+      "canonical_capability": "level.create",
       "owner": "legacy Python listener",
       "lifecycle": "active",
-      "migration_action": "PORT",
-      "replacement_tool": null,
-      "compatibility_alias": false,
+      "migration_action": "ALIAS",
+      "replacement_tool": "puerts_level_create",
+      "compatibility_alias": true,
       "cpp_builder": null,
       "cpp_entry_point": null,
       "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/content_tools.py",
       "live_evidence": [],
-      "migration_risk": "high",
+      "migration_risk": "low",
       "capability_loss_risk": "low",
-      "notes": "no native map-load or map-create exists (findings defect 5); layer: new_native_wrapper",
+      "notes": null,
       "verification": "mock_only"
     },
     {
@@ -4966,8 +5004,8 @@
       "module": "mcp-server/src/tools/compat.ts",
       "backend": "native_pipe_alias",
       "migration_state": "wrap",
-      "target_replacement": "puerts_save",
-      "description": "[COMPAT ALIAS -> puerts_save] Save the current level through the native save command. save_all has no native equivalent: puerts_save takes an explicit asset list instead.",
+      "target_replacement": "puerts_level_save",
+      "description": "[COMPAT ALIAS -> puerts_level_save] Save the current level and, when requested, every dirty project package through the native level save command.",
       "schema": {
         "kind": "object",
         "params": {
@@ -4983,11 +5021,11 @@
       "module_listener_commands": [],
       "test_file": "mcp-server/tests/compat-tools.test.ts",
       "capability_category": "compat",
-      "canonical_capability": "assets.save",
+      "canonical_capability": "level.save",
       "owner": "compat alias router",
       "lifecycle": "active",
       "migration_action": "ALIAS",
-      "replacement_tool": "puerts_save",
+      "replacement_tool": "puerts_level_save",
       "compatibility_alias": true,
       "cpp_builder": null,
       "cpp_entry_point": null,
@@ -5003,7 +5041,7 @@
       "module": "mcp-server/src/tools/level.ts",
       "backend": "legacy_http",
       "migration_state": "hybrid_candidate",
-      "target_replacement": "puerts_save",
+      "target_replacement": "puerts_level_save",
       "description": "Save the current level and optionally all dirty assets.",
       "schema": {
         "kind": "object",
@@ -5020,11 +5058,11 @@
       "module_listener_commands": [],
       "test_file": null,
       "capability_category": "levels",
-      "canonical_capability": "assets.save",
+      "canonical_capability": "level.save",
       "owner": "legacy Python listener",
       "lifecycle": "active",
       "migration_action": "ALIAS",
-      "replacement_tool": "puerts_save",
+      "replacement_tool": "puerts_level_save",
       "compatibility_alias": true,
       "cpp_builder": null,
       "cpp_entry_point": null,
@@ -7507,12 +7545,54 @@
       "verification": "implemented"
     },
     {
+      "name": "puerts_audio_build",
+      "module": "mcp-server/src/tools/puerts.ts",
+      "backend": "native_pipe",
+      "migration_state": "native_pending_live",
+      "target_replacement": null,
+      "description": "[PRIMARY NATIVE IPC] Create or reconcile a UE4.27 Sound Cue as one desired-state node tree under /Game/MCPGenerated. Supports Wave Player, Mixer, Random, Modulator, Delay, Looping and Concatenator nodes, ordered child links and reflected editable properties. first_node and children are the playable truth; the native command calls LinkGraphNodesFromSoundNodes to derive the editor graph after authoring. The whole request is validated before mutation, including node ids, types, arity, references, reachability, cycles, wave assets and property conversion. Existing cues must be saved and clean so a package-file snapshot can restore a failed replacement. New cues use the shared asset rollback boundary. Every successful write is independently read back through audio_inspect before save. plan_only mutates nothing, and a repeated matching request is a no-op. Does not start PIE or play audio.",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "asset_path": "string",
+          "first_node": "string",
+          "nodes": "array",
+          "properties": "record?",
+          "plan_only": "boolean?",
+          "save": "boolean?"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": "mcp-server/tests/puerts-tools.test.ts",
+      "capability_category": "assets",
+      "canonical_capability": "audio.build",
+      "owner": "MCPBridgePuerTS service",
+      "lifecycle": "active",
+      "migration_action": "KEEP",
+      "replacement_tool": null,
+      "compatibility_alias": false,
+      "cpp_builder": "MCPPuerTSBridgeService",
+      "cpp_entry_point": "BuildSoundCueJson",
+      "python_handler": null,
+      "live_evidence": [],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": "Desired-state UE4.27 Sound Cue authoring under /Game/MCPGenerated. Supports Wave Player, Mixer, Random, Modulator, Delay, Looping and Concatenator nodes, stable ids, ordered child links, Sound Wave references and reflected editable properties. Validates the full tree and property conversion on transient objects before mutation. Existing cues require a saved clean package and use FBridgeContentSnapshot; new cues use FBridgeAssetRollback. USoundCue::FirstNode and USoundNode::ChildNodes remain the playable truth, and LinkGraphNodesFromSoundNodes derives the editor graph. Every successful mutation is read back through audio_inspect before save. plan_only and convergent reruns do not write. TypeScript contract, UHT, UE4.27 C++ compile, library creation, DLL link and install parity pass. Warm, cold and user-authorized PIE playback evidence remain outstanding.",
+      "verification": "implemented_unverified"
+    },
+    {
       "name": "puerts_audio_inspect",
       "module": "mcp-server/src/tools/puerts.ts",
       "backend": "native_pipe",
       "migration_state": "native_pending_live",
       "target_replacement": null,
-      "description": "[PRIMARY NATIVE IPC] Read a Sound Cue or a Sound Wave back as machine-readable JSON. This is the first native command in the audio domain, which had no read at all: the legacy catalog's only audio entry was audio_component_add, a Blueprint component write with no way to see what it pointed at. Reports the common USoundBase fields (duration, sound class, attenuation settings) and every EditAnywhere property by reflected name, so a Sound Wave's NumChannels, SampleRate, SoundGroup, CompressionQuality, bLooping and bStreaming come back without this command carrying a field list that would go stale. For a Sound Cue it also walks the WHOLE node graph from FirstNode and returns each node's id, class, title, ordered children and properties. The node array is canonically sorted so structure_hash_sha1 is stable across reads of an unchanged cue; each node's CHILDREN are deliberately NOT sorted, because for a Mixer, a Random or a Concatenator the child index is the meaning and sorting it away would canonicalise out what the graph encodes. Two things a caller cannot get any other way: a cue with no FirstNode is warned about, because it plays nothing while looking like a valid asset; and nodes present in AllNodes but not reachable from FirstNode are counted as orphans, because they are stored in the asset, never play, and are invisible from either list on its own. THERE IS NO audio_build yet, and unlike eqs_inspect that is scheduling rather than an engine limit. A Sound Cue's FirstNode and ChildNodes ARE the source of truth and USoundCue::LinkGraphNodesFromSoundNodes derives the editor graph from them, which is the reverse of an Environment Query; the engine's own SoundCueFactoryNew builds nodes then calls it. What blocked the writer was failure atomicity: replacing an existing cue's node graph needs a content snapshot the rollback boundary can restore. That gap is now closed generically by FBridgeContentSnapshot, which is what unblocked puerts_anim_blueprint_patch, so what remains here is scheduling. The response repeats this in build_unsupported_reason. READ ONLY: no transaction, nothing dirtied, and the response reports the package dirty flag before and after so a caller can check that rather than take it on trust. Limited to /Game and /Engine.",
+      "description": "[PRIMARY NATIVE IPC] Read a Sound Cue or a Sound Wave back as machine-readable JSON. This is the first native command in the audio domain, which had no read at all: the legacy catalog's only audio entry was audio_component_add, a Blueprint component write with no way to see what it pointed at. Reports the common USoundBase fields (duration, sound class, attenuation settings) and every EditAnywhere property by reflected name, so a Sound Wave's NumChannels, SampleRate, SoundGroup, CompressionQuality, bLooping and bStreaming come back without this command carrying a field list that would go stale. For a Sound Cue it also walks the WHOLE node graph from FirstNode and returns each node's id, class, title, ordered children and properties. The node array is canonically sorted so structure_hash_sha1 is stable across reads of an unchanged cue; each node's CHILDREN are deliberately NOT sorted, because for a Mixer, a Random or a Concatenator the child index is the meaning and sorting it away would canonicalise out what the graph encodes. Two things a caller cannot get any other way: a cue with no FirstNode is warned about, because it plays nothing while looking like a valid asset; and nodes present in AllNodes but not reachable from FirstNode are counted as orphans, because they are stored in the asset, never play, and are invisible from either list on its own. READ ONLY: no transaction, nothing dirtied, and the response reports the package dirty flag before and after so a caller can check that rather than take it on trust. Limited to /Game and /Engine.",
       "schema": {
         "kind": "object",
         "params": {
@@ -7540,8 +7620,8 @@
       "live_evidence": [],
       "migration_risk": "low",
       "capability_loss_risk": "low",
-      "notes": "UNCOMPILED. The first native command in the audio domain, which had no read at all: the legacy catalog's only audio entry was audio_component_add, a Blueprint component write with no way to see what it pointed at. Reports the common USoundBase fields (Duration, SoundClassObject, AttenuationSettings, all public, Runtime/Engine/Classes/Sound/SoundBase.h:65,144,163) plus every EditAnywhere property by reflected name, so a Sound Wave's NumChannels, SampleRate, SoundGroup, CompressionQuality, bLooping and bStreaming arrive without a field list that would go stale, and SampleRate being protected (SoundWave.h:574) costs nothing. For a USoundCue it walks the whole node graph from FirstNode (SoundCue.h:97, public) through USoundNode::ChildNodes (SoundNode.h:64, public after GENERATED_UCLASS_BODY) and returns each node's id, class, USoundNode::GetTitle (SoundNode.h:179, public, unguarded), ordered children and reflected properties, capped at 500 reachable nodes. The node array uses MCPBridgeBlueprintMembers::SortByStringField and MCPBridgeBlueprintMembers::StructureHash, the same canonical sort and SHA1 the graph, Behavior Tree, Widget and member inspectors use, so structure_hash_sha1 is the same shape and spelling. Each node's CHILDREN are deliberately unsorted: for a Mixer, Random or Concatenator the child index is the meaning. Two things no other read gives: a cue with a null FirstNode plays nothing while looking valid and is warned about, and nodes in the WITH_EDITORONLY_DATA AllNodes list (SoundCue.h:110-116) that are unreachable from FirstNode are counted as orphans. NO audio_build, and unlike eqs_inspect that is scheduling rather than an engine limit: FirstNode and ChildNodes are the source of truth and USoundCue::LinkGraphNodesFromSoundNodes derives the editor graph from them (SoundCue.h:309; Editor/AudioEditor/Private/Factories/SoundCueFactoryNew.cpp:42 builds nodes then calls it), which is the reverse of UEnvironmentQueryGraph::UpdateAsset. What blocks the writer is failure atomicity: replacing an existing cue's node graph needs a content snapshot the rollback boundary can restore, the same gap finding 0t records for anim_blueprint_build. build_unsupported_reason says so in the response. READ ONLY: absent from IsToolMutating, nothing calls Modify or MarkPackageDirty, package_dirty_before/after reported. NOT COMPILED and NOT run: this lane holds no build rights.",
-      "verification": "implemented"
+      "notes": "Native read-back for Sound Cues and Sound Waves. Reports common USoundBase fields and every EditAnywhere property. For Sound Cues it walks FirstNode and ordered ChildNodes, reports stable node ids, classes, titles, reflected properties, explicit Sound Wave references and a canonical structure_hash_sha1. It also warns about a missing FirstNode and orphaned AllNodes. This is the independent verifier for puerts_audio_build. Read only, absent from IsToolMutating, and package dirty state is measured before and after. TypeScript contract, UHT, UE4.27 C++ compile, library creation, DLL link and install parity pass. Live warm and cold evidence remains outstanding.",
+      "verification": "implemented_unverified"
     },
     {
       "name": "puerts_behavior_tree_build",
@@ -7752,7 +7832,7 @@
       ],
       "migration_risk": "low",
       "capability_loss_risk": "low",
-      "notes": null,
+      "notes": "The base builder is live_verified. FP-4 component downward convergence is implemented, editor-free contract tested, UE4.27 compiled and linked, with warm and cold live acceptance authored in Scripts/bp-remove-unlisted-acceptance.mjs but not yet run. Only MCPManaged components are removable; graph references, bound events and retained children block removal.",
       "verification": "live_verified"
     },
     {
@@ -8046,6 +8126,45 @@
       "verification": "live_partial"
     },
     {
+      "name": "puerts_delete_asset",
+      "module": "mcp-server/src/tools/puerts.ts",
+      "backend": "native_pipe",
+      "migration_state": "native_pending_live",
+      "target_replacement": null,
+      "description": "[PRIMARY NATIVE IPC] Permanently delete one asset under /Game. confirm=true is mandatory. By default UE4.27 checks both disk and memory references and refuses a referenced asset. force=true uses the engine's force-delete path, which can null references, dirty referencer packages, remove Blueprint instances, and close asset editors holding affected objects. The response lists disk referencers and independently verifies both Asset Registry and package-file absence. Deleting an already absent asset is a successful no-op. This operation is not transacted and cannot be undone; make a source-control checkpoint first.",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "asset_path": "string",
+          "confirm": "literal",
+          "force": "boolean?"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": "mcp-server/tests/puerts-tools.test.ts",
+      "capability_category": "assets",
+      "canonical_capability": "assets.delete",
+      "owner": "MCPBridgePuerTS service",
+      "lifecycle": "active",
+      "migration_action": "KEEP",
+      "replacement_tool": null,
+      "compatibility_alias": false,
+      "cpp_builder": "MCPPuerTSBridgeService",
+      "cpp_entry_point": "DeleteAsset",
+      "python_handler": null,
+      "live_evidence": [],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": "FP-3. Permanent, confirmed, idempotent deletion of one /Game asset. The safe path reports disk referencers and lets UE4.27 check memory references; force=true uses ObjectTools::ForceDeleteObjects and may null references. The command refuses the current level and read-only files when source control is disabled, then independently verifies Asset Registry and package-file absence. Both TypeScript projects, focused contract tests, UHT, UBT, final linking and install:check pass. NOT run live.",
+      "verification": "implemented"
+    },
+    {
       "name": "puerts_diagnostic",
       "module": "mcp-server/src/tools/puerts.ts",
       "backend": "native_pipe",
@@ -8205,7 +8324,7 @@
       ],
       "migration_risk": "low",
       "capability_loss_risk": "low",
-      "notes": null,
+      "notes": "The base builder is live_verified. FP-4 component downward convergence is implemented, editor-free contract tested, UE4.27 compiled and linked, with warm and cold live acceptance authored in Scripts/bp-remove-unlisted-acceptance.mjs but not yet run. Only MCPManaged components are removable; graph references, bound events and retained children block removal.",
       "verification": "live_verified"
     },
     {
@@ -8519,6 +8638,118 @@
       "migration_risk": "low",
       "capability_loss_risk": "low",
       "notes": "UNCOMPILED. Reports the state of one job, or lists every job this editor session holds. A job is work the ENGINE advances while the game thread is free, which is the only kind this bridge can track: UEditorEngine::BuildLighting hands the level to FStaticLightingManager and returns while the build advances on the editor tick (StaticLightingSystem.cpp:2492-2522, :341-386); ANavigationData::RebuildAll does not block (NavigationData.h:619); a sequence render is a second process. Between slices of all three the game thread is free, so this is an ordinary short command and needs no second pipe, no FTicker and no chunked executor - none of docs/PERF_AND_LONG_JOBS.md 6.5 changes 1 to 3 was made. Nothing is cached: every live counter is derived at poll time from the engine or the OS, and there is deliberately no percent, because no UE4.27 entry point on any of these paths reports a fraction. Job ids carry the session id that minted them, so an id from a previous editor answers job_lost_editor_restarted rather than being reported as running.",
+      "verification": "implemented"
+    },
+    {
+      "name": "puerts_level_create",
+      "module": "mcp-server/src/tools/puerts.ts",
+      "backend": "native_pipe",
+      "migration_state": "native_pending_live",
+      "target_replacement": null,
+      "description": "[PRIMARY NATIVE IPC] Create, save and load a new project map. Refuses an existing target, a non-map template and any dirty map or content package before switching levels.",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "level_path": "string",
+          "template_path": "string?"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "idempotentHint": false,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": "mcp-server/tests/puerts-tools.test.ts",
+      "capability_category": "level",
+      "canonical_capability": "level.create",
+      "owner": "MCPBridgePuerTS service",
+      "lifecycle": "active",
+      "migration_action": "KEEP",
+      "replacement_tool": null,
+      "compatibility_alias": false,
+      "cpp_builder": "MCPPuerTSBridgeService",
+      "cpp_entry_point": "CreateLevelJson",
+      "python_handler": null,
+      "live_evidence": [],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": "FP-5. Creates a fresh /Game map, optionally from a verified .umap template, saves it and independently checks the loaded package and disk package. Refuses existing targets and any dirty world or content package before switching. TypeScript, editor-free contract tests, UHT, UBT, final link and install:check pass. Warm and cold live acceptance is authored but not run.",
+      "verification": "implemented"
+    },
+    {
+      "name": "puerts_level_load",
+      "module": "mcp-server/src/tools/puerts.ts",
+      "backend": "native_pipe",
+      "migration_state": "native_pending_live",
+      "target_replacement": null,
+      "description": "[PRIMARY NATIVE IPC] Load an existing project map. Refuses non-map packages and refuses to switch while any map or content package is dirty. Loading the already-current map is a read-only no-op.",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "level_path": "string"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": "mcp-server/tests/puerts-tools.test.ts",
+      "capability_category": "level",
+      "canonical_capability": "level.load",
+      "owner": "MCPBridgePuerTS service",
+      "lifecycle": "active",
+      "migration_action": "KEEP",
+      "replacement_tool": null,
+      "compatibility_alias": false,
+      "cpp_builder": "MCPPuerTSBridgeService",
+      "cpp_entry_point": "LoadLevelJson",
+      "python_handler": null,
+      "live_evidence": [],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": "FP-5. Loads only an existing /Game .umap, refuses dirty packages before switching and treats the already-loaded map as a successful no-op. TypeScript, editor-free contract tests, UHT, UBT, final link and install:check pass. Warm and cold live acceptance is authored but not run.",
+      "verification": "implemented"
+    },
+    {
+      "name": "puerts_level_save",
+      "module": "mcp-server/src/tools/puerts.ts",
+      "backend": "native_pipe",
+      "migration_state": "native_pending_live",
+      "target_replacement": null,
+      "description": "[PRIMARY NATIVE IPC] Save the current level and, when save_all is true, every dirty project package. Preserves the legacy level_save schema.",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "save_all": "boolean?"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "idempotentHint": false,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": "mcp-server/tests/puerts-tools.test.ts",
+      "capability_category": "level",
+      "canonical_capability": "level.save",
+      "owner": "MCPBridgePuerTS service",
+      "lifecycle": "active",
+      "migration_action": "KEEP",
+      "replacement_tool": null,
+      "compatibility_alias": false,
+      "cpp_builder": "MCPPuerTSBridgeService",
+      "cpp_entry_point": "SaveLevelJson",
+      "python_handler": null,
+      "live_evidence": [],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": "FP-5. Saves the current persisted map and preserves the legacy save_all parameter for all dirty map and content packages. Package writes remain outside editor transactions. TypeScript, editor-free contract tests, UHT, UBT, final link and install:check pass. Warm and cold live acceptance is authored but not run.",
       "verification": "implemented"
     },
     {
@@ -8879,6 +9110,62 @@
       "verification": "live_partial"
     },
     {
+      "name": "puerts_pie_agent_control",
+      "module": "mcp-server/src/tools/puerts.ts",
+      "backend": "native_pipe",
+      "migration_state": "native_pending_live",
+      "target_replacement": null,
+      "description": "[PRIMARY NATIVE IPC] Drive the existing PIE session through the native gameplay agent. Runtime-only: no asset is changed and this tool never starts PIE. op=move_to and op=replay return operation_id for polling through puerts_pie_agent_query op=status. op=look_at, press, key_state, axis_state, clear_axes, record_start and record_stop apply immediately. Every op refuses cleanly when its runtime preconditions are missing. AGENTS.md requires explicit user approval before running this tool.",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "op": "enum",
+          "location": "tuple?",
+          "actor": "string?",
+          "timeout": "number?",
+          "acceptance_radius": "number?",
+          "action": "string?",
+          "key": "string?",
+          "keys": "array?",
+          "hold_seconds": "number?",
+          "pressed": "boolean?",
+          "axis": "string?",
+          "value": "number?",
+          "events": "array?",
+          "class_filters": "array?",
+          "log_categories": "array?",
+          "max_events": "number?",
+          "script": "array?",
+          "seed": "number?",
+          "budget_seconds": "number?",
+          "export": "boolean?"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": "mcp-server/tests/puerts-tools.test.ts",
+      "capability_category": "pie",
+      "canonical_capability": "pie.agent_control",
+      "owner": "MCPBridgePuerTS service",
+      "lifecycle": "active",
+      "migration_action": "KEEP",
+      "replacement_tool": null,
+      "compatibility_alias": false,
+      "cpp_builder": "MCPBridgePIEAgent",
+      "cpp_entry_point": "ControlPIEAgentJson",
+      "python_handler": null,
+      "live_evidence": [],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": "One user-gated native command re-fronts all nine existing UPIEAgentLibrary control operations: move_to, look_at, press, key_state, axis_state, clear_axes, record_start, record_stop and replay. Runtime-only and intentionally outside editor transactions. It never starts PIE. Editor-free schema, annotation and dispatch coverage pass. UBT and final DLL linking pass in BridgeInstallTest; install:check is green. NOT run live.",
+      "verification": "implemented"
+    },
+    {
       "name": "puerts_pie_agent_query",
       "module": "mcp-server/src/tools/puerts.ts",
       "backend": "native_pipe",
@@ -8920,7 +9207,7 @@
       "live_evidence": [],
       "migration_risk": "low",
       "capability_loss_risk": "low",
-      "notes": "the READ-ONLY half of UPIEAgentLibrary: observe, status, expect. The write half (move_to, look_at, press, record_start, record_stop, replay) is deliberately absent because AGENTS.md requires the user to ask before any pie_agent_ tool runs, which makes the read half both the safe half and the one worth having first. One behaviour difference from the legacy pie_agent_expect: the native command starts the check and returns operation_id rather than blocking until the verdict; poll op=status. NOT COMPILED and NOT run.",
+      "notes": "the READ-ONLY half of UPIEAgentLibrary: observe, read_property, status, expect. One behaviour difference from the legacy pie_agent_expect: the native command starts the check and returns operation_id rather than blocking until the verdict; poll op=status. The runtime control half is puerts_pie_agent_control. NOT COMPILED and NOT run.",
       "verification": "implemented"
     },
     {

@@ -19,9 +19,38 @@ executes it.
   materials and level slices as rewritten, and 30 implemented tools that have
   never been run live (RB-6).
 
+## Current offline construction update
+
+- RL-2 project-specific default pipes are implemented, package-tested and linked.
+  Two-project live collision proof remains.
+- FP-2 exposes all nine existing UPIEAgentLibrary control operations through
+  `puerts_pie_agent_control`. TypeScript, focused tests, UBT, final linking and
+  install:check pass. User-authorized live proof remains.
+- FP-3 exposes confirmed, reference-aware `/Game` asset deletion through
+  `puerts_delete_asset`. Its editor-free safety contract, UBT, final linking and
+  install:check pass. Destructive live create-delete-verify proof remains.
+- FP-4 extends `blueprint_build.remove_unlisted` to MCPManaged components.
+  Focused contract tests, UE4.27 compilation, final linking and install:check
+  pass. Warm and cold live convergence proof remains user-gated.
+- FP-5 exposes native puerts_level_create, puerts_level_load and
+  puerts_level_save, with legacy level_new and level_save aliases.
+  Parameter-parity tests, UHT, UBT, final linking and install:check pass.
+  Scripts/level-lifecycle-acceptance.mjs provides warm and cold proof but has
+  not been run because editor lifecycle actions remain user-gated.
+- FP-6 exposes native puerts_audio_build for desired-state Sound Cue graphs.
+  It supports seven UE4.27 node types, stable ids, ordered child links, Sound
+  Wave references and reflected editable properties. Focused contracts, UHT,
+  UBT, library creation, DLL linking, generated inventory and install:check
+  pass. Scripts/audio-build-acceptance.mjs provides warm and cold proof but has
+  not been run because editor lifecycle actions remain user-gated. PIE playback
+  remains a separate explicit authorization.
+- Do not launch, close, or otherwise manage Unreal Editor until the user
+  explicitly asks. Do not start PIE without a separate explicit request.
+
 ## Exact next commands
 
-Launch the editor with Scripts/start-ue4-project.ps1 -Confirm:$false against
+After the user explicitly authorizes editor lifecycle actions, launch with
+Scripts/start-ue4-project.ps1 -Confirm:$false against
 D:/Unreal Projects/BridgeInstallTest, wait for session.json, then:
 
     npm run slice:ui ; npm run slice:ai ; npm run slice:gameplay
@@ -30,6 +59,63 @@ D:/Unreal Projects/BridgeInstallTest, wait for session.json, then:
 
 Then RB-2's last gameplay red, then the RB-6 promotion sweep, per
 docs/FINAL_IMPLEMENTATION_PLAN.md.
+
+### FP-3 live acceptance, explicit authorization required
+
+1. Run `install:check` before the live test.
+2. Choose a fresh `/Game/MCPTests/AssetDelete_<run-id>` path and prove it is
+   absent before creating anything there.
+3. Create a disposable asset as the positive control and prove that it exists.
+4. Call `puerts_delete_asset` with `confirm: true` and `force: false`; verify
+   both Asset Registry and package-file absence from the returned result.
+5. Call the same delete again; it must converge with `already_absent: true`.
+6. Create a second disposable asset with a real referencer. Safe deletion must
+   fail without moving state. Test `force: true` only with separate destructive
+   authorization because it can clear references.
+7. Run `install:check` after the live test. Repeat after a user-managed editor
+   restart for cold proof. Do not start PIE.
+
+### FP-4 live acceptance, explicit authorization required
+
+1. Run `install:check`, then set `MCP_UNREAL_PROJECT_ROOT` to BridgeInstallTest.
+2. Run `node Scripts/bp-remove-unlisted-acceptance.mjs --phase=record`.
+   Its component fixture asserts a fresh path, creates three components as a
+   state-moving control, proves plan-only keeps the member hash stable, removes
+   exactly one unlisted managed component, inspects the result independently,
+   proves the rerun removes nothing, blocks a retained-child removal, and
+   induces a later graph failure to verify the component and member hash roll back.
+3. After a user-managed editor restart, run
+   `node Scripts/bp-remove-unlisted-acceptance.mjs --phase=cold`.
+4. Run `install:check` again. Do not start PIE.
+
+### FP-5 live acceptance, explicit authorization required
+
+1. Start with a clean BridgeInstallTest editor and set
+   MCP_UNREAL_PROJECT_ROOT to that project.
+2. Run node Scripts/level-lifecycle-acceptance.mjs.
+   It checks the install before and after, asserts three fresh fixture paths,
+   creates and saves a map, moves state with a marker actor, proves a dirty-map
+   load refusal leaves state intact, exercises template_path and save_all,
+   and verifies with scene_inspect plus package hashes.
+3. After a user-managed editor restart, run
+   node Scripts/level-lifecycle-acceptance.mjs --phase=cold.
+4. Do not start PIE. The harness creates fresh maps and does not delete them.
+
+### FP-6 live acceptance, explicit authorization required
+
+1. Start with a clean BridgeInstallTest editor and set
+   MCP_UNREAL_PROJECT_ROOT to that project.
+2. Run node Scripts/audio-build-acceptance.mjs.
+   It checks install parity before and after, asserts a fresh fixture path,
+   creates a one-node Sound Cue as a state-moving control, plans and applies a
+   two-node update, verifies it with audio_inspect and file hashes, proves a
+   convergent rerun does not rewrite the package, and proves an invalid graph
+   leaves both the inspector hash and saved bytes unchanged.
+3. After a user-managed editor restart, run
+   node Scripts/audio-build-acceptance.mjs --phase=cold.
+4. Playback remains pending. A human must explicitly authorize PIE, then place
+   the saved cue on an Audio Component and verify playing state and completion.
+   Audible output is not machine-provable. The harness itself never starts PIE.
 
 ## Paste this into a fresh session
 
@@ -77,7 +163,7 @@ now `Scripts/merge-lane.mjs`, and its header explains the failure it prevents.
 5. **Packaging: source YES, binaries NO.** Lane N ran `-RunUAT` and proved it
    cannot work in 4.27 with an engine citation. The zip installs and compiles;
    it has never been proven to LOAD.
-6. **RL-2 is implemented and editor-free proven, but not native-compiled.** An
+6. **RL-2 is implemented, editor-free proven and linked.** An
    unconfigured zip install now derives its pipe from project name and canonical
-   path; an ini override still wins. `npm run test:package` passes. The next
-   native compile and two-project session proof remain.
+   path; an ini override still wins. `npm run test:package` and `install:check` pass. The
+   two-project session proof remains.
