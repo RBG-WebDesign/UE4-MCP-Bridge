@@ -55,9 +55,7 @@
 
 namespace
 {
-    /** The five image formats UE4.27 ships a capture protocol for, spelled the
-        way a caller would spell them. avi is the only one that produces a
-        single file; the rest are image sequences. */
+    /** The four installed-build-safe image formats UE4.27 exposes here. */
     UClass* ResolveCaptureProtocol(const FString& Format)
     {
         if (Format.Equals(TEXT("png"), ESearchCase::IgnoreCase)) { return UImageSequenceProtocol_PNG::StaticClass(); }
@@ -167,7 +165,7 @@ bool UMCPPuerTSBridgeService::RenderLevelSequenceJson(
     if (ProtocolClass == nullptr)
     {
         OutError = FString::Printf(
-            TEXT("format must be png, jpg, bmp, exr or avi; got '%s'. Those are the capture "
+            TEXT("format must be png, jpg, bmp or exr; got '%s'. Those are the capture "
                  "protocols UE4.27 ships in the MovieSceneCapture module."), *Format);
         return false;
     }

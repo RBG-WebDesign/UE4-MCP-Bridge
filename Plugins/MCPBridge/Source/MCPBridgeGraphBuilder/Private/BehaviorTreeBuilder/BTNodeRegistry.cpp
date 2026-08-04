@@ -53,6 +53,36 @@ FBTNodeRegistry::FBTNodeRegistry()
 	RegisterTypes();
 }
 
+bool FBTNodeRegistry::IsParamAllowed(const FString& Type, const FString& Param) const
+{
+	static const TMap<FString, TSet<FString>> Allowed = {
+		{ TEXT("Selector"), {} }, { TEXT("Sequence"), {} },
+		{ TEXT("SimpleParallel"), { TEXT("finish_mode") } },
+		{ TEXT("MoveTo"), { TEXT("blackboard_key"), TEXT("acceptable_radius") } },
+		{ TEXT("Wait"), { TEXT("wait_time"), TEXT("random_deviation") } },
+		{ TEXT("WaitBlackboardTime"), { TEXT("blackboard_key") } },
+		{ TEXT("RotateToFaceBBEntry"), { TEXT("blackboard_key") } },
+		{ TEXT("PlayAnimation"), { TEXT("non_blocking"), TEXT("looping") } },
+		{ TEXT("MakeNoise"), { TEXT("loudness") } }, { TEXT("RunBehavior"), {} },
+		{ TEXT("PlaySound"), { TEXT("sound_to_play") } },
+		{ TEXT("FinishWithResult"), { TEXT("result") } },
+		{ TEXT("SetTagCooldown"), { TEXT("cooldown_tag"), TEXT("cooldown_duration"), TEXT("add_to_existing") } },
+		{ TEXT("Blackboard"), { TEXT("blackboard_key"), TEXT("condition"), TEXT("int_value"), TEXT("float_value") } },
+		{ TEXT("ForceSuccess"), {} }, { TEXT("Loop"), { TEXT("num_loops"), TEXT("infinite_loop") } },
+		{ TEXT("TimeLimit"), { TEXT("time_limit") } }, { TEXT("Cooldown"), { TEXT("cool_down_time") } },
+		{ TEXT("CompareBBEntries"), { TEXT("blackboard_key_a"), TEXT("blackboard_key_b"), TEXT("operator") } },
+		{ TEXT("IsAtLocation"), { TEXT("blackboard_key"), TEXT("acceptable_radius"), TEXT("inverse_condition") } },
+		{ TEXT("DoesPathExist"), { TEXT("blackboard_key_a"), TEXT("blackboard_key_b"), TEXT("path_query_type"), TEXT("inverse_condition") } },
+		{ TEXT("TagCooldown"), { TEXT("cooldown_tag"), TEXT("cool_down_time"), TEXT("add_to_existing") } },
+		{ TEXT("ConditionalLoop"), { TEXT("blackboard_key"), TEXT("condition"), TEXT("int_value"), TEXT("float_value") } },
+		{ TEXT("KeepInCone"), { TEXT("cone_half_angle"), TEXT("cone_origin"), TEXT("observed") } },
+		{ TEXT("IsBBEntryOfClass"), { TEXT("blackboard_key"), TEXT("test_class") } },
+		{ TEXT("DefaultFocus"), { TEXT("blackboard_key") } }
+	};
+	const TSet<FString>* Params = Allowed.Find(Type);
+	return Params != nullptr && Params->Contains(Param);
+}
+
 void FBTNodeRegistry::RegisterTypes()
 {
 	// --- Composites ---

@@ -22,6 +22,7 @@ private:
 		const FWidgetClassRegistry& Registry,
 		TSet<FString>& SeenNames,
 		const FString& Path,
+		const FString& ParentType,
 		FString& OutError
 	);
 };

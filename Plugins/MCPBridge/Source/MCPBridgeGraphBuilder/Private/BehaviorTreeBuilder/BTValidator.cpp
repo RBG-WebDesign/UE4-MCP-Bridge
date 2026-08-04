@@ -22,6 +22,15 @@ static FString GetBBKeyTypeName(UBlackboardData* BB, const FString& KeyName)
 			{
 				return TypeName;
 			}
+
+	for (const auto& Pair : Node.Params)
+	{
+		if (!Registry.IsParamAllowed(Node.Type, Pair.Key))
+		{
+			OutErrors.Add(FString::Printf(TEXT("[BTValidator] unknown param '%s' for type '%s' at %s"),
+				*Pair.Key, *Node.Type, *NodePath));
+		}
+	}
 			return ClassName;
 		}
 	}
