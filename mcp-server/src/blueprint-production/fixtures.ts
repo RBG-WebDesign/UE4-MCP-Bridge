@@ -156,6 +156,18 @@ capCharacter.variables = [
 const capObject = bp("/Game/MCPGenerated/BPV_Capstone_PhysicsObject");
 capObject.components = [{ class: "StaticMeshComponent", name: "PhysicsBody", properties: { StaticMesh: "/Engine/BasicShapes/Cube.Cube", Mobility: "Movable", BodyInstance: { bSimulatePhysics: true } } }];
 
+const telekineticCharacter = bp("/Game/MCPGenerated/BP_TelekineticCharacter", "Character", [capstoneGraph]);
+telekineticCharacter.components = [
+  { class: "CameraComponent", name: "Camera", properties: { RelativeLocation: { x: 0, y: 0, z: 64 } } },
+  { class: "PhysicsHandleComponent", name: "PhysicsHandle" },
+  { class: "UTelekineticComponent", name: "TelekineticComponent" },
+];
+telekineticCharacter.variables = [
+  { name: "GrabDistance", type: { category: "float" }, default: 1200, category: "Physics Pickup" },
+  { name: "HoldDistance", type: { category: "float" }, default: 300, category: "Physics Pickup" },
+  { name: "bHolding", type: { category: "bool" }, default: false, category: "Physics Pickup" },
+];
+
 export const BLUEPRINT_PRODUCTION_FIXTURES: FeatureRequest[] = [
   request("f1_basic_actor", [f1]),
   request("f2_interaction_system", [f2], ["interface_asset_creation", "interface_message", "delegate_nodes"]),
@@ -166,4 +178,32 @@ export const BLUEPRINT_PRODUCTION_FIXTURES: FeatureRequest[] = [
   request("f7_graph_cleanup", [f7]),
   request("f8_failure_rollback", [f8], ["rollback_fixture_injection"]),
   request("capstone_physics_pickup_throw", [capObject, capCharacter], ["interface_message", "delegate_nodes"], { reusable_runtime_system: true, performance_sensitive: true, asset_composition: true, designer_settings: true, event_wiring: true }),
+  {
+    ...request("telekinetic_component_handoff", [telekineticCharacter], [], { reusable_runtime_system: true, performance_sensitive: true, shared_base_class: true, asset_composition: true, designer_settings: true, event_wiring: true }),
+    cpp: {
+      classes: [
+        {
+          name: "UTelekineticComponent",
+          header: "Source/BlueprintProductionFixture/TelekineticComponent.h",
+          source: "Source/BlueprintProductionFixture/TelekineticComponent.cpp",
+          responsibility: "Native physics grab, hold, and throw execution on the Game Thread",
+          properties: [
+            { name: "GrabDistance", type: "float", specifiers: ["EditAnywhere", "BlueprintReadWrite"] },
+            { name: "HoldDistance", type: "float", specifiers: ["EditAnywhere", "BlueprintReadWrite"] },
+            { name: "ImpulseStrength", type: "float", specifiers: ["EditAnywhere", "BlueprintReadWrite"] },
+            { name: "bIsHolding", type: "bool", specifiers: ["VisibleAnywhere", "BlueprintReadOnly"] },
+          ],
+          functions: [
+            { name: "GrabTarget", return_type: "bool", parameters: [{ name: "TargetComponent", type: "UPrimitiveComponent*" }, { name: "TargetLocation", type: "FVector" }], specifiers: ["BlueprintCallable"] },
+            { name: "ReleaseTarget", return_type: "void", parameters: [], specifiers: ["BlueprintCallable"] },
+            { name: "ThrowTarget", return_type: "void", parameters: [{ name: "Direction", type: "FVector" }], specifiers: ["BlueprintCallable"] },
+            { name: "IsHoldingTarget", return_type: "bool", parameters: [], specifiers: ["BlueprintPure"] },
+          ],
+          delegates: [
+            { name: "FOnTelekineticStateChanged", parameters: [{ name: "bHolding", type: "bool" }] },
+          ],
+        },
+      ],
+    },
+  },
 ];

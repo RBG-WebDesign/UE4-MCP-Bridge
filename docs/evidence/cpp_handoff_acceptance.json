@@ -1,0 +1,1042 @@
+{
+  "timestamp": "2026-08-04T20:45:30.999Z",
+  "session_id": "4996efc5-447a-dd93-15ab-04a92a36cc1a",
+  "editor_pid": 37904,
+  "project_path": "D:/Unreal Projects/BridgeInstallTest",
+  "native_class": "UTelekineticComponent",
+  "blueprint_asset": "/Game/MCPGenerated/BP_TelekineticCharacter",
+  "build_result": {
+    "success": true,
+    "message": "Blueprint created.",
+    "data": {
+      "asset_path": "/Game/MCPGenerated/BP_TelekineticCharacter",
+      "object_path": "/Game/MCPGenerated/BP_TelekineticCharacter.BP_TelekineticCharacter",
+      "generated_class_path": "/Game/MCPGenerated/BP_TelekineticCharacter.BP_TelekineticCharacter_C",
+      "parent_class": "/Script/Engine.Character",
+      "created": true,
+      "components": [
+        {
+          "name": "Camera",
+          "class": "/Script/Engine.CameraComponent",
+          "attach_to": "",
+          "created": true,
+          "properties_applied": [
+            "RelativeLocation"
+          ]
+        },
+        {
+          "name": "PhysicsHandle",
+          "class": "/Script/Engine.PhysicsHandleComponent",
+          "attach_to": "",
+          "created": true,
+          "properties_applied": []
+        },
+        {
+          "name": "TelekineticComponent",
+          "class": "/Script/BridgeInstallTest.TelekineticComponent",
+          "attach_to": "",
+          "created": true,
+          "properties_applied": [
+            "GrabDistance",
+            "HoldDistance",
+            "ImpulseStrength"
+          ]
+        }
+      ],
+      "variables": [
+        {
+          "name": "bHoldingState",
+          "type": "bool",
+          "created": true,
+          "default_applied": true
+        }
+      ],
+      "graph": {
+        "requested": false,
+        "cleared_existing": false,
+        "node_count": 0,
+        "requested_node_count": 0,
+        "created_node_count": 0,
+        "failed_node_count": 0,
+        "failed_nodes": [],
+        "requested_connection_count": 0,
+        "created_connection_count": 0,
+        "failed_connection_count": 0,
+        "connection_count": 0,
+        "connections_requested": 0,
+        "unresolved_connections": [],
+        "node_types": []
+      },
+      "compiled": true,
+      "compile_status": "UpToDate",
+      "saved": true,
+      "asset_unchanged": false,
+      "pre_structure_fingerprint": "",
+      "post_structure_fingerprint": "41d467225b69d2e2bdbc29a8595c25e8331c3df5|7ba891c727ab4256ecc2f24379278ab7ecd9d2e9|UpToDate",
+      "convergence": {
+        "added_variables": [
+          "bHoldingState"
+        ],
+        "updated_variables": [],
+        "removed_variables": [],
+        "skipped_variables": [],
+        "removed_reference_nodes": [],
+        "managed_variables_after": [
+          "bHoldingState"
+        ],
+        "added_components": [
+          "Camera",
+          "PhysicsHandle",
+          "TelekineticComponent"
+        ],
+        "updated_components": [],
+        "removed_components": [],
+        "skipped_components": [],
+        "managed_components_after": [
+          "Camera",
+          "PhysicsHandle",
+          "TelekineticComponent"
+        ],
+        "compile_status": "UpToDate",
+        "variables_converged": true,
+        "components_converged": true,
+        "converged": true
+      },
+      "cleanup": {
+        "rollback_attempted": false,
+        "rollback_succeeded": false,
+        "created_assets": [
+          "/Game/MCPGenerated/BP_TelekineticCharacter.BP_TelekineticCharacter"
+        ],
+        "removed_assets": [],
+        "dirty_packages_before": [],
+        "dirty_packages_after": [],
+        "files_created": [],
+        "files_removed": [],
+        "source_control_before": [
+          "source control disabled"
+        ],
+        "source_control_after": [
+          "source control disabled"
+        ],
+        "cleanup_errors": []
+      }
+    },
+    "changed_assets": [
+      "/Game/MCPGenerated/BP_TelekineticCharacter.BP_TelekineticCharacter"
+    ],
+    "changed_actors": [],
+    "warnings": [
+      "Blueprint asset creation is not undoable: undo restores level and actor state, not the new package."
+    ],
+    "errors": [],
+    "log_output": [
+      "[LogTemp] AddComponentToBlueprint: Added 'Camera' (CameraComponent) to BP_TelekineticCharacter",
+      "[LogTemp] AddComponentToBlueprint: Added 'PhysicsHandle' (PhysicsHandleComponent) to BP_TelekineticCharacter",
+      "[LogTemp] AddComponentToBlueprint: Added 'TelekineticComponent' (TelekineticComponent) to BP_TelekineticCharacter",
+      "[LogUObjectHash] Compacting FUObjectHashTables data took   1.08ms",
+      "[LogBlueprintInspector] ListSCSNodes: BP_TelekineticCharacter",
+      "[LogBlueprintInspector] ListVariables: BP_TelekineticCharacter",
+      "[LogBlueprintInspector] ListInterfaces: BP_TelekineticCharacter",
+      "[LogBlueprintInspector] ListFunctions: BP_TelekineticCharacter",
+      "[LogBlueprintInspector] ListMacros: BP_TelekineticCharacter",
+      "[LogBlueprintInspector] ListEventDispatchers: BP_TelekineticCharacter",
+      "[LogBlueprintInspector] ListGraphs: BP_TelekineticCharacter",
+      "[None] Message dialog closed, result: Ok, title: Unable to Check Out From Source Control!, text: The following assets could not be successfully checked out from source control:\n/Game/MCPGenerated/BP_TelekineticCharacter",
+      "[LogSlate] Took 0.000373 seconds to synchronously load lazily loaded font '../../../Engine/Content/Slate/Fonts/Roboto-Light.ttf' (167K)",
+      "[Cmd] OBJ SAVEPACKAGE PACKAGE=\"/Game/MCPGenerated/BP_TelekineticCharacter\" FILE=\"../../../../../Unreal Projects/BridgeInstallTest/Content/MCPGenerated/BP_TelekineticCharacter.uasset\" SILENT=true",
+      "[LogSavePackage] Moving '../../../../../Unreal Projects/BridgeInstallTest/Saved/BP_TelekineticCharacterFE1F00734809D16A934EB8B7AC018853.tmp' to '../../../../../Unreal Projects/BridgeInstallTest/Content/MCPGenerated/BP_TelekineticCharacter.uasset'",
+      "[None] Message dialog closed, result: Ok, title: Unable to Check Out From Source Control!, text: The following assets could not be successfully checked out from source control:\n/Game/MCPGenerated/BP_TelekineticCharacter"
+    ],
+    "transaction_id": "ADF9484C-4C04-B290-4651-E3842775BE0D",
+    "transport": "named_pipe",
+    "execution_context": "puerts_node_v8_in_process",
+    "is_game_thread": true,
+    "thread_id": 71084,
+    "native_duration_ms": 75.72370022535324,
+    "session": {
+      "session_id": "4996efc5-447a-dd93-15ab-04a92a36cc1a",
+      "editor_pid": 37904,
+      "process_start_time": "0426-08-04T20:44:55.114Z",
+      "project_path": "D:/Unreal Projects/BridgeInstallTest",
+      "uproject_path": "D:/Unreal Projects/BridgeInstallTest/BridgeInstallTest.uproject",
+      "pipe_name": "\\\\.\\pipe\\UE427PuerTSMCP_BridgeInstallTest_eb10ef4f"
+    }
+  },
+  "inspect_result": {
+    "success": true,
+    "message": "Blueprint inspected.",
+    "data": {
+      "asset_path": "/Game/MCPGenerated/BP_TelekineticCharacter",
+      "object_path": "/Game/MCPGenerated/BP_TelekineticCharacter.BP_TelekineticCharacter",
+      "package_name": "/Game/MCPGenerated/BP_TelekineticCharacter",
+      "generated_class_path": "/Game/MCPGenerated/BP_TelekineticCharacter.BP_TelekineticCharacter_C",
+      "parent_class": "/Script/Engine.Character",
+      "is_actor": true,
+      "compile_status": "UpToDate",
+      "package_dirty_before": false,
+      "package_dirty_after": false,
+      "components": [
+        {
+          "name": "Camera",
+          "class_path": "/Script/Engine.CameraComponent",
+          "parent": "",
+          "is_root": true
+        },
+        {
+          "name": "PhysicsHandle",
+          "class_path": "/Script/Engine.PhysicsHandleComponent",
+          "parent": "",
+          "is_root": true
+        },
+        {
+          "name": "TelekineticComponent",
+          "class_path": "/Script/BridgeInstallTest.TelekineticComponent",
+          "parent": "",
+          "is_root": true
+        }
+      ],
+      "variables": [
+        {
+          "name": "bHoldingState",
+          "type": {
+            "category": "bool",
+            "sub_category": "None",
+            "sub_category_object": "",
+            "container_type": "None",
+            "is_reference": false,
+            "value_type": null
+          },
+          "category": "Telekinesis",
+          "default_value": "False",
+          "is_editable": true,
+          "is_replicated": false,
+          "is_private": false,
+          "expose_on_spawn": false,
+          "tooltip": ""
+        }
+      ],
+      "interfaces": [],
+      "functions": [
+        {
+          "name": "UserConstructionScript",
+          "category": "",
+          "is_pure": false,
+          "is_override": true,
+          "is_const": false,
+          "tooltip": "",
+          "access": "public",
+          "inputs": [],
+          "outputs": [],
+          "locals": []
+        }
+      ],
+      "event_dispatchers": [],
+      "member_structure_hash_sha1": "41d467225b69d2e2bdbc29a8595c25e8331c3df5",
+      "graphs": [
+        {
+          "name": "EventGraph",
+          "type": "Ubergraph"
+        },
+        {
+          "name": "UserConstructionScript",
+          "type": "Function"
+        }
+      ],
+      "graph": {
+        "structure_hash_sha1": "7ba891c727ab4256ecc2f24379278ab7ecd9d2e9",
+        "structure_hash_basis": "node type, class, position, comment, enabled state and VISIBLE pin defaults, plus links between those structural keys; object names, NodeGuids and hidden pins deliberately excluded. Hidden pins are excluded because a latent call's LatentInfo pin holds one default when freshly built and another after a save, which moved this hash for a reason no caller caused",
+        "asset_path": "/Game/MCPGenerated/BP_TelekineticCharacter.BP_TelekineticCharacter",
+        "name": "EventGraph",
+        "graph_name": "EventGraph",
+        "graph_guid": "6F266513419B98A6F46C2FAFBC353021",
+        "node_count": 3,
+        "connection_count": 0,
+        "pins_included": true,
+        "nodes": [
+          {
+            "asset_path": "/Game/MCPGenerated/BP_TelekineticCharacter.BP_TelekineticCharacter",
+            "graph_name": "EventGraph",
+            "id": "K2Node_Event_2",
+            "node_guid": "7822907C434435B24C5B9FA6E8390DEB",
+            "type": "Tick",
+            "node_class": "K2Node_Event",
+            "title": "Event Tick",
+            "x": 0,
+            "y": 416,
+            "comment": "This node is disabled and will not be called.\nDrag off pins to build functionality.",
+            "enabled": "Disabled",
+            "params": {
+              "event_name": "ReceiveTick"
+            },
+            "pins": [
+              {
+                "pin_id": "5309B1CF4C9B75A15658128D3982AFBF",
+                "pin_name": "OutputDelegate",
+                "pin_direction": "Output",
+                "type": {
+                  "category": "delegate",
+                  "sub_category": "None",
+                  "sub_category_object": "",
+                  "container_type": "None",
+                  "is_reference": false,
+                  "value_type": null
+                },
+                "default_value": "",
+                "default_object": "",
+                "default_text": "",
+                "autogenerated_default_value": "",
+                "is_hidden": false,
+                "is_orphaned": false,
+                "links": []
+              },
+              {
+                "pin_id": "62292A754DE179C381CD0AA75CFAD42B",
+                "pin_name": "then",
+                "pin_direction": "Output",
+                "type": {
+                  "category": "exec",
+                  "sub_category": "None",
+                  "sub_category_object": "",
+                  "container_type": "None",
+                  "is_reference": false,
+                  "value_type": null
+                },
+                "default_value": "",
+                "default_object": "",
+                "default_text": "",
+                "autogenerated_default_value": "",
+                "is_hidden": false,
+                "is_orphaned": false,
+                "links": []
+              },
+              {
+                "pin_id": "BD0D99A7473EFC5DF10DE7990C6E9605",
+                "pin_name": "DeltaSeconds",
+                "pin_direction": "Output",
+                "type": {
+                  "category": "float",
+                  "sub_category": "None",
+                  "sub_category_object": "",
+                  "container_type": "None",
+                  "is_reference": false,
+                  "value_type": null
+                },
+                "default_value": "0.0",
+                "default_object": "",
+                "default_text": "",
+                "autogenerated_default_value": "0.0",
+                "is_hidden": false,
+                "is_orphaned": false,
+                "links": []
+              }
+            ]
+          },
+          {
+            "asset_path": "/Game/MCPGenerated/BP_TelekineticCharacter.BP_TelekineticCharacter",
+            "graph_name": "EventGraph",
+            "id": "K2Node_Event_0",
+            "node_guid": "A3F0A2544590A3EA6726BAA00D0C1DCE",
+            "type": "BeginPlay",
+            "node_class": "K2Node_Event",
+            "title": "Event BeginPlay",
+            "x": 0,
+            "y": 0,
+            "comment": "This node is disabled and will not be called.\nDrag off pins to build functionality.",
+            "enabled": "Disabled",
+            "params": {
+              "event_name": "ReceiveBeginPlay"
+            },
+            "pins": [
+              {
+                "pin_id": "77E880D644C6D2AA05EF7B968B711907",
+                "pin_name": "then",
+                "pin_direction": "Output",
+                "type": {
+                  "category": "exec",
+                  "sub_category": "None",
+                  "sub_category_object": "",
+                  "container_type": "None",
+                  "is_reference": false,
+                  "value_type": null
+                },
+                "default_value": "",
+                "default_object": "",
+                "default_text": "",
+                "autogenerated_default_value": "",
+                "is_hidden": false,
+                "is_orphaned": false,
+                "links": []
+              },
+              {
+                "pin_id": "91E3590A420EE252EF167CA4DD4F2BA8",
+                "pin_name": "OutputDelegate",
+                "pin_direction": "Output",
+                "type": {
+                  "category": "delegate",
+                  "sub_category": "None",
+                  "sub_category_object": "",
+                  "container_type": "None",
+                  "is_reference": false,
+                  "value_type": null
+                },
+                "default_value": "",
+                "default_object": "",
+                "default_text": "",
+                "autogenerated_default_value": "",
+                "is_hidden": false,
+                "is_orphaned": false,
+                "links": []
+              }
+            ]
+          },
+          {
+            "asset_path": "/Game/MCPGenerated/BP_TelekineticCharacter.BP_TelekineticCharacter",
+            "graph_name": "EventGraph",
+            "id": "K2Node_Event_1",
+            "node_guid": "F8A68A1E41EC2D89943D559F2187C0AA",
+            "type": "ActorBeginOverlap",
+            "node_class": "K2Node_Event",
+            "title": "Event ActorBeginOverlap",
+            "x": 0,
+            "y": 208,
+            "comment": "This node is disabled and will not be called.\nDrag off pins to build functionality.",
+            "enabled": "Disabled",
+            "params": {
+              "event_name": "ReceiveActorBeginOverlap"
+            },
+            "pins": [
+              {
+                "pin_id": "68CD8A634297B832A30E3F9CE8DA56BB",
+                "pin_name": "then",
+                "pin_direction": "Output",
+                "type": {
+                  "category": "exec",
+                  "sub_category": "None",
+                  "sub_category_object": "",
+                  "container_type": "None",
+                  "is_reference": false,
+                  "value_type": null
+                },
+                "default_value": "",
+                "default_object": "",
+                "default_text": "",
+                "autogenerated_default_value": "",
+                "is_hidden": false,
+                "is_orphaned": false,
+                "links": []
+              },
+              {
+                "pin_id": "AB5595654B3C432B7A01A389766E0913",
+                "pin_name": "OtherActor",
+                "pin_direction": "Output",
+                "type": {
+                  "category": "object",
+                  "sub_category": "None",
+                  "sub_category_object": "/Script/Engine.Actor",
+                  "container_type": "None",
+                  "is_reference": false,
+                  "value_type": null
+                },
+                "default_value": "",
+                "default_object": "",
+                "default_text": "",
+                "autogenerated_default_value": "",
+                "is_hidden": false,
+                "is_orphaned": false,
+                "links": []
+              },
+              {
+                "pin_id": "FF69019F4B46AC447D8160AF1B596C44",
+                "pin_name": "OutputDelegate",
+                "pin_direction": "Output",
+                "type": {
+                  "category": "delegate",
+                  "sub_category": "None",
+                  "sub_category_object": "",
+                  "container_type": "None",
+                  "is_reference": false,
+                  "value_type": null
+                },
+                "default_value": "",
+                "default_object": "",
+                "default_text": "",
+                "autogenerated_default_value": "",
+                "is_hidden": false,
+                "is_orphaned": false,
+                "links": []
+              }
+            ]
+          }
+        ],
+        "connections": [],
+        "unmapped_nodes": [],
+        "lossy_pin_defaults": []
+      }
+    },
+    "changed_assets": [],
+    "changed_actors": [],
+    "warnings": [],
+    "errors": [],
+    "log_output": [
+      "[LogBlueprintInspector] ListSCSNodes: BP_TelekineticCharacter",
+      "[LogBlueprintInspector] ListVariables: BP_TelekineticCharacter",
+      "[LogBlueprintInspector] ListInterfaces: BP_TelekineticCharacter",
+      "[LogBlueprintInspector] ListFunctions: BP_TelekineticCharacter",
+      "[LogBlueprintInspector] ListMacros: BP_TelekineticCharacter",
+      "[LogBlueprintInspector] ListEventDispatchers: BP_TelekineticCharacter",
+      "[LogBlueprintInspector] ListGraphs: BP_TelekineticCharacter"
+    ],
+    "transaction_id": "",
+    "transport": "named_pipe",
+    "execution_context": "puerts_node_v8_in_process",
+    "is_game_thread": true,
+    "thread_id": 71084,
+    "native_duration_ms": 2.5175027549266815,
+    "session": {
+      "session_id": "4996efc5-447a-dd93-15ab-04a92a36cc1a",
+      "editor_pid": 37904,
+      "process_start_time": "0426-08-04T20:44:55.114Z",
+      "project_path": "D:/Unreal Projects/BridgeInstallTest",
+      "uproject_path": "D:/Unreal Projects/BridgeInstallTest/BridgeInstallTest.uproject",
+      "pipe_name": "\\\\.\\pipe\\UE427PuerTSMCP_BridgeInstallTest_eb10ef4f"
+    }
+  },
+  "idempotency_result": {
+    "success": true,
+    "message": "Blueprint updated.",
+    "data": {
+      "asset_path": "/Game/MCPGenerated/BP_TelekineticCharacter",
+      "object_path": "/Game/MCPGenerated/BP_TelekineticCharacter.BP_TelekineticCharacter",
+      "generated_class_path": "/Game/MCPGenerated/BP_TelekineticCharacter.BP_TelekineticCharacter_C",
+      "parent_class": "/Script/Engine.Character",
+      "created": false,
+      "components": [
+        {
+          "name": "Camera",
+          "class": "/Script/Engine.CameraComponent",
+          "attach_to": "",
+          "created": false,
+          "properties_applied": [
+            "RelativeLocation"
+          ]
+        },
+        {
+          "name": "PhysicsHandle",
+          "class": "/Script/Engine.PhysicsHandleComponent",
+          "attach_to": "",
+          "created": false,
+          "properties_applied": []
+        },
+        {
+          "name": "TelekineticComponent",
+          "class": "/Script/BridgeInstallTest.TelekineticComponent",
+          "attach_to": "",
+          "created": false,
+          "properties_applied": [
+            "GrabDistance",
+            "HoldDistance",
+            "ImpulseStrength"
+          ]
+        }
+      ],
+      "variables": [
+        {
+          "name": "bHoldingState",
+          "type": "bool",
+          "created": false,
+          "default_applied": true
+        }
+      ],
+      "graph": {
+        "requested": false,
+        "cleared_existing": false,
+        "node_count": 0,
+        "requested_node_count": 0,
+        "created_node_count": 0,
+        "failed_node_count": 0,
+        "failed_nodes": [],
+        "requested_connection_count": 0,
+        "created_connection_count": 0,
+        "failed_connection_count": 0,
+        "connection_count": 0,
+        "connections_requested": 0,
+        "unresolved_connections": [],
+        "node_types": []
+      },
+      "compiled": true,
+      "compile_status": "UpToDate",
+      "saved": false,
+      "asset_unchanged": true,
+      "pre_structure_fingerprint": "41d467225b69d2e2bdbc29a8595c25e8331c3df5|7ba891c727ab4256ecc2f24379278ab7ecd9d2e9|UpToDate",
+      "post_structure_fingerprint": "41d467225b69d2e2bdbc29a8595c25e8331c3df5|7ba891c727ab4256ecc2f24379278ab7ecd9d2e9|UpToDate",
+      "convergence": {
+        "added_variables": [],
+        "updated_variables": [
+          "bHoldingState"
+        ],
+        "removed_variables": [],
+        "skipped_variables": [],
+        "removed_reference_nodes": [],
+        "managed_variables_after": [
+          "bHoldingState"
+        ],
+        "added_components": [],
+        "updated_components": [
+          "Camera",
+          "PhysicsHandle",
+          "TelekineticComponent"
+        ],
+        "removed_components": [],
+        "skipped_components": [],
+        "managed_components_after": [
+          "Camera",
+          "PhysicsHandle",
+          "TelekineticComponent"
+        ],
+        "compile_status": "UpToDate",
+        "variables_converged": true,
+        "components_converged": true,
+        "converged": true
+      },
+      "cleanup": {
+        "rollback_attempted": false,
+        "rollback_succeeded": false,
+        "created_assets": [],
+        "removed_assets": [],
+        "dirty_packages_before": [],
+        "dirty_packages_after": [],
+        "files_created": [],
+        "files_removed": [],
+        "source_control_before": [
+          "source control disabled"
+        ],
+        "source_control_after": [
+          "source control disabled"
+        ],
+        "cleanup_errors": []
+      }
+    },
+    "changed_assets": [
+      "/Game/MCPGenerated/BP_TelekineticCharacter.BP_TelekineticCharacter"
+    ],
+    "changed_actors": [],
+    "warnings": [],
+    "errors": [],
+    "log_output": [
+      "[LogBlueprintInspector] ListSCSNodes: BP_TelekineticCharacter",
+      "[LogBlueprintInspector] ListVariables: BP_TelekineticCharacter",
+      "[LogBlueprintInspector] ListInterfaces: BP_TelekineticCharacter",
+      "[LogBlueprintInspector] ListFunctions: BP_TelekineticCharacter",
+      "[LogBlueprintInspector] ListMacros: BP_TelekineticCharacter",
+      "[LogBlueprintInspector] ListEventDispatchers: BP_TelekineticCharacter",
+      "[LogBlueprintInspector] ListGraphs: BP_TelekineticCharacter",
+      "[LogUObjectHash] Compacting FUObjectHashTables data took   1.09ms",
+      "[LogBlueprintInspector] ListSCSNodes: BP_TelekineticCharacter",
+      "[LogBlueprintInspector] ListVariables: BP_TelekineticCharacter",
+      "[LogBlueprintInspector] ListInterfaces: BP_TelekineticCharacter",
+      "[LogBlueprintInspector] ListFunctions: BP_TelekineticCharacter",
+      "[LogBlueprintInspector] ListMacros: BP_TelekineticCharacter",
+      "[LogBlueprintInspector] ListEventDispatchers: BP_TelekineticCharacter",
+      "[LogBlueprintInspector] ListGraphs: BP_TelekineticCharacter"
+    ],
+    "transaction_id": "76CBA18E-465F-81E4-B530-5588B68052BF",
+    "transport": "named_pipe",
+    "execution_context": "puerts_node_v8_in_process",
+    "is_game_thread": true,
+    "thread_id": 71084,
+    "native_duration_ms": 17.893701791763306,
+    "session": {
+      "session_id": "4996efc5-447a-dd93-15ab-04a92a36cc1a",
+      "editor_pid": 37904,
+      "process_start_time": "0426-08-04T20:44:55.114Z",
+      "project_path": "D:/Unreal Projects/BridgeInstallTest",
+      "uproject_path": "D:/Unreal Projects/BridgeInstallTest/BridgeInstallTest.uproject",
+      "pipe_name": "\\\\.\\pipe\\UE427PuerTSMCP_BridgeInstallTest_eb10ef4f"
+    }
+  },
+  "rollback_result": {
+    "success": false,
+    "message": "Command failed.",
+    "data": {},
+    "changed_assets": [],
+    "changed_actors": [],
+    "warnings": [
+      "A failed mutating command may be undone with its transaction_id."
+    ],
+    "errors": [
+      "Parent class was not found: InvalidNonExistentParentClassForTesting"
+    ],
+    "log_output": [],
+    "transaction_id": "510AC7A8-40EE-26B8-8DE9-8BBEA02C6546",
+    "transport": "named_pipe",
+    "execution_context": "puerts_node_v8_in_process",
+    "is_game_thread": true,
+    "thread_id": 71084,
+    "native_duration_ms": 0.4417002201080322,
+    "session": {
+      "session_id": "4996efc5-447a-dd93-15ab-04a92a36cc1a",
+      "editor_pid": 37904,
+      "process_start_time": "0426-08-04T20:44:55.114Z",
+      "project_path": "D:/Unreal Projects/BridgeInstallTest",
+      "uproject_path": "D:/Unreal Projects/BridgeInstallTest/BridgeInstallTest.uproject",
+      "pipe_name": "\\\\.\\pipe\\UE427PuerTSMCP_BridgeInstallTest_eb10ef4f"
+    }
+  },
+  "state_preserved_after_rollback": true,
+  "cold_session": {
+    "schema_version": 1,
+    "session_id": "fd7ea30b-4821-ae22-25a3-d0ab16f58041",
+    "session_nonce": "0e01306648cb2ea587488d9e9eb7098677f166334a5ca3b58377d38c579480df",
+    "editor_pid": 72264,
+    "process_start_time": "0426-08-04T20:46:08.258Z",
+    "project_path": "D:/Unreal Projects/BridgeInstallTest",
+    "uproject_path": "D:/Unreal Projects/BridgeInstallTest/BridgeInstallTest.uproject",
+    "pipe_name": "\\\\.\\pipe\\UE427PuerTSMCP_BridgeInstallTest_eb10ef4f",
+    "bridge_commit": "7fa6c583b11ccc201a6a5e4a652d70b5de4b9f57",
+    "installed_manifest_hash": "e8b42a7d7ffd54c4ea3b070c673925b7c78911db",
+    "created_at": "2026-08-04T20:46:16.405Z",
+    "last_heartbeat_at": "2026-08-04T20:46:27.348Z",
+    "shutdown_state": "running"
+  },
+  "cold_inspect_result": {
+    "success": true,
+    "message": "Blueprint inspected.",
+    "data": {
+      "asset_path": "/Game/MCPGenerated/BP_TelekineticCharacter",
+      "object_path": "/Game/MCPGenerated/BP_TelekineticCharacter.BP_TelekineticCharacter",
+      "package_name": "/Game/MCPGenerated/BP_TelekineticCharacter",
+      "generated_class_path": "/Game/MCPGenerated/BP_TelekineticCharacter.BP_TelekineticCharacter_C",
+      "parent_class": "/Script/Engine.Character",
+      "is_actor": true,
+      "compile_status": "UpToDate",
+      "package_dirty_before": false,
+      "package_dirty_after": false,
+      "components": [
+        {
+          "name": "Camera",
+          "class_path": "/Script/Engine.CameraComponent",
+          "parent": "",
+          "is_root": true
+        },
+        {
+          "name": "PhysicsHandle",
+          "class_path": "/Script/Engine.PhysicsHandleComponent",
+          "parent": "",
+          "is_root": true
+        },
+        {
+          "name": "TelekineticComponent",
+          "class_path": "/Script/BridgeInstallTest.TelekineticComponent",
+          "parent": "",
+          "is_root": true
+        }
+      ],
+      "variables": [
+        {
+          "name": "bHoldingState",
+          "type": {
+            "category": "bool",
+            "sub_category": "None",
+            "sub_category_object": "",
+            "container_type": "None",
+            "is_reference": false,
+            "value_type": null
+          },
+          "category": "Telekinesis",
+          "default_value": "False",
+          "is_editable": true,
+          "is_replicated": false,
+          "is_private": false,
+          "expose_on_spawn": false,
+          "tooltip": ""
+        }
+      ],
+      "interfaces": [],
+      "functions": [
+        {
+          "name": "UserConstructionScript",
+          "category": "",
+          "is_pure": false,
+          "is_override": true,
+          "is_const": false,
+          "tooltip": "",
+          "access": "public",
+          "inputs": [],
+          "outputs": [],
+          "locals": []
+        }
+      ],
+      "event_dispatchers": [],
+      "member_structure_hash_sha1": "41d467225b69d2e2bdbc29a8595c25e8331c3df5",
+      "graphs": [
+        {
+          "name": "EventGraph",
+          "type": "Ubergraph"
+        },
+        {
+          "name": "UserConstructionScript",
+          "type": "Function"
+        }
+      ],
+      "graph": {
+        "structure_hash_sha1": "7ba891c727ab4256ecc2f24379278ab7ecd9d2e9",
+        "structure_hash_basis": "node type, class, position, comment, enabled state and VISIBLE pin defaults, plus links between those structural keys; object names, NodeGuids and hidden pins deliberately excluded. Hidden pins are excluded because a latent call's LatentInfo pin holds one default when freshly built and another after a save, which moved this hash for a reason no caller caused",
+        "asset_path": "/Game/MCPGenerated/BP_TelekineticCharacter.BP_TelekineticCharacter",
+        "name": "EventGraph",
+        "graph_name": "EventGraph",
+        "graph_guid": "6F266513419B98A6F46C2FAFBC353021",
+        "node_count": 3,
+        "connection_count": 0,
+        "pins_included": true,
+        "nodes": [
+          {
+            "asset_path": "/Game/MCPGenerated/BP_TelekineticCharacter.BP_TelekineticCharacter",
+            "graph_name": "EventGraph",
+            "id": "K2Node_Event_2",
+            "node_guid": "7822907C434435B24C5B9FA6E8390DEB",
+            "type": "Tick",
+            "node_class": "K2Node_Event",
+            "title": "Event Tick",
+            "x": 0,
+            "y": 416,
+            "comment": "This node is disabled and will not be called.\nDrag off pins to build functionality.",
+            "enabled": "Disabled",
+            "params": {
+              "event_name": "ReceiveTick"
+            },
+            "pins": [
+              {
+                "pin_id": "5309B1CF4C9B75A15658128D3982AFBF",
+                "pin_name": "OutputDelegate",
+                "pin_direction": "Output",
+                "type": {
+                  "category": "delegate",
+                  "sub_category": "None",
+                  "sub_category_object": "",
+                  "container_type": "None",
+                  "is_reference": false,
+                  "value_type": null
+                },
+                "default_value": "",
+                "default_object": "",
+                "default_text": "",
+                "autogenerated_default_value": "",
+                "is_hidden": false,
+                "is_orphaned": false,
+                "links": []
+              },
+              {
+                "pin_id": "62292A754DE179C381CD0AA75CFAD42B",
+                "pin_name": "then",
+                "pin_direction": "Output",
+                "type": {
+                  "category": "exec",
+                  "sub_category": "None",
+                  "sub_category_object": "",
+                  "container_type": "None",
+                  "is_reference": false,
+                  "value_type": null
+                },
+                "default_value": "",
+                "default_object": "",
+                "default_text": "",
+                "autogenerated_default_value": "",
+                "is_hidden": false,
+                "is_orphaned": false,
+                "links": []
+              },
+              {
+                "pin_id": "BD0D99A7473EFC5DF10DE7990C6E9605",
+                "pin_name": "DeltaSeconds",
+                "pin_direction": "Output",
+                "type": {
+                  "category": "float",
+                  "sub_category": "None",
+                  "sub_category_object": "",
+                  "container_type": "None",
+                  "is_reference": false,
+                  "value_type": null
+                },
+                "default_value": "0.0",
+                "default_object": "",
+                "default_text": "",
+                "autogenerated_default_value": "0.0",
+                "is_hidden": false,
+                "is_orphaned": false,
+                "links": []
+              }
+            ]
+          },
+          {
+            "asset_path": "/Game/MCPGenerated/BP_TelekineticCharacter.BP_TelekineticCharacter",
+            "graph_name": "EventGraph",
+            "id": "K2Node_Event_0",
+            "node_guid": "A3F0A2544590A3EA6726BAA00D0C1DCE",
+            "type": "BeginPlay",
+            "node_class": "K2Node_Event",
+            "title": "Event BeginPlay",
+            "x": 0,
+            "y": 0,
+            "comment": "This node is disabled and will not be called.\nDrag off pins to build functionality.",
+            "enabled": "Disabled",
+            "params": {
+              "event_name": "ReceiveBeginPlay"
+            },
+            "pins": [
+              {
+                "pin_id": "77E880D644C6D2AA05EF7B968B711907",
+                "pin_name": "then",
+                "pin_direction": "Output",
+                "type": {
+                  "category": "exec",
+                  "sub_category": "None",
+                  "sub_category_object": "",
+                  "container_type": "None",
+                  "is_reference": false,
+                  "value_type": null
+                },
+                "default_value": "",
+                "default_object": "",
+                "default_text": "",
+                "autogenerated_default_value": "",
+                "is_hidden": false,
+                "is_orphaned": false,
+                "links": []
+              },
+              {
+                "pin_id": "91E3590A420EE252EF167CA4DD4F2BA8",
+                "pin_name": "OutputDelegate",
+                "pin_direction": "Output",
+                "type": {
+                  "category": "delegate",
+                  "sub_category": "None",
+                  "sub_category_object": "",
+                  "container_type": "None",
+                  "is_reference": false,
+                  "value_type": null
+                },
+                "default_value": "",
+                "default_object": "",
+                "default_text": "",
+                "autogenerated_default_value": "",
+                "is_hidden": false,
+                "is_orphaned": false,
+                "links": []
+              }
+            ]
+          },
+          {
+            "asset_path": "/Game/MCPGenerated/BP_TelekineticCharacter.BP_TelekineticCharacter",
+            "graph_name": "EventGraph",
+            "id": "K2Node_Event_1",
+            "node_guid": "F8A68A1E41EC2D89943D559F2187C0AA",
+            "type": "ActorBeginOverlap",
+            "node_class": "K2Node_Event",
+            "title": "Event ActorBeginOverlap",
+            "x": 0,
+            "y": 208,
+            "comment": "This node is disabled and will not be called.\nDrag off pins to build functionality.",
+            "enabled": "Disabled",
+            "params": {
+              "event_name": "ReceiveActorBeginOverlap"
+            },
+            "pins": [
+              {
+                "pin_id": "68CD8A634297B832A30E3F9CE8DA56BB",
+                "pin_name": "then",
+                "pin_direction": "Output",
+                "type": {
+                  "category": "exec",
+                  "sub_category": "None",
+                  "sub_category_object": "",
+                  "container_type": "None",
+                  "is_reference": false,
+                  "value_type": null
+                },
+                "default_value": "",
+                "default_object": "",
+                "default_text": "",
+                "autogenerated_default_value": "",
+                "is_hidden": false,
+                "is_orphaned": false,
+                "links": []
+              },
+              {
+                "pin_id": "AB5595654B3C432B7A01A389766E0913",
+                "pin_name": "OtherActor",
+                "pin_direction": "Output",
+                "type": {
+                  "category": "object",
+                  "sub_category": "None",
+                  "sub_category_object": "/Script/Engine.Actor",
+                  "container_type": "None",
+                  "is_reference": false,
+                  "value_type": null
+                },
+                "default_value": "",
+                "default_object": "",
+                "default_text": "",
+                "autogenerated_default_value": "",
+                "is_hidden": false,
+                "is_orphaned": false,
+                "links": []
+              },
+              {
+                "pin_id": "FF69019F4B46AC447D8160AF1B596C44",
+                "pin_name": "OutputDelegate",
+                "pin_direction": "Output",
+                "type": {
+                  "category": "delegate",
+                  "sub_category": "None",
+                  "sub_category_object": "",
+                  "container_type": "None",
+                  "is_reference": false,
+                  "value_type": null
+                },
+                "default_value": "",
+                "default_object": "",
+                "default_text": "",
+                "autogenerated_default_value": "",
+                "is_hidden": false,
+                "is_orphaned": false,
+                "links": []
+              }
+            ]
+          }
+        ],
+        "connections": [],
+        "unmapped_nodes": [],
+        "lossy_pin_defaults": []
+      }
+    },
+    "changed_assets": [],
+    "changed_actors": [],
+    "warnings": [],
+    "errors": [],
+    "log_output": [
+      "[LogBlueprintInspector] ListSCSNodes: BP_TelekineticCharacter",
+      "[LogBlueprintInspector] ListVariables: BP_TelekineticCharacter",
+      "[LogBlueprintInspector] ListInterfaces: BP_TelekineticCharacter",
+      "[LogBlueprintInspector] ListFunctions: BP_TelekineticCharacter",
+      "[LogBlueprintInspector] ListMacros: BP_TelekineticCharacter",
+      "[LogBlueprintInspector] ListEventDispatchers: BP_TelekineticCharacter",
+      "[LogBlueprintInspector] ListGraphs: BP_TelekineticCharacter"
+    ],
+    "transaction_id": "",
+    "transport": "named_pipe",
+    "execution_context": "puerts_node_v8_in_process",
+    "is_game_thread": true,
+    "thread_id": 62348,
+    "native_duration_ms": 9.058397263288498,
+    "session": {
+      "session_id": "fd7ea30b-4821-ae22-25a3-d0ab16f58041",
+      "editor_pid": 72264,
+      "process_start_time": "0426-08-04T20:46:08.258Z",
+      "project_path": "D:/Unreal Projects/BridgeInstallTest",
+      "uproject_path": "D:/Unreal Projects/BridgeInstallTest/BridgeInstallTest.uproject",
+      "pipe_name": "\\\\.\\pipe\\UE427PuerTSMCP_BridgeInstallTest_eb10ef4f"
+    }
+  },
+  "cold_persistence_proven": true
+}

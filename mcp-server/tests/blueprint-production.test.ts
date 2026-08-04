@@ -20,7 +20,7 @@ function assert(condition: boolean, message: string): asserts condition { if (!c
 test("manifest and generated fixture library agree", async () => {
   const here = dirname(fileURLToPath(import.meta.url));
   const manifest = JSON.parse(await readFile(join(here, "fixtures", "blueprint-production", "fixture-manifest.json"), "utf8")) as { fixtures: Array<{ id: string }> };
-  assert(BLUEPRINT_PRODUCTION_FIXTURES.length === 9, "eight primitive fixtures plus one capstone");
+  assert(BLUEPRINT_PRODUCTION_FIXTURES.length === 10, "nine primitive/hybrid fixtures plus one capstone");
   assert(JSON.stringify(manifest.fixtures.map((item) => item.id)) === JSON.stringify(BLUEPRINT_PRODUCTION_FIXTURES.map((item) => item.feature_id)), "fixture IDs stay reconciled");
 });
 
