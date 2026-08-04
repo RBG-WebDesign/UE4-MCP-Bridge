@@ -1882,9 +1882,10 @@ const specs = [
       ),
     }).strict()],
   ["puerts_pie_agent_query", "pie_agent_query",
-    "The READ-ONLY half of the PIE gameplay agent: observe, status, expect. "
+    "The READ-ONLY half of the PIE gameplay agent: observe, read_property, status, expect. "
     + "op=observe captures the running session - pawn transform and velocity, nearby actors with "
     + "physics and collision state, on-screen widgets, player counters, and the Output Log tail. "
+    + "op=read_property returns one reflected variable from one uniquely matched PIE actor. "
     + "op=status polls an asynchronous agent operation; operation_id 0 means the latest. "
     + "op=expect starts an in-engine check of declarative conditions and returns its operation_id; "
     + "it does not block until the conditions pass, so poll op=status for the verdict. "
@@ -1894,10 +1895,12 @@ const specs = [
     + "Every op needs a live PIE session and refuses cleanly without one. Nothing is transacted: "
     + "these read a running world, they do not edit assets.",
     z.object({
-      op: z.enum(["observe", "status", "expect"]),
+      op: z.enum(["observe", "read_property", "status", "expect"]),
       radius: z.number().positive().optional().describe("observe: actor scan radius around the pawn in uu (default 1500)."),
       class_filter: z.string().optional().describe("observe: only include actors whose class name contains this text."),
       log_lines: z.number().int().min(0).optional().describe("observe: Output Log tail length (default 20)."),
+      actor: z.string().optional().describe("read_property: exact actor name, label, path, or unique name or class substring."),
+      property: z.string().optional().describe("read_property: reflected variable or state name to read."),
       operation_id: z.number().int().nonnegative().optional().describe("status: which operation to poll; 0 means the latest."),
       conditions: z.array(z.string()).min(1).optional().describe("expect: declarative actor_count, counter and log regex assertions."),
       within_seconds: z.number().positive().optional().describe("expect: deadline in seconds (default 5)."),

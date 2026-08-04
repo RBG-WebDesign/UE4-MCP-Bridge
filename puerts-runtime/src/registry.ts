@@ -1879,7 +1879,7 @@ async function playCameraShake(context: ToolContext, input: JsonObject): Promise
   return response(true, "Camera shake played.", JSON.parse(puerts.$unref(resultJson)) as JsonObject);
 }
 
-/** The read-only half of the PIE agent: observe, status, expect.
+/** The read-only half of the PIE agent: observe, read_property, status, expect.
 
     The write half (move_to, look_at, press, record_start, record_stop, replay)
     is deliberately absent. AGENTS.md requires the user to ask before any
@@ -1891,15 +1891,19 @@ async function playCameraShake(context: ToolContext, input: JsonObject): Promise
     legacy listener cannot disagree about what the agent said. */
 async function queryPIEAgent(context: ToolContext, input: JsonObject): Promise<CommandResponse> {
   const op = requireString(input, "op");
-  if (op !== "observe" && op !== "status" && op !== "expect") {
+  if (op !== "observe" && op !== "read_property" && op !== "status" && op !== "expect") {
     throw new Error(
-      "pie_agent_query op must be observe, status or expect. The write half of the PIE agent is "
+      "pie_agent_query op must be observe, read_property, status or expect. The write half of the PIE agent is "
       + "not exposed natively yet.",
     );
   }
   const request: JsonObject = { op };
   for (const key of ["radius", "class_filter", "log_lines", "operation_id", "conditions", "within_seconds"]) {
     if (input[key] !== undefined) { request[key] = input[key] as JsonValue; }
+  }
+  if (op === "read_property") {
+    request.actor = requireString(input, "actor");
+    request.property = requireString(input, "property");
   }
 
   const resultJson = puerts.$ref<string>("");
@@ -2296,7 +2300,7 @@ export const toolDefinitions: readonly ToolDefinition[] = [
   { name: "input_mapping_patch", inputSchema: schema({ preset: { type: "string" }, actions: { type: "array", items: { type: "object" } }, axes: { type: "array", items: { type: "object" } }, remove_actions: { type: "array", items: { type: "object" } }, remove_axes: { type: "array", items: { type: "object" } }, remove_unlisted: { type: "boolean" }, plan_only: { type: "boolean" } }), outputSchema, permissions: ["project.config.read", "project.config.write"], executionTimeoutMs: 10000, execute: patchInputMappings },
   { name: "folder_visibility", inputSchema: schema({ hidden: { type: "array", items: { type: "string" } }, hide: { type: "array", items: { type: "string" } }, show: { type: "array", items: { type: "string" } }, plan_only: { type: "boolean" } }), outputSchema, permissions: ["project.config.read", "project.config.write"], executionTimeoutMs: 5000, execute: setFolderVisibility },
   { name: "camera_shake", inputSchema: schema({ shake_class: { type: "string" }, scale: { type: "number" } }, ["shake_class"]), outputSchema, permissions: ["editor.pie"], executionTimeoutMs: 3000, execute: playCameraShake },
-  { name: "pie_agent_query", inputSchema: schema({ op: { type: "string" }, radius: { type: "number" }, class_filter: { type: "string" }, log_lines: { type: "number" }, operation_id: { type: "number" }, conditions: { type: "array", items: { type: "string" } }, within_seconds: { type: "number" } }, ["op"]), outputSchema, permissions: ["pie.observe"], executionTimeoutMs: 5000, execute: queryPIEAgent },
+  { name: "pie_agent_query", inputSchema: schema({ op: { type: "string" }, radius: { type: "number" }, class_filter: { type: "string" }, log_lines: { type: "number" }, actor: { type: "string" }, property: { type: "string" }, operation_id: { type: "number" }, conditions: { type: "array", items: { type: "string" } }, within_seconds: { type: "number" } }, ["op"]), outputSchema, permissions: ["pie.observe"], executionTimeoutMs: 5000, execute: queryPIEAgent },
   { name: "sequence_inspect", inputSchema: schema({ asset_path: { type: "string" }, include_keys: { type: "boolean" } }, ["asset_path"]), outputSchema, permissions: ["assets.read"], executionTimeoutMs: 15000, execute: inspectSequence },
   { name: "sequence_build", inputSchema: schema({ asset_path: { type: "string" }, frame_rate: { type: "number" }, playback_range: { type: "object" }, bindings: { type: "array", items: { type: "object" } }, tracks: { type: "array", items: { type: "object" } }, plan_only: { type: "boolean" }, save: { type: "boolean" } }, ["asset_path"]), outputSchema, permissions: ["assets.write", "actors.read"], executionTimeoutMs: 30000, execute: buildSequence },
   { name: "physics_build", inputSchema: schema({ actors: { type: "array", items: { type: "object" } } }, ["actors"]), outputSchema, permissions: ["actors.spawn"], executionTimeoutMs: 10000, execute: buildPhysics },

@@ -13,6 +13,7 @@
 #include "GameFramework/Pawn.h"
 #include "GameFramework/PlayerController.h"
 #include "Internationalization/Regex.h"
+#include "JsonObjectConverter.h"
 #include "Kismet/GameplayStatics.h"
 #include "Misc/OutputDeviceRedirector.h"
 #include "Misc/ScopeLock.h"
@@ -21,6 +22,7 @@
 #include "Serialization/JsonReader.h"
 #include "Serialization/JsonSerializer.h"
 #include "Serialization/JsonWriter.h"
+#include "UObject/UnrealType.h"
 
 namespace
 {
@@ -186,6 +188,53 @@ AActor* UPIEAgentRuntime::FindActor(const FString& Query) const
             return *It;
         }
     }
+    return nullptr;
+}
+
+AActor* UPIEAgentRuntime::FindActorForRead(const FString& Query, FString& OutError) const
+{
+    UWorld* World = GetPIEWorld();
+    if (!World || Query.IsEmpty())
+    {
+        OutError = TEXT("read_property needs a non-empty actor name, label, path, or unique class substring");
+        return nullptr;
+    }
+
+    TArray<AActor*> Exact;
+    TArray<AActor*> Partial;
+    for (TActorIterator<AActor> It(World); It; ++It)
+    {
+        AActor* Actor = *It;
+        if (!Actor || Actor->IsPendingKill()) continue;
+        if (Actor->GetName().Equals(Query, ESearchCase::IgnoreCase)
+            || Actor->GetActorLabel().Equals(Query, ESearchCase::IgnoreCase)
+            || Actor->GetPathName().Equals(Query, ESearchCase::IgnoreCase))
+        {
+            Exact.Add(Actor);
+            continue;
+        }
+        if (Actor->GetName().Contains(Query, ESearchCase::IgnoreCase)
+            || Actor->GetActorLabel().Contains(Query, ESearchCase::IgnoreCase)
+            || Actor->GetClass()->GetName().Contains(Query, ESearchCase::IgnoreCase))
+        {
+            Partial.Add(Actor);
+        }
+    }
+
+    const TArray<AActor*>& Matches = Exact.Num() > 0 ? Exact : Partial;
+    if (Matches.Num() == 1)
+    {
+        return Matches[0];
+    }
+
+    TArray<FString> Names;
+    for (AActor* Actor : Matches)
+    {
+        Names.Add(FString::Printf(TEXT("%s (%s)"), *Actor->GetActorLabel(), *Actor->GetName()));
+    }
+    OutError = Matches.Num() == 0
+        ? FString::Printf(TEXT("No PIE actor matches '%s'"), *Query)
+        : FString::Printf(TEXT("PIE actor query '%s' is ambiguous: %s"), *Query, *FString::Join(Names, TEXT(", ")));
     return nullptr;
 }
 
@@ -455,6 +504,54 @@ FString UPIEAgentRuntime::Observe(const FString& RequestJson, bool bAppendToScri
     }
     Data->SetArrayField(TEXT("log_tail"), Tail);
     if (bAppendToScript) AppendScript(TEXT("pie_agent_observe"), RequestJson);
+    return MakeResponse(true, Data);
+}
+
+FString UPIEAgentRuntime::ReadProperty(const FString& RequestJson, bool bAppendToScript)
+{
+    if (!GetPIEWorld()) return MakeResponse(false, nullptr, TEXT("No PIE session is running"));
+    const TSharedPtr<FJsonObject> Request = ParseJson(RequestJson);
+    FString ActorQuery;
+    FString PropertyName;
+    if (!Request.IsValid()
+        || !Request->TryGetStringField(TEXT("actor"), ActorQuery)
+        || !Request->TryGetStringField(TEXT("property"), PropertyName)
+        || ActorQuery.IsEmpty()
+        || PropertyName.IsEmpty())
+    {
+        return MakeResponse(false, nullptr, TEXT("read_property needs non-empty 'actor' and 'property' strings"));
+    }
+
+    FString ActorError;
+    AActor* Actor = FindActorForRead(ActorQuery, ActorError);
+    if (!Actor) return MakeResponse(false, nullptr, ActorError);
+
+    FProperty* Property = FindFProperty<FProperty>(Actor->GetClass(), *PropertyName);
+    if (!Property)
+    {
+        return MakeResponse(false, nullptr, FString::Printf(
+            TEXT("Property '%s' was not found on PIE actor '%s' (%s)"),
+            *PropertyName, *Actor->GetActorLabel(), *Actor->GetClass()->GetName()));
+    }
+    TSharedPtr<FJsonValue> Value = FJsonObjectConverter::UPropertyToJsonValue(
+        Property, Property->ContainerPtrToValuePtr<void>(Actor));
+    if (!Value.IsValid())
+    {
+        return MakeResponse(false, nullptr, FString::Printf(
+            TEXT("Property '%s' on PIE actor '%s' could not be serialized"),
+            *PropertyName, *Actor->GetActorLabel()));
+    }
+
+    TSharedPtr<FJsonObject> ActorData = MakeShared<FJsonObject>();
+    ActorData->SetStringField(TEXT("name"), Actor->GetName());
+    ActorData->SetStringField(TEXT("label"), Actor->GetActorLabel());
+    ActorData->SetStringField(TEXT("path"), Actor->GetPathName());
+    ActorData->SetStringField(TEXT("class"), Actor->GetClass()->GetName());
+    TSharedPtr<FJsonObject> Data = MakeShared<FJsonObject>();
+    Data->SetObjectField(TEXT("actor"), ActorData.ToSharedRef());
+    Data->SetStringField(TEXT("property"), PropertyName);
+    Data->SetField(TEXT("value"), Value);
+    if (bAppendToScript) AppendScript(TEXT("pie_agent_read_property"), RequestJson);
     return MakeResponse(true, Data);
 }
 
@@ -1178,6 +1275,7 @@ void UPIEAgentRuntime::TickReplay()
     else if (Command == TEXT("pie_agent_expect")) { Response = StartExpect(ParamsJson, false); bAsync = true; }
     else if (Command == TEXT("pie_agent_look_at")) Response = LookAt(ParamsJson, false);
     else if (Command == TEXT("pie_agent_observe")) Response = Observe(ParamsJson, false);
+    else if (Command == TEXT("pie_agent_read_property")) Response = ReadProperty(ParamsJson, false);
     else if (Command == TEXT("pie_agent_record_start")) Response = RecordStart(ParamsJson, false);
     else if (Command == TEXT("pie_agent_record_stop")) Response = RecordStop(false);
     else if (Command == TEXT("pie_agent_replay"))

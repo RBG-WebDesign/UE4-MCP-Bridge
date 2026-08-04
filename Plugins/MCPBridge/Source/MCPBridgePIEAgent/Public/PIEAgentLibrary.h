@@ -32,6 +32,9 @@ public:
     static FString Observe(const FString& RequestJson);
 
     UFUNCTION(BlueprintCallable, CallInEditor, Category="MCP Bridge|PIE Agent")
+    static FString ReadProperty(const FString& RequestJson);
+
+    UFUNCTION(BlueprintCallable, CallInEditor, Category="MCP Bridge|PIE Agent")
     static FString RecordStart(const FString& RequestJson);
 
     UFUNCTION(BlueprintCallable, CallInEditor, Category="MCP Bridge|PIE Agent")
