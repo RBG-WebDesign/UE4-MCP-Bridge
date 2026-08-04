@@ -73,11 +73,21 @@ async function main(): Promise<void> {
   const server: Server = createServer((socket) => socket.once("data", (data: Buffer) => {
     const request = JSON.parse(data.toString("utf8")) as PipeRequest;
     seen.push(request);
+    const responseData = request.command === "graph_inspect"
+      ? {
+          graphs: [{ name: "EventGraph" }],
+          functions: [{ name: "Use" }],
+          variables: [{ name: "Health" }],
+          interfaces: [{ path: "/Game/BPI_Use" }],
+          event_dispatchers: [{ name: "OnUsed" }],
+          components: [{ name: "Root" }],
+        }
+      : { echoed_command: request.command };
     socket.end(JSON.stringify({
       session: responseSession,
       success: true,
       message: "Native command executed.",
-      data: { echoed_command: request.command },
+      data: responseData,
       changed_assets: [],
       changed_actors: [],
       warnings: [],
@@ -99,7 +109,7 @@ async function main(): Promise<void> {
     // --- catalog shape ----------------------------------------------------
     // A literal on purpose: this is the canary that catches an alias silently
     // disappearing. Raise it deliberately when a wave adds legacy names.
-    const ALIAS_COUNT = 47;
+    const ALIAS_COUNT = 49;
     assert(compat.length === ALIAS_COUNT, `expected ${ALIAS_COUNT} compat aliases, got ${compat.length}`);
     assert(
       Object.keys(compatAliasTargets).length === ALIAS_COUNT,
@@ -179,6 +189,19 @@ async function main(): Promise<void> {
     // --- other translations reach the right command -----------------------
     const routings: Array<[string, Record<string, unknown>, string, Record<string, unknown>]> = [
       ["blueprint_info", { blueprint_path: "/Game/MCPGenerated/BP_A" }, "graph_inspect", { asset_path: "/Game/MCPGenerated/BP_A" }],
+      ["blueprint_inspect", { blueprint_path: "/Game/MCPGenerated/BP_A", action: "variables" },
+        "graph_inspect", { asset_path: "/Game/MCPGenerated/BP_A" }],
+      ["anim_blueprint_build_from_json", {
+        package_path: "/Game/MCPGenerated/Anim", asset_name: "ABP_Guard",
+        skeleton_path: "/Game/Characters/SK_Guard", json_spec: JSON.stringify({
+          anim_graph: { pipeline: [{ id: "sm", type: "StateMachine", name: "Locomotion" }] },
+          state_machine: { states: [{ id: "idle", name: "Idle", animation: "/Game/Anim/A_Idle", is_entry: true }], transitions: [] },
+        }),
+      }, "anim_blueprint_build", {
+        asset_path: "/Game/MCPGenerated/Anim/ABP_Guard", skeleton_path: "/Game/Characters/SK_Guard",
+        anim_graph: { pipeline: [{ id: "sm", type: "StateMachine", name: "Locomotion" }] },
+        state_machine: { states: [{ id: "idle", name: "Idle", animation: "/Game/Anim/A_Idle", is_entry: true }], transitions: [] },
+      }],
       ["widget_build_from_json", { package_path: "/Game/MCPGenerated/UI/", asset_name: "WBP_HUD", widget_json: { type: "CanvasPanel", name: "Root" } },
         "widget_build", { asset_path: "/Game/MCPGenerated/UI/WBP_HUD", tree: { root: { type: "CanvasPanel", name: "Root" } } }],
       ["widget_build_from_json", { package_path: "/Game/MCPGenerated/UI", asset_name: "WBP_HUD", widget_json: { root: { type: "CanvasPanel", name: "Root" }, animations: [] } },
@@ -292,11 +315,21 @@ async function main(): Promise<void> {
       assert(payload.requested_tool === alias && payload.compat === true, `${alias} result is missing the compat wrapper`);
       assert(payload.canonical_tool === compatAliasTargets[alias], `${alias} reported the wrong canonical_tool`);
     }
+    const inspect = await call(toolNamed(compat, "blueprint_inspect"), {
+      blueprint_path: "/Game/MCPGenerated/BP_A",
+      action: "variables",
+    });
+    assert(
+      stable(inspect.data) === stable({ action: "variables", result: [{ name: "Health" }] }),
+      `blueprint_inspect must retain the legacy action/result shape, got ${JSON.stringify(inspect.data)}`,
+    );
 
     // --- unmappable parameters fail loud, and never reach the editor ------
     const unmappable: Array<[string, Record<string, unknown>, string]> = [
       ["behavior_tree_create", { path: "/Game/MCPGenerated/AI", name: "BT_Empty", blackboard_path: "/Game/MCPGenerated/AI/BB_Guard" }, "tree"],
       ["viewport_fit", {}, "actor_names"],
+      ["blueprint_inspect", { blueprint_path: "/Game/MCPGenerated/BP_A", action: "node_detail", graph_name: "EventGraph", node_guid: "abc" }, "action"],
+      ["anim_blueprint_build_from_json", { package_path: "/Game/MCPGenerated/Anim", asset_name: "ABP_Bad", skeleton_path: "/Game/Skeletons/SK", json_spec: "[" }, "json_spec"],
       ["viewport_fit", { actor_names: ["Door"], padding: 1.5 }, "padding"],
       ["viewport_focus", { actor_name: "Door", distance: 500 }, "distance"],
       ["undo", { count: 1 }, "transaction_id"],

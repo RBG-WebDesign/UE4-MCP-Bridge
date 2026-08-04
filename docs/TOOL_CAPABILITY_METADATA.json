@@ -825,7 +825,8 @@
       "canonical_capability": "blueprints.inspect",
       "migration_action": "ALIAS",
       "replacement_tool": "puerts_graph_inspect",
-      "notes": "alias not yet written; the native replacement is live-verified"
+      "verification": "implemented_unverified",
+      "notes": "Compatibility alias preserves the legacy {action,result} response for graphs, functions, variables, interfaces, event_dispatchers and components through the native inspector. macros, nodes, node_detail and find_nodes are refused because the canonical reader cannot preserve their filtered result shapes. Editor-free routing tests pass; live result-shape proof remains."
     },
     "blueprint_build_from_json": {
       "canonical_capability": "blueprints.build",
@@ -865,10 +866,12 @@
     },
     "anim_blueprint_build_from_json": {
       "canonical_capability": "animation.blueprint_build",
-      "migration_action": "REFRONT",
+      "migration_action": "ALIAS",
+      "replacement_tool": "puerts_anim_blueprint_build",
       "cpp_builder": "AnimBlueprintBuilderLibrary",
       "cpp_entry_point": "BuildAnimBlueprintFromJSON",
-      "notes": "highest-value REFRONT: builder v1 complete, same shape as behavior_tree_build"
+      "verification": "implemented_unverified",
+      "notes": "Compatibility alias joins package_path and asset_name, parses json_spec into the same native Anim Blueprint v1 builder spec, and preserves data.path in the richer native result. The native path is limited to /Game/MCPGenerated/ and refuses an existing asset. Editor-free routing tests pass; warm and cold live proof remains."
     },
     "data_table_create": {
       "migration_action": "REFRONT",
