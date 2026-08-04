@@ -47,21 +47,89 @@ executes it.
 - Do not launch, close, or otherwise manage Unreal Editor until the user
   explicitly asks. Do not start PIE without a separate explicit request.
 
-## Latest checkpoint and gates
+## Stabilization checkpoint, 2026-08-03
 
-- HEAD advanced concurrently to `014bd14` (`Checkpoint offline FP integration
-  and audio build WIP`) during the editor-free test run. This session did not
-  issue that commit and did not amend or reset it.
-- After that checkpoint, one final FP-6 trust-boundary tightening remains
-  uncommitted in MCPPuerTSBridgeAudioBuild.cpp: case-colliding FName ids are
-  refused, Sound Waves are limited to /Game and /Engine, and per-child
-  InputVolume/Weights arrays must match node arity.
-- That exact post-checkpoint source compiled and linked clean in UE4.27, was
-  synced to BridgeInstallTest, passed focused contracts and install:check, and
-  leaves the repository dirty only by the validation file plus this handoff.
-- Full npm run verify passed at 280 registrations, 66 native commands and 69
-  exposed MCP tools. npm run test:editor-free also passed. No live editor test
-  ran, no editor lifecycle action ran, and PIE did not start.
+- Checkpoint branch: `checkpoint/stabilized-2026-08-03`.
+- Checkpoint commit: `a624adf5ea9177e2daae0b3ef6a2da8464e4e6dc`.
+- Base preservation commit: `014bd14` (`Checkpoint offline FP integration and audio build WIP`).
+- The competing Codex source thread is idle and explicitly blocked from further
+  repository writes. This integration thread is the sole writer.
+- Unreal Editor was not launched, closed, inspected or otherwise managed during
+  stabilization. No install sync was run by the integrator.
+
+Files preserved by `014bd14`:
+
+- `Plugins/MCPBridge/Source/MCPBridgePuerTS/MCPBridgePuerTS.Build.cs`
+- `Plugins/MCPBridge/Source/MCPBridgePuerTS/Private/MCPPuerTSBridgeAudio.cpp`
+- `Plugins/MCPBridge/Source/MCPBridgePuerTS/Private/MCPPuerTSBridgeAudioBuild.cpp`
+- `Plugins/MCPBridge/Source/MCPBridgePuerTS/Private/MCPPuerTSBridgeBlueprint.cpp`
+- `Plugins/MCPBridge/Source/MCPBridgePuerTS/Private/MCPPuerTSBridgeEditorState.cpp`
+- `Plugins/MCPBridge/Source/MCPBridgePuerTS/Private/MCPPuerTSBridgeService.cpp`
+- `Plugins/MCPBridge/Source/MCPBridgePuerTS/Public/MCPPuerTSBridgeService.h`
+- `Scripts/audio-build-acceptance.mjs`
+- `Scripts/bp-member-patch-acceptance.mjs`
+- `Scripts/bp-remove-unlisted-acceptance.mjs`
+- `Scripts/level-lifecycle-acceptance.mjs`
+- `docs/CAPABILITY_FINDINGS.md`
+- `docs/CAPABILITY_PRESERVATION_AUDIT.md`
+- `docs/CAPABILITY_SCOREBOARD.json`
+- `docs/CONTINUE_HERE.md`
+- `docs/FINAL_IMPLEMENTATION_PLAN.json`
+- `docs/FINAL_IMPLEMENTATION_PLAN.md`
+- `docs/PROJECT_FINISH_SCOREBOARD.json`
+- `docs/REFRONT_MAP.md`
+- `docs/RELEASE.md`
+- `docs/SUBAGENT_INTEGRATION_LOG.md`
+- `docs/TOOL_CAPABILITY_METADATA.json`
+- `docs/TOOL_INVENTORY.json`
+- `mcp-server/src/annotations.ts`
+- `mcp-server/src/tools/compat.ts`
+- `mcp-server/src/tools/puerts.ts`
+- `mcp-server/tests/compat-tools.test.ts`
+- `mcp-server/tests/puerts-tools.test.ts`
+- `puerts-runtime/src/registry.ts`
+- `puerts-runtime/src/types.ts`
+- `puerts-runtime/types/puerts-bootstrap.d.ts`
+- `puerts-runtime/typing/ue/ue.d.ts`
+- `skills/unreal-engine-4-27/references/tool-catalog.md`
+
+`a624adf` additionally preserves:
+
+- `Plugins/MCPBridge/Source/MCPBridgePuerTS/Private/MCPPuerTSBridgeAudioBuild.cpp`
+  with final FP-6 trust-boundary validation for FName-colliding ids, Sound Wave
+  roots and per-child array arity.
+- `docs/CONTINUE_HERE.md` with the source task's final handoff.
+
+### Compile and test status
+
+- The source task reported UE4.27 UHT, UBT, library creation, DLL linking and
+  install parity green after the final FP-6 validation change. This integrator
+  did not repeat the native build during stabilization.
+- `npm run verify` passed on 2026-08-03: both TypeScript projects built, all
+  editor-free suites passed, inventory matched at 280 catalog tools, MCP smoke
+  exposed 69 tools, and smoke finished 8 passed, 0 failed, 4 skipped.
+- `npm run test:editor-free` was reported green by the source task.
+- The four smoke skips require an engine root or live editor session. They are
+  not editor-free failures.
+- No editor-free test is currently red.
+- The last recorded live gameplay slice remains 16 passed, 1 failed. It was not
+  rerun during stabilization.
+
+### Editor-dependent verification still required
+
+- Batch-run all seven slices against one clean installed target. Materials,
+  level, animation and cinematics still lack a post-Wave-A merged live run.
+- Rerun gameplay to verify the compiled hidden-pin hash fix.
+- Prove RL-2 with two distinct UE4.27 projects using derived default pipes.
+- Run FP-2 PIE-agent behavior only after separate explicit PIE authorization.
+- Run FP-3 asset deletion with fresh positive and referenced controls.
+- Run FP-4 Blueprint component convergence warm and cold.
+- Run FP-5 level lifecycle warm and cold.
+- Run FP-6 Sound Cue build and inspect warm and cold. Playback remains a
+  separate PIE gate.
+
+Resume construction from `docs/FINAL_IMPLEMENTATION_PLAN.json`. A red live
+capability blocks only its promotion, not unrelated editor-free construction.
 
 ## Exact next commands
 
