@@ -15,7 +15,15 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          # 24, not 20: @modelcontextprotocol/inspector@2.0.0 (added as a
+          # devDependency for `npm run inspect`) declares engines.node
+          # >=22.19.0, and its optional @napi-rs/wasm-runtime dependency
+          # resolves to peer entries (@emnapi/core@2.0.0-alpha.3 etc.) that
+          # only the npm bundled with Node 24 (11.x) validates via `npm ci`.
+          # Node 22's bundled npm (10.x) rejects the same committed lock file
+          # with "Missing ... from lock file", reproduced locally against
+          # both Node 20.20.2 and Node 22.23.2 before this fix.
+          node-version: 24
           cache: npm
 
       - uses: actions/setup-python@v5
@@ -89,7 +97,15 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          # 24, not 20: @modelcontextprotocol/inspector@2.0.0 (added as a
+          # devDependency for `npm run inspect`) declares engines.node
+          # >=22.19.0, and its optional @napi-rs/wasm-runtime dependency
+          # resolves to peer entries (@emnapi/core@2.0.0-alpha.3 etc.) that
+          # only the npm bundled with Node 24 (11.x) validates via `npm ci`.
+          # Node 22's bundled npm (10.x) rejects the same committed lock file
+          # with "Missing ... from lock file", reproduced locally against
+          # both Node 20.20.2 and Node 22.23.2 before this fix.
+          node-version: 24
           cache: npm
 
       - name: Install dependencies

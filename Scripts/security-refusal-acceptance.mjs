@@ -228,7 +228,14 @@ try {
     "the check is on the path that performs the write, not somewhere a caller could route around");
   assert("STATIC", nativeSource.includes('GetArray(BridgeConfigSection, TEXT("AllowedWritableProperties")'),
     "the allowlist is a project config value, so a project can narrow it");
-  const defaults = nativeSource.match(/TEXT\("Actor\.bHidden"\)[\s\S]{0,400}?\};/)?.[0] ?? "";
+  // Unbounded on purpose: the array has grown from a handful of properties to
+  // dozens as capabilities widened (scene_batch, class_defaults_patch, ...),
+  // each documented inline. A fixed character budget here (previously 400)
+  // silently stops matching once the real array outgrows it, which makes this
+  // assertion pass or fail based on array length instead of array content.
+  // There is no nested `{` inside a `TCHAR*[]` initializer, so the first `};`
+  // after the anchor is genuinely this array's own close.
+  const defaults = nativeSource.match(/TEXT\("Actor\.bHidden"\)[\s\S]*?\};/)?.[0] ?? "";
   assert("STATIC", defaults.includes("Actor.ActorLabel") && !/TEXT\("\*"\)/.test(defaults),
     "and the built-in default list is a small enumerated set, with no wildcard");
   console.log("          Not executable here: the allowlist is matched against a live UClass");
