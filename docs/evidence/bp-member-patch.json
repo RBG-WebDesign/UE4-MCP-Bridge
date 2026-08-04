@@ -1,10 +1,10 @@
 {
   "phase": "record",
-  "run_id": "msdecphi",
-  "asset_path": "/Game/MCPGenerated/BP_MemberProbe_msdecphi",
+  "run_id": "msf30dwa",
+  "asset_path": "/Game/MCPGenerated/BP_MemberProbe_msf30dwa",
   "steps": {
     "fixture": {
-      "member_hash": "4fd0c9b17175d1686a149f0fb36d3ceed2da7f05",
+      "member_hash": "6721844597e33448271421b96bc197b47332ee3f",
       "variables": [
         "Alpha",
         "Beta",
@@ -19,11 +19,11 @@
         "Muzzle",
         "Root"
       ],
-      "file_sha256": "b54d005995eb66ba61067ed0556ff0aa42dd8b16ad15bd40201063d25af323ef",
-      "earlier_probe_files_unlinked": 1
+      "file_sha256": "da2a4f36715d597cc8c4a948bf8b4d590c856ccd99a5ae9b4896806e19bcf5f0",
+      "earlier_probe_files_unlinked": 0
     },
     "plan": {
-      "asset_path": "/Game/MCPGenerated/BP_MemberProbe_msdecphi",
+      "asset_path": "/Game/MCPGenerated/BP_MemberProbe_msf30dwa",
       "requested_operation_count": 2,
       "operations_to_apply": [
         "add_variable Delta"
@@ -32,16 +32,17 @@
         "add_variable Alpha"
       ],
       "expected_change_count": 1,
-      "pre_member_hash": "4fd0c9b17175d1686a149f0fb36d3ceed2da7f05",
+      "function_plans": [],
+      "pre_member_hash": "6721844597e33448271421b96bc197b47332ee3f",
       "plan_only": true,
       "prediction_unavailable_reason": "the batch changes the Blueprint's members, and a created graph or variable carries engine-generated detail that only exists once it is made. A predicted hash is offered only for a no-op batch, where it is the current hash by definition.",
-      "elapsed_ms": 1.427199982572347
+      "elapsed_ms": 1.9879999745171517
     },
     "patch": {
-      "elapsed_ms": 138.6618999822531,
+      "elapsed_ms": 118.95279999589548,
       "applied_operation_count": 7,
-      "pre_member_hash": "4fd0c9b17175d1686a149f0fb36d3ceed2da7f05",
-      "post_member_hash": "94fa6845bcbe51b1be791b428ae61cb10a157b42"
+      "pre_member_hash": "6721844597e33448271421b96bc197b47332ee3f",
+      "post_member_hash": "8d3d78bf8271c08c3a2d9048f896940a2426e22e"
     },
     "untouched_members_compared": 5,
     "rerun": {
@@ -55,8 +56,8 @@
     },
     "source_control_quiescent": null
   },
-  "post_patch_member_hash": "94fa6845bcbe51b1be791b428ae61cb10a157b42",
-  "post_patch_file_sha256": "e83926bc9ea2d8601b1cc4b0ca552b7ec537dafee7a90b0897f23a4f45cfcec1",
+  "post_patch_member_hash": "8d3d78bf8271c08c3a2d9048f896940a2426e22e",
+  "post_patch_file_sha256": "5bf5a139edfb022c2d98dedc387f1d9df10400c269161f70311db3b3c51bd38f",
   "post_patch_variables": [
     "Alpha",
     "Beta",

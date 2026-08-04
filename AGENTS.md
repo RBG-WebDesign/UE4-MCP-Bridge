@@ -208,10 +208,10 @@ directly inside `skills/`; those feed the orchestrator and PromptBrush.
   every registered tool. Reviewable in one file on purpose.
 - `history.ts` - undo/redo/checkpoint tracking
 - `validation.ts` - shared validation helpers
-- `tools/` - 25 modules, each exporting a `create*Tools(client)` factory that
+- `tools/` - 26 modules, each exporting a `create*Tools(client)` factory that
   returns `ToolDefinition[]`
 
-The 25 tool modules: `actors`, `animation`, `blueprint-graph`, `blueprints`,
+The 26 tool modules: `actors`, `animation`, `blueprint-graph`, `blueprint-production`, `blueprints`,
 `cloth`, `compat`, `content`, `cpp`, `effects`, `engine-source`, `gamedev`,
 `gameplay`, `intelligence`, `level`, `materials`, `operations`, `optimization`,
 `pie-agent`, `project`, `promptbrush`, `puerts`, `status`, `system`, `titles`,

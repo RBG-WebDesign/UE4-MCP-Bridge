@@ -247,7 +247,7 @@ try {
   // Named one by one, the same rule mcp-smoke.mjs uses: a server-local tool
   // contacts no editor, so it is not part of the native lane and must not be
   // waved through by a prefix somebody picks later. Adding one is deliberate.
-  const SERVER_LOCAL_TOOLS = new Set(["bridge_command_status"]);
+  const SERVER_LOCAL_TOOLS = new Set(["bridge_command_status", "blueprint_production_plan"]);
   assert(names.length > 0
     && names.every((name) => name.startsWith("puerts_") || name.startsWith("engine_source_")
       || SERVER_LOCAL_TOOLS.has(name)),
