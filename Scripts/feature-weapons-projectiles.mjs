@@ -16,19 +16,6 @@ const PROJECTILE_CLASS = `${PROJECTILE}.BP_Projectile_${runId}_C`;
 const WEAPON_CLASS = `${WEAPON}.BP_Weapon_${runId}_C`;
 const ACTOR_LABEL = `FeatureWeapon_${runId}`;
 
-async function assertUnused(h, assetPath) {
-  const name = assetPath.split("/").pop();
-  const found = await h.call("puerts_find_assets", {
-    path: "/Game/MCPGenerated/FeatureAcceptance",
-    name,
-    recursive: false,
-    limit: 2,
-  }, { label: `assert the fresh fixture is unused: ${name}` });
-  const unused = found?.success === true && (found.data?.assets ?? []).length === 0;
-  h.check(unused, `the fixture path ${assetPath} did not exist before the control`);
-  return unused;
-}
-
 const PROJECTILE_SPEC = {
   asset_path: PROJECTILE,
   parent_class: "Actor",
@@ -126,15 +113,8 @@ await runSlice({
   title: "a weapon that consumes ammunition and spawns a configured projectile",
   proves: "author projectile movement and collision, wire weapon input to ammunition and spawning, inspect both assets, converge, and optionally prove the runtime join",
 }, async (h) => {
-  if (!await assertUnused(h, PROJECTILE) || !await assertUnused(h, WEAPON)) return;
-
-  const projectileAbsent = await h.expectFailure("puerts_graph_inspect", {
-    asset_path: PROJECTILE,
-  }, { label: "the independent graph reader refuses the unused projectile path" });
-  const weaponAbsent = await h.expectFailure("puerts_graph_inspect", {
-    asset_path: WEAPON,
-  }, { label: "the independent graph reader refuses the unused weapon path" });
-  if (projectileAbsent === null || weaponAbsent === null) return;
+  if (!await h.assertFreshFixture(PROJECTILE, "puerts_graph_inspect")
+    || !await h.assertFreshFixture(WEAPON, "puerts_graph_inspect")) return;
 
   const projectile = await h.call("puerts_blueprint_build", PROJECTILE_SPEC, {
     label: "1. build the projectile as the state-moving positive control",

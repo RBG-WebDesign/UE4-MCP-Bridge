@@ -6,7 +6,7 @@
 // a no-op rerun. Cold re-reads the sealed widget after an editor restart.
 // PIE is off unless --pie is passed.
 
-import { runSlice } from "./slice-harness.mjs";
+import { collectWidgetNames, runSlice } from "./slice-harness.mjs";
 
 const includePie = process.argv.includes("--pie");
 const runId = `${new Date().toISOString().replace(/\D/g, "").slice(0, 14)}_${process.pid}`;
@@ -15,30 +15,6 @@ const HOST = `/Game/MCPGenerated/FeatureAcceptance/BP_HUDHost_${runId}`;
 const HUD_CLASS = `${HUD}.WBP_HUD_${runId}_C`;
 const HOST_CLASS = `${HOST}.BP_HUDHost_${runId}_C`;
 const HOST_LABEL = `FeatureHUDHost_${runId}`;
-
-async function assertUnused(h, assetPath) {
-  const name = assetPath.split("/").pop();
-  const found = await h.call("puerts_find_assets", {
-    path: "/Game/MCPGenerated/FeatureAcceptance",
-    name,
-    recursive: false,
-    limit: 2,
-  }, { label: `assert the fresh fixture is unused: ${name}` });
-  const unused = found?.success === true && (found.data?.assets ?? []).length === 0;
-  h.check(unused, `the fixture path ${assetPath} did not exist before the control`);
-  return unused;
-}
-
-function collectNames(root) {
-  const names = [];
-  const visit = (node) => {
-    if (!node) return;
-    names.push(node.name);
-    for (const child of node.children ?? []) visit(child);
-  };
-  visit(root);
-  return names;
-}
 
 const CONTROL_TREE = {
   root: {
@@ -116,15 +92,8 @@ await runSlice({
   title: "a game HUD with independently inspectable vitals, aiming, ammunition and objective widgets",
   proves: "author a complete HUD tree from a small control, expose live-data widgets, converge, cold-load, and optionally prove it reaches the game viewport",
 }, async (h) => {
-  if (!await assertUnused(h, HUD) || !await assertUnused(h, HOST)) return;
-
-  const hudAbsent = await h.expectFailure("puerts_widget_inspect", {
-    asset_path: HUD,
-  }, { label: "the independent widget reader refuses the unused HUD path" });
-  const hostAbsent = await h.expectFailure("puerts_graph_inspect", {
-    asset_path: HOST,
-  }, { label: "the independent graph reader refuses the unused HUD host path" });
-  if (hudAbsent === null || hostAbsent === null) return;
+  if (!await h.assertFreshFixture(HUD, "puerts_widget_inspect")
+    || !await h.assertFreshFixture(HOST, "puerts_graph_inspect")) return;
 
   const control = await h.call("puerts_widget_build", { asset_path: HUD, tree: CONTROL_TREE }, {
     label: "1. build the minimal HUD as the state-moving positive control",
@@ -143,7 +112,7 @@ await runSlice({
     label: "3. inspect the complete HUD independently",
   });
   const hash = read?.data?.structure_hash_sha1 ?? null;
-  const names = collectNames(read?.data?.root);
+  const names = collectWidgetNames(read?.data?.root);
   h.check(typeof hash === "string" && hash !== controlHash,
     "3. the positive control moved to the requested HUD state", `${controlHash} -> ${hash}`);
   h.check(["Root", "VitalsPanel", "PlayerName", "HealthBar", "ShieldBar", "Crosshair", "AmmoText", "ObjectiveText"]
