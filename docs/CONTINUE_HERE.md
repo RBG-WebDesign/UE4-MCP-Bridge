@@ -251,3 +251,46 @@ now `Scripts/merge-lane.mjs`, and its header explains the failure it prevents.
    unconfigured zip install now derives its pipe from project name and canonical
    path; an ini override still wins. `npm run test:package` and `install:check` pass. The
    two-project session proof remains.
+
+## Editor-free construction wave, 2026-08-03
+
+Integration HEAD after this wave is `93f1617` on
+`bridge/native-consolidation-2026-07-31`.
+
+Merged work:
+
+- `lane/b4-port-batch1` at `20e3724`, merged by `f1b370e`: re-fronted
+  `blueprint_info`, `viewport_fit` and `viewport_focus` onto existing native
+  graph inspection and viewport capture. Unsupported legacy distance and
+  padding semantics refuse loudly.
+- Generated inventory and scoreboards were refreshed once in `4480e46`.
+  Current measured catalog: 283 tools, including 66 native pipe commands,
+  44 native pipe aliases and 69 exposed native/server-local tools.
+- `lane/d-ci-release` at `f36902b`, merged by `ceee482`: CI now covers bridge
+  and lane branches, runs the canonical editor-free suite, and proves package
+  refusal and artifact checks without attempting unsupported UE4.27 binary
+  plugin packaging. A hosted Actions run is still unverified.
+- `lane/c-feature-library-7-12` at `adb056d`, merged by `93f1617`: authored
+  weapons/projectiles and HUD acceptance harnesses with warm/cold phases,
+  state-moving controls, independent inspectors, convergence checks and
+  optional PIE behind `--pie`. They are implemented_unverified.
+
+`npm run verify` passed immediately before and after every merge. The final
+run built both TypeScript projects, passed all editor-free suites, matched the
+283-tool inventory, and finished smoke at 8 passed, 0 failed, 4 expected
+skips. No Unreal build, install sync, editor action, live capability call or
+PIE session occurred in this wave.
+
+The feature lane's first freshness claim was rejected because `find_assets`
+was not the required independent reader. Commit `adb056d` repaired the shared
+harness with an expected-refusal control and placed `graph_inspect` or
+`widget_inspect` before every fixture build. The repaired construction was
+accepted, but no evidence state was promoted.
+
+Next editor-free construction priorities are feature acceptance harnesses
+9 through 12, a second small legacy re-fronting batch, and autonomous
+inspect-build-verify-repair orchestration. Continue to batch all live proof.
+
+Ponytail finding: `feature-hud.mjs` and `feature-weapons-projectiles.mjs`
+duplicate the same fixture search. Fold search plus independent reader refusal
+into one existing harness method before feature harnesses 9 through 12.

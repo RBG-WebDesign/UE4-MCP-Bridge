@@ -562,3 +562,32 @@ uses UE4.27 LinkGraphNodesFromSoundNodes to derive the editor graph. Existing
 saved clean cues use FBridgeContentSnapshot, new cues use FBridgeAssetRollback,
 and successful writes are independently read through audio_inspect before save.
 No editor process was launched, closed or inspected, and PIE was not started.
+
+## Editor-free construction wave verdict, 2026-08-03
+
+| Lane | Tip | Integration | Verdict | Outstanding |
+|---|---|---|---|---|
+| `lane/b4-port-batch1` | `20e3724` | `f1b370e` | Accepted, implemented_unverified | Live alias shape proof |
+| `lane/d-ci-release` | `f36902b` | `ceee482` | Accepted, editor-free proven | Hosted Actions green URL |
+| `lane/c-feature-library-7-12` | `adb056d` | `93f1617` | Accepted after repair, authored_unrun | Warm and cold feature proof; optional PIE separately gated |
+
+The migration lane reused existing native tools and the existing compatibility
+router. The CI lane reused `test:editor-free` and source-zip packaging. The
+feature lane reused `runSlice`; its only shared addition is one expected
+refusal helper with one source-level test.
+
+### Rejected claim
+
+The feature lane initially treated `find_assets` as sufficient proof that a
+fixture was unused. That claim was rejected because the evidence contract
+requires the capability's independent reader to fail before creation. The lane
+repaired both harnesses in `adb056d` by requiring `graph_inspect` or
+`widget_inspect` refusal before the first builder call. The integrator accepted
+the repaired code but did not promote either feature without live evidence.
+
+Final editor-free evidence: `npm run verify` green at 283 catalog tools and
+69 exposed tools, smoke 8 passed, 0 failed, 4 expected skips. No editor,
+install sync, native compile, live call or PIE action occurred.
+
+Ponytail review found one deletion target: consolidate the duplicated feature
+fixture search into the existing slice harness during the next feature batch.
