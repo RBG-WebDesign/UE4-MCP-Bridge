@@ -547,6 +547,7 @@ export const compatAliasAnnotations: Record<string, ToolAnnotations> = {
   actor_spawn: mutating,                  // -> puerts_spawn_actor
   actor_delete: destructiveIdempotent,    // -> puerts_delete_actor
   actor_modify: mutatingIdempotent,       // -> puerts_set_property
+  placement_validate: readOnly,           // -> puerts_scene_inspect
   level_actors: readOnly,                 // -> puerts_find_actors
   level_save: destructive,                // -> puerts_level_save
   level_new: destructive,                 // -> puerts_level_create

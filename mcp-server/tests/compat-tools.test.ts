@@ -82,6 +82,14 @@ async function main(): Promise<void> {
           event_dispatchers: [{ name: "OnUsed" }],
           components: [{ name: "Root" }],
         }
+      : request.command === "scene_inspect"
+        ? { actors: [
+            { label: "A", transform: { location: { x: 0, y: 0, z: 0 } }, bounds: { extent: { x: 1, y: 0, z: 0 } } },
+            { label: "B", transform: { location: { x: 5, y: 0, z: 0 } }, bounds: { extent: { x: 1, y: 0, z: 0 } } },
+            { label: "Near", transform: { location: { x: 0.5, y: 0, z: 0 } }, bounds: { extent: { x: 0, y: 0, z: 0 } } },
+            { label: "Duplicate", transform: { location: { x: 0, y: 0, z: 0 } }, bounds: { extent: { x: 0, y: 0, z: 0 } } },
+            { label: "Duplicate", transform: { location: { x: 1, y: 0, z: 0 } }, bounds: { extent: { x: 0, y: 0, z: 0 } } },
+          ] }
       : { echoed_command: request.command };
     socket.end(JSON.stringify({
       session: responseSession,
@@ -109,7 +117,7 @@ async function main(): Promise<void> {
     // --- catalog shape ----------------------------------------------------
     // A literal on purpose: this is the canary that catches an alias silently
     // disappearing. Raise it deliberately when a wave adds legacy names.
-    const ALIAS_COUNT = 49;
+    const ALIAS_COUNT = 50;
     assert(compat.length === ALIAS_COUNT, `expected ${ALIAS_COUNT} compat aliases, got ${compat.length}`);
     assert(
       Object.keys(compatAliasTargets).length === ALIAS_COUNT,
@@ -189,6 +197,8 @@ async function main(): Promise<void> {
     // --- other translations reach the right command -----------------------
     const routings: Array<[string, Record<string, unknown>, string, Record<string, unknown>]> = [
       ["blueprint_info", { blueprint_path: "/Game/MCPGenerated/BP_A" }, "graph_inspect", { asset_path: "/Game/MCPGenerated/BP_A" }],
+      ["placement_validate", { actors: ["A", "B", "Missing"], gap_threshold: 2, overlap_threshold: 1 },
+        "scene_inspect", { actors: ["A", "B", "Missing"], include_components: false }],
       ["blueprint_inspect", { blueprint_path: "/Game/MCPGenerated/BP_A", action: "variables" },
         "graph_inspect", { asset_path: "/Game/MCPGenerated/BP_A" }],
       ["anim_blueprint_build_from_json", {
@@ -324,6 +334,24 @@ async function main(): Promise<void> {
       `blueprint_inspect must retain the legacy action/result shape, got ${JSON.stringify(inspect.data)}`,
     );
 
+    const placement = await call(toolNamed(compat, "placement_validate"), {
+      actors: ["A", "B", "Missing"], gap_threshold: 2, overlap_threshold: 1,
+    });
+    assert(
+      stable(placement.data) === stable({
+        actors_checked: 2,
+        not_found: ["Missing"],
+        issues: [{ type: "gap", actors: ["A", "B"], gap: 3, threshold: 2 }],
+        issue_count: 1,
+      }),
+      `placement_validate must preserve legacy gap results, got ${JSON.stringify(placement.data)}`,
+    );
+    const duplicate = await call(toolNamed(compat, "placement_validate"), { actors: ["Duplicate", "A"] });
+    assert(duplicate.success === false, "placement_validate must refuse duplicate actor labels");
+    assert(
+      Array.isArray(duplicate.errors) && duplicate.errors.some((error) => String(error).includes("matched 2 actors")),
+      `placement_validate duplicate-label refusal must explain the ambiguity, got ${JSON.stringify(duplicate.errors)}`,
+    );
     // --- unmappable parameters fail loud, and never reach the editor ------
     const unmappable: Array<[string, Record<string, unknown>, string]> = [
       ["behavior_tree_create", { path: "/Game/MCPGenerated/AI", name: "BT_Empty", blackboard_path: "/Game/MCPGenerated/AI/BB_Guard" }, "tree"],

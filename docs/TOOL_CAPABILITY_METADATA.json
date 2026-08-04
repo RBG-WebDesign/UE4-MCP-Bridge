@@ -818,8 +818,11 @@
       "notes": "layer: new_native_wrapper"
     },
     "placement_validate": {
-      "migration_action": "PORT",
-      "notes": "layer: puerts_workflow over properties.get"
+      "canonical_capability": "actors.placement_validate",
+      "migration_action": "ALIAS",
+      "replacement_tool": "puerts_scene_inspect",
+      "verification": "implemented_unverified",
+      "notes": "Compatibility alias preserves legacy pairwise origin-distance overlap and bounds-extent gap checks through one native scene snapshot, including flags, thresholds, three-decimal results, missing labels and the fewer-than-two message. Duplicate labels are refused because legacy first-match level iteration is unstable. Editor-free routing and response-shape tests pass; live proof remains."
     },
     "blueprint_inspect": {
       "canonical_capability": "blueprints.inspect",

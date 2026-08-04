@@ -508,6 +508,127 @@ const aliases: readonly CompatAlias[] = [
     },
   },
   {
+    name: "placement_validate",
+    canonical: "puerts_scene_inspect",
+    description:
+      "Check exact actor labels for the same pairwise origin overlaps and bounds-extent gaps as " +
+      "the legacy tool, using one native scene snapshot. Duplicate labels are refused because " +
+      "the legacy first-match actor depends on unstable level iteration order.",
+    inputSchema: z.object({
+      actors: z.array(z.string()).min(1).describe("Exact actor labels to validate"),
+      check_gaps: z.boolean().optional().describe("Check for gaps. Default true."),
+      check_overlaps: z.boolean().optional().describe("Check for overlaps. Default true."),
+      gap_threshold: z.number().optional().describe("Max acceptable gap in units. Default 1.0."),
+      overlap_threshold: z.number().optional().describe("Min origin distance for overlap. Default 1.0."),
+    }),
+    translate: (params) => {
+      const actors = params.actors as string[];
+      if (actors.length > 500) {
+        return unmappable(
+          ["actors"],
+          ["actors: puerts_scene_inspect accepts at most 500 actor selectors in one snapshot."],
+        );
+      }
+      return routed({ actors: [...new Set(actors)], include_components: false });
+    },
+    adaptResult: (payload, params) => {
+      if (payload.success !== true) return payload;
+      const data = payload.data;
+      if (data === null || typeof data !== "object" || Array.isArray(data)) {
+        return nativeFailureEnvelope(["puerts_scene_inspect returned no data object."]);
+      }
+      const reported = (data as Params).actors;
+      if (!Array.isArray(reported)) {
+        return nativeFailureEnvelope(["puerts_scene_inspect returned no actors collection."]);
+      }
+      const readVector = (value: unknown): readonly [number, number, number] | undefined => {
+        if (value === null || typeof value !== "object" || Array.isArray(value)) return undefined;
+        const record = value as Params;
+        return typeof record.x === "number" && typeof record.y === "number" && typeof record.z === "number"
+          ? [record.x, record.y, record.z]
+          : undefined;
+      };
+      const requested = params.actors as string[];
+      const selected: Array<{
+        readonly label: string;
+        readonly location: readonly [number, number, number];
+        readonly extent: readonly [number, number, number];
+      }> = [];
+      const notFound: string[] = [];
+      for (const label of requested) {
+        const matches = reported.filter((candidate) =>
+          candidate !== null
+          && typeof candidate === "object"
+          && !Array.isArray(candidate)
+          && (candidate as Params).label === label);
+        if (matches.length === 0) {
+          notFound.push(label);
+          continue;
+        }
+        if (matches.length > 1) {
+          return nativeFailureEnvelope(
+            [`Actor label '${label}' matched ${matches.length} actors. Use unique labels before placement validation.`],
+            "placement_validate refused an ambiguous actor label.",
+          );
+        }
+        const actor = matches[0] as Params;
+        const transform = actor.transform;
+        const bounds = actor.bounds;
+        const location = transform !== null && typeof transform === "object" && !Array.isArray(transform)
+          ? readVector((transform as Params).location)
+          : undefined;
+        const extent = bounds !== null && typeof bounds === "object" && !Array.isArray(bounds)
+          ? readVector((bounds as Params).extent)
+          : undefined;
+        if (location === undefined || extent === undefined) {
+          return nativeFailureEnvelope([
+            `puerts_scene_inspect omitted world location or bounds extent for actor label '${label}'.`,
+          ]);
+        }
+        selected.push({ label, location, extent });
+      }
+
+      const issues: Params[] = [];
+      const checkGaps = params.check_gaps !== false;
+      const checkOverlaps = params.check_overlaps !== false;
+      const gapThreshold = typeof params.gap_threshold === "number" ? params.gap_threshold : 1;
+      const overlapThreshold = typeof params.overlap_threshold === "number" ? params.overlap_threshold : 1;
+      for (let left = 0; left < selected.length; left += 1) {
+        for (let right = left + 1; right < selected.length; right += 1) {
+          const a = selected[left]!;
+          const b = selected[right]!;
+          const distance = Math.hypot(
+            a.location[0] - b.location[0],
+            a.location[1] - b.location[1],
+            a.location[2] - b.location[2],
+          );
+          if (checkOverlaps && distance < overlapThreshold) {
+            issues.push({ type: "overlap", actors: [a.label, b.label], distance: Number(distance.toFixed(3)) });
+          }
+          const edgeGap = distance
+            - Math.hypot(a.extent[0], a.extent[1], a.extent[2])
+            - Math.hypot(b.extent[0], b.extent[1], b.extent[2]);
+          if (checkGaps && edgeGap > gapThreshold) {
+            issues.push({
+              type: "gap",
+              actors: [a.label, b.label],
+              gap: Number(edgeGap.toFixed(3)),
+              threshold: gapThreshold,
+            });
+          }
+        }
+      }
+      const result: Params = {
+        actors_checked: selected.length,
+        not_found: notFound,
+        issues,
+        issue_count: issues.length,
+      };
+      if (selected.length < 2) result.message = "Need at least 2 actors for pairwise checks";
+      return { ...payload, data: result };
+    },
+  },
+  {
     name: "level_actors",
     canonical: "puerts_find_actors",
     description:
