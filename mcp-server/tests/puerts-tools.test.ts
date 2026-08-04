@@ -2514,6 +2514,22 @@ async function pieAgentSuite(): Promise<void> {
     "pie_agent_control must be classified as an imperative runtime mutation",
   );
   const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
+  const service = await readFile(join(
+    repoRoot, "Plugins", "MCPBridge", "Source", "MCPBridgePuerTS", "Private",
+    "MCPPuerTSBridgeService.cpp",
+  ), "utf8");
+  const guardStart = service.indexOf("else if (GEditor != nullptr");
+  const guardEnd = service.indexOf("if (!Error.IsEmpty())", guardStart);
+  assert(guardStart >= 0 && guardEnd > guardStart, "native PIE command guard is missing");
+  const allowedDuringPIE = [...service.slice(guardStart, guardEnd)
+    .matchAll(/ToolName != TEXT\("([^"]+)"\)/g)]
+    .map((match) => match[1]);
+  assert(
+    JSON.stringify(allowedDuringPIE) === JSON.stringify([
+      "pie_stop", "get_logs", "physics_observe", "pie_agent_query",
+    ]),
+    `native PIE-safe command list drifted: ${allowedDuringPIE.join(", ")}`,
+  );
   const native = await readFile(join(
     repoRoot, "Plugins", "MCPBridge", "Source", "MCPBridgePuerTS", "Private",
     "MCPPuerTSBridgeEditorState.cpp",

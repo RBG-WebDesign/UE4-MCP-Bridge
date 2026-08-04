@@ -672,7 +672,8 @@ FString UMCPPuerTSBridgeService::AcceptCommand(const FString& RequestJson)
         && (GEditor->PlayWorld != nullptr || GEditor->GetPlaySessionRequest().IsSet())
         && ToolName != TEXT("pie_stop")
         && ToolName != TEXT("get_logs")
-        && ToolName != TEXT("physics_observe"))
+        && ToolName != TEXT("physics_observe")
+        && ToolName != TEXT("pie_agent_query"))
     {
         Error = TEXT("Editor operations are blocked during Play In Editor. Stop PIE first.");
     }
