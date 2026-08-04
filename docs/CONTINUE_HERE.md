@@ -294,3 +294,48 @@ inspect-build-verify-repair orchestration. Continue to batch all live proof.
 Ponytail finding: `feature-hud.mjs` and `feature-weapons-projectiles.mjs`
 duplicate the same fixture search. Fold search plus independent reader refusal
 into one existing harness method before feature harnesses 9 through 12.
+
+## Editor-free completion wave, 2026-08-03
+
+Integration HEAD is `44a8dc5` on
+`bridge/native-consolidation-2026-07-31`.
+
+Merged work:
+
+- `lane/e2-port-batch2` at `5d2acd3`, merged by `3f43193`: added
+  `widget_build_from_json`, `behavior_tree_create` and `blackboard_create`
+  compatibility aliases. Empty Behavior Trees refuse loudly. Unsafe
+  `blueprint_list`, `asset_info` and `level_outliner` aliases were rejected
+  because native return shapes do not preserve their legacy contracts.
+- Inventory regenerated from built output in `1a61f1b`: 286 catalog tools,
+  47 native aliases, 66 native commands and 69 exposed native/server-local
+  tools.
+- `lane/e2-feature-library-9-12` at `d244adb`, merged by `e82dd24`: authored
+  menus, controller navigation, dialogue and AI patrol/chase/search/perception
+  acceptances. The earlier Ponytail finding is closed by one shared fixture
+  freshness helper. Every control and full-state writer must succeed before
+  independent inspection. All four remain implemented_unverified.
+- `lane/ao2-orchestrator` at `135ffd2`, merged by `44a8dc5`: AO-2 now runs
+  member patch, scene batch, material and optional runtime observation stages
+  through the existing sequential, resumable orchestrator. Runtime state is
+  never resumed and PIE remains behind `--pie`.
+
+Final `npm run verify` is green: both TypeScript projects build, all unit and
+performance suites pass, orchestrator 33/0, inventory 286/286, and smoke 8
+passed, 0 failed, 4 expected skips. One intermediate run hit the fixed mock
+port `18772` while an isolated lane verify was active; an uncontended rerun
+passed without process management. No editor action, install sync, native
+compile, live bridge call or PIE occurred.
+
+Outstanding editor-dependent gates:
+
+- Run feature acceptances 7 through 12 warm and cold; controller focus
+  traversal may expose a missing primitive.
+- Run AO-2 warm and cold for member, scene and material stages.
+- AO-2 runtime observation is implemented_partial: the native PIE service
+  allowlist at `MCPPuerTSBridgeService.cpp:675` still refuses
+  `pie_agent_query` while PIE is active.
+- All previously recorded slice and FP live gates remain batched.
+
+Ponytail review: Lean already. Ship. The prior duplicated fixture search was
+removed; no further capability-preserving deletion was found in this wave.

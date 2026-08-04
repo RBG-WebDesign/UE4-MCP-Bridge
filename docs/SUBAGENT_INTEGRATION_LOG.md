@@ -591,3 +591,34 @@ install sync, native compile, live call or PIE action occurred.
 
 Ponytail review found one deletion target: consolidate the duplicated feature
 fixture search into the existing slice harness during the next feature batch.
+
+## Editor-free completion wave verdict, 2026-08-03
+
+| Lane | Tip | Integration | Verdict | Outstanding |
+|---|---|---|---|---|
+| `lane/e2-port-batch2` | `5d2acd3` | `3f43193` | Accepted, implemented_unverified | Live result-shape proof for three aliases |
+| `lane/e2-feature-library-9-12` | `d244adb` | `e82dd24` | Accepted after integrator repair request, authored_unrun | Warm/cold feature proof; optional PIE separately gated |
+| `lane/ao2-orchestrator` | `135ffd2` | `44a8dc5` | Accepted, implemented_partial | Warm/cold stage proof; PIE query allowlist blocker |
+
+### Rejected claims and repairs
+
+- `blueprint_list`, `asset_info` and `level_outliner` were rejected as aliases
+  because native readers omit legacy result fields or tree semantics.
+- The feature lane's initial complete claim was rejected because three harnesses
+  did not explicitly stop when their state-moving control writer failed. The
+  integrator required guards before every control and full-state inspection;
+  `d244adb` includes that repair.
+- An intermediate integration verify failure, `EADDRINUSE ::1:18772`, was
+  classified as concurrent editor-free mock-server contention, not a product
+  regression. The uncontended full rerun passed.
+- AO-2 runtime observation was not promoted. Source and unit tests show that
+  the orchestration is gated correctly, but the current native PIE command
+  allowlist refuses `pie_agent_query`.
+
+Evidence: migration compat 326/0; feature syntax and focused harness contract
+green; AO-2 orchestrator 33/0; final `npm run verify` green at 286 catalog
+tools and 69 exposed tools, smoke 8/0/4 expected skips. No editor, install
+sync, native compile, live bridge call or PIE action occurred.
+
+Ponytail review: Lean already. Ship. The duplicated feature fixture search was
+deleted into the existing slice harness; no new framework was introduced.
