@@ -32,6 +32,13 @@
  *                   components, variables, graph> },
  *   "expect": { "components": ["Mesh"], "variables": ["IsOpen"],
  *               "min_nodes": 3, "no_unmapped_nodes": true },
+ * AO-2 adds four optional fields. member_patch and scene_batch carry the
+ * corresponding native tool arguments. material is
+ * {tool:"puerts_material_build"|"puerts_material_instance_build", args:{...}}.
+ * runtime_verify is {actor, property, equals}; it reads the reflected PIE
+ * property and compares it exactly, and remains off unless --pie is present.
+ * A plan may omit blueprint when it only needs these stages.
+ *
  *   "repair_operations": [ <puerts_blueprint_graph_patch operations> ]
  * }
  *
@@ -47,12 +54,18 @@
 import { spawn } from "node:child_process";
 import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { isDeepStrictEqual } from "node:util";
 import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { requireCurrentInstall } from "./bridge-install.mjs";
 import { checkShape, describeRefusal } from "./perf-stats.mjs";
 
 export const STATE_SCHEMA_VERSION = 1;
+const changesOf = (result) => [
+  ...(result?.changed_assets ?? []).map((path) => `asset ${path}`),
+  ...(result?.changed_actors ?? []).map((name) => `actor ${name}`),
+];
+
 export const STATE_KIND = "bridge-orchestrator-run";
 
 // ------------------------------------------------------------------- pure
@@ -74,7 +87,15 @@ export function planFingerprint(plan) {
     }
     return value;
   };
-  const material = { blueprint: plan.blueprint ?? null, expect: plan.expect ?? null, repair_operations: plan.repair_operations ?? null };
+  const material = {
+    blueprint: plan.blueprint ?? null,
+    expect: plan.expect ?? null,
+    repair_operations: plan.repair_operations ?? null,
+    member_patch: plan.member_patch ?? null,
+    scene_batch: plan.scene_batch ?? null,
+    material: plan.material ?? null,
+    runtime_verify: plan.runtime_verify ?? null,
+  };
   return createHash("sha256").update(JSON.stringify(canonical(material))).digest("hex");
 }
 
@@ -222,11 +243,98 @@ export function stagesToRun(stageNames, priorState, { resume, fingerprint }) {
   let reached = false;
   return stageNames.map((name) => {
     if (reached || done.get(name) !== "ok") {
+
       reached = true;
       return { name, run: true, reason: "" };
     }
     return { name, run: false, reason: "already ok in the state file" };
   });
+}
+/** Validate the orchestration fields. Native schemas own command details. */
+export function validatePlan(plan) {
+  if (plan === null || typeof plan !== "object" || Array.isArray(plan)) throw new Error("the plan must be a JSON object");
+  const configured = ["blueprint", "member_patch", "scene_batch", "material", "runtime_verify"]
+    .some((key) => plan[key] !== undefined);
+  if (!configured) throw new Error("the plan needs at least one build or verification stage");
+  if (plan.blueprint !== undefined && typeof plan.blueprint?.asset_path !== "string") {
+    throw new Error("blueprint needs an asset_path");
+  }
+  for (const key of ["member_patch", "scene_batch"]) {
+    if (plan[key] !== undefined && (!Array.isArray(plan[key]?.operations) || plan[key].operations.length === 0)) {
+      throw new Error(`${key} needs a non-empty operations array`);
+    }
+  }
+  if (plan.member_patch !== undefined && typeof plan.member_patch.asset_path !== "string") {
+    throw new Error("member_patch needs an asset_path");
+  }
+  if (plan.material !== undefined) {
+    if (!["puerts_material_build", "puerts_material_instance_build"].includes(plan.material?.tool)) {
+      throw new Error("material.tool must be puerts_material_build or puerts_material_instance_build");
+    }
+    if (typeof plan.material?.args?.asset_path !== "string") throw new Error("material.args needs an asset_path");
+  }
+  if (plan.runtime_verify !== undefined) {
+    if (typeof plan.runtime_verify?.actor !== "string" || typeof plan.runtime_verify?.property !== "string") {
+      throw new Error("runtime_verify needs actor and property strings");
+    }
+    if (!("equals" in plan.runtime_verify)) throw new Error("runtime_verify needs an equals value");
+  }
+}
+
+/** Execute one AO-2 stage through an injected MCP call for editor-free tests. */
+export async function executeAO2Stage(name, spec, call) {
+  const fail = (tool, result) => ({
+    ok: false,
+    changed: changesOf(result),
+    errors: [`${tool} failed: ${(result?.errors ?? []).join("; ") || "no error reported"}`],
+  });
+  if (name === "member_patch") {
+    const result = await call("puerts_blueprint_member_patch", { ...spec, compile: true, save: true, verify: true });
+    if (result?.success !== true) return fail("blueprint_member_patch", result);
+    const read = await call("puerts_graph_inspect", { asset_path: spec.asset_path, include_pins: false });
+    if (read?.success !== true) return fail("graph_inspect", read);
+    const expected = result.data?.post_member_hash;
+    const actual = read.data?.member_structure_hash_sha1;
+    const ok = typeof expected === "string" && expected === actual;
+    return { ok, observed: { post_member_hash: expected ?? null, inspected_member_hash: actual ?? null }, changed: changesOf(result), errors: ok ? [] : ["member_patch hash did not match graph_inspect"] };
+  }
+  if (name === "scene_batch") {
+    const result = await call("puerts_scene_batch", { ...spec, verify: true });
+    if (result?.success !== true) return fail("scene_batch", result);
+    const read = await call("puerts_scene_inspect", typeof spec.level_path === "string" ? { level_path: spec.level_path } : {});
+    if (read?.success !== true) return fail("scene_inspect", read);
+    const expected = result.data?.post_structure_hash;
+    const actual = read.data?.structure_hash_sha1;
+    const ok = typeof expected === "string" && expected === actual;
+    return { ok, observed: { post_structure_hash: expected ?? null, inspected_structure_hash: actual ?? null }, changed: changesOf(result), errors: ok ? [] : ["scene_batch hash did not match scene_inspect"] };
+  }
+  if (name === "material") {
+    const result = await call(spec.tool, { ...spec.args, save: true });
+    if (result?.success !== true) return fail(spec.tool, result);
+    const read = await call("puerts_material_inspect", { asset_path: spec.args.asset_path });
+    if (read?.success !== true) return fail("material_inspect", read);
+    const expected = result.data?.structure_hash_sha1;
+    const actual = read.data?.structure_hash_sha1;
+    const ok = typeof expected === "string" && expected === actual;
+    return {
+      ok,
+      observed: { asset_kind: read.data?.asset_kind ?? null, built_structure_hash: expected ?? null, inspected_structure_hash: actual ?? null },
+      changed: changesOf(result),
+      errors: ok ? [] : ["material build hash did not match material_inspect"],
+    };
+  }
+  if (name === "runtime_verify") {
+    const result = await call("puerts_pie_agent_query", { op: "read_property", actor: spec.actor, property: spec.property });
+    if (result?.success !== true) return fail("pie_agent_query", result);
+    const actual = result.data?.value;
+    const ok = isDeepStrictEqual(actual, spec.equals);
+    return {
+      ok,
+      observed: { actor: result.data?.actor ?? null, property: spec.property, value: actual ?? null },
+      errors: ok ? [] : [`runtime property ${spec.actor}.${spec.property} was ${JSON.stringify(actual)}, expected ${JSON.stringify(spec.equals)}`],
+    };
+  }
+  throw new Error(`unknown AO-2 stage ${name}`);
 }
 
 // -------------------------------------------------------------------- CLI
@@ -241,14 +349,13 @@ async function main() {
   const planPath = flag("--plan", "");
   if (!planPath) throw new Error("--plan <file> is required");
   const plan = JSON.parse(readFileSync(planPath, "utf-8"));
-  if (plan.blueprint === undefined || typeof plan.blueprint?.asset_path !== "string") {
-    throw new Error("the plan needs a blueprint object with an asset_path");
-  }
+  validatePlan(plan);
   // Checked here rather than discovered on the first call. Native authoring is
   // limited to this root (registry.ts:279-281) and the patch tool's MCP schema
   // rejects anything else at the transport, which surfaces as a JSON-RPC error
   // three stages in rather than as a bad plan.
-  if (!/^\/Game\/MCPGenerated\/[A-Za-z0-9_]+(\/[A-Za-z0-9_]+)*$/.test(plan.blueprint.asset_path)) {
+  if (plan.blueprint !== undefined
+    && !/^\/Game\/MCPGenerated\/[A-Za-z0-9_]+(\/[A-Za-z0-9_]+)*$/.test(plan.blueprint.asset_path)) {
     throw new Error(`asset_path "${plan.blueprint.asset_path}" is not somewhere the bridge can author. `
       + "Blueprint creation and patching are limited to /Game/MCPGenerated/<Name>.");
   }
@@ -336,7 +443,7 @@ async function main() {
       plan_fingerprint: fingerprint,
       started_at: startedAt.toISOString(),
       updated_at: new Date().toISOString(),
-      asset_path: plan.blueprint.asset_path,
+      asset_path: plan.blueprint?.asset_path ?? null,
       stages,
       totals: {
         round_trips: roundTrips,
@@ -377,14 +484,10 @@ async function main() {
     return { ...outcome, observed: record.observed };
   };
 
-  /** changed_assets and changed_actors are on every native response; this is
-      the "what did it change" half of every stage report. */
-  const changesOf = (result) => [
-    ...(result?.changed_assets ?? []).map((path) => `asset ${path}`),
-    ...(result?.changed_actors ?? []).map((name) => `actor ${name}`),
+  const stageNames = [
+    "probe", "build", "member_patch", "inspect", "scene_batch", "material",
+    "repair", "review", "runtime_verify", "pie",
   ];
-
-  const stageNames = ["probe", "build", "inspect", "repair", "review", "pie"];
   const decisions = new Map(stagesToRun(stageNames, priorState, { resume, fingerprint }).map((d) => [d.name, d]));
   let failed = false;
 
@@ -427,6 +530,7 @@ async function main() {
     //    it is paid only when something is already wrong.
     const buildSpec = { ...plan.blueprint, compile: true, save: true };
     const build = await runStage("build", decisions.get("build"), async () => {
+      if (plan.blueprint === undefined) return { ok: true, observed: { configured: false } };
       const result = await call("puerts_blueprint_build", buildSpec);
       const verdict = evaluateBuild(result);
       if (verdict.ok) return { ok: true, observed: verdict.observed, changed: changesOf(result) };
@@ -446,12 +550,19 @@ async function main() {
       };
     });
 
-    // 3. inspect. The independent read-back. Runs even when the build failed,
-    //    because what is actually in the asset is the thing a repair needs.
-    const inspectArgs = { asset_path: plan.blueprint.asset_path, include_pins: false };
+    // 3. Apply the optional incremental Blueprint-member patch.
+    await runStage("member_patch", decisions.get("member_patch"), async () => {
+      if (plan.member_patch === undefined) return { ok: true, observed: { configured: false } };
+      return executeAO2Stage("member_patch", plan.member_patch, call);
+    });
+
+    // 4. Inspect the Blueprint independently, even when its build failed.
+    //    What is actually in the asset is the thing a repair needs.
+    const inspectArgs = plan.blueprint === undefined ? {} : { asset_path: plan.blueprint.asset_path, include_pins: false };
     if (typeof plan.expect?.graph === "string") inspectArgs.graph_name = plan.expect.graph;
     let inspection = null;
     const inspect = await runStage("inspect", decisions.get("inspect"), async () => {
+      if (plan.blueprint === undefined) return { ok: true, observed: { configured: false } };
       const result = await call("puerts_graph_inspect", inspectArgs);
       if (result?.success !== true) {
         return { ok: false, errors: [`graph_inspect failed: ${(result?.errors ?? []).join("; ") || "no error reported"}`] };
@@ -460,14 +571,25 @@ async function main() {
       return { ok: inspection.ok, observed: inspection.observed, changed: changesOf(result), errors: inspection.gaps };
     });
 
-    // 4. repair. Only when something is wrong, bounded, and it re-inspects
-    //    after every attempt: a repair that is not verified by the inspector
-    //    is a claim, not a repair.
+    // 5. Apply the optional desired-state scene batch.
+    await runStage("scene_batch", decisions.get("scene_batch"), async () => {
+      if (plan.scene_batch === undefined) return { ok: true, observed: { configured: false } };
+      return executeAO2Stage("scene_batch", plan.scene_batch, call);
+    });
+
+    // 6. Build the optional material and inspect it independently.
+    await runStage("material", decisions.get("material"), async () => {
+      if (plan.material === undefined) return { ok: true, observed: { configured: false } };
+      return executeAO2Stage("material", plan.material, call);
+    });
+
+    // 7. Repair the Blueprint graph only when necessary, then re-inspect after
+    //    every bounded attempt.
     const needsRepair = !build.ok || !inspect.ok;
     await runStage("repair", decisions.get("repair"), async () => {
+      if (plan.blueprint === undefined) return { ok: true, observed: { configured: false } };
       if (!needsRepair) return { skipped: true, reason: "the build and the read-back both matched the plan" };
       if (maxRepairs === 0) return { skipped: true, reason: "--max-repairs 0" };
-
       const attempts = [];
       const changed = [];
       for (let attempt = 1; attempt <= maxRepairs; attempt += 1) {
@@ -548,6 +670,52 @@ async function main() {
       };
     });
 
+
+    const runtimeDecision = plan.runtime_verify !== undefined && resume
+      ? { name: "runtime_verify", run: true, reason: "runtime state belongs to the current PIE session" }
+      : decisions.get("runtime_verify");
+    await runStage("runtime_verify", runtimeDecision, async () => {
+      if (plan.runtime_verify === undefined) return { ok: true, observed: { configured: false } };
+      if (!includePie) {
+        return { skipped: true, reason: "runtime verification requires explicit user approval; pass --pie" };
+      }
+      const before = await call("puerts_physics_observe", {});
+      if (before?.success !== true || before.data?.world !== "editor") {
+        return { ok: false, errors: ["runtime verification requires the editor world before starting PIE"] };
+      }
+      const start = await call("puerts_pie_start", {});
+      if (start?.success !== true) return { ok: false, errors: [`pie_start refused: ${(start?.errors ?? []).join("; ")}`] };
+      let outcome = { ok: false, errors: ["PIE did not become playable within 60 seconds"] };
+      let cleanupError = null;
+      try {
+        let ready = false;
+        for (let attempt = 0; attempt < 240; attempt += 1) {
+          const seen = await call("puerts_physics_observe", {});
+          if (seen?.data?.world === "pie") { ready = true; break; }
+          await sleep(250);
+        }
+        if (ready) outcome = await executeAO2Stage("runtime_verify", plan.runtime_verify, call);
+      } catch (error) {
+        outcome = { ok: false, errors: [`runtime verification failed: ${String(error)}`] };
+      } finally {
+        try {
+          const stop = await call("puerts_pie_stop", {});
+          if (stop?.success !== true) cleanupError = `pie_stop refused: ${(stop?.errors ?? []).join("; ")}`;
+          for (let attempt = 0; cleanupError === null && attempt < 240; attempt += 1) {
+            const seen = await call("puerts_physics_observe", {});
+            if (seen?.data?.world === "editor") break;
+            if (attempt === 239) cleanupError = "PIE did not return to the editor world within 60 seconds";
+            await sleep(250);
+          }
+        } catch (error) {
+          cleanupError = `PIE cleanup failed: ${String(error)}`;
+        }
+      }
+      if (cleanupError !== null) {
+        outcome = { ...outcome, ok: false, errors: [...(outcome.errors ?? []), cleanupError] };
+      }
+      return outcome;
+    });
     // 6. pie. AGENTS.md: the user asks for PIE, the agent does not start it.
     await runStage("pie", decisions.get("pie"), async () => {
       if (!includePie) {
@@ -555,6 +723,9 @@ async function main() {
           skipped: true,
           reason: "not requested. AGENTS.md requires the user to ask before Play In Editor starts; pass --pie",
         };
+      }
+      if (plan.runtime_verify !== undefined) {
+        return { ok: true, observed: { owned_by: "runtime_verify" } };
       }
       const worldNow = async () => {
         const observed = await call("puerts_physics_observe", {});
