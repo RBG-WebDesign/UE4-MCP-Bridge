@@ -9,11 +9,11 @@ capability coverage vary by tool.
 
 ## Counts (derived, cannot drift)
 
-- Total public registrations: 283
+- Total public registrations: 286
 - Unique canonical capabilities (excluding proposed retirements): 206
-- By backend: legacy_http 170, native_pipe_alias 44, server_local 3, native_pipe 66
-- By verification: untested 119, mock_only 89, implemented_unverified 8, pending_live 1, live_verified 19, implemented 39, live_partial 8
-- By migration action: ALIAS 91, PORT 38, REFRONT 28, MERGE 7, KEEP 118, RETIRE 1
+- By backend: legacy_http 170, native_pipe_alias 47, server_local 3, native_pipe 66
+- By verification: untested 119, mock_only 92, implemented_unverified 8, pending_live 1, live_verified 19, implemented 39, live_partial 8
+- By migration action: ALIAS 94, PORT 38, REFRONT 28, MERGE 7, KEEP 118, RETIRE 1
 
 ## Existing C++ builders awaiting re-fronting
 
