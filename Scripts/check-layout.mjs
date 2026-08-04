@@ -59,6 +59,13 @@ const ALLOWED_ROOT = new Set([
   // internals: the whole point is `ue427 doctor` from the repo root on either
   // platform. The implementation itself lives in Scripts/ue427.py.
   "ue427", "ue427.cmd",
+  // Declared npm workspace, built by `npm run build` before mcp-server. It is
+  // the TypeScript that runs inside UE4, so it cannot live under Scripts/.
+  "puerts-runtime",
+  // Machine-readable session records, one JSON per session, documented in
+  // reports/README.md. Evidence of what was proven and with which commands,
+  // deliberately separate from docs/ which describes current state.
+  "reports",
 ]);
 
 if (isHostProject) for (const e of HOST_PROJECT_ROOT) ALLOWED_ROOT.add(e);
@@ -91,7 +98,20 @@ const OWNERSHIP = [
     allow: [".cpp", ".h", ".cs", ".inl", ".md"],
     label: "Plugins/MCPBridge/Source is C++ only (plus .Build.cs and docs)",
   },
-  { dir: "docs", allow: [".md", ".png", ".jpg", ".jpeg", ".gif", ".svg", ".json"], label: "docs/ is Markdown and assets only" },
+  {
+    dir: "docs",
+    allow: [".md", ".png", ".jpg", ".jpeg", ".gif", ".svg", ".json"],
+    label: "docs/ is Markdown and assets only",
+    // Raw captured output is evidence, not prose. Wrapping a console log in
+    // Markdown to satisfy a checker would make it look edited, which is the
+    // opposite of what evidence is for.
+    except: ["docs/evidence"],
+  },
+  {
+    dir: "docs/evidence",
+    allow: [".md", ".json", ".txt", ".png", ".jpg", ".jpeg", ".gif", ".svg"],
+    label: "docs/evidence holds captured output and structured results",
+  },
 ];
 
 function walk(dir, out = []) {
@@ -107,7 +127,9 @@ function walk(dir, out = []) {
 
 for (const rule of OWNERSHIP) {
   const abs = join(repoRoot, rule.dir);
+  const excluded = (rule.except ?? []).map((d) => join(repoRoot, d));
   for (const file of walk(abs)) {
+    if (excluded.some((d) => file.startsWith(d))) continue;
     const ext = extname(file).toLowerCase();
     if (ext && !rule.allow.includes(ext)) {
       fail("ownership-violation",

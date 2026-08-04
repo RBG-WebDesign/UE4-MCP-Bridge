@@ -24,7 +24,11 @@ Nothing new goes at the root without a reason. The allowed entries are:
 | `docs/` | All other documentation |
 | `clients/` | MCP configs for Codex and Gemini |
 | `Scripts/` | Repository automation |
-| `agents/`, `skills/` | Scenario prompt templates for the orchestrator |
+| `agents/` | Scenario prompt templates for the orchestrator |
+| `skills/` | Scenario prompt templates, plus `unreal-engine-4-27/`, the canonical Agent Skill installed into every client |
+| `puerts-runtime/` | Declared npm workspace: the TypeScript that runs inside UE4. Built before `mcp-server` |
+| `reports/` | Machine-readable session records, one JSON per session. See `reports/README.md` |
+| `ue427`, `ue427.cmd` | Launcher shims for `Scripts/ue427.py` |
 | `tests/` | Cross-cutting tests |
 | `orchestrator.mjs` | Multi-agent batch coordinator |
 | `package.json`, `package-lock.json` | Workspace root |
@@ -57,6 +61,12 @@ These boundaries are hard and the checker enforces them by file extension.
 | `Plugins/MCPBridge/Content/Python/` | Python only (plus data and docs) |
 | `Plugins/MCPBridge/Source/` | C++ only (plus `.Build.cs` and docs) |
 | `docs/` | Markdown and image assets only |
+| `docs/evidence/` | Captured output and structured results, so `.txt` and `.json` are allowed here as well |
+
+`docs/evidence/` is the one exception to the Markdown rule, and it is narrow on
+purpose: a raw console capture is evidence, and rewrapping it as Markdown to
+satisfy a checker would make it look edited. The exception does not apply
+anywhere else under `docs/`; a stray `.txt` outside `docs/evidence/` still fails.
 
 ## Rules the checker enforces
 
