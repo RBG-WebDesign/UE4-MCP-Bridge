@@ -90,6 +90,29 @@ def antigravity_root() -> str:
 
 
 
+def antigravity_ide_launcher() -> Optional[str]:
+    """Locate the Antigravity IDE launcher.
+
+    The IDE ships a VS Code style `antigravity-ide` shim in its bin directory,
+    which opens a folder as a workspace. It is a separate application from
+    `Antigravity.exe`, the agent manager, and it is the one that reads a
+    project's AGENTS.md and .agents directory.
+    """
+    on_path = cli_path("antigravity-ide") or shutil.which("antigravity-ide")
+    if on_path:
+        return on_path
+    local = os.environ.get("LOCALAPPDATA", os.path.join(home(), "AppData", "Local"))
+    candidates = [
+        os.path.join(local, "Programs", "Antigravity IDE", "bin", "antigravity-ide.cmd"),
+        os.path.join(local, "Programs", "Antigravity IDE", "bin", "antigravity-ide"),
+        os.path.join(local, "Programs", "Antigravity IDE", "Antigravity IDE.exe"),
+    ]
+    for candidate in candidates:
+        if os.path.isfile(candidate):
+            return candidate
+    return None
+
+
 def app_installed(agent: str) -> bool:
     """Whether an application client (not a CLI) is present on this machine."""
     if agent == "antigravity":
@@ -693,11 +716,31 @@ def start(agent: str, project: Optional[str]) -> int:
         print("WARNING: no editor advertises a session for this project yet.")
         print("         Open it with Scripts/start-ue4-project.ps1 before running editor tools.")
 
+    project_dir = target if os.path.isdir(target) else os.path.dirname(target)
+
+    if agent == "antigravity":
+        # Open the IDE, not Antigravity.exe, which is the agent manager. The IDE
+        # is what reads a workspace's AGENTS.md, GEMINI.md and .agents
+        # directory, and Gemini CLI run from its terminal detects it through
+        # ANTIGRAVITY_CLI_ALIAS.
+        #
+        # The workspace is this repository, because that is where the rules and
+        # the canonical skill live. The UE4.27 project is reached over MCP by
+        # configuration, not by working directory, so it does not need to be
+        # the folder that is open.
+        launcher = antigravity_ide_launcher()
+        if launcher is None:
+            print("Antigravity IDE not found. Install it, or open the folder from the app.",
+                  file=sys.stderr)
+            return 1
+        print("Opening %s in Antigravity IDE" % REPO_ROOT)
+        print("Bridge target stays %s" % target)
+        return subprocess.run([launcher, REPO_ROOT], cwd=REPO_ROOT).returncode
+
     binary = cli_path(agent)
     if binary is None:
         print("%s CLI not found on PATH" % agent, file=sys.stderr)
         return 1
-    project_dir = target if os.path.isdir(target) else os.path.dirname(target)
     print("Launching %s in %s" % (agent, project_dir))
     return subprocess.run([binary], cwd=project_dir).returncode
 

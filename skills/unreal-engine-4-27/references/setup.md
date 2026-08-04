@@ -104,10 +104,22 @@ After a rebuild, restart the agent or it keeps running the old tools.
 python Scripts/ue427.py start claude
 python Scripts/ue427.py start codex
 python Scripts/ue427.py start gemini
+python Scripts/ue427.py start antigravity
 ```
 
-`start` verifies the project is 4.27, warns if no editor advertises a
-session, then launches the agent from the project directory.
+`start` verifies the project is 4.27, warns if no editor advertises a session,
+then launches the agent from the project directory.
+
+`start antigravity` opens **Antigravity IDE**, not `Antigravity.exe`, which is
+the agent manager. The IDE is the surface that reads a workspace's `AGENTS.md`,
+`GEMINI.md`, and `.agents` directory. It opens this repository as the
+workspace, because that is where the rules and the canonical skill live; the
+UE4.27 project is reached over MCP by configuration, not by working directory.
+
+Gemini CLI run from Antigravity's integrated terminal detects the IDE through
+the `ANTIGRAVITY_CLI_ALIAS` environment variable that Antigravity sets, so
+there is no preference to configure. That is also the way to use Gemini on
+this project through your Antigravity subscription rather than an API key.
 
 Open the editor first. Use the repository launcher, which refuses duplicate
 editor processes unless you explicitly ask for them:

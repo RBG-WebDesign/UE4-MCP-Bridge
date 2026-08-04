@@ -154,7 +154,7 @@ python Scripts/ue427.py doctor      # build, skill install, MCP config, project 
 python Scripts/ue427.py repair      # fix what is safe to fix, then re-run doctor
 python Scripts/ue427.py update      # git pull, rebuild, reinstall
 python Scripts/ue427.py verify      # prove each client actually discovers the skill
-python Scripts/ue427.py start claude|codex|gemini
+python Scripts/ue427.py start claude|codex|gemini|antigravity
 ```
 
 The repository root also ships `ue427.cmd` (Windows) and `ue427` (POSIX)
