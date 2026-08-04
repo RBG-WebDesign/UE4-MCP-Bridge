@@ -1,0 +1,37 @@
+{
+  "phase": "record",
+  "feature_id": "capstone_physics_pickup_throw",
+  "plan_hash_sha1": "a526409f095150618661814651e7dcc441deed5e",
+  "architecture": {
+    "selected": "hybrid",
+    "reasons": [
+      "reusable, complex, authoritative, or testable runtime behavior belongs in C++",
+      "assets, designer settings, and event wiring remain editable in Blueprint"
+    ],
+    "cpp_responsibilities": [
+      "Reusable runtime system logic",
+      "Performance-critical tick operations & physics trace handling"
+    ],
+    "blueprint_responsibilities": [
+      "Component composition & asset references",
+      "Designer tweaks & editable default properties",
+      "Input action wiring & visual orchestration graphs"
+    ],
+    "hybrid_integration_points": [],
+    "build_order": [
+      "Plan feature & IR",
+      "Generate C++ source code",
+      "Compile editor target once",
+      "Create Blueprint child assets",
+      "Wire Blueprint graphs & layout",
+      "Verify compilation & save snapshot"
+    ]
+  },
+  "steps": {
+    "inspection": {
+      "node_count": 48,
+      "structure_hash": "1ad413ab1e0d717ff4928c96a80b320c934201d7"
+    }
+  },
+  "mcp_round_trips": 8
+}
