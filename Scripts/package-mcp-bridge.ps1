@@ -129,20 +129,7 @@ $engineVersion = ConvertTo-SafeName -Value $descriptor.EngineVersion
 New-Item -ItemType Directory -Path $OutputRoot -Force | Out-Null
 
 $stageRoot = Join-Path $OutputRoot "_stage"
-$stagePlugin = Join-Path $stageRoot "MCPBridge"
-Copy-PluginClean -Source $pluginRoot -Destination $stagePlugin
-Assert-PluginClean -Root $stagePlugin
-
-# Gate 1: the plugin's own generated PuerTS support files, checked against the
-# lock file rather than against whatever happens to be on this disk. Without
-# them the PuerTS lane has nothing to execute.
-& node (Join-Path $repoRoot "Scripts/stage-puerts-runtime.mjs") --check --plugin $stagePlugin
-if ($LASTEXITCODE -ne 0) {
-    Remove-Item -LiteralPath $stageRoot -Recurse -Force -ErrorAction SilentlyContinue
-    throw "Refusing to package: MCPBridge/Content/JavaScript/puerts does not match Plugins/Puerts.lock.json. Run npm run build with the pinned bundle present."
-}
-
-# Gate 2: the bundle itself, vendored into the zip. MCPBridge.uplugin declares
+# Gate 1: the bundle itself, vendored into the zip. MCPBridge.uplugin declares
 # a dependency on Puerts and MCPBridgePuerTS.Build.cs links its JsEnv module, so
 # a zip without it is a plugin UE4 refuses to load.
 if (-not $PuertsPath) {
@@ -157,6 +144,18 @@ $puertsRoot = (Resolve-Path -LiteralPath $PuertsPath).Path
 if ($LASTEXITCODE -ne 0) {
     Remove-Item -LiteralPath $stageRoot -Recurse -Force -ErrorAction SilentlyContinue
     throw "Refusing to package: $puertsRoot does not match Plugins/Puerts.lock.json."
+}
+
+# Gate 2: the plugin's own generated PuerTS support files, checked against the
+# lock file rather than against whatever happens to be on this disk. Without
+# them the PuerTS lane has nothing to execute.
+$stagePlugin = Join-Path $stageRoot "MCPBridge"
+Copy-PluginClean -Source $pluginRoot -Destination $stagePlugin
+Assert-PluginClean -Root $stagePlugin
+& node (Join-Path $repoRoot "Scripts/stage-puerts-runtime.mjs") --check --plugin $stagePlugin
+if ($LASTEXITCODE -ne 0) {
+    Remove-Item -LiteralPath $stageRoot -Recurse -Force -ErrorAction SilentlyContinue
+    throw "Refusing to package: MCPBridge/Content/JavaScript/puerts does not match Plugins/Puerts.lock.json. Run npm run build with the pinned bundle present."
 }
 
 $stagePuerts = Join-Path $stageRoot "Puerts"
