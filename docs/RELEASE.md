@@ -47,8 +47,8 @@ bundle was missing, which is how the incomplete tree reached a zip unnoticed. It
 now fails. `npm run build` passes `--allow-missing-bundle` so a server-only
 checkout still builds, and that checkout still cannot be packaged.
 
-Asserted by `npm run test:package`, which reaches both refusals with no bundle
-on disk. The cases that open the produced zip need one:
+`npm run test:package` always proves the missing-bundle refusal. The staged
+runtime refusal and cases that open the produced zip need a pinned bundle:
 
 ```bash
 node Scripts/package-acceptance.mjs --bundle <path to Plugins/Puerts>

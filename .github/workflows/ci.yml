@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [ "main", "mcpbridge-unified-plugin" ]
+    branches: [ "main", "mcpbridge-unified-plugin", "bridge/**", "lane/**" ]
   pull_request:
     branches: [ "main" ]
   workflow_dispatch:
@@ -119,16 +119,11 @@ jobs:
       - name: npm run verify
         run: npm run verify
 
-      # The three acceptances that need no editor. Each builds its own fixture
-      # in the temp directory and deletes it again.
-      - name: Security refusals (bad token, path escape, shell, property)
-        run: npm run test:security
-
-      - name: Fresh-project install
-        run: npm run test:fresh-install
-
-      - name: Release package
-        run: npm run test:package
+      # The canonical editor-free release contract. It owns security refusals,
+      # fresh install, source-package and UE4.27 skill acceptance so CI cannot
+      # drift when that contract grows.
+      - name: Editor-free release contract
+        run: npm run test:editor-free
 
 # ---------------------------------------------------------------------------
 # What CI CANNOT run, and why. This list is the useful half: everything above
