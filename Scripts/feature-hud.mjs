@@ -118,6 +118,14 @@ await runSlice({
 }, async (h) => {
   if (!await assertUnused(h, HUD) || !await assertUnused(h, HOST)) return;
 
+  const hudAbsent = await h.expectFailure("puerts_widget_inspect", {
+    asset_path: HUD,
+  }, { label: "the independent widget reader refuses the unused HUD path" });
+  const hostAbsent = await h.expectFailure("puerts_graph_inspect", {
+    asset_path: HOST,
+  }, { label: "the independent graph reader refuses the unused HUD host path" });
+  if (hudAbsent === null || hostAbsent === null) return;
+
   const control = await h.call("puerts_widget_build", { asset_path: HUD, tree: CONTROL_TREE }, {
     label: "1. build the minimal HUD as the state-moving positive control",
   });

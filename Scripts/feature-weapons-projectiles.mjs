@@ -128,6 +128,14 @@ await runSlice({
 }, async (h) => {
   if (!await assertUnused(h, PROJECTILE) || !await assertUnused(h, WEAPON)) return;
 
+  const projectileAbsent = await h.expectFailure("puerts_graph_inspect", {
+    asset_path: PROJECTILE,
+  }, { label: "the independent graph reader refuses the unused projectile path" });
+  const weaponAbsent = await h.expectFailure("puerts_graph_inspect", {
+    asset_path: WEAPON,
+  }, { label: "the independent graph reader refuses the unused weapon path" });
+  if (projectileAbsent === null || weaponAbsent === null) return;
+
   const projectile = await h.call("puerts_blueprint_build", PROJECTILE_SPEC, {
     label: "1. build the projectile as the state-moving positive control",
   });
