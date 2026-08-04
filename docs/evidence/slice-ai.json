@@ -3,7 +3,7 @@
   "title": "a Behavior Tree plus Blackboard driving an AIController on a pawn",
   "proves": "author the tree, the blackboard, the controller wiring and the pawn, then prove the wiring by reading it back",
   "phase": "warm",
-  "generated_at": "2026-08-03T19:22:21.954Z",
+  "generated_at": "2026-08-04T07:05:02.186Z",
   "verdict": "PASS",
   "editor": {
     "available": true,
@@ -11,10 +11,10 @@
   },
   "install_gate": {
     "ok": true,
-    "project_root": "D:/Unreal Projects/BridgeInstallTest"
+    "project_root": "D:\\Unreal Projects\\BridgeInstallTest"
   },
   "catalog": {
-    "registered_tool_count": 63,
+    "registered_tool_count": 69,
     "legacy_http_enabled": false
   },
   "steps": [
@@ -226,10 +226,10 @@
       "inspect_tool": "puerts_behavior_tree_inspect",
       "structure_hash": "BF3824C2AE6A676D9AA54A5558CE0C14F06D2DD9",
       "node_count": null,
-      "file_sha256": "6a0131817f74aeea90b4342d2819c7fe2f071c49a0131b5c730ec3468a506ac6"
+      "file_sha256": "4e0f58a7283d45d9b4df7cfa09d690b04bbbed467c2099046d9cf90961d63016"
     }
   ],
   "mcp_round_trips": 11,
-  "elapsed_ms": 2336,
+  "elapsed_ms": 2640,
   "blocks": []
 }

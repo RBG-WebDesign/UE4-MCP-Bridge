@@ -3,18 +3,18 @@
   "title": "an Animation Blueprint with a state machine and transitions",
   "proves": "author an AnimBP against a real skeleton, read the state machine back, and drive it from a pawn",
   "phase": "warm",
-  "generated_at": "2026-08-03T15:43:48.953Z",
-  "verdict": "BLOCKED_MISSING_PRIMITIVE",
+  "generated_at": "2026-08-04T07:05:31.405Z",
+  "verdict": "UNPROVEN_NO_EDITOR",
   "editor": {
     "available": false,
     "reason": "PuerTS command pipe timed out"
   },
   "install_gate": {
     "ok": true,
-    "project_root": "D:/Unreal Projects/BridgeInstallTest"
+    "project_root": "D:\\Unreal Projects\\BridgeInstallTest"
   },
   "catalog": {
-    "registered_tool_count": 58,
+    "registered_tool_count": 69,
     "legacy_http_enabled": false
   },
   "steps": [
@@ -40,85 +40,77 @@
     },
     {
       "n": 4,
+      "label": "3. determine whether the slice asset needs create or patch",
+      "tool": "puerts_find_assets",
+      "status": "UNPROVEN_NO_EDITOR",
+      "detail": "PuerTS command pipe timed out"
+    },
+    {
+      "n": 5,
       "label": "primitive puerts_anim_blueprint_build is registered",
       "tool": "puerts_anim_blueprint_build",
       "status": "PASS"
     },
     {
-      "n": 5,
+      "n": 6,
       "label": "3. build the state machine from one spec",
       "tool": "puerts_anim_blueprint_build",
       "status": "UNPROVEN_NO_EDITOR",
       "detail": "PuerTS command pipe timed out"
     },
     {
-      "n": 6,
+      "n": 7,
       "label": "primitive puerts_anim_blueprint_inspect is registered",
       "tool": "puerts_anim_blueprint_inspect",
       "status": "PASS"
     },
     {
-      "n": 7,
+      "n": 8,
       "label": "4. read the state machine back with the independent inspector",
       "tool": "puerts_anim_blueprint_inspect",
       "status": "UNPROVEN_NO_EDITOR",
       "detail": "PuerTS command pipe timed out"
     },
     {
-      "n": 8,
-      "label": "primitive puerts_anim_blueprint_patch is NOT usable",
-      "tool": "puerts_anim_blueprint_patch",
-      "status": "MISSING_PRIMITIVE",
-      "detail": "NEW: not registered, and no legacy tool in the inventory covers it either",
-      "why": "change one state, transition or variable on an existing Animation Blueprint. puerts_anim_blueprint_build is create-only and refuses an existing asset, and lane J will not ship a patch because the UAnimBlueprintBuilderLibrary rebuild path appends instead of replacing and cannot be made failure-atomic yet. Until it exists, an animation slice is single-shot: the second prompt about the same asset has nowhere to go"
-    },
-    {
       "n": 9,
-      "label": "primitive puerts_blueprint_build is registered",
-      "tool": "puerts_blueprint_build",
+      "label": "primitive puerts_anim_blueprint_patch is registered",
+      "tool": "puerts_anim_blueprint_patch",
       "status": "PASS"
     },
     {
       "n": 10,
-      "label": "5. attach the Animation Blueprint to a pawn's SkeletalMeshComponent",
-      "tool": "puerts_blueprint_build",
+      "label": "5. apply the same desired state through the failure-atomic patch path",
+      "tool": "puerts_anim_blueprint_patch",
       "status": "UNPROVEN_NO_EDITOR",
       "detail": "PuerTS command pipe timed out"
     },
     {
       "n": 11,
-      "label": "6. see the state machine blend",
+      "label": "primitive puerts_blueprint_build is registered",
+      "tool": "puerts_blueprint_build",
+      "status": "PASS"
+    },
+    {
+      "n": 12,
+      "label": "6. attach the Animation Blueprint to a pawn's SkeletalMeshComponent",
+      "tool": "puerts_blueprint_build",
+      "status": "UNPROVEN_NO_EDITOR",
+      "detail": "PuerTS command pipe timed out"
+    },
+    {
+      "n": 13,
+      "label": "7. see the state machine blend",
       "status": "NOT_ATTEMPTED_BY_POLICY",
       "detail": "an Animation Blueprint only evaluates in a running game or in the asset editor's preview viewport. PIE is user-gated, and puerts_viewport_screenshot captures the level viewport, not an asset editor preview. The legacy anim_pose_snapshot / anim_pose_delta pair is the closest thing to a pose read-back and is behind the HTTP opt-in."
     }
   ],
-  "missing_primitives": [
-    {
-      "tool": "puerts_anim_blueprint_patch",
-      "state": "MISSING",
-      "gap_kind": "NEW",
-      "why": "change one state, transition or variable on an existing Animation Blueprint. puerts_anim_blueprint_build is create-only and refuses an existing asset, and lane J will not ship a patch because the UAnimBlueprintBuilderLibrary rebuild path appends instead of replacing and cannot be made failure-atomic yet. Until it exists, an animation slice is single-shot: the second prompt about the same asset has nowhere to go",
-      "proposed_schema": {
-        "tool": "puerts_anim_blueprint_patch",
-        "blocked_by": "UAnimBlueprintBuilderLibrary rebuild appends rather than replaces; needs the same failure-atomic treatment BPMutatorHelpers is getting",
-        "params": {
-          "asset_path": "string",
-          "operations": "[{op:'add_state'|'remove_state'|'set_transition_condition'|'set_state_animation', ...}]",
-          "plan_only": "boolean",
-          "verify": "boolean",
-          "save": "boolean"
-        }
-      }
-    }
-  ],
+  "missing_primitives": [],
   "checks": {
     "passed": 0,
     "failed": 0
   },
   "sealed_artifacts": [],
   "mcp_round_trips": 1,
-  "elapsed_ms": 8701,
-  "blocks": [
-    "puerts_anim_blueprint_patch"
-  ]
+  "elapsed_ms": 8875,
+  "blocks": []
 }
