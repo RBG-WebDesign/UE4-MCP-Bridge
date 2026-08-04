@@ -167,7 +167,7 @@ bool UMCPPuerTSBridgeService::RenderLevelSequenceJson(
     if (ProtocolClass == nullptr)
     {
         OutError = FString::Printf(
-            TEXT("format must be png, jpg, bmp, exr or avi; got '%s'. Those are the capture "
+            TEXT("format must be png, jpg, bmp or exr; got '%s'. Those are the capture "
                  "protocols UE4.27 ships in the MovieSceneCapture module."), *Format);
         return false;
     }

@@ -68,6 +68,8 @@
 #include "Engine/World.h"
 #include "HAL/FileManager.h"
 #include "Json.h"
+#include "Misc/App.h"
+#include "Misc/Paths.h"
 #include "NavigationSystem.h"
 
 namespace
@@ -93,6 +95,32 @@ namespace
     bool IsTerminal(const FBridgeJob& Job)
     {
         return Job.State != TEXT("running");
+    }
+    bool HasSequenceFrame(const FString& Directory)
+    {
+        TArray<FString> Files;
+        IFileManager::Get().FindFilesRecursive(Files, *Directory, TEXT("*"), true, false);
+        for (const FString& File : Files)
+        {
+            const FString Extension = FPaths::GetExtension(File, false).ToLower();
+            if (Extension == TEXT("png") || Extension == TEXT("jpg")
+                || Extension == TEXT("jpeg") || Extension == TEXT("bmp") || Extension == TEXT("exr"))
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    bool HasProjectPackageArtifacts(const FString& Directory)
+    {
+        TArray<FString> Files;
+        IFileManager::Get().FindFilesRecursive(Files, *Directory, TEXT("*"), true, false);
+        const FString ExpectedExecutable = FString(FApp::GetProjectName()) + TEXT(".exe");
+        return Files.Num() > 0 && Files.ContainsByPredicate([&ExpectedExecutable](const FString& File)
+        {
+            return FPaths::GetCleanFilename(File).Equals(ExpectedExecutable, ESearchCase::IgnoreCase);
+        });
     }
 
     /**
@@ -267,8 +295,28 @@ void UMCPPuerTSBridgeService::PollJob(FBridgeJob& Job)
         FPlatformProcess::GetProcReturnCode(Job.ProcessHandle, &Job.ReturnCode);
         // A cancelled render exits non-zero because it was killed, so the
         // cancel flag decides the state before the return code does.
-        Finish(Job.bCancelRequested ? TEXT("cancelled")
-            : Job.ReturnCode == 0 ? TEXT("succeeded") : TEXT("failed"));
+        if (Job.bCancelRequested)
+        {
+            Finish(TEXT("cancelled"));
+            return;
+        }
+        if (Job.ReturnCode != 0)
+        {
+            Finish(TEXT("failed"));
+            return;
+        }
+        const bool bArtifactsPresent = Job.Kind == EBridgeJobKind::SequenceRender
+            ? HasSequenceFrame(Job.OutputDirectory)
+            : HasProjectPackageArtifacts(Job.OutputDirectory);
+        if (!bArtifactsPresent)
+        {
+            Job.Detail += Job.Kind == EBridgeJobKind::SequenceRender
+                ? TEXT(" Child process exited successfully but wrote no supported image frame.")
+                : TEXT(" Child process exited successfully but the archive is empty or lacks the project executable.");
+            Finish(TEXT("failed"));
+            return;
+        }
+        Finish(TEXT("succeeded"));
         return;
     }
     default:
