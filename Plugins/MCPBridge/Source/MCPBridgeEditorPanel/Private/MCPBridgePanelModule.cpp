@@ -14,6 +14,7 @@
 #include "Interfaces/IHttpRequest.h"
 #include "Interfaces/IHttpResponse.h"
 #include "Json.h"
+#include "Misc/DateTime.h"
 #include "Misc/FileHelper.h"
 #include "Misc/EngineVersion.h"
 #include "Misc/Paths.h"
@@ -57,10 +58,25 @@ struct FMCPBridgePanelState
 {
     bool bConnected = false;
     bool bListenerRunning = false;
-    FString PipeName = TEXT("\\\\.\\pipe\\UE427PuerTSMCP");
+    // Left empty on purpose. The real pipe name is per session and is published
+    // by the editor in Saved/MCPPuerTSBridge/session.json. A hardcoded guess
+    // here was being copied into the connection prompt, which handed agents a
+    // pipe name that never matched the one the editor was listening on.
+    FString PipeName;
     int32 NativeToolCount = 0;
+    // Legacy HTTP listener only, which is disabled unless a human sets
+    // MCP_ENABLE_LEGACY_HTTP=1. Not the transport this panel reports on.
     FString ListenerHost = TEXT("localhost");
     int32 ListenerPort = 8080;
+
+    // Published session, the authoritative source for connection state.
+    bool bSessionAdvertised = false;
+    FString SessionId;
+    FString SessionProjectPath;
+    FString ShutdownState;
+    FString LastHeartbeatAt;
+    int32 EditorPid = 0;
+    double HeartbeatAgeSeconds = -1.0;
     FString EngineVersion;
     FString ProjectName;
     FString CurrentLevel;
@@ -215,6 +231,14 @@ private:
         return FPaths::Combine(GetMCPDir(), TEXT("bridge_status.json"));
     }
 
+    /** The session manifest the editor publishes for the native pipe transport.
+        This is the file that actually exists during normal operation;
+        bridge_status.json is only written by the legacy HTTP listener. */
+    FString GetSessionPath() const
+    {
+        return FPaths::Combine(FPaths::ProjectSavedDir(), TEXT("MCPPuerTSBridge"), TEXT("session.json"));
+    }
+
     FString GetConfigPath() const
     {
         return FPaths::Combine(GetMCPDir(), TEXT("bridge_config.json"));
@@ -288,9 +312,79 @@ private:
         State.Safety.Add(TEXT("auto_save_after_operations"), false);
         State.Safety.Add(TEXT("pie_commands_enabled"), true);
 
+        LoadSessionFile();
         LoadStatusFile();
         LoadConfigFile();
         State.Safety.FindOrAdd(TEXT("allow_python_proxy")) = false;
+    }
+
+    /** Read the published session manifest.
+        Runs before LoadStatusFile so the legacy HTTP status file, when it
+        exists at all, cannot overwrite the live pipe name with a stale one. */
+    void LoadSessionFile()
+    {
+        State.bSessionAdvertised = false;
+        State.HeartbeatAgeSeconds = -1.0;
+
+        TSharedPtr<FJsonObject> Json;
+        if (!ReadJsonFile(GetSessionPath(), Json))
+        {
+            // No manifest means no editor is advertising this project. Clear
+            // the fields rather than leaving the previous session's values on
+            // screen, which is how the panel used to look connected after the
+            // editor had stopped publishing.
+            State.PipeName.Empty();
+            State.SessionId.Empty();
+            State.ShutdownState.Empty();
+            State.LastHeartbeatAt.Empty();
+            State.EditorPid = 0;
+            return;
+        }
+
+        State.bSessionAdvertised = true;
+        Json->TryGetStringField(TEXT("pipe_name"), State.PipeName);
+        Json->TryGetStringField(TEXT("session_id"), State.SessionId);
+        Json->TryGetStringField(TEXT("project_path"), State.SessionProjectPath);
+        Json->TryGetStringField(TEXT("shutdown_state"), State.ShutdownState);
+        Json->TryGetStringField(TEXT("last_heartbeat_at"), State.LastHeartbeatAt);
+        Json->TryGetNumberField(TEXT("editor_pid"), State.EditorPid);
+
+        FDateTime Heartbeat;
+        if (!State.LastHeartbeatAt.IsEmpty()
+            && FDateTime::ParseIso8601(*State.LastHeartbeatAt, Heartbeat))
+        {
+            State.HeartbeatAgeSeconds = (FDateTime::UtcNow() - Heartbeat).GetTotalSeconds();
+        }
+    }
+
+    /** How stale the published session is, in words.
+        A panel that silently shows old values is worse than one that says it
+        does not know, so this is surfaced rather than hidden. */
+    FString SessionFreshnessText() const
+    {
+        if (!State.bSessionAdvertised)
+        {
+            return TEXT("no session advertised for this project");
+        }
+        if (!State.ShutdownState.IsEmpty() && State.ShutdownState != TEXT("running"))
+        {
+            return FString::Printf(TEXT("session state is %s"), *State.ShutdownState);
+        }
+        if (State.HeartbeatAgeSeconds < 0.0)
+        {
+            return TEXT("heartbeat time could not be read");
+        }
+        if (State.HeartbeatAgeSeconds > 120.0)
+        {
+            return FString::Printf(TEXT("heartbeat is %.0f seconds old, the editor may have stopped publishing"),
+                State.HeartbeatAgeSeconds);
+        }
+        return FString::Printf(TEXT("heartbeat %.0f seconds ago"), State.HeartbeatAgeSeconds);
+    }
+
+    FString PipeNameForDisplay() const
+    {
+        return State.PipeName.IsEmpty() ? TEXT("(not advertised)") : State.PipeName;
     }
 
     void LoadStatusFile()
@@ -490,27 +584,41 @@ private:
 
     FText ConnectionChannelText() const
     {
-        return FText::FromString(FString::Printf(TEXT("PuerTS V8 in-process via %s"), *State.PipeName));
+        return FText::FromString(FString::Printf(TEXT("PuerTS V8 in-process via %s"), *PipeNameForDisplay()));
     }
 
     FString BuildConnectionPrompt() const
     {
         const FString Project = State.ProjectName.IsEmpty() ? FPaths::GetBaseFilename(FPaths::GetProjectFilePath()) : State.ProjectName;
+        const FString ProjectRoot = State.SessionProjectPath.IsEmpty()
+            ? FPaths::ConvertRelativePathToFull(FPaths::ProjectDir())
+            : State.SessionProjectPath;
         const FString Status = State.bConnected ? TEXT("ready") : TEXT("not ready");
 
         return FString::Printf(
             TEXT("Connect to my Unreal Engine 4.27 MCP Bridge.\n\n")
-            TEXT("Transport: direct PuerTS named pipe\n")
+            TEXT("Transport: authenticated PuerTS named pipe. There is no HTTP port.\n")
             TEXT("Pipe: %s\n")
             TEXT("Project: %s\n")
             TEXT("Project file: %s\n")
+            TEXT("MCP_UNREAL_PROJECT_ROOT: %s\n")
+            TEXT("Session: %s\n")
+            TEXT("Editor pid: %d\n")
+            TEXT("Session status: %s\n")
             TEXT("Native runtime: %s\n")
             TEXT("Approved tools: %d\n\n")
+            TEXT("Point the bridge at the project root above. The client addresses one editor by session ")
+            TEXT("and refuses a reply from any other, so a mismatch here surfaces as session_missing rather than ")
+            TEXT("silently editing the wrong project.\n\n")
             TEXT("Use only puerts_* MCP tools for editor operations. Never use HTTP, REST, Python sockets, or shell scripts as a fallback. ")
             TEXT("Start with puerts_diagnostic. If it fails, report the exact native error."),
-            *State.PipeName,
+            *PipeNameForDisplay(),
             *Project,
             *FPaths::GetProjectFilePath(),
+            *ProjectRoot,
+            State.SessionId.IsEmpty() ? TEXT("(none)") : *State.SessionId,
+            State.EditorPid,
+            *SessionFreshnessText(),
             *Status,
             State.NativeToolCount
         );
@@ -524,7 +632,7 @@ private:
 
         return FString::Printf(
             TEXT("Use this Unreal Engine 4.27 MCP Bridge context.\n\n")
-            TEXT("Transport: direct PuerTS named pipe\n")
+            TEXT("Transport: authenticated PuerTS named pipe. There is no HTTP port.\n")
             TEXT("Pipe: %s\n")
             TEXT("Project: %s\n")
             TEXT("Project file: %s\n")
@@ -534,7 +642,7 @@ private:
             TEXT("Native runtime ready: %s\n")
             TEXT("Approved tools: %d\n\n")
             TEXT("Use puerts_diagnostic first, then continue with puerts_* tools only. Do not fall back to HTTP or Python."),
-            *State.PipeName,
+            *PipeNameForDisplay(),
             *Project,
             *FPaths::GetProjectFilePath(),
             *FPaths::ProjectDir(),
@@ -565,7 +673,7 @@ private:
             TEXT("Last result: %s\n")
             TEXT("Last error: %s\n\n")
             TEXT("Recent native logs:\n%s"),
-            *State.PipeName,
+            *PipeNameForDisplay(),
             State.bConnected ? TEXT("true") : TEXT("false"),
             State.LastCommand.IsEmpty() ? TEXT("None") : *State.LastCommand,
             State.LastResult.IsEmpty() ? TEXT("Idle") : *State.LastResult,
@@ -742,7 +850,9 @@ private:
         return MakeCard(TEXT("Connection"), TEXT("Current Unreal editor target."),
             SNew(SVerticalBox)
             + SVerticalBox::Slot().AutoHeight().Padding(ScaledMargin(0.0f, 0.0f, 0.0f, 10.0f))[MakeKeyValue(TEXT("Channel"), [this]() { return ConnectionChannelText(); })]
-            + SVerticalBox::Slot().AutoHeight().Padding(ScaledMargin(0.0f, 0.0f, 0.0f, 10.0f))[MakeKeyValue(TEXT("Pipe"), [this]() { return FText::FromString(State.PipeName); })]
+            + SVerticalBox::Slot().AutoHeight().Padding(ScaledMargin(0.0f, 0.0f, 0.0f, 10.0f))[MakeKeyValue(TEXT("Pipe"), [this]() { return FText::FromString(PipeNameForDisplay()); })]
+            + SVerticalBox::Slot().AutoHeight().Padding(ScaledMargin(0.0f, 0.0f, 0.0f, 10.0f))[MakeKeyValue(TEXT("Session"), [this]() { return FText::FromString(SessionFreshnessText()); })]
+            + SVerticalBox::Slot().AutoHeight().Padding(ScaledMargin(0.0f, 0.0f, 0.0f, 10.0f))[MakeKeyValue(TEXT("Project root"), [this]() { return TextFor(State.SessionProjectPath); })]
             + SVerticalBox::Slot().AutoHeight().Padding(ScaledMargin(0.0f, 0.0f, 0.0f, 10.0f))[MakeKeyValue(TEXT("Engine"), [this]() { return TextFor(State.EngineVersion); })]
             + SVerticalBox::Slot().AutoHeight().Padding(ScaledMargin(0.0f, 0.0f, 0.0f, 10.0f))[MakeKeyValue(TEXT("Project"), [this]() { return TextFor(State.ProjectName); })]
             + SVerticalBox::Slot().AutoHeight().Padding(ScaledMargin(0.0f, 0.0f, 0.0f, 10.0f))[MakeKeyValue(TEXT("Level"), [this]() { return TextFor(State.CurrentLevel); })]
