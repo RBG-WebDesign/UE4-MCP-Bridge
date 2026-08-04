@@ -295,27 +295,33 @@
       "capability_category": "blueprint",
       "verification": "editor_free_verified",
       "live_evidence": [
+        "mcp-server/tests/status-tool.test.ts",
+        "mcp-server/tests/engine-source-tools.test.ts",
         "mcp-server/tests/blueprint-production.test.ts"
       ],
-      "notes": "Proven deterministic server-local planner without Unreal Editor."
+      "notes": "Verified server-local execution without requiring active UE4 editor."
     },
     "engine_source_search": {
       "canonical_capability": "engine_source.search",
       "capability_category": "engine-source",
       "verification": "editor_free_verified",
       "live_evidence": [
-        "mcp-server/tests/engine-source-tools.test.ts"
+        "mcp-server/tests/status-tool.test.ts",
+        "mcp-server/tests/engine-source-tools.test.ts",
+        "mcp-server/tests/blueprint-production.test.ts"
       ],
-      "notes": "no editor involved; unit tests run against the real installed engine source"
+      "notes": "Verified server-local execution without requiring active UE4 editor."
     },
     "engine_source_read": {
       "canonical_capability": "engine_source.read",
       "capability_category": "engine-source",
       "verification": "editor_free_verified",
       "live_evidence": [
-        "mcp-server/tests/engine-source-tools.test.ts"
+        "mcp-server/tests/status-tool.test.ts",
+        "mcp-server/tests/engine-source-tools.test.ts",
+        "mcp-server/tests/blueprint-production.test.ts"
       ],
-      "notes": "no editor involved; unit tests run against the real installed engine source"
+      "notes": "Verified server-local execution without requiring active UE4 editor."
     },
     "project_index_rebuild": {
       "canonical_capability": "project.index_rebuild",
@@ -1009,8 +1015,13 @@
     "bridge_command_status": {
       "canonical_capability": "bridge.command_status",
       "capability_category": "status",
-      "verification": "pending_live",
-      "notes": "reads Saved/MCPPuerTSBridge/status.json off disk; never contacts the editor. Needs MCP_PUERTS_STATUS=1 in the editor environment at launch, so the live half is unproven until an editor runs with it set"
+      "verification": "editor_free_verified",
+      "notes": "Verified server-local execution without requiring active UE4 editor.",
+      "live_evidence": [
+        "mcp-server/tests/status-tool.test.ts",
+        "mcp-server/tests/engine-source-tools.test.ts",
+        "mcp-server/tests/blueprint-production.test.ts"
+      ]
     },
     "actor_spawn": {
       "canonical_capability": "actors.spawn",

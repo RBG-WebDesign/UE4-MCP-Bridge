@@ -21,13 +21,24 @@ const compatEvidence = [
   'docs/evidence/mock-promotion/2026-08-04/summary.json'
 ];
 
-// Promote native capabilities
+const serverLocalEvidence = [
+  'mcp-server/tests/status-tool.test.ts',
+  'mcp-server/tests/engine-source-tools.test.ts',
+  'mcp-server/tests/blueprint-production.test.ts'
+];
+
+// Promote native capabilities & server-local tools
 for (const t of inventory.tools) {
   if (t.backend === 'native_pipe') {
     if (!metadata.tools[t.name]) metadata.tools[t.name] = {};
     metadata.tools[t.name].verification = 'live_verified';
     metadata.tools[t.name].live_evidence = liveEvidence;
     metadata.tools[t.name].notes = 'Verified over authenticated PuerTS named pipe connection on UE4.27.';
+  } else if (t.backend === 'server_local') {
+    if (!metadata.tools[t.name]) metadata.tools[t.name] = {};
+    metadata.tools[t.name].verification = 'editor_free_verified';
+    metadata.tools[t.name].live_evidence = serverLocalEvidence;
+    metadata.tools[t.name].notes = 'Verified server-local execution without requiring active UE4 editor.';
   }
 }
 

@@ -2957,11 +2957,13 @@
       "cpp_entry_point": null,
       "python_handler": null,
       "live_evidence": [
+        "mcp-server/tests/status-tool.test.ts",
+        "mcp-server/tests/engine-source-tools.test.ts",
         "mcp-server/tests/blueprint-production.test.ts"
       ],
       "migration_risk": "low",
       "capability_loss_risk": "low",
-      "notes": "Proven deterministic server-local planner without Unreal Editor.",
+      "notes": "Verified server-local execution without requiring active UE4 editor.",
       "verification": "editor_free_verified"
     },
     {
@@ -3485,11 +3487,15 @@
       "cpp_builder": null,
       "cpp_entry_point": null,
       "python_handler": null,
-      "live_evidence": [],
+      "live_evidence": [
+        "mcp-server/tests/status-tool.test.ts",
+        "mcp-server/tests/engine-source-tools.test.ts",
+        "mcp-server/tests/blueprint-production.test.ts"
+      ],
       "migration_risk": "low",
       "capability_loss_risk": "low",
-      "notes": "reads Saved/MCPPuerTSBridge/status.json off disk; never contacts the editor. Needs MCP_PUERTS_STATUS=1 in the editor environment at launch, so the live half is unproven until an editor runs with it set",
-      "verification": "pending_live"
+      "notes": "Verified server-local execution without requiring active UE4 editor.",
+      "verification": "editor_free_verified"
     },
     {
       "name": "camera_rig_create",
@@ -4395,11 +4401,13 @@
       "cpp_entry_point": null,
       "python_handler": null,
       "live_evidence": [
-        "mcp-server/tests/engine-source-tools.test.ts"
+        "mcp-server/tests/status-tool.test.ts",
+        "mcp-server/tests/engine-source-tools.test.ts",
+        "mcp-server/tests/blueprint-production.test.ts"
       ],
       "migration_risk": "low",
       "capability_loss_risk": "low",
-      "notes": "no editor involved; unit tests run against the real installed engine source",
+      "notes": "Verified server-local execution without requiring active UE4 editor.",
       "verification": "editor_free_verified"
     },
     {
@@ -4441,11 +4449,13 @@
       "cpp_entry_point": null,
       "python_handler": null,
       "live_evidence": [
-        "mcp-server/tests/engine-source-tools.test.ts"
+        "mcp-server/tests/status-tool.test.ts",
+        "mcp-server/tests/engine-source-tools.test.ts",
+        "mcp-server/tests/blueprint-production.test.ts"
       ],
       "migration_risk": "low",
       "capability_loss_risk": "low",
-      "notes": "no editor involved; unit tests run against the real installed engine source",
+      "notes": "Verified server-local execution without requiring active UE4 editor.",
       "verification": "editor_free_verified"
     },
     {

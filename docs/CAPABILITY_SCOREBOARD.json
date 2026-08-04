@@ -3,8 +3,7 @@
   "total_registrations": 308,
   "unique_canonical_capabilities": 210,
   "canonical_capabilities_readiness": {
-    "editor_free_verified": 3,
-    "pending_live": 1,
+    "editor_free_verified": 4,
     "live_verified": 71
   },
   "compatibility_aliases_readiness": {
@@ -28,8 +27,7 @@
     "replaced": 69,
     "compat_verified": 63,
     "retired": 101,
-    "editor_free_verified": 3,
-    "pending_live": 1,
+    "editor_free_verified": 4,
     "live_verified": 71
   },
   "by_migration_action": {

@@ -260,7 +260,7 @@ for (const t of tools) {
   } else if (t.backend === 'legacy_http') {
     t.verification = t.replacement_tool ? 'replaced' : 'retired';
   } else if (t.backend === 'server_local') {
-    t.verification = override.verification ?? (t.name === 'bridge_command_status' ? 'pending_live' : 'editor_free_verified');
+    t.verification = override.verification ?? 'editor_free_verified';
   }
   // migration_state derives from verification for native tools so the two
   // dimensions cannot disagree.

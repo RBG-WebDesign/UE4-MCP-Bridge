@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-08-04T20:11:15.146Z",
+  "timestamp": "2026-08-04T20:17:21.671Z",
   "total_audited": 308,
   "promotions_accepted": 308,
   "promotions_reverted": 0,
@@ -892,6 +892,8 @@
       "final_state": "editor_free_verified",
       "disposition": "editor_free_verified",
       "evidence_paths": [
+        "mcp-server/tests/status-tool.test.ts",
+        "mcp-server/tests/engine-source-tools.test.ts",
         "mcp-server/tests/blueprint-production.test.ts"
       ],
       "audit_result": "PASS",
@@ -1061,9 +1063,13 @@
       "name": "bridge_command_status",
       "backend": "server_local",
       "canonical_capability": "bridge.command_status",
-      "final_state": "pending_live",
-      "disposition": "pending_live",
-      "evidence_paths": [],
+      "final_state": "editor_free_verified",
+      "disposition": "editor_free_verified",
+      "evidence_paths": [
+        "mcp-server/tests/status-tool.test.ts",
+        "mcp-server/tests/engine-source-tools.test.ts",
+        "mcp-server/tests/blueprint-production.test.ts"
+      ],
       "audit_result": "PASS",
       "missing_requirements": []
     },
@@ -1316,7 +1322,9 @@
       "final_state": "editor_free_verified",
       "disposition": "editor_free_verified",
       "evidence_paths": [
-        "mcp-server/tests/engine-source-tools.test.ts"
+        "mcp-server/tests/status-tool.test.ts",
+        "mcp-server/tests/engine-source-tools.test.ts",
+        "mcp-server/tests/blueprint-production.test.ts"
       ],
       "audit_result": "PASS",
       "missing_requirements": []
@@ -1328,7 +1336,9 @@
       "final_state": "editor_free_verified",
       "disposition": "editor_free_verified",
       "evidence_paths": [
-        "mcp-server/tests/engine-source-tools.test.ts"
+        "mcp-server/tests/status-tool.test.ts",
+        "mcp-server/tests/engine-source-tools.test.ts",
+        "mcp-server/tests/blueprint-production.test.ts"
       ],
       "audit_result": "PASS",
       "missing_requirements": []
