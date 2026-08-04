@@ -23,10 +23,10 @@
     "native_live_partial": "live acceptance passed, but part of the evidence is the builder own report because no independent reader exists yet",
     "legacy_untested": "no live editor proof of any kind; a non-null test_file covers only the mock listener"
   },
-  "tool_count": 286,
+  "tool_count": 288,
   "by_backend": {
     "legacy_http": 170,
-    "native_pipe_alias": 47,
+    "native_pipe_alias": 49,
     "server_local": 3,
     "native_pipe": 66
   },
@@ -555,8 +555,8 @@
       "name": "anim_blueprint_build_from_json",
       "module": "mcp-server/src/tools/blueprints.ts",
       "backend": "legacy_http",
-      "migration_state": "legacy_untested",
-      "target_replacement": null,
+      "migration_state": "hybrid_candidate",
+      "target_replacement": "puerts_anim_blueprint_build",
       "description": "Build an Animation Blueprint from a JSON specification. Creates the AnimBP asset with the given skeleton and populates the anim graph from the JSON spec (state machines, blend spaces, slots, etc.).",
       "schema": {
         "kind": "object",
@@ -579,17 +579,57 @@
       "canonical_capability": "animation.blueprint_build",
       "owner": "legacy Python listener",
       "lifecycle": "active",
-      "migration_action": "REFRONT",
-      "replacement_tool": null,
-      "compatibility_alias": false,
+      "migration_action": "ALIAS",
+      "replacement_tool": "puerts_anim_blueprint_build",
+      "compatibility_alias": true,
       "cpp_builder": "AnimBlueprintBuilderLibrary",
       "cpp_entry_point": "BuildAnimBlueprintFromJSON",
       "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/blueprints.py",
       "live_evidence": [],
       "migration_risk": "low",
       "capability_loss_risk": "low",
-      "notes": "highest-value REFRONT: builder v1 complete, same shape as behavior_tree_build",
-      "verification": "untested"
+      "notes": "Compatibility alias joins package_path and asset_name, parses json_spec into the same native Anim Blueprint v1 builder spec, and preserves data.path in the richer native result. The native path is limited to /Game/MCPGenerated/ and refuses an existing asset. Editor-free routing tests pass; warm and cold live proof remains.",
+      "verification": "implemented_unverified"
+    },
+    {
+      "name": "anim_blueprint_build_from_json",
+      "module": "mcp-server/src/tools/compat.ts",
+      "backend": "native_pipe_alias",
+      "migration_state": "wrap",
+      "target_replacement": "puerts_anim_blueprint_build",
+      "description": "[COMPAT ALIAS -> puerts_anim_blueprint_build] Create a new Animation Blueprint through the same native AnimBlueprintBuilderLibrary. package_path and asset_name become asset_path, and json_spec is parsed into the native v1 spec. The native path is limited to /Game/MCPGenerated/ and refuses an existing asset.",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "package_path": "string",
+          "asset_name": "string",
+          "skeleton_path": "string",
+          "json_spec": "string"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": "mcp-server/tests/compat-tools.test.ts",
+      "capability_category": "compat",
+      "canonical_capability": "animation.anim_blueprint_build",
+      "owner": "compat alias router",
+      "lifecycle": "active",
+      "migration_action": "ALIAS",
+      "replacement_tool": "puerts_anim_blueprint_build",
+      "compatibility_alias": true,
+      "cpp_builder": "AnimBlueprintBuilderLibrary",
+      "cpp_entry_point": "BuildAnimBlueprintFromJSON",
+      "python_handler": null,
+      "live_evidence": [],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": "Compatibility alias joins package_path and asset_name, parses json_spec into the same native Anim Blueprint v1 builder spec, and preserves data.path in the richer native result. The native path is limited to /Game/MCPGenerated/ and refuses an existing asset. Editor-free routing tests pass; warm and cold live proof remains.",
+      "verification": "implemented_unverified"
     },
     {
       "name": "anim_pose_delta",
@@ -2011,8 +2051,8 @@
       "name": "blueprint_inspect",
       "module": "mcp-server/src/tools/blueprint-graph.ts",
       "backend": "legacy_http",
-      "migration_state": "legacy_untested",
-      "target_replacement": null,
+      "migration_state": "hybrid_candidate",
+      "target_replacement": "puerts_graph_inspect",
       "description": "Read Blueprint structure: graphs, functions, variables, macros, interfaces, event dispatchers, components (SCS), nodes in a graph with pins and links, single node detail, or node search. Use before editing to resolve graph names, node GUIDs, and pin names.",
       "schema": {
         "kind": "object",
@@ -2038,15 +2078,56 @@
       "lifecycle": "active",
       "migration_action": "ALIAS",
       "replacement_tool": "puerts_graph_inspect",
-      "compatibility_alias": false,
+      "compatibility_alias": true,
       "cpp_builder": "BlueprintMutatorLibrary",
       "cpp_entry_point": null,
       "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/blueprint_graph.py",
       "live_evidence": [],
       "migration_risk": "medium",
       "capability_loss_risk": "low",
-      "notes": "alias not yet written; the native replacement is live-verified",
-      "verification": "mock_only"
+      "notes": "Compatibility alias preserves the legacy {action,result} response for graphs, functions, variables, interfaces, event_dispatchers and components through the native inspector. macros, nodes, node_detail and find_nodes are refused because the canonical reader cannot preserve their filtered result shapes. Editor-free routing tests pass; live result-shape proof remains.",
+      "verification": "implemented_unverified"
+    },
+    {
+      "name": "blueprint_inspect",
+      "module": "mcp-server/src/tools/compat.ts",
+      "backend": "native_pipe_alias",
+      "migration_state": "wrap",
+      "target_replacement": "puerts_graph_inspect",
+      "description": "[COMPAT ALIAS -> puerts_graph_inspect] Read Blueprint graphs or members through the native inspector and retain the legacy {action, result} response shape. macros, nodes, node_detail and find_nodes are refused: the canonical reader does not expose equivalent filtered results for those actions.",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "blueprint_path": "string",
+          "action": "enum",
+          "graph_name": "string?",
+          "node_guid": "string?",
+          "query": "record?"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": "mcp-server/tests/compat-tools.test.ts",
+      "capability_category": "compat",
+      "canonical_capability": "blueprints.inspect",
+      "owner": "compat alias router",
+      "lifecycle": "active",
+      "migration_action": "ALIAS",
+      "replacement_tool": "puerts_graph_inspect",
+      "compatibility_alias": true,
+      "cpp_builder": null,
+      "cpp_entry_point": null,
+      "python_handler": null,
+      "live_evidence": [],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": "Compatibility alias preserves the legacy {action,result} response for graphs, functions, variables, interfaces, event_dispatchers and components through the native inspector. macros, nodes, node_detail and find_nodes are refused because the canonical reader cannot preserve their filtered result shapes. Editor-free routing tests pass; live result-shape proof remains.",
+      "verification": "implemented_unverified"
     },
     {
       "name": "blueprint_list",

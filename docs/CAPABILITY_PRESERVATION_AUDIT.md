@@ -9,11 +9,11 @@ capability coverage vary by tool.
 
 ## Counts (derived, cannot drift)
 
-- Total public registrations: 286
+- Total public registrations: 288
 - Unique canonical capabilities (excluding proposed retirements): 206
-- By backend: legacy_http 170, native_pipe_alias 47, server_local 3, native_pipe 66
-- By verification: untested 119, mock_only 92, implemented_unverified 8, pending_live 1, live_verified 19, implemented 39, live_partial 8
-- By migration action: ALIAS 94, PORT 38, REFRONT 28, MERGE 7, KEEP 118, RETIRE 1
+- By backend: legacy_http 170, native_pipe_alias 49, server_local 3, native_pipe 66
+- By verification: untested 118, mock_only 91, implemented_unverified 12, pending_live 1, live_verified 19, implemented 39, live_partial 8
+- By migration action: ALIAS 97, PORT 38, REFRONT 27, MERGE 7, KEEP 118, RETIRE 1
 
 ## Existing C++ builders awaiting re-fronting
 
@@ -24,7 +24,6 @@ capability coverage vary by tool.
 - **BlueprintMutatorLibrary** (2 tools): blueprint_node_set_enabled, blueprint_pins_break
 - **AutoPIEHelper** (2 tools): camera_shake_spawn, camera_shake_trigger
 - **MCPBridgeDataLibrary** (2 tools): data_table_create, data_table_fill_from_json
-- **AnimBlueprintBuilderLibrary** (1 tools): anim_blueprint_build_from_json
 - **BlueprintGraphBuilderLibrary** (1 tools): blueprint_compile
 
 ## Highest-value next migrations
