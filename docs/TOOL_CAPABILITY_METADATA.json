@@ -845,8 +845,10 @@
     },
     "blueprint_info": {
       "canonical_capability": "blueprints.inspect",
-      "migration_action": "MERGE",
-      "replacement_tool": "puerts_graph_inspect"
+      "migration_action": "ALIAS",
+      "replacement_tool": "puerts_graph_inspect",
+      "verification": "implemented_unverified",
+      "notes": "Compatibility alias routes blueprint_path to the existing native graph and member inspector. Editor-free routing tests pass; live result-shape proof remains."
     },
     "blueprint_list": {
       "canonical_capability": "assets.find",
@@ -1192,14 +1194,17 @@
     },
     "viewport_focus": {
       "canonical_capability": "viewport.screenshot",
-      "migration_action": "MERGE",
+      "migration_action": "ALIAS",
       "replacement_tool": "puerts_viewport_screenshot",
-      "notes": "native screenshot already fits requested actors"
+      "verification": "implemented_unverified",
+      "notes": "Compatibility alias frames actor_name through the native screenshot command. distance is refused because the native path has no equivalent. Editor-free routing tests pass; live viewport proof remains."
     },
     "viewport_fit": {
       "canonical_capability": "viewport.screenshot",
-      "migration_action": "MERGE",
-      "replacement_tool": "puerts_viewport_screenshot"
+      "migration_action": "ALIAS",
+      "replacement_tool": "puerts_viewport_screenshot",
+      "verification": "implemented_unverified",
+      "notes": "Compatibility alias frames explicit actor_names through the native screenshot command. padding and the legacy fit-all default are refused because the native path has no equivalents. Editor-free routing tests pass; live viewport proof remains."
     },
     "puerts_material_build": {
       "canonical_capability": "materials.graph_build",
