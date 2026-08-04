@@ -183,6 +183,8 @@ interface CompatAlias {
   readonly description: string;
   readonly inputSchema: z.ZodType;
   readonly translate: (params: Params) => Translation;
+  /** Optional result adapter when the native superset needs the legacy envelope. */
+  readonly adaptResult?: (payload: Params, params: Params) => Params;
 }
 
 const aliases: readonly CompatAlias[] = [
@@ -194,6 +196,99 @@ const aliases: readonly CompatAlias[] = [
       + "includes parent class, components, variables, functions, graphs and compile status.",
     inputSchema: z.object({ blueprint_path: legacyBlueprintPath }),
     translate: (params) => routed({ asset_path: params.blueprint_path }),
+  },
+  {
+    name: "blueprint_inspect",
+    canonical: "puerts_graph_inspect",
+    description:
+      "Read Blueprint graphs or members through the native inspector and retain the legacy "
+      + "{action, result} response shape. macros, nodes, node_detail and find_nodes are refused: "
+      + "the canonical reader does not expose equivalent filtered results for those actions.",
+    inputSchema: z.object({
+      blueprint_path: legacyBlueprintPath,
+      action: z.enum([
+        "graphs", "functions", "variables", "macros", "interfaces",
+        "event_dispatchers", "components", "nodes", "node_detail", "find_nodes",
+      ]),
+      graph_name: z.string().optional(),
+      node_guid: z.string().optional(),
+      query: z.record(z.unknown()).optional(),
+    }),
+    translate: (params) => {
+      const action = String(params.action);
+      if (["macros", "nodes", "node_detail", "find_nodes"].includes(action)) {
+        return unmappable(
+          ["action"],
+          [`action: ${action} has no result-shape-equivalent filtered view in puerts_graph_inspect. Call the canonical reader and inspect its graphs or graph object directly.`],
+        );
+      }
+      const rejected = rejectSupplied(params, [
+        ["graph_name", "only the legacy nodes and node_detail actions use graph_name, and those actions are not shape-compatible with the canonical reader."],
+        ["node_guid", "only the legacy node_detail action uses node_guid, and that action is not shape-compatible with the canonical reader."],
+        ["query", "only the legacy find_nodes action uses query, and that action is not shape-compatible with the canonical reader."],
+      ]);
+      if (rejected.parameters.length > 0) return unmappable(rejected.parameters, rejected.reasons);
+      return routed({ asset_path: params.blueprint_path });
+    },
+    adaptResult: (payload, params) => {
+      if (payload.success !== true) return payload;
+      const data = payload.data;
+      if (data === null || typeof data !== "object" || Array.isArray(data)) {
+        return nativeFailureEnvelope(["puerts_graph_inspect returned no data object."]);
+      }
+      const record = data as Params;
+      const action = String(params.action);
+      const result = record[action];
+      if (!Array.isArray(result)) {
+        return nativeFailureEnvelope([`puerts_graph_inspect did not return the ${action} collection.`]);
+      }
+      return { ...payload, data: { action, result } };
+    },
+  },
+  {
+    name: "anim_blueprint_build_from_json",
+    canonical: "puerts_anim_blueprint_build",
+    description:
+      "Create a new Animation Blueprint through the same native AnimBlueprintBuilderLibrary. "
+      + "package_path and asset_name become asset_path, and json_spec is parsed into the native "
+      + "v1 spec. The native path is limited to /Game/MCPGenerated/ and refuses an existing asset.",
+    inputSchema: z.object({
+      package_path: z.string().startsWith("/"),
+      asset_name: z.string().min(1),
+      skeleton_path: z.string().startsWith("/"),
+      json_spec: z.string().min(1),
+    }),
+    translate: (params) => {
+      let spec: unknown;
+      try {
+        spec = JSON.parse(String(params.json_spec));
+      } catch (error: unknown) {
+        return unmappable(
+          ["json_spec"],
+          [`json_spec: invalid JSON: ${error instanceof Error ? error.message : String(error)}`],
+        );
+      }
+      if (spec === null || typeof spec !== "object" || Array.isArray(spec)) {
+        return unmappable(["json_spec"], ["json_spec: the Anim Blueprint v1 spec must be a JSON object."]);
+      }
+      return routed({
+        ...(spec as Params),
+        asset_path: `${String(params.package_path).replace(/\/+$/, "")}/${params.asset_name}`,
+        skeleton_path: params.skeleton_path,
+      });
+    },
+    adaptResult: (payload, params) => {
+      if (payload.success !== true) return payload;
+      const data = payload.data;
+      if (data === null || typeof data !== "object" || Array.isArray(data)) return payload;
+      return {
+        ...payload,
+        data: {
+          ...(data as Params),
+          path: `${String(params.package_path).replace(/\/+$/, "")}/${params.asset_name}`,
+        },
+      };
+    },
   },
   {
     name: "widget_build_from_json",
@@ -1156,7 +1251,8 @@ export function createCompatTools(client: PuerTSClient): ToolDefinition[] {
           return stamp(payload);
         }
         payloadShapeGuard(translation.params);
-        return stamp(await executeNativeCommand(client, spec, translation.params));
+        const payload = await executeNativeCommand(client, spec, translation.params);
+        return stamp(alias.adaptResult?.(payload, parsed) ?? payload);
       },
     };
   });
