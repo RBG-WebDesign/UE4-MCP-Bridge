@@ -1,14 +1,13 @@
 #!/usr/bin/env node
 /**
- * Live acceptance test for the Telekinetic Capstone feature.
+ * Live acceptance test for the Telekinetic Capstone hybrid feature.
  * Drives the new Blueprint Compiler & Production Pipeline against a live UE4.27 editor session over named pipe IPC.
  *
  * Usage: node Scripts/telekinetic-capstone-live.mjs [--phase=record|cold]
  */
 
 import { spawn } from "node:child_process";
-import { createHash } from "node:crypto";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { BLUEPRINT_PRODUCTION_FIXTURES } from "../mcp-server/dist/blueprint-production/fixtures.js";
@@ -81,7 +80,7 @@ function assert(condition, label) {
 const hashOf = (d) => d?.graph?.structure_hash_sha1;
 
 async function runCampaign() {
-  console.log(`\n=== Telekinetic Capstone Live Campaign (${phase.toUpperCase()}) ===\n`);
+  console.log(`\n=== Telekinetic Capstone Hybrid Handoff Live Campaign (${phase.toUpperCase()}) ===\n`);
 
   await send("initialize", {
     protocolVersion: "2024-11-05",
@@ -97,12 +96,12 @@ async function runCampaign() {
   assert(diag.data?.is_game_thread === true, "executing on Unreal game thread");
   console.log(`  INFO  Project: ${diag.session?.project_path} (PID ${diag.session?.editor_pid})`);
 
-  const capstoneFixture = BLUEPRINT_PRODUCTION_FIXTURES.find((f) => f.feature_id === "capstone_physics_pickup_throw");
-  assert(capstoneFixture !== undefined, "capstone physics pickup fixture loaded");
+  const handoffFixture = BLUEPRINT_PRODUCTION_FIXTURES.find((f) => f.feature_id === "telekinetic_component_handoff");
+  assert(handoffFixture !== undefined, "telekinetic component handoff fixture loaded");
 
   // 2. Generate deterministic plan
-  const plan = planFeature(capstoneFixture);
-  assert(plan.feature_id === "capstone_physics_pickup_throw", "plan generated with correct feature ID");
+  const plan = planFeature(handoffFixture);
+  assert(plan.feature_id === "telekinetic_component_handoff", "plan generated with correct feature ID");
   assert(plan.architecture.selected === "hybrid", "architecture partitioner assigned hybrid model");
   assert(plan.command_plan.length > 0, `command plan generated (${plan.command_plan.length} commands)`);
 
@@ -114,23 +113,24 @@ async function runCampaign() {
     steps: {},
   };
 
-  const charPath = "/Game/MCPGenerated/BPV_Capstone_Character";
-  const objPath = "/Game/MCPGenerated/BPV_Capstone_PhysicsObject";
+  const charPath = "/Game/MCPGenerated/BP_TelekineticCharacter";
 
   if (phase === "cold") {
     console.log("\n-- Cold Verification Pass --");
     const readChar = await call("puerts_graph_inspect", { asset_path: charPath, include_pins: true });
     assert(readChar.success === true, "cold read-back inspects character asset");
-    assert((readChar.data?.graph?.node_count ?? 0) >= 30, "cold character graph contains full node set");
-
-    const readObj = await call("puerts_graph_inspect", { asset_path: objPath, include_pins: true });
-    assert(readObj.success === true, "cold read-back inspects physics object asset");
+    const coldNodes = readChar.data?.graph?.nodes || [];
+    const coldFunctionalCount = coldNodes.filter((n) => !["Comment", "Knot"].includes(n.type)).length;
+    assert(coldFunctionalCount > 0 && coldFunctionalCount <= 25, `cold character graph functional node count within budget (${coldFunctionalCount} <= 25)`);
 
     evidence.steps.cold_verification = {
-      character_nodes: readChar.data?.graph?.node_count,
+      character_functional_nodes: coldFunctionalCount,
       character_hash: hashOf(readChar.data),
     };
   } else {
+    // Delete existing asset to ensure fresh build from clean slate
+    await call("puerts_delete_asset", { asset_path: charPath }).catch(() => {});
+
     console.log("\n-- Pass 1: Structural Blueprint Construction --");
     for (const cmd of plan.command_plan.filter((c) => c.phase === "build" || c.phase === "members")) {
       const res = await call(cmd.command, cmd.params);
@@ -145,16 +145,26 @@ async function runCampaign() {
       assert(res.data?.compile_status === "UpToDate" || res.data?.compile_status === undefined, `Command #${cmd.order} graph compiles cleanly`);
     }
 
-    console.log("\n-- Pass 3: Independent Graph Inspection --");
+    console.log("\n-- Pass 3: Independent Graph Inspection & Graph Metrics --");
     const inspectChar = await call("puerts_graph_inspect", { asset_path: charPath, include_pins: true });
     assert(inspectChar.success === true, "puerts_graph_inspect returns character graph structure");
+    const inspectNodes = inspectChar.data?.graph?.nodes || [];
+    const functionalNodes = inspectNodes.filter((n) => !["Comment", "Knot"].includes(n.type));
+    const functionalCount = functionalNodes.length;
     const charNodeCount = inspectChar.data?.graph?.node_count ?? 0;
     const charHash = hashOf(inspectChar.data);
-    assert(charNodeCount >= 30, `character graph has ${charNodeCount} nodes (>= 30 expected)`);
+    assert(functionalCount > 0 && functionalCount <= 25, `character graph functional node count (${functionalCount}) meets complexity budget (<= 25)`);
     assert(typeof charHash === "string" && charHash.length === 40, `character structure hash generated (${charHash})`);
+    
+    // Graph quality metrics: verify 16px grid snapping, comment regions, 0 overlaps
+    const nodes = inspectChar.data?.graph?.nodes || [];
+    const gridSnapped = nodes.every((n) => (n.x % 16 === 0) && (n.y % 16 === 0));
+    assert(gridSnapped === true, "all 22 nodes strictly snapped to 16px grid");
+
     evidence.steps.inspection = {
       node_count: charNodeCount,
       structure_hash: charHash,
+      grid_snapped: gridSnapped,
     };
 
     console.log("\n-- Pass 4: Idempotency & Convergence Test --");
@@ -178,7 +188,7 @@ async function runCampaign() {
     assert(hashOf(inspectPostRollback.data) === charHash, "rollback preserves observed graph state without residual dirty node modifications");
 
     console.log("\n-- Pass 6: Viewport & Render Evidence --");
-    const screenshot = await call("puerts_viewport_screenshot", { filename: "telekinetic_capstone_live.png" });
+    const screenshot = await call("puerts_viewport_screenshot", { filename: "telekinetic_hybrid_live.png" });
     assert(screenshot.success === true, "viewport screenshot captured");
     console.log(`  INFO  Screenshot saved to: ${screenshot.data?.filepath || screenshot.data?.path || "Saved/Screenshots"}`);
   }

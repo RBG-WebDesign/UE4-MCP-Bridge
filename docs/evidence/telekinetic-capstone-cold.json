@@ -1,7 +1,7 @@
 {
   "phase": "cold",
-  "feature_id": "capstone_physics_pickup_throw",
-  "plan_hash_sha1": "a526409f095150618661814651e7dcc441deed5e",
+  "feature_id": "telekinetic_component_handoff",
+  "plan_hash_sha1": "606f580c529283ec0d43171736ea43c063fdf179",
   "architecture": {
     "selected": "hybrid",
     "reasons": [
@@ -17,7 +17,9 @@
       "Designer tweaks & editable default properties",
       "Input action wiring & visual orchestration graphs"
     ],
-    "hybrid_integration_points": [],
+    "hybrid_integration_points": [
+      "Native class UTelekineticComponent exposed via UFUNCTION/UPROPERTY to Blueprint assets"
+    ],
     "build_order": [
       "Plan feature & IR",
       "Generate C++ source code",
@@ -29,9 +31,9 @@
   },
   "steps": {
     "cold_verification": {
-      "character_nodes": 48,
-      "character_hash": "1ad413ab1e0d717ff4928c96a80b320c934201d7"
+      "character_functional_nodes": 19,
+      "character_hash": "9fe9a1fd120bec8d082f6ac8776a8196b0ffdfbe"
     }
   },
-  "mcp_round_trips": 3
+  "mcp_round_trips": 2
 }

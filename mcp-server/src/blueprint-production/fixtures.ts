@@ -145,6 +145,62 @@ const capstoneGraph: BlueprintGraph = {
     { from: "throw_clear_component", from_pin: "then", to: "throw_clear_state", to_pin: "exec" },
   ],
 };
+
+const hybridCapstoneGraph: BlueprintGraph = {
+  name: "EventGraph",
+  kind: "event",
+  nodes: [
+    node("tk_comp", "VariableGet", { params: { var_name: "TelekineticComponent" }, region: "Pickup or drop" }),
+    node("interact", "InputKey", { params: { fkey_name: "E" }, region: "Pickup or drop" }),
+    node("is_holding_1", "CallFunction", { params: { class: "TelekineticComponent", function: "IsHoldingTarget" }, region: "Pickup or drop" }),
+    node("toggle", "Branch", { branch_depth: 1, region: "Pickup or drop" }),
+    node("release", "CallFunction", { params: { class: "TelekineticComponent", function: "ReleaseTarget" }, branch_lane: -1, region: "Drop" }),
+    node("camera", "VariableGet", { params: { var_name: "Camera" }, branch_lane: 1, region: "Acquire" }),
+    node("camera_location", "CallFunction", { params: { class: "SceneComponent", function: "K2_GetComponentLocation" }, branch_lane: 1, region: "Acquire" }),
+    node("camera_forward", "CallFunction", { params: { class: "SceneComponent", function: "GetForwardVector" }, branch_lane: 1, region: "Acquire" }),
+    node("grab_distance", "VariableGet", { params: { var_name: "GrabDistance" }, branch_lane: 1, region: "Acquire" }),
+    node("trace_offset", "Operator", { params: { op: "multiply_vector_float" }, branch_lane: 1, region: "Acquire" }),
+    node("trace_end", "Operator", { params: { op: "add_vector" }, branch_lane: 1, region: "Acquire" }),
+    node("trace", "CallFunction", { params: { class: "KismetSystemLibrary", function: "LineTraceSingle", bTraceComplex: false, bIgnoreSelf: true }, branch_lane: 1, region: "Acquire" }),
+    node("hit", "Branch", { branch_depth: 2, branch_lane: 1, region: "Acquire" }),
+    node("break_hit", "CallFunction", { params: { class: "GameplayStatics", function: "BreakHitResult" }, branch_lane: 1, region: "Acquire" }),
+    node("grab", "CallFunction", { params: { class: "TelekineticComponent", function: "GrabTarget" }, branch_lane: 1, region: "Grab" }),
+    node("throw_input", "InputKey", { params: { fkey_name: "LeftMouseButton" }, branch_lane: 3, region: "Throw" }),
+    node("is_holding_2", "CallFunction", { params: { class: "TelekineticComponent", function: "IsHoldingTarget" }, branch_lane: 3, region: "Throw" }),
+    node("throw_gate", "Branch", { branch_depth: 1, region: "Throw" }),
+    node("throw", "CallFunction", { params: { class: "TelekineticComponent", function: "ThrowTarget" }, branch_lane: 3, region: "Throw" }),
+  ],
+  connections: [
+    { from: "interact", from_pin: "Pressed", to: "toggle", to_pin: "exec" },
+    { from: "tk_comp", from_pin: "TelekineticComponent", to: "is_holding_1", to_pin: "self" },
+    { from: "is_holding_1", from_pin: "ReturnValue", to: "toggle", to_pin: "Condition" },
+    { from: "toggle", from_pin: "then", to: "release", to_pin: "exec" },
+    { from: "tk_comp", from_pin: "TelekineticComponent", to: "release", to_pin: "self" },
+    { from: "toggle", from_pin: "else", to: "trace", to_pin: "exec" },
+    { from: "camera", from_pin: "Camera", to: "camera_location", to_pin: "self" },
+    { from: "camera", from_pin: "Camera", to: "camera_forward", to_pin: "self" },
+    { from: "camera_forward", from_pin: "ReturnValue", to: "trace_offset", to_pin: "A" },
+    { from: "grab_distance", from_pin: "GrabDistance", to: "trace_offset", to_pin: "B" },
+    { from: "camera_location", from_pin: "ReturnValue", to: "trace_end", to_pin: "A" },
+    { from: "trace_offset", from_pin: "ReturnValue", to: "trace_end", to_pin: "B" },
+    { from: "camera_location", from_pin: "ReturnValue", to: "trace", to_pin: "Start" },
+    { from: "trace_end", from_pin: "ReturnValue", to: "trace", to_pin: "End" },
+    { from: "trace", from_pin: "then", to: "hit", to_pin: "exec" },
+    { from: "trace", from_pin: "ReturnValue", to: "hit", to_pin: "Condition" },
+    { from: "trace", from_pin: "OutHit", to: "break_hit", to_pin: "Hit" },
+    { from: "hit", from_pin: "then", to: "grab", to_pin: "exec" },
+    { from: "tk_comp", from_pin: "TelekineticComponent", to: "grab", to_pin: "self" },
+    { from: "break_hit", from_pin: "HitComponent", to: "grab", to_pin: "TargetComponent" },
+    { from: "break_hit", from_pin: "Location", to: "grab", to_pin: "TargetLocation" },
+    { from: "throw_input", from_pin: "Pressed", to: "throw_gate", to_pin: "exec" },
+    { from: "tk_comp", from_pin: "TelekineticComponent", to: "is_holding_2", to_pin: "self" },
+    { from: "is_holding_2", from_pin: "ReturnValue", to: "throw_gate", to_pin: "Condition" },
+    { from: "throw_gate", from_pin: "then", to: "throw", to_pin: "exec" },
+    { from: "tk_comp", from_pin: "TelekineticComponent", to: "throw", to_pin: "self" },
+    { from: "camera_forward", from_pin: "ReturnValue", to: "throw", to_pin: "Direction" },
+  ],
+};
+
 const capCharacter = bp("/Game/MCPGenerated/BPV_Capstone_Character", "Character", [capstoneGraph]);
 capCharacter.components = [{ class: "CameraComponent", name: "Camera", properties: { RelativeLocation: { x: 0, y: 0, z: 64 } } }, { class: "PhysicsHandleComponent", name: "PhysicsHandle" }];
 capCharacter.variables = [
@@ -156,11 +212,11 @@ capCharacter.variables = [
 const capObject = bp("/Game/MCPGenerated/BPV_Capstone_PhysicsObject");
 capObject.components = [{ class: "StaticMeshComponent", name: "PhysicsBody", properties: { StaticMesh: "/Engine/BasicShapes/Cube.Cube", Mobility: "Movable", BodyInstance: { bSimulatePhysics: true } } }];
 
-const telekineticCharacter = bp("/Game/MCPGenerated/BP_TelekineticCharacter", "Character", [capstoneGraph]);
+const telekineticCharacter = bp("/Game/MCPGenerated/BP_TelekineticCharacter", "Character", [hybridCapstoneGraph]);
 telekineticCharacter.components = [
   { class: "CameraComponent", name: "Camera", properties: { RelativeLocation: { x: 0, y: 0, z: 64 } } },
   { class: "PhysicsHandleComponent", name: "PhysicsHandle" },
-  { class: "UTelekineticComponent", name: "TelekineticComponent" },
+  { class: "TelekineticComponent", name: "TelekineticComponent" },
 ];
 telekineticCharacter.variables = [
   { name: "GrabDistance", type: { category: "float" }, default: 1200, category: "Physics Pickup" },
