@@ -3,8 +3,8 @@
   "title": "a Blueprint actor with components, variables and a working event graph",
   "proves": "author, compile, read back independently, converge on rerun, place in the level, and observe it run",
   "phase": "warm",
-  "generated_at": "2026-08-03T18:30:42.533Z",
-  "verdict": "PRESENT_BUT_FAILING",
+  "generated_at": "2026-08-03T19:22:56.215Z",
+  "verdict": "PASS",
   "editor": {
     "available": true,
     "reason": "puerts_diagnostic answered"
@@ -14,7 +14,7 @@
     "project_root": "D:/Unreal Projects/BridgeInstallTest"
   },
   "catalog": {
-    "registered_tool_count": 58,
+    "registered_tool_count": 63,
     "legacy_http_enabled": false
   },
   "steps": [
@@ -92,7 +92,7 @@
       "n": 13,
       "label": "2. the inspector reports a structure hash",
       "status": "PASS",
-      "detail": "bb9ac652b58e7333e31445d9209aee73bc671685"
+      "detail": "f12e28cb8301a44352cb58038fdbba5035975eab"
     },
     {
       "n": 14,
@@ -110,12 +110,12 @@
       "n": 16,
       "label": "3. the structure hash is unmoved by an identical rebuild",
       "status": "PASS",
-      "detail": "bb9ac652b58e7333e31445d9209aee73bc671685 vs bb9ac652b58e7333e31445d9209aee73bc671685"
+      "detail": "f12e28cb8301a44352cb58038fdbba5035975eab vs f12e28cb8301a44352cb58038fdbba5035975eab"
     },
     {
       "n": 17,
       "label": "3. a converged rerun wrote no new bytes to disk",
-      "status": "FAIL",
+      "status": "PASS",
       "detail": "a failure here is a real finding: blueprint_build re-saves an unchanged asset"
     },
     {
@@ -157,19 +157,19 @@
   ],
   "missing_primitives": [],
   "checks": {
-    "passed": 16,
-    "failed": 1
+    "passed": 17,
+    "failed": 0
   },
   "sealed_artifacts": [
     {
       "asset_path": "/Game/MCPGenerated/BP_SliceBeacon",
       "inspect_tool": "puerts_graph_inspect",
-      "structure_hash": "bb9ac652b58e7333e31445d9209aee73bc671685",
+      "structure_hash": "f12e28cb8301a44352cb58038fdbba5035975eab",
       "node_count": null,
-      "file_sha256": "153960e5b0edf83bdaefbf5aadc14156b15d2dd436bac266cdd3ae71ad476922"
+      "file_sha256": "27af0dd16bfa3b0ac718319751ecaf402131ef04f7dcb0f31545b7c2a1e6d75d"
     }
   ],
   "mcp_round_trips": 7,
-  "elapsed_ms": 4252,
+  "elapsed_ms": 2727,
   "blocks": []
 }

@@ -2890,10 +2890,11 @@ viewport is looking at". Only a request that named actors and matched none is an
 error now, and that refusal lists the names it was given and says they are
 matched against both an actor's name and its label.
 
-## Finding 0z: PARTIAL. blueprint_build re-saves an unchanged asset, and the cause was one hidden pin
+## Finding 0z: FIXED. blueprint_build no longer re-saves an unchanged asset because of one hidden pin
 
-Diagnosed and fixed 2026-08-03 by lane X; the fix is COMPILED AND UNRUN, and
-this entry says so rather than claiming the check is green.
+Diagnosed and fixed 2026-08-03 by lane X. The integrator re-ran the gameplay
+slice against BridgeInstallTest after the compiled hidden-pin hash fix: 17
+passed, 0 failed, with the converged rerun writing no new bytes to disk.
 
 The red check is the gameplay slice's last one: "a converged rerun wrote no new
 bytes to disk". Finding 0v established the general rule this sits under: UE
@@ -2943,8 +2944,8 @@ hash for a reason no caller caused and none could fix. This also matters beyond
 one command: every slice's cold phase compares this hash across a restart, which
 is exactly the save-and-load boundary that flipped it.
 
-**Status: both changes are compiled into the target and neither has been run.**
-The last measured gameplay result is 16 passed, 1 failed, with the fingerprint
-change in and the hidden-pin change not yet built. The next run of
-`Scripts/slice-gameplay.mjs` is what settles it, and it should be treated as
-unproven until then.
+**Status: live-verified warm.** `Scripts/slice-gameplay.mjs` completed with 17
+passed, 0 failed after the editor advertised session
+`d946471b-4747-1ab7-8b70-638fab554d82`; `install:check` passed immediately
+before and after the run. Cold evidence remains part of the wider slice
+restart sweep.

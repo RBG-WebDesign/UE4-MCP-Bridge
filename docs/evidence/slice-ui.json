@@ -3,7 +3,7 @@
   "title": "a Widget Blueprint with a layout, a binding and an independent read-back",
   "proves": "author a UMG tree, bind a widget property to data, read the asset back, and get it on screen",
   "phase": "warm",
-  "generated_at": "2026-08-03T18:13:58.673Z",
+  "generated_at": "2026-08-03T19:20:49.634Z",
   "verdict": "PASS",
   "editor": {
     "available": true,
@@ -14,7 +14,7 @@
     "project_root": "D:/Unreal Projects/BridgeInstallTest"
   },
   "catalog": {
-    "registered_tool_count": 58,
+    "registered_tool_count": 63,
     "legacy_http_enabled": false
   },
   "steps": [
@@ -196,10 +196,10 @@
       "inspect_tool": "puerts_widget_inspect",
       "structure_hash": "1BDD80C4B5FF75684E162104B136E60A9B1A6D8F",
       "node_count": null,
-      "file_sha256": "ce23e5735a495394e75aa3abb3d43a68cd1d8dbc74d7d2998672982325653616"
+      "file_sha256": "0a4e9fe44cae1676664ae0da14bd4aac0a19ca7cac23a5bafcb2e201669b87b5"
     }
   ],
   "mcp_round_trips": 10,
-  "elapsed_ms": 5091,
+  "elapsed_ms": 2347,
   "blocks": []
 }

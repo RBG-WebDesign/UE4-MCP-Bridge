@@ -386,9 +386,13 @@ namespace MCPMaterialBuild
     {
         const TArray<FExpressionInput*> Inputs = Expression->GetInputs();
         if (Name.IsEmpty()) { return Inputs.Num() > 0 ? 0 : INDEX_NONE; }
+        const FString ResolvedName = Expression->IsA<UMaterialExpressionStaticSwitchParameter>()
+            ? (Name.Equals(TEXT("A"), ESearchCase::IgnoreCase) ? TEXT("True")
+                : Name.Equals(TEXT("B"), ESearchCase::IgnoreCase) ? TEXT("False") : Name)
+            : Name;
         for (int32 Index = 0; Index < Inputs.Num(); ++Index)
         {
-            if (Expression->GetInputName(Index).ToString().Equals(Name, ESearchCase::IgnoreCase))
+            if (Expression->GetInputName(Index).ToString().Equals(ResolvedName, ESearchCase::IgnoreCase))
             {
                 return Index;
             }
@@ -1294,6 +1298,7 @@ bool UMCPPuerTSBridgeService::BuildMaterialJson(
         // "requested" instead of "compiled" is the assumption this command
         // exists to remove.
         Resource->FinishCompilation();
+
         bCompileFinished = Resource->IsCompilationFinished();
         for (const FString& Error : Resource->GetCompileErrors())
         {

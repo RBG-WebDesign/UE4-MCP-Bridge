@@ -119,7 +119,7 @@ await runSlice({
       `${placed.data?.applied_operation_count} of ${operations.length}`);
   }
 
-  const read = await h.call("puerts_scene_inspect", { include_components: true, include_properties: true }, {
+  const read = await h.call("puerts_scene_inspect", { include_components: true }, {
     label: "3. read the level back with the independent scene inspector",
     why: "puerts_find_actors returns names and classes only. It reports no transform, no folder, no bounds and no "
       + "structure hash, so there is no way to verify a placement without one",

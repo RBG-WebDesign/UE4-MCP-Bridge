@@ -42,6 +42,7 @@ await runSlice({
       { kind: "vector", name: "BeaconColor", default: { r: 1.0, g: 0.62, b: 0.16, a: 1.0 }, group: "Beacon", x: -600, y: -200 },
       { kind: "scalar", name: "GlowStrength", default: 5.0, group: "Beacon", x: -600, y: 0 },
       { kind: "scalar", name: "Roughness", default: 0.5, group: "Beacon", x: -600, y: 200 },
+      { kind: "scalar", name: "EmissiveOff", default: 0.0, group: "Beacon", x: -400, y: 100 },
       { kind: "switch", name: "UseEmissive", default: true, group: "Beacon", x: -200, y: 0 },
     ],
     expressions: [
@@ -51,6 +52,7 @@ await runSlice({
       { from: "BeaconColor", to: "Glow.A" },
       { from: "GlowStrength", to: "Glow.B" },
       { from: "Glow", to: "UseEmissive.A" },
+      { from: "EmissiveOff", to: "UseEmissive.B" },
     ],
     outputs: {
       BaseColor: "BeaconColor",
@@ -84,11 +86,7 @@ await runSlice({
     masterHash = masterRead.data?.structure_hash_sha1 ?? null;
     h.check(masterRead.data?.asset_kind === "material",
       "1. the inspector identifies the parent as a material", String(masterRead.data?.asset_kind));
-    const names = (bag) => Object.keys(bag ?? {});
-    const published = [
-      ...names(masterRead.data?.scalars), ...names(masterRead.data?.vectors),
-      ...names(masterRead.data?.switches), ...names(masterRead.data?.textures),
-    ];
+    const published = (masterRead.data?.parameters ?? []).map((parameter) => parameter.name);
     h.check(["BeaconColor", "GlowStrength", "Roughness", "UseEmissive"].every((n) => published.includes(n)),
       "1. every parameter the prompt asked for is published by the parent",
       JSON.stringify(published));
@@ -134,10 +132,11 @@ await runSlice({
     hash = read.data?.structure_hash_sha1 ?? null;
     h.check(read.data?.asset_kind === "material_instance",
       "3. the inspector identifies it as an instance", String(read.data?.asset_kind));
-    h.check(Math.abs((read.data?.scalars?.GlowStrength ?? 0) - 12.5) < 1e-4,
+    const parameters = new Map((read.data?.parameters ?? []).map((parameter) => [parameter.name, parameter]));
+    h.check(Math.abs((parameters.get("GlowStrength")?.value ?? 0) - 12.5) < 1e-4,
       "3. the scalar override is the one the prompt asked for",
-      String(read.data?.scalars?.GlowStrength));
-    const c = read.data?.vectors?.BeaconColor;
+      String(parameters.get("GlowStrength")?.value));
+    const c = parameters.get("BeaconColor")?.value;
     h.check(c !== undefined && Math.abs((c.r ?? 0) - 1.0) < 1e-3 && Math.abs((c.g ?? 0) - 0.62) < 1e-3,
       "3. the vector override is the colour the prompt asked for", JSON.stringify(c));
     h.check(String(read.data?.parent_path ?? "").includes("M_SliceBeacon"),
@@ -158,6 +157,7 @@ await runSlice({
       { kind: "vector", name: "BeaconColor", default: { r: 1.0, g: 0.62, b: 0.16, a: 1.0 }, group: "Beacon", x: -600, y: -200 },
       { kind: "scalar", name: "GlowStrength", default: 5.0, group: "Beacon", x: -600, y: 0 },
       { kind: "scalar", name: "Roughness", default: 0.5, group: "Beacon", x: -600, y: 200 },
+      { kind: "scalar", name: "EmissiveOff", default: 0.0, group: "Beacon", x: -400, y: 100 },
       { kind: "switch", name: "UseEmissive", default: true, group: "Beacon", x: -200, y: 0 },
     ],
     expressions: [
@@ -167,6 +167,7 @@ await runSlice({
       { from: "BeaconColor", to: "Glow.A" },
       { from: "GlowStrength", to: "Glow.B" },
       { from: "Glow", to: "UseEmissive.A" },
+      { from: "EmissiveOff", to: "UseEmissive.B" },
     ],
     outputs: {
       BaseColor: "BeaconColor",

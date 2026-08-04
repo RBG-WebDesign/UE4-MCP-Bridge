@@ -3,7 +3,7 @@
   "title": "a scene of several actors with lighting and a volume, placed and verified",
   "proves": "describe a scene as desired state, place it in one call, read it back independently, and save the level",
   "phase": "warm",
-  "generated_at": "2026-08-03T15:42:11.025Z",
+  "generated_at": "2026-08-03T19:47:57.462Z",
   "verdict": "PRESENT_BUT_FAILING",
   "editor": {
     "available": true,
@@ -14,7 +14,7 @@
     "project_root": "D:/Unreal Projects/BridgeInstallTest"
   },
   "catalog": {
-    "registered_tool_count": 58,
+    "registered_tool_count": 63,
     "legacy_http_enabled": false
   },
   "steps": [
@@ -32,111 +32,100 @@
     },
     {
       "n": 3,
-      "label": "primitive puerts_read_property is registered",
-      "tool": "puerts_read_property",
-      "status": "PASS"
+      "label": "1. the planned trigger volume clears the PlayerStart by 1.5x its extent",
+      "status": "PASS",
+      "detail": "1400 uu vs the 300 uu the rule requires"
     },
     {
       "n": 4,
-      "label": "1. read the PlayerStart location",
-      "tool": "puerts_read_property",
-      "status": "FAIL",
-      "detail": "PRESENT BUT FAILING: [\"Reflected property not found.\"]"
-    },
-    {
-      "n": 5,
-      "label": "1. PlayerStart clearance not measured",
-      "status": "NOTE",
-      "detail": "the location read did not return a vector"
-    },
-    {
-      "n": 6,
       "label": "primitive puerts_scene_batch is registered",
       "tool": "puerts_scene_batch",
       "status": "PASS"
     },
     {
-      "n": 7,
+      "n": 5,
       "label": "2. place the whole courtyard in one desired-state call",
       "tool": "puerts_scene_batch",
       "status": "FAIL",
-      "detail": "PRESENT BUT FAILING: [\"operation 0 (upsert_actor label=Pillar_NE): StaticMeshComponent.StaticMesh is not on the writable-property allowlist. Widening it is a deliberate edit to AllowedWritableProperties in [MCPPuerTSBridge], not something a request may do. operation 1 (upsert_actor label=Pillar_NW): StaticMeshComponent.StaticMesh is not on the writable-property allowlist. Widening it is a deliberate edit to AllowedWri"
+      "detail": "PRESENT BUT FAILING: [\"4 verification mismatch(es) after the scene batch, so it is rolled back. The rollback did NOT restore the level: the structure hash is 2698c391078d5924ab62f1c170b060fa4ca33a41, expected 1f6764eb21a2544585410023d30598bdb2611de8. Treat this level as damaged and do not save it.\"]"
     },
     {
-      "n": 8,
+      "n": 6,
       "label": "primitive puerts_scene_inspect is registered",
       "tool": "puerts_scene_inspect",
       "status": "PASS"
     },
     {
-      "n": 9,
+      "n": 7,
       "label": "3. read the level back with the independent scene inspector",
       "tool": "puerts_scene_inspect",
-      "status": "PASS"
-    },
-    {
-      "n": 10,
-      "label": "3. every actor the prompt asked for is in the level",
       "status": "FAIL",
-      "detail": "[\"AbstractNavData-Default\",\"Atmospheric Fog\",\"Brush1\",\"DefaultPhysicsVolume\",\"Floor\",\"InstancedFoliageActor\",\"Light Source\",\"Player Start\",\"SkyLight\",\"Sky Sphere\",\"SphereReflectionCapture\",\"WorldSettings1\"]"
+      "detail": "PRESENT BUT FAILING: [\"[\\n  {\\n    \\\"code\\\": \\\"invalid_type\\\",\\n    \\\"expected\\\": \\\"array\\\",\\n    \\\"received\\\": \\\"boolean\\\",\\n    \\\"path\\\": [\\n      \\\"include_properties\\\"\\n    ],\\n    \\\"message\\\": \\\"Expected array, received boolean\\\"\\n  }\\n]\"]"
     },
     {
-      "n": 11,
-      "label": "3. the actors landed in the outliner folder the prompt named",
-      "status": "FAIL",
-      "detail": "undefined"
-    },
-    {
-      "n": 12,
-      "label": "3. the pillar scale survived, which puerts_spawn_actor cannot express at all",
-      "status": "FAIL"
-    },
-    {
-      "n": 13,
-      "label": "3. inspecting did not dirty the level package",
-      "status": "PASS"
-    },
-    {
-      "n": 14,
+      "n": 8,
       "label": "primitive puerts_lighting_build is registered",
       "tool": "puerts_lighting_build",
       "status": "PASS"
     },
     {
-      "n": 15,
-      "label": "4. start a lighting build so the placed lights are baked rather than preview-only",
+      "n": 9,
+      "label": "4. ask lighting_build whether a bake is possible, without starting one",
       "tool": "puerts_lighting_build",
-      "status": "FAIL",
-      "detail": "PRESENT BUT FAILING: [\"PuerTS command pipe timed out\"]"
+      "status": "PASS"
     },
     {
-      "n": 16,
+      "n": 10,
+      "label": "4. the command reports whether Swarm can run a bake at all",
+      "status": "PASS",
+      "detail": "swarm_available=true agent_present=true agent_running=false lightmass=true"
+    },
+    {
+      "n": 11,
+      "label": "4. a status call started nothing",
+      "status": "PASS",
+      "detail": "false"
+    },
+    {
+      "n": 12,
+      "label": "4. the level says how much of its lighting is unbuilt",
+      "status": "PASS",
+      "detail": "0"
+    },
+    {
+      "n": 13,
+      "label": "4. this slice deliberately does not bake",
+      "status": "NOTE",
+      "detail": "finding 0u: a Lightmass run is a multi-minute external dependency on Swarm Agent, and the level slice needs placed lights and correct transforms, not a bake. The screenshot below therefore shows preview lighting, and that is the intended state for this slice."
+    },
+    {
+      "n": 14,
       "label": "primitive puerts_save is registered",
       "tool": "puerts_save",
       "status": "PASS"
     },
     {
-      "n": 17,
+      "n": 15,
       "label": "6. persist the level, which scene_batch deliberately does not do",
       "tool": "puerts_save",
       "status": "FAIL",
       "detail": "PRESENT BUT FAILING: [\"PuerTS command pipe timed out\"]"
     },
     {
-      "n": 18,
+      "n": 16,
       "label": "primitive puerts_viewport_screenshot is registered",
       "tool": "puerts_viewport_screenshot",
       "status": "PASS"
     },
     {
-      "n": 19,
+      "n": 17,
       "label": "7. capture the courtyard",
       "tool": "puerts_viewport_screenshot",
       "status": "FAIL",
       "detail": "PRESENT BUT FAILING: [\"PuerTS command pipe timed out\"]"
     },
     {
-      "n": 20,
+      "n": 18,
       "label": "8. this slice seals no artifact for the cold phase",
       "status": "NOTE",
       "detail": "the generic cold check re-reads by asset_path, and puerts_scene_inspect addresses the loaded level rather than an asset path. Proving a level survives a restart needs a cold check written against level_path."
@@ -144,11 +133,11 @@
   ],
   "missing_primitives": [],
   "checks": {
-    "passed": 3,
-    "failed": 8
+    "passed": 6,
+    "failed": 4
   },
   "sealed_artifacts": [],
-  "mcp_round_trips": 8,
-  "elapsed_ms": 76175,
+  "mcp_round_trips": 7,
+  "elapsed_ms": 17007,
   "blocks": []
 }

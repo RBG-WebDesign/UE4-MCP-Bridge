@@ -3,7 +3,7 @@
   "title": "a master material with parameters, an instance that overrides them, compiled and applied",
   "proves": "author a material graph, instance it, read the parameter values back, and see it on a mesh",
   "phase": "warm",
-  "generated_at": "2026-08-03T15:42:07.739Z",
+  "generated_at": "2026-08-03T19:44:55.563Z",
   "verdict": "PRESENT_BUT_FAILING",
   "editor": {
     "available": true,
@@ -14,7 +14,7 @@
     "project_root": "D:/Unreal Projects/BridgeInstallTest"
   },
   "catalog": {
-    "registered_tool_count": 58,
+    "registered_tool_count": 63,
     "legacy_http_enabled": false
   },
   "steps": [
@@ -26,88 +26,149 @@
     },
     {
       "n": 2,
-      "label": "primitive puerts_find_assets is registered",
-      "tool": "puerts_find_assets",
+      "label": "1. author the amber emissive master material the prompt asked for",
+      "tool": "puerts_material_build",
       "status": "PASS"
     },
     {
       "n": 3,
-      "label": "1. look for an existing master material to instance instead",
-      "tool": "puerts_find_assets",
-      "status": "PASS"
+      "label": "1. the master material compiled",
+      "status": "FAIL",
+      "detail": "{\"resource_found\":true,\"finished\":false,\"succeeded\":false,\"errors\":[]}"
     },
     {
       "n": 4,
-      "label": "1. some material exists to act as a parent",
+      "label": "1. the master material was saved after its read-back agreed",
       "status": "PASS",
-      "detail": "20 found"
+      "detail": "true"
     },
     {
       "n": 5,
-      "label": "1. this is a degraded path, not the slice",
-      "status": "NOTE",
-      "detail": "instancing whatever material happens to exist proves the instance tool, not the prompt. The prompt asked for a material with named parameters, and a parent nobody authored has no guarantee of carrying any."
-    },
-    {
-      "n": 6,
-      "label": "primitive puerts_material_instance_build is registered",
-      "tool": "puerts_material_instance_build",
-      "status": "PASS"
-    },
-    {
-      "n": 7,
-      "label": "2. build the material instance with the prompt's parameter values",
-      "tool": "puerts_material_instance_build",
-      "status": "FAIL",
-      "detail": "PRESENT BUT FAILING: [\"'/Game/CRT_VCR_Material/Materials/00_animated_crt_v2_1.00_animated_crt_v2_1' does not publish a scalar parameter named 'GlowStrength'. The parent publishes no parameters of that kind. '/Game/CRT_VCR_Material/Materials/00_animated_crt_v2_1.00_animated_crt_v2_1' does not publish a scalar parameter named 'Roughness'. Closest scalar parameters: Glass Roughness Multiplier. '/Game/CRT_VCR_Material/Mat"
-    },
-    {
-      "n": 8,
       "label": "primitive puerts_material_inspect is registered",
       "tool": "puerts_material_inspect",
       "status": "PASS"
     },
     {
-      "n": 9,
-      "label": "3. read the instance back and compare the overrides field for field",
+      "n": 6,
+      "label": "1. read the master back with the independent material inspector",
       "tool": "puerts_material_inspect",
-      "status": "FAIL",
-      "detail": "PRESENT BUT FAILING: [\"No asset was found at '/Game/MCPGenerated/MI_SliceBeacon.MI_SliceBeacon'.\"]"
+      "status": "PASS"
+    },
+    {
+      "n": 7,
+      "label": "1. the inspector identifies the parent as a material",
+      "status": "PASS",
+      "detail": "material"
+    },
+    {
+      "n": 8,
+      "label": "1. every parameter the prompt asked for is published by the parent",
+      "status": "PASS",
+      "detail": "[\"EmissiveOff\",\"GlowStrength\",\"Roughness\",\"UseEmissive\",\"BeaconColor\"]"
+    },
+    {
+      "n": 9,
+      "label": "1. the inspector reports a structure hash for the master",
+      "status": "PASS",
+      "detail": "40e89e4703d8bb1b1f6ae5f84ad6529de82cd1d9"
     },
     {
       "n": 10,
+      "label": "primitive puerts_material_instance_build is registered",
+      "tool": "puerts_material_instance_build",
+      "status": "PASS"
+    },
+    {
+      "n": 11,
+      "label": "2. build the material instance with the prompt's parameter values",
+      "tool": "puerts_material_instance_build",
+      "status": "PASS"
+    },
+    {
+      "n": 12,
+      "label": "3. read the instance back and compare the overrides field for field",
+      "tool": "puerts_material_inspect",
+      "status": "PASS"
+    },
+    {
+      "n": 13,
+      "label": "3. the inspector identifies it as an instance",
+      "status": "PASS",
+      "detail": "material_instance"
+    },
+    {
+      "n": 14,
+      "label": "3. the scalar override is the one the prompt asked for",
+      "status": "PASS",
+      "detail": "12.5"
+    },
+    {
+      "n": 15,
+      "label": "3. the vector override is the colour the prompt asked for",
+      "status": "PASS",
+      "detail": "{\"r\":1,\"g\":0.6200000047683716,\"b\":0.1599999964237213,\"a\":1}"
+    },
+    {
+      "n": 16,
+      "label": "3. the instance names the master this slice authored",
+      "status": "PASS",
+      "detail": "/Game/MCPGenerated/M_SliceBeacon.M_SliceBeacon"
+    },
+    {
+      "n": 17,
+      "label": "3b. rerunning the identical master spec converges",
+      "tool": "puerts_material_build",
+      "status": "PASS"
+    },
+    {
+      "n": 18,
+      "label": "3b. re-read the master after the rerun",
+      "tool": "puerts_material_inspect",
+      "status": "PASS"
+    },
+    {
+      "n": 19,
+      "label": "3b. the master's structure hash is unmoved by an identical rebuild",
+      "status": "PASS",
+      "detail": "40e89e4703d8bb1b1f6ae5f84ad6529de82cd1d9 vs 40e89e4703d8bb1b1f6ae5f84ad6529de82cd1d9"
+    },
+    {
+      "n": 20,
+      "label": "3b. a converged rerun of the master wrote no new bytes to disk",
+      "status": "FAIL"
+    },
+    {
+      "n": 21,
       "label": "primitive puerts_texture_import is registered",
       "tool": "puerts_texture_import",
       "status": "PASS"
     },
     {
-      "n": 11,
+      "n": 22,
       "label": "primitive puerts_blueprint_build is registered",
       "tool": "puerts_blueprint_build",
       "status": "PASS"
     },
     {
-      "n": 12,
+      "n": 23,
       "label": "4. put the instance on a mesh through a component template property",
       "tool": "puerts_blueprint_build",
-      "status": "FAIL",
-      "detail": "PRESENT BUT FAILING: [\"Component 'Body' property 'OverrideMaterials': element 0: asset '/Game/MCPGenerated/MI_SliceBeacon.MI_SliceBeacon' could not be loaded.\"]"
+      "status": "PASS"
     },
     {
-      "n": 13,
+      "n": 24,
       "label": "primitive puerts_viewport_screenshot is registered",
       "tool": "puerts_viewport_screenshot",
       "status": "PASS"
     },
     {
-      "n": 14,
+      "n": 25,
       "label": "5. capture the viewport so the material can be judged by eye",
       "tool": "puerts_viewport_screenshot",
-      "status": "FAIL",
-      "detail": "PRESENT BUT FAILING: [\"No requested actors were found for viewport capture.\"]"
+      "status": "PASS"
     },
     {
-      "n": 15,
+      "n": 26,
       "label": "6. shader compilation is not observable",
       "status": "NOTE",
       "detail": "no registered tool reports whether the shader compiler has finished, so a screenshot taken immediately after a material change can legitimately show the default checkerboard. Lane I reports compile result inside the instance build response, which covers the instance but not the shader map."
@@ -115,11 +176,19 @@
   ],
   "missing_primitives": [],
   "checks": {
-    "passed": 2,
-    "failed": 4
+    "passed": 17,
+    "failed": 2
   },
-  "sealed_artifacts": [],
-  "mcp_round_trips": 6,
-  "elapsed_ms": 2257,
+  "sealed_artifacts": [
+    {
+      "asset_path": "/Game/MCPGenerated/MI_SliceBeacon",
+      "inspect_tool": "puerts_material_inspect",
+      "structure_hash": "38c731ea902cf88fca2613b840b480617e9c7717",
+      "node_count": null,
+      "file_sha256": "7533a1cc1e744415940ecf63dd544e187aabad90fd9ab4918205a58e7e1f8992"
+    }
+  ],
+  "mcp_round_trips": 9,
+  "elapsed_ms": 5834,
   "blocks": []
 }

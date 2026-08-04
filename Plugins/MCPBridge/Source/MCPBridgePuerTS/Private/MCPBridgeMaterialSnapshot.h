@@ -450,6 +450,43 @@ namespace MCPBridgeMaterialSnapshot
         MCPBridgeBlueprintMembers::SortByStringField(OutMaterialInputs, TEXT("property"));
     }
 
+    /** A name-free graph signature. Expression object names and GUIDs are
+        recreated by a whole-graph build, so using either in a structure hash
+        would turn an identical desired state into a false change. */
+    inline FString StructuralExpressionSignature(
+        UMaterialExpression* Expression,
+        TMap<UMaterialExpression*, FString>& Memo,
+        TSet<UMaterialExpression*>& Active)
+    {
+        if (Expression == nullptr) { return TEXT("none"); }
+        if (const FString* Cached = Memo.Find(Expression)) { return *Cached; }
+        if (Active.Contains(Expression)) { return TEXT("cycle"); }
+
+        Active.Add(Expression);
+        FString Signature = Expression->GetClass()->GetPathName();
+        if (Expression->HasAParameterName())
+        {
+            const FString ParameterName = Expression->GetParameterName().ToString();
+            Signature += FString::Printf(TEXT("|p%d:%s"), ParameterName.Len(), *ParameterName);
+        }
+        const TArray<FExpressionInput*> Inputs = Expression->GetInputs();
+        for (int32 Index = 0; Index < Inputs.Num(); ++Index)
+        {
+            const FExpressionInput* Input = Inputs[Index];
+            if (Input == nullptr)
+            {
+                Signature += FString::Printf(TEXT("|i%d:null"), Index);
+                continue;
+            }
+            const FString InputName = Expression->GetInputName(Index).ToString();
+            const FString Source = StructuralExpressionSignature(Input->Expression, Memo, Active);
+            Signature += FString::Printf(TEXT("|i%d:n%d:%s:o%d:s%d:%s"),
+                Index, InputName.Len(), *InputName, Input->OutputIndex, Source.Len(), *Source);
+        }
+        Active.Remove(Expression);
+        Memo.Add(Expression, Signature);
+        return Signature;
+    }
     /**
      * The canonical structure of a material, for hashing and for comparison.
      *
@@ -491,29 +528,35 @@ namespace MCPBridgeMaterialSnapshot
         MCPBridgeBlueprintMembers::SortByStringField(Parameters, TEXT("id"));
         Out->SetArrayField(TEXT("parameters"), Parameters);
 
-        TArray<TSharedPtr<FJsonValue>> Expressions;
-        TArray<TSharedPtr<FJsonValue>> Connections;
-        TArray<TSharedPtr<FJsonValue>> MaterialInputs;
-        TArray<TSharedPtr<FJsonValue>> Unsupported;
-        DescribeGraph(AsMaterial, Expressions, Connections, MaterialInputs, Unsupported);
-
-        // Node positions and descriptions are cosmetic; a moved node is not a
-        // different graph, so the hashed view carries identity and class only.
+        TMap<UMaterialExpression*, FString> Signatures;
+        TSet<UMaterialExpression*> ActiveExpressions;
         TArray<TSharedPtr<FJsonValue>> ExpressionKeys;
-        for (const TSharedPtr<FJsonValue>& Value : Expressions)
+        TArray<TSharedPtr<FJsonValue>> MaterialInputKeys;
+        if (AsMaterial != nullptr)
         {
-            const TSharedPtr<FJsonObject>* Object = nullptr;
-            if (!Value.IsValid() || !Value->TryGetObject(Object)) { continue; }
-            TSharedPtr<FJsonObject> Key = MakeShared<FJsonObject>();
-            Key->SetStringField(TEXT("id"), FString::Printf(TEXT("%s|%s"),
-                *(*Object)->GetStringField(TEXT("id")),
-                *(*Object)->GetStringField(TEXT("class_path"))));
-            ExpressionKeys.Add(MakeShared<FJsonValueObject>(Key));
+            for (UMaterialExpression* Expression : AsMaterial->Expressions)
+            {
+                if (Expression == nullptr) { continue; }
+                TSharedPtr<FJsonObject> Key = MakeShared<FJsonObject>();
+                Key->SetStringField(TEXT("id"), StructuralExpressionSignature(
+                    Expression, Signatures, ActiveExpressions));
+                ExpressionKeys.Add(MakeShared<FJsonValueObject>(Key));
+            }
+            for (const FMaterialPropertyEntry& Property : NamedMaterialProperties())
+            {
+                FExpressionInput* Input = AsMaterial->GetExpressionInputForProperty(Property.Property);
+                TSharedPtr<FJsonObject> Key = MakeShared<FJsonObject>();
+                Key->SetStringField(TEXT("id"), Property.Name);
+                Key->SetStringField(TEXT("source"), Input != nullptr
+                    ? StructuralExpressionSignature(Input->Expression, Signatures, ActiveExpressions) : FString());
+                Key->SetNumberField(TEXT("output_index"), Input != nullptr ? Input->OutputIndex : 0);
+                MaterialInputKeys.Add(MakeShared<FJsonValueObject>(Key));
+            }
         }
         MCPBridgeBlueprintMembers::SortByStringField(ExpressionKeys, TEXT("id"));
+        MCPBridgeBlueprintMembers::SortByStringField(MaterialInputKeys, TEXT("id"));
         Out->SetArrayField(TEXT("expressions"), ExpressionKeys);
-        Out->SetArrayField(TEXT("connections"), Connections);
-        Out->SetArrayField(TEXT("material_inputs"), MaterialInputs);
+        Out->SetArrayField(TEXT("material_inputs"), MaterialInputKeys);
         return Out;
     }
 
