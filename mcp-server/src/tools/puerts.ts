@@ -204,6 +204,32 @@ const blueprintGraph = z.object({
   + "SpawnActor's Spawn Transform is a by-ref pin that needs a wired input.",
 );
 
+const blueprintTypeDescriptor = z.object({
+  category: z.string().min(1),
+}).passthrough();
+
+const blueprintFunctionParameter = z.object({
+  name: z.string().min(1),
+  type: blueprintTypeDescriptor,
+  default: z.string().optional(),
+  rename_from: z.string().min(1).optional(),
+}).strict();
+
+const blueprintSetFunctionOperation = z.object({
+  op: z.literal("set_function"),
+  name: z.string().min(1),
+  inputs: z.array(blueprintFunctionParameter).optional(),
+  outputs: z.array(blueprintFunctionParameter).optional(),
+  locals: z.array(blueprintFunctionParameter.omit({ rename_from: true })).optional(),
+  metadata: z.object({
+    category: z.string().optional(),
+    tooltip: z.string().optional(),
+    pure: z.boolean().optional(),
+    const: z.boolean().optional(),
+    access: z.enum(["public", "protected", "private"]).optional(),
+  }).strict().optional(),
+}).strict();
+
 /** The widget types FWidgetClassRegistry resolves, grouped by the child rule
     each one carries. The authority is RegisterTypes() in
     Plugins/MCPBridge/Source/MCPBridgeGraphBuilder/Private/WidgetBuilder/
@@ -221,9 +247,9 @@ const widgetType = z.enum([
 /** Layout owned by the parent, not by the widget. Which fields apply depends
     on the slot class the parent creates: a canvas slot takes position, size,
     alignment, zOrder and autoSize; a box or overlay slot takes padding and
-    the two alignment enums; a grid slot takes row and column. Fields that do
-    not apply to the slot the parent made are ignored rather than refused,
-    because the same subtree is often moved between parents. */
+    the two alignment enums; a grid slot takes row and column. A field that
+    does not apply to the actual parent slot is refused before mutation. Moving
+    a subtree between parent types therefore requires updating its slot shape. */
 const widgetSlot = z.object({
   position: z.object({ x: z.number(), y: z.number() }).strict().optional(),
   size: z.object({ x: z.number(), y: z.number() }).strict().optional(),
@@ -571,7 +597,8 @@ const specs = [
     + "dispatchers and components. puerts_blueprint_graph_patch owns nodes and pins and cannot "
     + "reach any of these; puerts_blueprint_build reaches them only by restating the whole asset. "
     + "operations is an ordered batch of add_variable, remove_variable, set_variable_default, "
-    + "add_function, remove_function, add_interface, remove_interface, add_event_dispatcher, "
+    + "add_function, set_function, remove_function, add_interface, remove_interface, "
+    + "add_event_dispatcher, "
     + "remove_event_dispatcher, remove_component and rename_component. "
     + "The whole batch is resolved and classified before the first mutation runs, because each "
     + "underlying mutator entry point recompiles the Blueprint: an unloadable interface path, a "
@@ -584,7 +611,10 @@ const specs = [
     + "repeated, so a rerun applies nothing, reports converged and leaves no dirty package. "
     + "plan_only is read-only and returns operations_to_apply, unchanged_operations, "
     + "expected_change_count and pre_member_hash; predicted_member_hash is given only for a no-op "
-    + "batch, where it is the current hash by definition. "
+    + "batch, where it is the current hash by definition. Every set_function operation also "
+    + "returns a function_plans entry naming function_exists, signature_changes, metadata_changes, "
+    + "locals_to_add, locals_to_update and call_sites_affected, so a signature change can be "
+    + "reviewed before mutation. "
     + "Applying runs in one transaction, compiles, re-reads every operation's own condition from "
     + "the asset rather than trusting the mutator's report, and saves only after that passes; any "
     + "failure rolls the whole batch back, and whether the rollback actually restored the members "
@@ -601,19 +631,34 @@ const specs = [
         "Package path under /Game/MCPGenerated/, no asset-name suffix. The Blueprint must "
         + "already exist: patching never creates one.",
       ),
-      operations: z.array(z.record(z.unknown())).min(1).describe(
+      operations: z.array(z.record(z.unknown())).min(1).superRefine((operations, context) => {
+        operations.forEach((operation, index) => {
+          if (operation.op !== "set_function") return;
+          const parsed = blueprintSetFunctionOperation.safeParse(operation);
+          if (parsed.success) return;
+          for (const issue of parsed.error.issues) {
+            context.addIssue({ ...issue, path: [index, ...issue.path] });
+          }
+        });
+      }).describe(
         "Ordered batch. Each entry is {op, ...}: "
         + "{op:\"add_variable\", name, type:{category:\"float\"}, default?, category?}, "
         + "{op:\"remove_variable\", name}, "
         + "{op:\"set_variable_default\", name, default}, "
         + "{op:\"add_function\", name, inputs?:[{name,type}], outputs?:[{name,type}]}, "
         + "{op:\"remove_function\", name}, "
+        + "{op:\"set_function\", name, inputs?:[{name,type,default?,rename_from?}], "
+        + "outputs?:[{name,type,default?,rename_from?}], locals?:[{name,type,default?}], "
+        + "metadata?:{category?,tooltip?,pure?,const?,access?}}, "
         + "{op:\"add_interface\", path}, {op:\"remove_interface\", path}, "
         + "{op:\"add_event_dispatcher\", name, parameters?:[{name,type}]}, "
         + "{op:\"remove_event_dispatcher\", name}, "
         + "{op:\"remove_component\", name}, {op:\"rename_component\", from, to}. "
         + "type is the same Type Descriptor puerts_graph_inspect reports for a variable, and a "
-        + "partial descriptor matches a variable whose reported type agrees on the fields given.",
+        + "partial descriptor matches a variable whose reported type agrees on the fields given. "
+        + "For set_function, an omitted list is left unchanged and a supplied list is authoritative. "
+        + "rename_from preserves a parameter rename and its call-site connections. Locals do not "
+        + "support rename_from. Access is public, protected or private.",
       ),
       plan_only: z.boolean().optional().describe(
         "Default false. Classify the batch and change nothing.",
@@ -1730,6 +1775,8 @@ const specs = [
     "Render a ULevelSequence to image files and return a job_id. NOTHING IS RENDERED WHEN THIS "
     + "RETURNS: it spawns a second UE process and answers. Poll puerts_job_status until state is "
     + "no longer \"running\", then collect with puerts_job_result. "
+    + "The four capture protocols available in the installed build are png, jpg, bmp and exr. "
+    + "AVI is unavailable because the installed engine omits its private writer. "
     + "This is the legacy MovieSceneCapture path, the same one the editor's own Render Movie "
     + "button takes in separate-process mode: a UAutomatedLevelSequenceCapture is serialized to a "
     + "manifest and a second editor process is launched with -MovieSceneCaptureManifest. Movie "
@@ -1749,8 +1796,8 @@ const specs = [
         + "outside the project is refused. Default Saved/MCPRenders/<sequence name>.",
       ),
       format: z.enum(["png", "jpg", "bmp", "exr"]).optional().describe(
-        "Default png. These are the five capture protocols UE4.27 ships; avi is the only one that "
-        + "produces a single file rather than an image sequence.",
+        "Default png. These are the four capture protocols available in the installed UE4.27 "
+        + "build. AVI is unavailable because the installed engine omits its private writer.",
       ),
       output_format: z.string().optional().describe(
         "The filename format string, e.g. \"{world}_{frame}\". Default is the engine's own.",

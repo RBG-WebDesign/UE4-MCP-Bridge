@@ -249,13 +249,11 @@ export const toolAnnotations: Record<string, ToolAnnotations> = {
   // The job API. job_status changes nothing anywhere, so it is plainly
   // read-only.
   puerts_job_status: readOnly,
-  // Read-only about the EDITOR - it opens no transaction, dirties nothing and
-  // spawns nothing - but deliberately not idempotent: it delivers a finished
-  // job's output once and refuses the second call with job_result_consumed. A
-  // client that retries on a dropped connection must expect that refusal, so
-  // the hint says so rather than promising a safe retry.
+  // Collecting a result consumes it and changes whether the next call can
+  // succeed. It opens no transaction and destroys no authored state, but it is
+  // still a mutation and is deliberately not idempotent.
   puerts_job_result: {
-    readOnlyHint: true,
+    readOnlyHint: false,
     destructiveHint: false,
     idempotentHint: false,
     openWorldHint: false,

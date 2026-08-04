@@ -2309,6 +2309,9 @@ async function jobApiSuite(): Promise<void> {
     toolAnnotations.puerts_job_result?.idempotentHint === false,
     "job_result delivers a finished job's output ONCE; a second call refuses, so it is not "
     + "idempotent and must not be advertised as a safe retry",
+  );  assert(
+    toolAnnotations.puerts_job_result?.readOnlyHint === false,
+    "job_result consumes the result and must not be annotated read-only",
   );
   assert(
     toolAnnotations.puerts_job_cancel?.destructiveHint === true
@@ -2325,7 +2328,25 @@ async function jobApiSuite(): Promise<void> {
 
   const render = find("puerts_sequence_render_start");
   const settings = find("puerts_project_settings_maps");
-  const packageStart = find("puerts_project_package_start");
+  const packageStart = find("puerts_project_package_start");  const memberPatch = find("puerts_blueprint_member_patch");
+  const validSetFunction = {
+    asset_path: "/Game/MCPGenerated/BP_FunctionContract",
+    operations: [{
+      op: "set_function",
+      name: "Compute",
+      inputs: [{ name: "Base", type: { category: "float" }, default: "0" }],
+      metadata: { access: "public", pure: true },
+    }],
+  };
+  assert(memberPatch?.inputSchema.safeParse(validSetFunction).success === true,
+    "member_patch must publicly validate the native set_function contract");
+  assert(memberPatch?.inputSchema.safeParse({
+    ...validSetFunction,
+    operations: [{ op: "set_function", name: "Compute", inputs: [{ name: "Base" }] }],
+  }).success === false, "set_function parameters must require a type descriptor");
+  assert(memberPatch?.description.includes("set_function")
+      && memberPatch.description.includes("function_plans"),
+    "member_patch must describe set_function and its plan result");
   assert(settings?.inputSchema.safeParse({}).success === false,
     "project_settings_maps must require at least one setting");
   assert(settings?.inputSchema.safeParse({ game_default_map: "/Engine/Maps/Entry" }).success === false,
@@ -2370,7 +2391,11 @@ async function jobApiSuite(): Promise<void> {
   assert(
     render?.inputSchema.safeParse({}).success === false,
     "sequence_render_start must require asset_path",
-  );
+  );  assert(render?.inputSchema.safeParse({
+    asset_path: "/Game/C/LS_A", format: "avi",
+  }).success === false, "sequence_render_start must refuse unavailable AVI output");
+  assert(render?.description.includes("four capture protocols"),
+    "sequence_render_start must describe the four installed-build-safe formats");
   assert(
     render?.inputSchema.safeParse({ asset_path: "/Game/C/LS_A", format: "webp" }).success === false,
     "format must be limited to the capture protocols UE4.27 actually ships",
