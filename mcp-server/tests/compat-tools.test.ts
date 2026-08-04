@@ -73,8 +73,15 @@ async function main(): Promise<void> {
   const server: Server = createServer((socket) => socket.once("data", (data: Buffer) => {
     const request = JSON.parse(data.toString("utf8")) as PipeRequest;
     seen.push(request);
-    const responseData = request.command === "graph_inspect"
-      ? {
+    const responseData = request.command === "pie_agent_control"
+      && ["move_to", "press", "replay"].includes(String(request.params?.op))
+      && request.params?.export !== true
+      ? { operation_id: 7, status: "running" }
+      : request.command === "pie_agent_query" && request.params?.op === "status"
+        ? seen.some((entry) => entry.command === "pie_agent_control" && entry.params?.actor === "CancelTarget")
+          ? { status: "cancelled", error: "cancelled by caller" }
+          : { status: "succeeded", result: { completed: true } }
+        : request.command === "graph_inspect" ? {
           graphs: [{ name: "EventGraph" }],
           functions: [{ name: "Use" }],
           variables: [{ name: "Health" }],
@@ -117,7 +124,7 @@ async function main(): Promise<void> {
     // --- catalog shape ----------------------------------------------------
     // A literal on purpose: this is the canary that catches an alias silently
     // disappearing. Raise it deliberately when a wave adds legacy names.
-    const ALIAS_COUNT = 50;
+    const ALIAS_COUNT = 57;
     assert(compat.length === ALIAS_COUNT, `expected ${ALIAS_COUNT} compat aliases, got ${compat.length}`);
     assert(
       Object.keys(compatAliasTargets).length === ALIAS_COUNT,
@@ -267,6 +274,15 @@ async function main(): Promise<void> {
       ["pie_agent_status", { operation_id: 3 }, "pie_agent_query", { op: "status", operation_id: 3 }],
       ["pie_agent_expect", { conditions: ["actor_count:Cube:1"] },
         "pie_agent_query", { op: "expect", conditions: ["actor_count:Cube:1"] }],
+      ["project_settings_maps", { game_default_map: "/Game/Maps/Main.Main" },
+        "project_settings_maps", { game_default_map: "/Game/Maps/Main.Main" }],
+      ["pie_agent_look_at", { actor: "BP_Target" },
+        "pie_agent_control", { op: "look_at", actor: "BP_Target" }],
+      ["pie_agent_record_start", { events: ["spawn"], max_events: 64 },
+        "pie_agent_control", { op: "record_start", events: ["spawn"], max_events: 64 }],
+      ["pie_agent_record_stop", {}, "pie_agent_control", { op: "record_stop" }],
+      ["pie_agent_replay", { export: true },
+        "pie_agent_control", { op: "replay", export: true }],
 
       // Blueprint members: one legacy call is one operation of the batch
       // command. The four with renamed parameters are the ones pinned here.
@@ -325,6 +341,44 @@ async function main(): Promise<void> {
       assert(payload.requested_tool === alias && payload.compat === true, `${alias} result is missing the compat wrapper`);
       assert(payload.canonical_tool === compatAliasTargets[alias], `${alias} reported the wrong canonical_tool`);
     }
+
+    // These three legacy tools blocked until their native operation reached a
+    // terminal state. Preserve that envelope by polling the existing query op.
+    for (const [alias, input, expectedControl] of [
+      ["pie_agent_move_to", { actor: "BP_Target", timeout: 1 }, { op: "move_to", actor: "BP_Target", timeout: 1 }],
+      ["pie_agent_press", { action: "Interact", hold_seconds: 0 }, { op: "press", action: "Interact", hold_seconds: 0 }],
+      ["pie_agent_replay", { script: [], budget_seconds: 1 }, { op: "replay", script: [], budget_seconds: 1 }],
+    ] as const) {
+      seen.length = 0;
+      const payload = await call(toolNamed(compat, alias), input);
+      assert(seen.length === 2, `${alias} must make one control call and one status call`);
+      assert(seen[0]?.command === "pie_agent_control", `${alias} must start through pie_agent_control`);
+      assert(stable(seen[0]?.params) === stable(expectedControl), `${alias} control params changed shape`);
+      assert(seen[1]?.command === "pie_agent_query", `${alias} must poll through pie_agent_query`);
+      assert(stable(seen[1]?.params) === stable({ op: "status", operation_id: 7 }),
+        `${alias} status params changed shape`);
+      const terminal = payload.data as Record<string, unknown>;
+      assert(terminal.operation_id === 7 && terminal.completed === true,
+        `${alias} must restore the legacy terminal envelope`);
+    }
+
+    seen.length = 0;
+    const strictRefusal = await call(toolNamed(compat, "pie_agent_look_at"), {
+      actor: "BP_Target", unsupported: true,
+    });
+    assert(strictRefusal.success === false, "PIE aliases must reject unsupported parameters loudly");
+    assert(seen.length === 0, "a rejected PIE alias must make zero pipe calls");
+    const emptySettings = await call(toolNamed(compat, "project_settings_maps"), {});
+    assert(emptySettings.success === false, "project_settings_maps must require at least one setting");
+    assert(seen.length === 0, "rejected empty project settings must make zero pipe calls");
+
+    seen.length = 0;
+    const cancelled = await call(toolNamed(compat, "pie_agent_move_to"), {
+      actor: "CancelTarget", timeout: 1,
+    });
+    assert(seen.length === 2, "a cancelled PIE operation must stop after its terminal status");
+    assert(cancelled.success === false, "a cancelled PIE operation must preserve a failed legacy verdict");
+
     const inspect = await call(toolNamed(compat, "blueprint_inspect"), {
       blueprint_path: "/Game/MCPGenerated/BP_A",
       action: "variables",

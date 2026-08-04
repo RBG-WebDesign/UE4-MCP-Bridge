@@ -27,7 +27,7 @@
 import { z } from "zod";
 import type { PuerTSClient } from "../puerts-client.js";
 import type { ToolDefinition } from "../types.js";
-import { compatAliasAnnotations } from "../annotations.js";
+import { compatAliasAnnotations, toolAnnotations } from "../annotations.js";
 import { executeNativeCommand, nativeFailureEnvelope, nativeToolSpec } from "./puerts.js";
 
 const vector = z.object({
@@ -185,9 +185,152 @@ interface CompatAlias {
   readonly translate: (params: Params) => Translation;
   /** Optional result adapter when the native superset needs the legacy envelope. */
   readonly adaptResult?: (payload: Params, params: Params) => Params;
+  /** Optional workflow for aliases that must preserve legacy blocking behavior. */
+  readonly execute?: (client: PuerTSClient, params: Params, translated: Params) => Promise<Params>;
+}
+
+async function executeCompatNative(client: PuerTSClient, canonical: string, params: Params): Promise<Params> {
+  payloadShapeGuard(params);
+  return executeNativeCommand(client, nativeToolSpec(canonical), params);
+}
+
+async function executePieControl(
+  client: PuerTSClient,
+  params: Params,
+  translated: Params,
+  budgetSeconds?: number,
+): Promise<Params> {
+  const started = await executeCompatNative(client, "puerts_pie_agent_control", translated);
+  if (started.success !== true || budgetSeconds === undefined || params.export === true) return started;
+  const startedData = started.data as Params | undefined;
+  const operationId = Number(startedData?.operation_id ?? 0);
+  if (!Number.isInteger(operationId) || operationId <= 0) {
+    return nativeFailureEnvelope(
+      ["Native PIE control did not return a positive operation_id."],
+      "PIE operation could not be polled.",
+    );
+  }
+  const deadline = Date.now() + budgetSeconds * 1000;
+  for (;;) {
+    if (Date.now() > deadline) {
+      return nativeFailureEnvelope(
+        [`PIE operation ${operationId} did not reach a terminal state within ${budgetSeconds}s.`],
+        "PIE operation timed out and may still be running.",
+      );
+    }
+    const status = await executeCompatNative(client, "puerts_pie_agent_query", {
+      op: "status", operation_id: operationId,
+    });
+    if (status.success !== true) return status;
+    const statusData = status.data as Params | undefined;
+    const state = String(statusData?.status ?? "");
+    if (state === "succeeded" || state === "failed" || state === "cancelled") {
+      const result = statusData?.result;
+      const resultData = result !== null && typeof result === "object" && !Array.isArray(result)
+        ? result as Params : {};
+      return {
+        ...status,
+        success: state === "succeeded",
+        data: { operation_id: operationId, ...resultData },
+        error: statusData?.error ?? null,
+      };
+    }
+    await new Promise<void>((resolve) => setTimeout(resolve, 10));
+  }
+}
+
+function pieControlAlias(
+  name: string,
+  op: string,
+  description: string,
+  inputSchema: z.ZodType,
+  budget: (params: Params) => number | undefined = () => undefined,
+): CompatAlias {
+  return {
+    name, canonical: "puerts_pie_agent_control", description, inputSchema,
+    translate: (params) => routed({ op, ...params }),
+    execute: async (client, params, translated) => executePieControl(client, params, translated, budget(params)),
+  };
 }
 
 const aliases: readonly CompatAlias[] = [
+  {
+    name: "project_settings_maps",
+    canonical: "puerts_project_settings_maps",
+    description: "Set default maps and game mode through the native UE4.27 project config writer.",
+    inputSchema: z.object({
+      game_default_map: z.string().optional(),
+      editor_startup_map: z.string().optional(),
+      global_default_game_mode: z.string().optional(),
+    }).strict().refine(
+      (value) => value.game_default_map !== undefined
+        || value.editor_startup_map !== undefined
+        || value.global_default_game_mode !== undefined,
+      { message: "At least one project setting is required." },
+    ),
+    translate: (params) => routed(params),
+  },
+  pieControlAlias(
+    "pie_agent_move_to",
+    "move_to",
+    "Move the PIE pawn to a location or actor and return the legacy terminal verdict.",
+    z.object({
+      location: z.array(z.number()).length(3).optional(),
+      actor: z.string().optional(),
+      acceptance_radius: z.number().positive().optional(),
+      timeout: z.number().positive().optional(),
+    }).strict(),
+    (params) => Number(params.timeout ?? 20) + 5,
+  ),
+  pieControlAlias(
+    "pie_agent_look_at",
+    "look_at",
+    "Point the PIE player camera at a location or named actor.",
+    z.object({
+      location: z.array(z.number()).length(3).optional(),
+      actor: z.string().optional(),
+    }).strict(),
+  ),
+  pieControlAlias(
+    "pie_agent_press",
+    "press",
+    "Press and release an action mapping or raw key and return the legacy terminal verdict.",
+    z.object({
+      action: z.string().optional(),
+      key: z.string().optional(),
+      hold_seconds: z.number().min(0).optional(),
+    }).strict(),
+    (params) => Number(params.hold_seconds ?? 0.1) + 8,
+  ),
+  pieControlAlias(
+    "pie_agent_record_start",
+    "record_start",
+    "Start PIE spawn, destroy and overlap event recording.",
+    z.object({
+      events: z.array(z.enum(["spawn", "destroy", "overlap"])).optional(),
+      class_filters: z.array(z.string()).optional(),
+      log_categories: z.array(z.string()).optional(),
+      max_events: z.number().int().positive().optional(),
+    }).strict(),
+  ),
+  pieControlAlias(
+    "pie_agent_record_stop",
+    "record_stop",
+    "Stop PIE event recording and return the timestamped event list.",
+    z.object({}).strict(),
+  ),
+  pieControlAlias(
+    "pie_agent_replay",
+    "replay",
+    "Replay a PIE agent script or export the current session script.",
+    z.object({
+      script: z.array(z.object({ command: z.string(), params: z.record(z.unknown()) })).optional(),
+      seed: z.number().int().optional(),
+      export: z.boolean().optional(),
+      budget_seconds: z.number().positive().optional(),
+    }).strict(),
+    (params) => params.export === true ? undefined : Number(params.budget_seconds ?? 120),
+  ),
   {
     name: "blueprint_info",
     canonical: "puerts_graph_inspect",
@@ -1350,7 +1493,7 @@ export function createCompatTools(client: PuerTSClient): ToolDefinition[] {
       name: alias.name,
       description: `[COMPAT ALIAS -> ${alias.canonical}] ${alias.description}`,
       inputSchema: alias.inputSchema,
-      annotations: compatAliasAnnotations[alias.name],
+      annotations: compatAliasAnnotations[alias.name] ?? toolAnnotations[alias.canonical],
       handler: async (params: Record<string, unknown>) => {
         let parsed: Params;
         try {
@@ -1372,7 +1515,9 @@ export function createCompatTools(client: PuerTSClient): ToolDefinition[] {
           return stamp(payload);
         }
         payloadShapeGuard(translation.params);
-        const payload = await executeNativeCommand(client, spec, translation.params);
+        const payload = alias.execute === undefined
+          ? await executeNativeCommand(client, spec, translation.params)
+          : await alias.execute(client, parsed, translation.params);
         return stamp(alias.adaptResult?.(payload, parsed) ?? payload);
       },
     };
