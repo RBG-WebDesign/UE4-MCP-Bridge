@@ -2381,6 +2381,82 @@ async function startSequenceRender(context: ToolContext, input: JsonObject): Pro
   return result;
 }
 
+async function configureProjectMaps(context: ToolContext, input: JsonObject): Promise<CommandResponse> {
+  const spec: JsonObject = {};
+  for (const key of ["game_default_map", "editor_startup_map", "global_default_game_mode"]) {
+    const value = optionalString(input, key);
+    if (value !== undefined) { spec[key] = value; }
+  }
+  if (Object.keys(spec).length === 0) {
+    throw new Error(
+      "Provide at least one of: game_default_map, editor_startup_map, global_default_game_mode",
+    );
+  }
+  for (const key of ["game_default_map", "editor_startup_map"]) {
+    const value = spec[key];
+    if (typeof value === "string" && !value.startsWith("/Game/")) {
+      throw new Error(`${key} must name a /Game map.`);
+    }
+  }
+  const resultJson = puerts.$ref<string>("");
+  const error = puerts.$ref<string>("");
+  if (!context.bridge.ConfigureProjectMapsJson(JSON.stringify(spec), resultJson, error)) {
+    throw new Error(puerts.$unref(error));
+  }
+  return response(
+    true,
+    "Project default maps and game mode updated in Config/DefaultEngine.ini.",
+    JSON.parse(puerts.$unref(resultJson)) as JsonObject,
+  );
+}
+
+async function startProjectPackage(context: ToolContext, input: JsonObject): Promise<CommandResponse> {
+  const rawMaps = input.maps;
+  if (!Array.isArray(rawMaps) || rawMaps.length === 0 || rawMaps.length > 32) {
+    throw new Error("maps must contain 1 to 32 saved /Game map package names.");
+  }
+  const maps: string[] = [];
+  for (const value of rawMaps) {
+    if (typeof value !== "string" || !value.startsWith("/Game/")) {
+      throw new Error("Every map must be a /Game package name.");
+    }
+    maps.push(value);
+  }
+  const target = optionalString(input, "target") ?? "Win64";
+  const configuration = optionalString(input, "configuration") ?? "Development";
+  if (target !== "Win64") { throw new Error("target must be Win64."); }
+  if (configuration !== "Development" && configuration !== "Shipping") {
+    throw new Error("configuration must be Development or Shipping.");
+  }
+  const spec: JsonObject = { maps, target, configuration };
+  const outputDirectory = optionalString(input, "output_directory");
+  if (outputDirectory !== undefined) { spec.output_directory = outputDirectory; }
+  if (input.plan_only !== undefined) {
+    spec.plan_only = optionalBoolean(input, "plan_only", false);
+  }
+  const resultJson = puerts.$ref<string>("");
+  const error = puerts.$ref<string>("");
+  if (!context.bridge.PackageProjectJson(JSON.stringify(spec), resultJson, error)) {
+    throw new Error(puerts.$unref(error));
+  }
+  const parsed = JSON.parse(puerts.$unref(resultJson)) as JsonObject;
+  const planned = parsed.status === "planned";
+  const result = response(
+    true,
+    planned
+      ? "Project package planned; no process was started."
+      : "Project cook, stage and package STARTED in a child UAT process. It is not finished.",
+    parsed,
+  );
+  if (!planned) {
+    result.warnings.push(
+      "Poll puerts_job_status with the job_id until state is terminal. Cancellation stops the "
+      + "owned UAT process tree but leaves partial staged and archived files.",
+    );
+  }
+  return result;
+}
+
 export const toolDefinitions: readonly ToolDefinition[] = [
   { name: "diagnostic", inputSchema: schema({ actor_limit: { type: "number" } }), outputSchema, permissions: ["actors.read"], executionTimeoutMs: 2000, execute: diagnostic },
   { name: "find_assets", inputSchema: schema({ path: { type: "string" }, type: { type: "string" }, name: { type: "string" }, recursive: { type: "boolean" }, limit: { type: "number" } }), outputSchema, permissions: ["assets.read"], executionTimeoutMs: 4000, execute: findAssets },
@@ -2472,6 +2548,8 @@ export const toolDefinitions: readonly ToolDefinition[] = [
   // Loads the sequence, writes a manifest and spawns a process. It does not
   // wait for the render, so the budget covers the asset load and the spawn.
   { name: "sequence_render_start", inputSchema: schema({ asset_path: { type: "string" }, output_directory: { type: "string" }, format: { type: "string" }, output_format: { type: "string" }, resolution_x: { type: "number" }, resolution_y: { type: "number" }, frame_rate: { type: "number" }, warm_up_frames: { type: "number" }, overwrite_existing: { type: "boolean" }, plan_only: { type: "boolean" } }, ["asset_path"]), outputSchema, permissions: ["assets.read", "jobs.control"], executionTimeoutMs: 20000, execute: startSequenceRender },
+  { name: "project_settings_maps", inputSchema: schema({ game_default_map: { type: "string" }, editor_startup_map: { type: "string" }, global_default_game_mode: { type: "string" } }), outputSchema, permissions: ["project.config.write"], executionTimeoutMs: 10000, execute: configureProjectMaps },
+  { name: "project_package_start", inputSchema: schema({ maps: { type: "array", items: { type: "string" } }, target: { type: "string" }, configuration: { type: "string" }, output_directory: { type: "string" }, plan_only: { type: "boolean" } }, ["maps"]), outputSchema, permissions: ["assets.read", "jobs.control"], executionTimeoutMs: 20000, execute: startProjectPackage },
 ];
 
 export class ToolRegistry {

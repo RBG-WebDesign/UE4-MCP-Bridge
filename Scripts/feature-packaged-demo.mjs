@@ -93,7 +93,25 @@ await runSlice({
     } finally { if (started) await h.call("puerts_pie_stop", {}, { label: "5. stop explicitly authorized PIE" }); }
   }
 
-  h.request("puerts_project_settings_maps", "set the packaged game's default map and game mode through the native pipe; the existing project_settings_maps implementation is legacy HTTP only", { game_default_map: "/Game/MCPGenerated/FeatureAcceptance/DemoMap", global_default_game_mode: "/Script/Engine.GameModeBase" }, "project_settings_maps");
-  h.request("puerts_project_package_start", "cook, stage and package the authored demo through the async job API. No native or legacy package command exists, and an asset-level harness cannot prove a packaged executable by inspecting editor content", { target: "Win64", configuration: "Development", output_directory: "Saved/MCPGenerated/PackagedDemo", maps: ["/Game/MCPGenerated/FeatureAcceptance/DemoMap"] });
+  // project_settings_maps persists the startup contract before package preflight.
+  // project_package_start uses the async job API for the real cook, stage and package;
+  // plan_only exercises every refusal here without starting a long external build.
+  const scene = await h.call("puerts_scene_inspect", {}, { label: "6. read the saved map selected for packaging" });
+  const mapPath = scene?.data?.level_path ?? scene?.data?.world?.package_name ?? null;
+  if (typeof mapPath === "string" && mapPath.startsWith("/Game/")) {
+    const configured = await h.call("puerts_project_settings_maps", {
+      game_default_map: mapPath,
+      global_default_game_mode: "/Script/Engine.GameModeBase",
+    }, { label: "6. persist package defaults" });
+    if (configured?.success === true) {
+      const packaged = await h.call("puerts_project_package_start", {
+        target: "Win64", configuration: "Development", plan_only: true,
+        output_directory: "Saved/MCPGenerated/PackagedDemo", maps: [mapPath],
+      }, { label: "6. validate the asynchronous package plan" });
+      h.check(packaged?.data?.status === "planned", "6. package preflight completed without starting UAT");
+    }
+  } else {
+    h.check(false, "6. loaded level is a saved /Game map", String(mapPath));
+  }
   h.seal({ asset_path: DEMO, inspect_tool: "puerts_graph_inspect", structure_hash: hash });
 });

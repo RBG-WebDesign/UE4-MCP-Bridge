@@ -73,7 +73,7 @@ async function main(): Promise<void> {
     });
     const client = new PuerTSClient();
     const tools = createPuertsTools(client);
-    assert(tools.length === 66, "expected all 66 PuerTS tools");
+    assert(tools.length === 68, "expected all 68 PuerTS tools");
     assert(tools.some((tool) => tool.name === "puerts_behavior_tree_build"), "native Behavior Tree builder tool is missing");
     assert(tools.some((tool) => tool.name === "puerts_behavior_tree_inspect"), "native Behavior Tree inspector tool is missing");
     assert(tools.some((tool) => tool.name === "puerts_sky_shader_create"), "native sky shader tool is missing");
@@ -2277,6 +2277,8 @@ async function jobApiSuite(): Promise<void> {
   for (const name of [
     "puerts_job_status", "puerts_job_result", "puerts_job_cancel",
     "puerts_sequence_render_start",
+    "puerts_project_settings_maps",
+    "puerts_project_package_start",
   ]) {
     assert(find(name) !== undefined, `${name} is missing`);
     assert(toolAnnotations[name] !== undefined, `${name} has no annotation`);
@@ -2322,6 +2324,49 @@ async function jobApiSuite(): Promise<void> {
   );
 
   const render = find("puerts_sequence_render_start");
+  const settings = find("puerts_project_settings_maps");
+  const packageStart = find("puerts_project_package_start");
+  assert(settings?.inputSchema.safeParse({}).success === false,
+    "project_settings_maps must require at least one setting");
+  assert(settings?.inputSchema.safeParse({ game_default_map: "/Engine/Maps/Entry" }).success === false,
+    "project settings maps must be limited to /Game");
+  assert(settings?.inputSchema.safeParse({
+    game_default_map: "/Game/Maps/Demo",
+    global_default_game_mode: "/Script/Engine.GameModeBase",
+  }).success === true, "project_settings_maps must preserve the legacy request shape");
+  assert(packageStart?.inputSchema.safeParse({ maps: [] }).success === false,
+    "project_package_start must require at least one map");
+  assert(packageStart?.inputSchema.safeParse({
+    maps: ["/Game/Maps/Demo"], target: "Linux",
+  }).success === false, "project_package_start must refuse targets other than Win64");
+  assert(packageStart?.inputSchema.safeParse({
+    maps: ["/Game/Maps/Demo"], target: "Win64", configuration: "Shipping",
+  }).success === true, "project_package_start must accept its strict release allowlist");
+  assert(toolAnnotations.puerts_project_package_start?.destructiveHint === true
+      && toolAnnotations.puerts_project_package_start?.idempotentHint === false,
+    "project packaging starts a new process and may overwrite archive output");
+
+  const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
+  const settingsSource = await readFile(join(repoRoot, "Plugins", "MCPBridge", "Source",
+    "MCPBridgePuerTS", "Private", "MCPPuerTSBridgeProjectSettings.cpp"), "utf8");
+  for (const token of [
+    "UGameMapsSettings::SetGameDefaultMap", "UGameMapsSettings::SetGlobalDefaultGameMode",
+    "UpdateDefaultConfigFile", "TryLoadClass<AGameModeBase>", "PreviousGameMap",
+  ]) {
+    assert(settingsSource.includes(token), `project settings source is missing ${token}`);
+  }
+  assert(settingsSource.includes("/Game/") && settingsSource.includes("GetMapPackageExtension"),
+    "project settings must validate saved /Game maps before writing config");
+  const packageSource = await readFile(join(repoRoot, "Plugins", "MCPBridge", "Source",
+    "MCPBridgePuerTS", "Private", "MCPPuerTSBridgeProjectPackage.cpp"), "utf8");
+  for (const token of [
+    "BuildCookRun", "CreateProc", "RegisterJob", "GetDirtyWorldPackages",
+    "GetDirtyContentPackages", "ProjectSavedDir", "IsValidLongPackageName", "-package",
+  ]) {
+    assert(packageSource.includes(token), `project package source is missing ${token}`);
+  }
+  assert(!packageSource.includes("BuildPlugin"),
+    "project packaging must not use UE4.27's unsupported binary BuildPlugin path");
   assert(
     render?.inputSchema.safeParse({}).success === false,
     "sequence_render_start must require asset_path",
@@ -2334,7 +2379,7 @@ async function jobApiSuite(): Promise<void> {
     render?.inputSchema.safeParse({ asset_path: "/Game/C/LS_A", format: "exr" }).success === true,
     "exr is one of the five shipped capture protocols and must be accepted",
   );
-  console.log("  PASS  job API: three job verbs, honest cancel and result annotations, render schema");
+  console.log("  PASS  job API: verbs, render and project-package producers, settings schema");
 }
 
 async function assetDeleteSuite(): Promise<void> {

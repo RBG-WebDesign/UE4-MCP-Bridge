@@ -338,10 +338,11 @@ bool UMCPPuerTSBridgeService::Initialize(FString& OutError)
             // The job API. job_status, job_result and job_cancel are short
             // commands that read a small in-memory record and ask the live
             // engine source for one job's state; they never block and never
-            // wait. sequence_render_start spawns a second UE process and
-            // returns a job id. See MCPPuerTSBridgeJobs.cpp.
+            // wait. The two *_start commands spawn child processes and return
+            // job ids. See MCPPuerTSBridgeJobs.cpp.
             TEXT("job_status"), TEXT("job_result"), TEXT("job_cancel"),
-            TEXT("sequence_render_start")
+            TEXT("sequence_render_start"), TEXT("project_package_start"),
+            TEXT("project_settings_maps")
         };
         for (const TCHAR* Value : Defaults) { AllowedTools.Add(Value); }
     }
@@ -526,6 +527,11 @@ void UMCPPuerTSBridgeService::Shutdown()
     for (FBridgeJob& Job : Jobs)
     {
         if (Job.ProcessHandle.IsValid()) { FPlatformProcess::CloseProc(Job.ProcessHandle); }
+        if (Job.ProcessReadPipe != nullptr)
+        {
+            FPlatformProcess::ClosePipe(Job.ProcessReadPipe, nullptr);
+            Job.ProcessReadPipe = nullptr;
+        }
     }
     Jobs.Reset();
 

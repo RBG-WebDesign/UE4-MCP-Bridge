@@ -23,12 +23,12 @@
     "native_live_partial": "live acceptance passed, but part of the evidence is the builder own report because no independent reader exists yet",
     "legacy_untested": "no live editor proof of any kind; a non-null test_file covers only the mock listener"
   },
-  "tool_count": 288,
+  "tool_count": 290,
   "by_backend": {
     "legacy_http": 170,
     "native_pipe_alias": 49,
     "server_local": 3,
-    "native_pipe": 66
+    "native_pipe": 68
   },
   "tools": [
     {
@@ -9481,6 +9481,81 @@
       "capability_loss_risk": "low",
       "notes": "handoff: implemented, partial history",
       "verification": "live_partial"
+    },
+    {
+      "name": "puerts_project_package_start",
+      "module": "mcp-server/src/tools/puerts.ts",
+      "backend": "native_pipe",
+      "migration_state": "native_pending_live",
+      "target_replacement": null,
+      "description": "[PRIMARY NATIVE IPC] Start an asynchronous UE4.27 game-project cook, stage and package through a fixed UAT BuildCookRun child process. This returns a job_id immediately and never waits on UAT. Poll puerts_job_status, then collect with puerts_job_result. The served .uproject and RunUAT path are derived by native code and cannot be supplied by the caller. Only Win64 and Development or Shipping are accepted. Every map must be an existing saved /Game map, all dirty content is refused, and output_directory must remain inside Project/Saved. Cancellation kills only the owned process tree and leaves partial output. This packages the game project; it does not invoke the unsupported UE4.27 BuildPlugin binary flow.",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "maps": "array",
+          "target": "literal?",
+          "configuration": "enum?",
+          "output_directory": "string?",
+          "plan_only": "boolean?"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "idempotentHint": false,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": "mcp-server/tests/puerts-tools.test.ts",
+      "capability_category": "project",
+      "canonical_capability": "project.package",
+      "owner": "MCPBridgePuerTS service",
+      "lifecycle": "active",
+      "migration_action": "KEEP",
+      "replacement_tool": null,
+      "compatibility_alias": false,
+      "cpp_builder": "MCPPuerTSBridgeService",
+      "cpp_entry_point": "PackageProjectJson",
+      "python_handler": null,
+      "live_evidence": [],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": "UNCOMPILED. Starts fixed RunUAT BuildCookRun in a child process and returns a job id without waiting. Caller input is limited to 1..32 existing saved /Game maps, Win64, Development or Shipping, and an archive directory contained by Project/Saved. Project and RunUAT paths are derived, dirty packages and PIE are refused, stdout/stderr is retained as a bounded tail, and cancellation terminates only the owned process tree while preserving partial output. This packages a game project and never invokes the known-blocked UE4.27 BuildPlugin binary path. UHT, UBT and live UAT success/cancel proof remain outstanding.",
+      "verification": "implemented_unverified"
+    },
+    {
+      "name": "puerts_project_settings_maps",
+      "module": "mcp-server/src/tools/puerts.ts",
+      "backend": "native_pipe",
+      "migration_state": "native_pending_live",
+      "target_replacement": null,
+      "description": "[PRIMARY NATIVE IPC] Set the project default game map, editor startup map, and global game mode. Values are validated before mutation, applied to UGameMapsSettings, and persisted to the project's Config/DefaultEngine.ini. Map values must name existing saved /Game maps. The game mode must resolve to a GameModeBase class. At least one field is required.",
+      "schema": {
+        "kind": "ZodEffects"
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": "mcp-server/tests/puerts-tools.test.ts",
+      "capability_category": "project",
+      "canonical_capability": "project.settings_maps",
+      "owner": "MCPBridgePuerTS service",
+      "lifecycle": "active",
+      "migration_action": "KEEP",
+      "replacement_tool": null,
+      "compatibility_alias": false,
+      "cpp_builder": "MCPPuerTSBridgeService",
+      "cpp_entry_point": "ConfigureProjectMapsJson",
+      "python_handler": null,
+      "live_evidence": [],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": "UNCOMPILED. Native re-front of the legacy project_settings_maps request shape. Validates existing saved /Game maps and a resolvable GameModeBase class before mutation, writes the UGameMapsSettings CDO through UE4.27 APIs, persists DefaultEngine.ini with UpdateDefaultConfigFile, reads back, and restores previous values on a mismatch. Requires editor-free typecheck plus UHT, UBT and warm/cold config proof.",
+      "verification": "implemented_unverified"
     },
     {
       "name": "puerts_read_property",
