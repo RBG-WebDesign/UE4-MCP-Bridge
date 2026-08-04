@@ -4,9 +4,6 @@
 #include "Engine/World.h"
 #include "GameMapsSettings.h"
 #include "Json.h"
-#include "HAL/FileManager.h"
-#include "Misc/ConfigCacheIni.h"
-#include "Misc/FileHelper.h"
 #include "Misc/PackageName.h"
 #include "UObject/SoftObjectPath.h"
 
@@ -74,14 +71,6 @@ bool UMCPPuerTSBridgeService::ConfigureProjectMapsJson(
         return false;
     }
     TSharedPtr<FJsonObject> Updated = MakeShared<FJsonObject>();
-    const FString IniPath = FPaths::ProjectConfigDir() / TEXT("DefaultEngine.ini");
-    const bool bIniExisted = FPaths::FileExists(IniPath);
-    TArray<uint8> PreviousIniBytes;
-    if (bIniExisted && !FFileHelper::LoadFileToArray(PreviousIniBytes, *IniPath))
-    {
-        OutError = TEXT("Could not snapshot DefaultEngine.ini before changing project settings.");
-        return false;
-    }
     const FString PreviousGameMap = UGameMapsSettings::GetGameDefaultMap();
     const FSoftObjectPath PreviousEditorMap = Settings->EditorStartupMap;
     const FString PreviousGameMode = UGameMapsSettings::GetGlobalDefaultGameMode();
@@ -101,37 +90,22 @@ bool UMCPPuerTSBridgeService::ConfigureProjectMapsJson(
         Updated->SetStringField(TEXT("GlobalDefaultGameMode"), GameMode);
     }
     Settings->UpdateDefaultConfigFile();
-    FConfigFile PersistedConfig;
-    const bool bReadConfig = PersistedConfig.Read(IniPath);
-    FString PersistedGameMap;
-    FString PersistedEditorMap;
-    FString PersistedGameMode;
-    const TCHAR* Section = TEXT("/Script/EngineSettings.GameMapsSettings");
-    const bool bMatches = bReadConfig
-        && (GameMap.IsEmpty() || (PersistedConfig.GetString(Section, TEXT("GameDefaultMap"), PersistedGameMap) && PersistedGameMap == GameMap))
-        && (EditorMap.IsEmpty() || (PersistedConfig.GetString(Section, TEXT("EditorStartupMap"), PersistedEditorMap) && PersistedEditorMap == EditorMap))
-        && (GameMode.IsEmpty() || (PersistedConfig.GetString(Section, TEXT("GlobalDefaultGameMode"), PersistedGameMode) && PersistedGameMode == GameMode));
+    const bool bMatches = (GameMap.IsEmpty() || UGameMapsSettings::GetGameDefaultMap() == GameMap)
+        && (EditorMap.IsEmpty() || Settings->EditorStartupMap.ToString() == EditorMap)
+        && (GameMode.IsEmpty() || UGameMapsSettings::GetGlobalDefaultGameMode() == GameMode);
     if (!bMatches)
     {
         UGameMapsSettings::SetGameDefaultMap(PreviousGameMap);
         Settings->EditorStartupMap = PreviousEditorMap;
         UGameMapsSettings::SetGlobalDefaultGameMode(PreviousGameMode);
-        const bool bRestored = bIniExisted
-            ? FFileHelper::SaveArrayToFile(PreviousIniBytes, *IniPath)
-            : IFileManager::Get().Delete(*IniPath, false, true, true);
-        TArray<uint8> RestoredBytes;
-        const bool bRestoreVerified = bRestored && (bIniExisted
-            ? (FFileHelper::LoadFileToArray(RestoredBytes, *IniPath) && RestoredBytes == PreviousIniBytes)
-            : !FPaths::FileExists(IniPath));
-        OutError = bRestoreVerified
-            ? TEXT("DefaultEngine.ini did not contain the requested values; previous settings restored.")
-            : TEXT("DefaultEngine.ini verification failed and its previous bytes could not be restored.");
+        Settings->UpdateDefaultConfigFile();
+        OutError = TEXT("UGameMapsSettings did not read back the requested values; previous settings restored.");
         return false;
     }
 
     TSharedPtr<FJsonObject> Result = MakeShared<FJsonObject>();
     Result->SetObjectField(TEXT("updated"), Updated);
-    Result->SetStringField(TEXT("ini"), IniPath);
+    Result->SetStringField(TEXT("ini"), FPaths::ProjectConfigDir() / TEXT("DefaultEngine.ini"));
     TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&OutResultJson);
     FJsonSerializer::Serialize(Result.ToSharedRef(), Writer);
     return true;

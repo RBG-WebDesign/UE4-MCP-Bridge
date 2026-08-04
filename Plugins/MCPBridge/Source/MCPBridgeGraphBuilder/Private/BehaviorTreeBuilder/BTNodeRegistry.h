@@ -32,7 +32,6 @@ public:
 
 	/** Valid condition strings for a given decorator type. Empty set means no condition param. */
 	const TSet<FString>* GetValidConditions(const FString& Type) const;
-	bool IsParamAllowed(const FString& Type, const FString& Param) const;
 
 	/** Apply params to a created node. Handles BlackboardKeySelector resolution. */
 	void ApplyParams(

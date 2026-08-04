@@ -6,26 +6,6 @@
 #include "Components/VerticalBoxSlot.h"
 #include "Components/HorizontalBoxSlot.h"
 #include "Components/OverlaySlot.h"
-#include "Components/GridSlot.h"
-
-namespace
-{
-    EHorizontalAlignment ParseHorizontal(const FString& Value)
-    {
-        if (Value == TEXT("Left")) return HAlign_Left;
-        if (Value == TEXT("Center")) return HAlign_Center;
-        if (Value == TEXT("Right")) return HAlign_Right;
-        return HAlign_Fill;
-    }
-
-    EVerticalAlignment ParseVertical(const FString& Value)
-    {
-        if (Value == TEXT("Top")) return VAlign_Top;
-        if (Value == TEXT("Center")) return VAlign_Center;
-        if (Value == TEXT("Bottom")) return VAlign_Bottom;
-        return VAlign_Fill;
-    }
-}
 
 bool FWidgetSlotPropertyApplier::ApplySlotProperties(UPanelSlot* Slot, const FWidgetSlotSpec& SlotSpec, const FString& Path, FString& OutError)
 {
@@ -60,8 +40,6 @@ bool FWidgetSlotPropertyApplier::ApplySlotProperties(UPanelSlot* Slot, const FWi
         {
             Canvas->SetAutoSize(SlotSpec.bAutoSize);
         }
-        if (SlotSpec.bHasHorizontalAlignment) VBox->SetHorizontalAlignment(ParseHorizontal(SlotSpec.HorizontalAlignment));
-        if (SlotSpec.bHasVerticalAlignment) VBox->SetVerticalAlignment(ParseVertical(SlotSpec.VerticalAlignment));
         return true;
     }
 
@@ -77,8 +55,6 @@ bool FWidgetSlotPropertyApplier::ApplySlotProperties(UPanelSlot* Slot, const FWi
             VBox->SetHorizontalAlignment(SlotSpec.Alignment.X < 0.33f ? HAlign_Left : SlotSpec.Alignment.X < 0.66f ? HAlign_Center : HAlign_Right);
             VBox->SetVerticalAlignment(SlotSpec.Alignment.Y < 0.33f ? VAlign_Top : SlotSpec.Alignment.Y < 0.66f ? VAlign_Center : VAlign_Bottom);
         }
-        if (SlotSpec.bHasHorizontalAlignment) HBox->SetHorizontalAlignment(ParseHorizontal(SlotSpec.HorizontalAlignment));
-        if (SlotSpec.bHasVerticalAlignment) HBox->SetVerticalAlignment(ParseVertical(SlotSpec.VerticalAlignment));
         return true;
     }
 
@@ -94,20 +70,6 @@ bool FWidgetSlotPropertyApplier::ApplySlotProperties(UPanelSlot* Slot, const FWi
             HBox->SetHorizontalAlignment(SlotSpec.Alignment.X < 0.33f ? HAlign_Left : SlotSpec.Alignment.X < 0.66f ? HAlign_Center : HAlign_Right);
             HBox->SetVerticalAlignment(SlotSpec.Alignment.Y < 0.33f ? VAlign_Top : SlotSpec.Alignment.Y < 0.66f ? VAlign_Center : VAlign_Bottom);
         }
-        if (SlotSpec.bHasHorizontalAlignment) OverlayS->SetHorizontalAlignment(ParseHorizontal(SlotSpec.HorizontalAlignment));
-        if (SlotSpec.bHasVerticalAlignment) OverlayS->SetVerticalAlignment(ParseVertical(SlotSpec.VerticalAlignment));
-        return true;
-    }
-
-    if (UGridSlot* Grid = Cast<UGridSlot>(Slot))
-    {
-        if (SlotSpec.bHasPadding) Grid->SetPadding(SlotSpec.Padding);
-        if (SlotSpec.bHasRow) Grid->SetRow(SlotSpec.Row);
-        if (SlotSpec.bHasColumn) Grid->SetColumn(SlotSpec.Column);
-        if (SlotSpec.bHasRowSpan) Grid->SetRowSpan(SlotSpec.RowSpan);
-        if (SlotSpec.bHasColumnSpan) Grid->SetColumnSpan(SlotSpec.ColumnSpan);
-        if (SlotSpec.bHasHorizontalAlignment) Grid->SetHorizontalAlignment(ParseHorizontal(SlotSpec.HorizontalAlignment));
-        if (SlotSpec.bHasVerticalAlignment) Grid->SetVerticalAlignment(ParseVertical(SlotSpec.VerticalAlignment));
         return true;
     }
 
