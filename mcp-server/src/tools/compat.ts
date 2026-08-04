@@ -196,6 +196,80 @@ const aliases: readonly CompatAlias[] = [
     translate: (params) => routed({ asset_path: params.blueprint_path }),
   },
   {
+    name: "widget_build_from_json",
+    canonical: "puerts_widget_build",
+    description:
+      "Create or replace a Widget Blueprint through the native desired-state builder. package_path "
+      + "and asset_name become one asset_path. A legacy widget_json without a root key is wrapped "
+      + "as {root: widget_json}, exactly as the legacy handler did. The native builder is limited "
+      + "to /Game/MCPGenerated/ and refuses any other path.",
+    inputSchema: z.object({
+      package_path: z.string().startsWith("/"),
+      asset_name: z.string().min(1),
+      widget_json: z.record(z.unknown()),
+    }),
+    translate: (params) => {
+      const widget = params.widget_json as Params;
+      return routed({
+        asset_path: `${String(params.package_path).replace(/\/+$/, "")}/${params.asset_name}`,
+        tree: Object.prototype.hasOwnProperty.call(widget, "root") ? widget : { root: widget },
+      });
+    },
+  },
+  {
+    name: "behavior_tree_create",
+    canonical: "puerts_behavior_tree_build",
+    description:
+      "Create or update a Behavior Tree through the native desired-state builder. path and name "
+      + "become one asset_path; blackboard_path, keys and tree retain their legacy shapes. The "
+      + "legacy empty-tree form is refused because puerts_behavior_tree_build requires a root, "
+      + "and the native builder is limited to /Game/MCPGenerated/.",
+    inputSchema: z.object({
+      path: z.string(),
+      name: z.string().min(1),
+      blackboard_path: z.string(),
+      keys: z.array(z.object({
+        name: z.string(),
+        type: z.string(),
+        base_class: z.string().optional(),
+      })).optional(),
+      tree: z.record(z.unknown()).optional(),
+    }),
+    translate: (params) => {
+      if (params.tree === undefined) {
+        return unmappable(
+          ["tree"],
+          ["tree: puerts_behavior_tree_build requires a root; it cannot create the legacy empty Behavior Tree."],
+        );
+      }
+      return routed(carry(params, ["blackboard_path", "keys"], {
+        asset_path: `${String(params.path).replace(/\/+$/, "")}/${params.name}`,
+        root: params.tree,
+      }));
+    },
+  },
+  {
+    name: "blackboard_create",
+    canonical: "puerts_blackboard_build",
+    description:
+      "Create or converge a Blackboard through the native desired-state builder. path and name "
+      + "become one asset_path and keys pass through unchanged. The alias never enables "
+      + "remove_unlisted, so existing keys the call did not name are preserved. The native builder "
+      + "is limited to /Game/MCPGenerated/.",
+    inputSchema: z.object({
+      path: z.string(),
+      name: z.string().min(1),
+      keys: z.array(z.object({
+        name: z.string(),
+        type: z.string(),
+        base_class: z.string().optional(),
+      })).optional(),
+    }),
+    translate: (params) => routed(carry(params, ["keys"], {
+      asset_path: `${String(params.path).replace(/\/+$/, "")}/${params.name}`,
+    })),
+  },
+  {
     name: "viewport_fit",
     canonical: "puerts_viewport_screenshot",
     description:

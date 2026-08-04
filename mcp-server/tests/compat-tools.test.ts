@@ -99,7 +99,7 @@ async function main(): Promise<void> {
     // --- catalog shape ----------------------------------------------------
     // A literal on purpose: this is the canary that catches an alias silently
     // disappearing. Raise it deliberately when a wave adds legacy names.
-    const ALIAS_COUNT = 44;
+    const ALIAS_COUNT = 47;
     assert(compat.length === ALIAS_COUNT, `expected ${ALIAS_COUNT} compat aliases, got ${compat.length}`);
     assert(
       Object.keys(compatAliasTargets).length === ALIAS_COUNT,
@@ -179,6 +179,14 @@ async function main(): Promise<void> {
     // --- other translations reach the right command -----------------------
     const routings: Array<[string, Record<string, unknown>, string, Record<string, unknown>]> = [
       ["blueprint_info", { blueprint_path: "/Game/MCPGenerated/BP_A" }, "graph_inspect", { asset_path: "/Game/MCPGenerated/BP_A" }],
+      ["widget_build_from_json", { package_path: "/Game/MCPGenerated/UI/", asset_name: "WBP_HUD", widget_json: { type: "CanvasPanel", name: "Root" } },
+        "widget_build", { asset_path: "/Game/MCPGenerated/UI/WBP_HUD", tree: { root: { type: "CanvasPanel", name: "Root" } } }],
+      ["widget_build_from_json", { package_path: "/Game/MCPGenerated/UI", asset_name: "WBP_HUD", widget_json: { root: { type: "CanvasPanel", name: "Root" }, animations: [] } },
+        "widget_build", { asset_path: "/Game/MCPGenerated/UI/WBP_HUD", tree: { root: { type: "CanvasPanel", name: "Root" }, animations: [] } }],
+      ["behavior_tree_create", { path: "/Game/MCPGenerated/AI/", name: "BT_Guard", blackboard_path: "/Game/MCPGenerated/AI/BB_Guard", keys: [{ name: "Target", type: "Object", base_class: "/Script/Engine.Actor" }], tree: { id: "root", type: "Selector" } },
+        "behavior_tree_build", { asset_path: "/Game/MCPGenerated/AI/BT_Guard", blackboard_path: "/Game/MCPGenerated/AI/BB_Guard", keys: [{ name: "Target", type: "Object", base_class: "/Script/Engine.Actor" }], root: { id: "root", type: "Selector" } }],
+      ["blackboard_create", { path: "/Game/MCPGenerated/AI", name: "BB_Guard", keys: [{ name: "Alerted", type: "Bool" }] },
+        "blackboard_build", { asset_path: "/Game/MCPGenerated/AI/BB_Guard", keys: [{ name: "Alerted", type: "Bool" }] }],
       ["viewport_fit", { actor_names: ["Door", "Frame"] }, "viewport_screenshot", { actors: ["Door", "Frame"] }],
       ["viewport_focus", { actor_name: "Door" }, "viewport_screenshot", { actors: ["Door"] }],
       ["actor_delete", { actor_name: "Cube_1" }, "delete_actor", { actor: "Cube_1", confirm: true }],
@@ -287,6 +295,7 @@ async function main(): Promise<void> {
 
     // --- unmappable parameters fail loud, and never reach the editor ------
     const unmappable: Array<[string, Record<string, unknown>, string]> = [
+      ["behavior_tree_create", { path: "/Game/MCPGenerated/AI", name: "BT_Empty", blackboard_path: "/Game/MCPGenerated/AI/BB_Guard" }, "tree"],
       ["viewport_fit", {}, "actor_names"],
       ["viewport_fit", { actor_names: ["Door"], padding: 1.5 }, "padding"],
       ["viewport_focus", { actor_name: "Door", distance: 500 }, "distance"],
