@@ -187,6 +187,58 @@ interface CompatAlias {
 
 const aliases: readonly CompatAlias[] = [
   {
+    name: "blueprint_info",
+    canonical: "puerts_graph_inspect",
+    description:
+      "Inspect an existing Blueprint through the native graph and member reader. The native result "
+      + "includes parent class, components, variables, functions, graphs and compile status.",
+    inputSchema: z.object({ blueprint_path: legacyBlueprintPath }),
+    translate: (params) => routed({ asset_path: params.blueprint_path }),
+  },
+  {
+    name: "viewport_fit",
+    canonical: "puerts_viewport_screenshot",
+    description:
+      "Frame named actors and capture the active viewport. The native command has no padding control, "
+      + "so padding is refused rather than ignored. actor_names is required because an omitted list "
+      + "meant fit every actor to the legacy tool but means capture the current view natively.",
+    inputSchema: z.object({
+      actor_names: z.array(z.string()).optional(),
+      padding: z.number().optional().describe("Not supported natively; supplying it fails the call"),
+    }),
+    translate: (params) => {
+      const rejected = rejectSupplied(params, [
+        ["padding", "puerts_viewport_screenshot uses the editor's native actor framing and exposes no padding control."],
+      ]);
+      if (rejected.parameters.length > 0) return unmappable(rejected.parameters, rejected.reasons);
+      if (!Array.isArray(params.actor_names) || params.actor_names.length === 0) {
+        return unmappable(
+          ["actor_names"],
+          ["actor_names: legacy viewport_fit framed every level actor when omitted, while puerts_viewport_screenshot captures the current view. Name the actors to preserve fit semantics."],
+        );
+      }
+      return routed({ actors: params.actor_names });
+    },
+  },
+  {
+    name: "viewport_focus",
+    canonical: "puerts_viewport_screenshot",
+    description:
+      "Frame one named actor and capture the active viewport. The native command has no distance "
+      + "control, so distance is refused rather than ignored.",
+    inputSchema: z.object({
+      actor_name: z.string(),
+      distance: z.number().optional().describe("Not supported natively; supplying it fails the call"),
+    }),
+    translate: (params) => {
+      const rejected = rejectSupplied(params, [
+        ["distance", "puerts_viewport_screenshot uses the editor's native actor framing and exposes no camera-distance control."],
+      ]);
+      if (rejected.parameters.length > 0) return unmappable(rejected.parameters, rejected.reasons);
+      return routed({ actors: [params.actor_name] });
+    },
+  },
+  {
     name: "actor_spawn",
     canonical: "puerts_spawn_actor",
     description:

@@ -99,7 +99,7 @@ async function main(): Promise<void> {
     // --- catalog shape ----------------------------------------------------
     // A literal on purpose: this is the canary that catches an alias silently
     // disappearing. Raise it deliberately when a wave adds legacy names.
-    const ALIAS_COUNT = 41;
+    const ALIAS_COUNT = 44;
     assert(compat.length === ALIAS_COUNT, `expected ${ALIAS_COUNT} compat aliases, got ${compat.length}`);
     assert(
       Object.keys(compatAliasTargets).length === ALIAS_COUNT,
@@ -178,6 +178,9 @@ async function main(): Promise<void> {
 
     // --- other translations reach the right command -----------------------
     const routings: Array<[string, Record<string, unknown>, string, Record<string, unknown>]> = [
+      ["blueprint_info", { blueprint_path: "/Game/MCPGenerated/BP_A" }, "graph_inspect", { asset_path: "/Game/MCPGenerated/BP_A" }],
+      ["viewport_fit", { actor_names: ["Door", "Frame"] }, "viewport_screenshot", { actors: ["Door", "Frame"] }],
+      ["viewport_focus", { actor_name: "Door" }, "viewport_screenshot", { actors: ["Door"] }],
       ["actor_delete", { actor_name: "Cube_1" }, "delete_actor", { actor: "Cube_1", confirm: true }],
       ["actor_modify", { actor_name: "Cube_1", visible: false }, "set_property", { actor: "Cube_1", property: "bHidden", value: true }],
       ["level_actors", { class_filter: "StaticMeshActor", name_filter: "Cube", limit: 5 }, "find_actors", { type: "StaticMeshActor", name: "Cube", include_transforms: true, limit: 5 }],
@@ -284,6 +287,9 @@ async function main(): Promise<void> {
 
     // --- unmappable parameters fail loud, and never reach the editor ------
     const unmappable: Array<[string, Record<string, unknown>, string]> = [
+      ["viewport_fit", {}, "actor_names"],
+      ["viewport_fit", { actor_names: ["Door"], padding: 1.5 }, "padding"],
+      ["viewport_focus", { actor_name: "Door", distance: 500 }, "distance"],
       ["undo", { count: 1 }, "transaction_id"],
       ["undo", { count: 3, transaction_id: "tx-9" }, "count"],
       ["actor_spawn", { asset_path: "/Game/Meshes/SM_Cube", validate: false }, "validate"],

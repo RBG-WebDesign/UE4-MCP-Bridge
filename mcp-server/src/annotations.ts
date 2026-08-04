@@ -536,6 +536,9 @@ export const toolAnnotations: Record<string, ToolAnnotations> = {
  * whichever lane answers the name.
  */
 export const compatAliasAnnotations: Record<string, ToolAnnotations> = {
+  blueprint_info: readOnly,                 // -> puerts_graph_inspect
+  viewport_fit: mutatingIdempotent,         // -> puerts_viewport_screenshot
+  viewport_focus: mutatingIdempotent,       // -> puerts_viewport_screenshot
   actor_spawn: mutating,                  // -> puerts_spawn_actor
   actor_delete: destructiveIdempotent,    // -> puerts_delete_actor
   actor_modify: mutatingIdempotent,       // -> puerts_set_property
