@@ -23,10 +23,10 @@
     "native_live_partial": "live acceptance passed, but part of the evidence is the builder own report because no independent reader exists yet",
     "legacy_untested": "no live editor proof of any kind; a non-null test_file covers only the mock listener"
   },
-  "tool_count": 288,
+  "tool_count": 289,
   "by_backend": {
     "legacy_http": 170,
-    "native_pipe_alias": 49,
+    "native_pipe_alias": 50,
     "server_local": 3,
     "native_pipe": 66
   },
@@ -6958,8 +6958,8 @@
       "name": "placement_validate",
       "module": "mcp-server/src/tools/actors.ts",
       "backend": "legacy_http",
-      "migration_state": "legacy_untested",
-      "target_replacement": null,
+      "migration_state": "hybrid_candidate",
+      "target_replacement": "puerts_scene_inspect",
       "description": "Check actors for gaps, overlaps, and alignment issues.",
       "schema": {
         "kind": "object",
@@ -6983,17 +6983,58 @@
       "canonical_capability": "actors.placement_validate",
       "owner": "legacy Python listener",
       "lifecycle": "active",
-      "migration_action": "PORT",
-      "replacement_tool": null,
-      "compatibility_alias": false,
+      "migration_action": "ALIAS",
+      "replacement_tool": "puerts_scene_inspect",
+      "compatibility_alias": true,
       "cpp_builder": null,
       "cpp_entry_point": null,
       "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/actors.py",
       "live_evidence": [],
       "migration_risk": "low",
       "capability_loss_risk": "low",
-      "notes": "layer: puerts_workflow over properties.get",
-      "verification": "untested"
+      "notes": "Compatibility alias preserves legacy pairwise origin-distance overlap and bounds-extent gap checks through one native scene snapshot, including flags, thresholds, three-decimal results, missing labels and the fewer-than-two message. Duplicate labels are refused because legacy first-match level iteration is unstable. Editor-free routing and response-shape tests pass; live proof remains.",
+      "verification": "implemented_unverified"
+    },
+    {
+      "name": "placement_validate",
+      "module": "mcp-server/src/tools/compat.ts",
+      "backend": "native_pipe_alias",
+      "migration_state": "wrap",
+      "target_replacement": "puerts_scene_inspect",
+      "description": "[COMPAT ALIAS -> puerts_scene_inspect] Check exact actor labels for the same pairwise origin overlaps and bounds-extent gaps as the legacy tool, using one native scene snapshot. Duplicate labels are refused because the legacy first-match actor depends on unstable level iteration order.",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "actors": "array",
+          "check_gaps": "boolean?",
+          "check_overlaps": "boolean?",
+          "gap_threshold": "number?",
+          "overlap_threshold": "number?"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": "mcp-server/tests/compat-tools.test.ts",
+      "capability_category": "compat",
+      "canonical_capability": "level.scene_inspect",
+      "owner": "compat alias router",
+      "lifecycle": "active",
+      "migration_action": "ALIAS",
+      "replacement_tool": "puerts_scene_inspect",
+      "compatibility_alias": true,
+      "cpp_builder": null,
+      "cpp_entry_point": null,
+      "python_handler": null,
+      "live_evidence": [],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": "Compatibility alias preserves legacy pairwise origin-distance overlap and bounds-extent gap checks through one native scene snapshot, including flags, thresholds, three-decimal results, missing labels and the fewer-than-two message. Duplicate labels are refused because legacy first-match level iteration is unstable. Editor-free routing and response-shape tests pass; live proof remains.",
+      "verification": "implemented_unverified"
     },
     {
       "name": "pp_preset",

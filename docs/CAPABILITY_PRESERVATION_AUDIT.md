@@ -9,11 +9,11 @@ capability coverage vary by tool.
 
 ## Counts (derived, cannot drift)
 
-- Total public registrations: 288
+- Total public registrations: 289
 - Unique canonical capabilities (excluding proposed retirements): 206
-- By backend: legacy_http 170, native_pipe_alias 49, server_local 3, native_pipe 66
-- By verification: untested 118, mock_only 91, implemented_unverified 12, pending_live 1, live_verified 19, implemented 39, live_partial 8
-- By migration action: ALIAS 97, PORT 38, REFRONT 27, MERGE 7, KEEP 118, RETIRE 1
+- By backend: legacy_http 170, native_pipe_alias 50, server_local 3, native_pipe 66
+- By verification: untested 117, mock_only 91, implemented_unverified 14, pending_live 1, live_verified 19, implemented 39, live_partial 8
+- By migration action: ALIAS 99, PORT 37, REFRONT 27, MERGE 7, KEEP 118, RETIRE 1
 
 ## Existing C++ builders awaiting re-fronting
 
@@ -39,7 +39,7 @@ builder, so each is one doorway away from native.
 
 ## Legacy capabilities with no current replacement
 
-87 legacy tools have no native equivalent today (every
+86 legacy tools have no native equivalent today (every
 PORT and KEEP entry; the scoreboard lists them). Recorded capability-loss
 risks above "low":
 

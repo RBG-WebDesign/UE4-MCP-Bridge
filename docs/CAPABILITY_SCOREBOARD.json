@@ -1,25 +1,25 @@
 {
   "generated_by": "Scripts/generate-tool-inventory.mjs (do not edit by hand)",
-  "total_registrations": 288,
+  "total_registrations": 289,
   "unique_canonical_capabilities": 206,
   "by_backend": {
     "legacy_http": 170,
-    "native_pipe_alias": 49,
+    "native_pipe_alias": 50,
     "server_local": 3,
     "native_pipe": 66
   },
   "by_verification": {
-    "untested": 118,
+    "untested": 117,
     "mock_only": 91,
-    "implemented_unverified": 12,
+    "implemented_unverified": 14,
     "pending_live": 1,
     "live_verified": 19,
     "implemented": 39,
     "live_partial": 8
   },
   "by_migration_action": {
-    "ALIAS": 97,
-    "PORT": 38,
+    "ALIAS": 99,
+    "PORT": 37,
     "REFRONT": 27,
     "MERGE": 7,
     "KEEP": 118,
@@ -27,7 +27,7 @@
   },
   "by_capability_category": {
     "actors": 12,
-    "compat": 49,
+    "compat": 50,
     "gameplay-setup": 14,
     "animation": 10,
     "blueprint": 30,
@@ -104,7 +104,6 @@
     "blueprint_build_from_description",
     "blueprint_document",
     "gameplay_pattern_search",
-    "placement_validate",
     "project_index_query",
     "project_index_rebuild",
     "project_semantic_diff"
@@ -185,7 +184,6 @@
     "optimization_viewmode_capture_set",
     "optimization_visual_logger_ingest",
     "optimization_vr_audit",
-    "placement_validate",
     "pp_preset",
     "pp_volume_modify",
     "pp_volume_spawn",
