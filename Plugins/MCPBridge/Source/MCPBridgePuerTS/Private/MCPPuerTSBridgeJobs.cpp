@@ -85,6 +85,7 @@ namespace
         case EBridgeJobKind::LightingBuild:   return TEXT("lighting_build");
         case EBridgeJobKind::NavigationBuild: return TEXT("navigation_build");
         case EBridgeJobKind::SequenceRender:  return TEXT("sequence_render");
+        case EBridgeJobKind::ProjectPackage:  return TEXT("project_package");
         default:                              return TEXT("unknown");
         }
     }
@@ -131,11 +132,12 @@ namespace
                 "recovery is another build.");
             return;
         case EBridgeJobKind::SequenceRender:
+        case EBridgeJobKind::ProjectPackage:
             bOutSupported = true;
             OutEffect = TEXT("immediate");
-            OutNote = TEXT("The render runs in a second process, so cancelling is "
-                "FPlatformProcess::TerminateProc. Frames already written to the output directory "
-                "stay written: this stops the render, it does not clean up after it.");
+            OutNote = TEXT("The work runs in a child process, so cancelling is "
+                "FPlatformProcess::TerminateProc. Files already written to the output directory "
+                "stay written: this stops the process, it does not clean up after it.");
             return;
         default:
             break;
@@ -184,6 +186,11 @@ void UMCPPuerTSBridgeService::ReapJobs()
         {
             FPlatformProcess::CloseProc(Job.ProcessHandle);
             Job.ProcessHandle.Reset();
+        }
+        if (IsTerminal(Job) && Job.ProcessReadPipe != nullptr)
+        {
+            FPlatformProcess::ClosePipe(Job.ProcessReadPipe, nullptr);
+            Job.ProcessReadPipe = nullptr;
         }
     }
     while (Jobs.Num() > MaxRetainedJobs)
@@ -244,7 +251,17 @@ void UMCPPuerTSBridgeService::PollJob(FBridgeJob& Job)
         return;
     }
     case EBridgeJobKind::SequenceRender:
+    case EBridgeJobKind::ProjectPackage:
     {
+        if (Job.ProcessReadPipe != nullptr)
+        {
+            Job.OutputTail += FPlatformProcess::ReadPipe(Job.ProcessReadPipe);
+            constexpr int32 TailLimit = 32768;
+            if (Job.OutputTail.Len() > TailLimit)
+            {
+                Job.OutputTail.RightInline(TailLimit, false);
+            }
+        }
         if (!Job.ProcessHandle.IsValid()) { Finish(TEXT("failed")); return; }
         if (FPlatformProcess::IsProcRunning(Job.ProcessHandle)) { return; }
         FPlatformProcess::GetProcReturnCode(Job.ProcessHandle, &Job.ReturnCode);
@@ -336,6 +353,7 @@ TSharedPtr<FJsonObject> UMCPPuerTSBridgeService::DescribeJob(const FBridgeJob& J
         return Out;
     }
     case EBridgeJobKind::SequenceRender:
+    case EBridgeJobKind::ProjectPackage:
     {
         Out->SetNumberField(TEXT("process_id"), static_cast<double>(Job.ProcessId));
         Out->SetBoolField(TEXT("process_running"),
@@ -352,14 +370,18 @@ TSharedPtr<FJsonObject> UMCPPuerTSBridgeService::DescribeJob(const FBridgeJob& J
         if (!Job.OutputDirectory.IsEmpty())
         {
             TArray<FString> Files;
-            IFileManager::Get().FindFiles(Files, *(Job.OutputDirectory / TEXT("*")), true, false);
+            IFileManager::Get().FindFilesRecursive(
+                Files, *Job.OutputDirectory, TEXT("*"), true, false);
             FileCount = Files.Num();
         }
         Out->SetNumberField(TEXT("output_file_count"), FileCount);
-        Out->SetStringField(TEXT("completion_note"),
-            TEXT("output_file_count is a count, not a fraction: the total frame count is known "
-                 "only inside the render process. A render that exits zero having written nothing "
-                 "did not render - check the output directory before believing the state."));
+        Out->SetStringField(TEXT("output_tail"), Job.OutputTail);
+        Out->SetStringField(TEXT("completion_note"), Job.Kind == EBridgeJobKind::ProjectPackage
+            ? TEXT("output_file_count recursively counts staged and archived files, not progress. "
+                   "A zero UAT exit code and a non-empty archive both need release verification.")
+            : TEXT("output_file_count is a count, not a fraction: the total frame count is known "
+                   "only inside the render process. A render that exits zero having written nothing "
+                   "did not render - check the output directory before believing the state."));
         return Out;
     }
     default:
@@ -509,6 +531,7 @@ bool UMCPPuerTSBridgeService::ControlJobJson(
             break;
         }
         case EBridgeJobKind::SequenceRender:
+        case EBridgeJobKind::ProjectPackage:
             if (Found->ProcessHandle.IsValid())
             {
                 // true kills the whole tree: the child is a UE editor process

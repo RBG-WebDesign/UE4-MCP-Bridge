@@ -31,6 +31,7 @@
     "smoke:physics": "node Scripts/puerts-live-smoke.mjs --physics",
     "smoke:inspect": "node Scripts/graph-inspect-acceptance.mjs",
     "smoke:bt": "node Scripts/behavior-tree-acceptance.mjs",
+    "test:bp-function": "node Scripts/bp-function-authoring-acceptance.mjs",
     "acceptance:editor": "node Scripts/editor-acceptance.mjs",
     "slice:gameplay": "node Scripts/slice-gameplay.mjs",
     "slice:ui": "node Scripts/slice-ui.mjs",

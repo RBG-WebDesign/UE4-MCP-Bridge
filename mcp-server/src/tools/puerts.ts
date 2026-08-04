@@ -1773,6 +1773,37 @@ const specs = [
         + "process.",
       ),
     }).strict()],
+  ["puerts_project_settings_maps", "project_settings_maps",
+    "Set the project default game map, editor startup map, and global game mode. Values are "
+    + "validated before mutation, applied to UGameMapsSettings, and persisted to the project's "
+    + "Config/DefaultEngine.ini. Map values must name existing saved /Game maps. The game mode "
+    + "must resolve to a GameModeBase class. At least one field is required.",
+    z.object({
+      game_default_map: z.string().regex(/^\/Game\//).optional(),
+      editor_startup_map: z.string().regex(/^\/Game\//).optional(),
+      global_default_game_mode: z.string().optional(),
+    }).strict().refine(
+      (value) => value.game_default_map !== undefined
+        || value.editor_startup_map !== undefined
+        || value.global_default_game_mode !== undefined,
+      { message: "At least one project setting is required." },
+    )],
+  ["puerts_project_package_start", "project_package_start",
+    "Start an asynchronous UE4.27 game-project cook, stage and package through a fixed UAT "
+    + "BuildCookRun child process. This returns a job_id immediately and never waits on UAT. "
+    + "Poll puerts_job_status, then collect with puerts_job_result. The served .uproject and "
+    + "RunUAT path are derived by native code and cannot be supplied by the caller. Only Win64 "
+    + "and Development or Shipping are accepted. Every map must be an existing saved /Game map, "
+    + "all dirty content is refused, and output_directory must remain inside Project/Saved. "
+    + "Cancellation kills only the owned process tree and leaves partial output. This packages "
+    + "the game project; it does not invoke the unsupported UE4.27 BuildPlugin binary flow.",
+    z.object({
+      maps: z.array(z.string().regex(/^\/Game\//)).min(1).max(32),
+      target: z.literal("Win64").optional(),
+      configuration: z.enum(["Development", "Shipping"]).optional(),
+      output_directory: z.string().optional(),
+      plan_only: z.boolean().optional(),
+    }).strict()],
   ["puerts_class_defaults_patch", "class_defaults_patch",
     "Set INHERITED class-default (CDO) values on a generated Blueprint as desired state: "
     + "AIControllerClass and AutoPossessAI on a pawn, and anything else on the bridge's "
@@ -2279,6 +2310,8 @@ const commandTimeouts: Readonly<Record<string, number>> = {
   puerts_find_actors: 15000,
   // The spawn finishes through a one-operation scene batch when name, folder or
   // scale is given, and that batch verifies by reading the level back.
+  puerts_project_settings_maps: 10000,
+  puerts_project_package_start: 20000,
   puerts_spawn_actor: 15000,
   puerts_material_inspect: 15000,
   // A static switch change recompiles the instance's shader permutation, and

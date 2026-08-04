@@ -270,6 +270,21 @@ bool UBlueprintMutatorLibrary::RemoveFunction(UBlueprint* Blueprint, const FStri
 {
     return FBPFunctionOps::RemoveFunction(Blueprint, FunctionName);
 }
+bool UBlueprintMutatorLibrary::SetFunctionMetadata(UBlueprint* Blueprint, const FString& FunctionName,
+    const FString& MetadataJson, FString& OutError)
+{
+    return FBPFunctionOps::SetFunctionMetadata(Blueprint, FunctionName, MetadataJson, OutError);
+}
+bool UBlueprintMutatorLibrary::SetFunctionParameters(UBlueprint* Blueprint, const FString& FunctionName,
+    const FString& InputsJson, const FString& OutputsJson, FString& OutError)
+{
+    return FBPFunctionOps::SetFunctionParameters(Blueprint, FunctionName, InputsJson, OutputsJson, OutError);
+}
+bool UBlueprintMutatorLibrary::SetFunctionLocals(UBlueprint* Blueprint, const FString& FunctionName,
+    const FString& LocalsJson, FString& OutError)
+{
+    return FBPFunctionOps::SetFunctionLocals(Blueprint, FunctionName, LocalsJson, OutError);
+}
 FString UBlueprintMutatorLibrary::AddEventDispatcher(UBlueprint* Blueprint, const FString& DispatcherName, const FString& SignatureJson)
 {
     return FBPEventDispatcherOps::AddEventDispatcher(Blueprint, DispatcherName, SignatureJson);

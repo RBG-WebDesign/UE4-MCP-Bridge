@@ -1275,6 +1275,24 @@
       "live_evidence": [],
       "notes": "UNCOMPILED, and the command finding 0s said could not ship synchronously. It ships asynchronously instead, on the job API. Legacy MovieSceneCapture in a second process, the same path the editor own Render Movie button takes in separate-process mode: a UAutomatedLevelSequenceCapture is built and serialized with the engine own converter, written to a per-render manifest under Saved/MCPPuerTSBridge, and a second editor process is launched with -MovieSceneCaptureManifest (MovieSceneCaptureDialogModule.cpp:678-744). Movie Render Queue exists in 4.27 at Engine/Plugins/MovieScene/MovieRenderPipeline and is EnabledByDefault false, so it is not used. The manifest is produced from the real UObject rather than hand-written JSON because the child reconstructs it with FJsonObjectConverter::JsonAttributesToUStruct (MovieSceneCaptureModule.cpp:104-160). The refusals are the work: the second process reads the level and the sequence FROM DISK, so an unsaved or never-saved level and an unsaved sequence are refused by name rather than producing a correct-looking render of the previous version; PIE is refused; the output directory must resolve inside the project. Needs the MovieSceneCapture and MovieSceneTools module dependencies. Opens no transaction and touches no asset: it writes image files, so there is nothing to undo."
     },
+    "puerts_project_settings_maps": {
+      "canonical_capability": "project.settings_maps",
+      "capability_category": "project",
+      "cpp_builder": "MCPPuerTSBridgeService",
+      "cpp_entry_point": "ConfigureProjectMapsJson",
+      "verification": "implemented_unverified",
+      "live_evidence": [],
+      "notes": "UNCOMPILED. Native re-front of the legacy project_settings_maps request shape. Validates existing saved /Game maps and a resolvable GameModeBase class before mutation, writes the UGameMapsSettings CDO through UE4.27 APIs, persists DefaultEngine.ini with UpdateDefaultConfigFile, reads back, and restores previous values on a mismatch. Requires editor-free typecheck plus UHT, UBT and warm/cold config proof."
+    },
+    "puerts_project_package_start": {
+      "canonical_capability": "project.package",
+      "capability_category": "project",
+      "cpp_builder": "MCPPuerTSBridgeService",
+      "cpp_entry_point": "PackageProjectJson",
+      "verification": "implemented_unverified",
+      "live_evidence": [],
+      "notes": "UNCOMPILED. Starts fixed RunUAT BuildCookRun in a child process and returns a job id without waiting. Caller input is limited to 1..32 existing saved /Game maps, Win64, Development or Shipping, and an archive directory contained by Project/Saved. Project and RunUAT paths are derived, dirty packages and PIE are refused, stdout/stderr is retained as a bounded tail, and cancellation terminates only the owned process tree while preserving partial output. This packages a game project and never invokes the known-blocked UE4.27 BuildPlugin binary path. UHT, UBT and live UAT success/cancel proof remain outstanding."
+    },
     "puerts_class_defaults_patch": {
       "canonical_capability": "blueprints.class_defaults_patch",
       "capability_category": "blueprints",

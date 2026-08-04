@@ -271,6 +271,8 @@ export const toolAnnotations: Record<string, ToolAnnotations> = {
   // output directory; a second call starts a second render rather than
   // converging. It touches no asset, so there is nothing for undo to cover.
   puerts_sequence_render_start: destructive,
+  puerts_project_settings_maps: mutatingIdempotent,
+  puerts_project_package_start: destructive,
   // Mutating and idempotent, NOT destructive: it writes only the class defaults
   // it was given, a value already equal to the request is reported unchanged and
   // not rewritten, and nothing is ever cleared. Worth knowing rather than

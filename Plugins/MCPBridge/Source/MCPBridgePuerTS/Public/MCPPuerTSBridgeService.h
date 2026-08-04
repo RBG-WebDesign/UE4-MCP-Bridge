@@ -20,6 +20,7 @@ enum class EBridgeJobKind : uint8
     LightingBuild,
     NavigationBuild,
     SequenceRender,
+    ProjectPackage,
 };
 
 /** One tracked job.
@@ -47,10 +48,12 @@ struct FBridgeJob
     TSharedPtr<FJsonObject> StartResult;
     /** SequenceRender only. */
     FProcHandle ProcessHandle;
+    void* ProcessReadPipe = nullptr;
     uint32 ProcessId = 0;
     int32 ReturnCode = 0;
     FString OutputDirectory;
     FString ManifestPath;
+    FString OutputTail;
 };
 
 UCLASS()
@@ -1468,6 +1471,23 @@ private:
         blocks and never waits. */
     UFUNCTION(BlueprintCallable, Category="MCP PuerTS Bridge")
     bool ControlJobJson(
+        const FString& RequestJson,
+        FString& OutResultJson,
+        FString& OutError);
+
+    /** Set the project's default maps and game mode through UE4.27's
+        UGameMapsSettings CDO and persist Config/DefaultEngine.ini. */
+    UFUNCTION(BlueprintCallable, Category="MCP PuerTS Bridge")
+    bool ConfigureProjectMapsJson(
+        const FString& RequestJson,
+        FString& OutResultJson,
+        FString& OutError);
+
+    /** Start UAT BuildCookRun in a separate process. The project is always the
+        project this service is serving; callers cannot supply executable paths
+        or command-line fragments. */
+    UFUNCTION(BlueprintCallable, Category="MCP PuerTS Bridge")
+    bool PackageProjectJson(
         const FString& RequestJson,
         FString& OutResultJson,
         FString& OutError);

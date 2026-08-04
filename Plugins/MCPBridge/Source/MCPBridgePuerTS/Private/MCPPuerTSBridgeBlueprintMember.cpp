@@ -12,6 +12,7 @@
 #include "Engine/SimpleConstructionScript.h"
 #include "EdGraph/EdGraph.h"
 #include "EdGraphSchema_K2.h"
+#include "K2Node_CallFunction.h"
 #include "Json.h"
 #include "Misc/PackageName.h"
 #include "UObject/UnrealType.h"
@@ -22,7 +23,7 @@ namespace
         answered with the vocabulary rather than with a shrug. */
     const TCHAR* const SupportedOps[] = {
         TEXT("add_variable"), TEXT("remove_variable"), TEXT("set_variable_default"),
-        TEXT("add_function"), TEXT("remove_function"),
+        TEXT("add_function"), TEXT("remove_function"), TEXT("set_function"),
         TEXT("add_interface"), TEXT("remove_interface"),
         TEXT("add_event_dispatcher"), TEXT("remove_event_dispatcher"),
         TEXT("remove_component"), TEXT("rename_component"),
@@ -269,6 +270,334 @@ namespace
     }
 
     /**
+     * Subset match for function state, with one exception that has to exist:
+     * a default value is compared by VALUE when both sides are numbers.
+     *
+     * A parameter or local default is stored as text, and the engine writes its
+     * own spelling: ask for "0.0" on a float and read back "0.000000". Compared
+     * as strings those never agree, so the operation is unsatisfied forever -
+     * the identical request rewrites, recompiles and re-saves the asset on
+     * every run, which is precisely the convergence this command promises not
+     * to break. Measured, not assumed: the first live run of
+     * bp-function-authoring-acceptance reported the rerun applying a local it
+     * had just written.
+     *
+     * Only "default" gets this treatment. Every other field is compared exactly,
+     * because a type descriptor or a name that merely looks similar is not the
+     * same thing.
+     */
+    bool FunctionStateMatches(const TSharedPtr<FJsonValue>& Desired, const TSharedPtr<FJsonValue>& Actual);
+
+    bool DefaultValueMatches(const TSharedPtr<FJsonValue>& Desired, const TSharedPtr<FJsonValue>& Actual)
+    {
+        if (!Desired.IsValid() || !Actual.IsValid()) { return false; }
+        FString DesiredText;
+        FString ActualText;
+        if (Desired->TryGetString(DesiredText) && Actual->TryGetString(ActualText))
+        {
+            if (DesiredText == ActualText) { return true; }
+            if (DesiredText.IsNumeric() && ActualText.IsNumeric())
+            {
+                return FMath::IsNearlyEqual(
+                    FCString::Atod(*DesiredText), FCString::Atod(*ActualText), (double)SMALL_NUMBER);
+            }
+            return false;
+        }
+        return JsonSubsetMatches(Desired, Actual);
+    }
+
+    bool FunctionStateMatches(const TSharedPtr<FJsonValue>& Desired, const TSharedPtr<FJsonValue>& Actual)
+    {
+        if (!Desired.IsValid() || !Actual.IsValid()) { return false; }
+        if (Desired->Type != Actual->Type) { return false; }
+
+        const TSharedPtr<FJsonObject>* DesiredObject = nullptr;
+        const TSharedPtr<FJsonObject>* ActualObject = nullptr;
+        if (Desired->TryGetObject(DesiredObject) && Actual->TryGetObject(ActualObject))
+        {
+            for (const TPair<FString, TSharedPtr<FJsonValue>>& Pair : (*DesiredObject)->Values)
+            {
+                const TSharedPtr<FJsonValue> ActualField = (*ActualObject)->TryGetField(Pair.Key);
+                const bool bMatches = Pair.Key == TEXT("default")
+                    ? DefaultValueMatches(Pair.Value, ActualField)
+                    : FunctionStateMatches(Pair.Value, ActualField);
+                if (!bMatches) { return false; }
+            }
+            return true;
+        }
+
+        const TArray<TSharedPtr<FJsonValue>>* DesiredArray = nullptr;
+        const TArray<TSharedPtr<FJsonValue>>* ActualArray = nullptr;
+        if (Desired->TryGetArray(DesiredArray) && Actual->TryGetArray(ActualArray))
+        {
+            if (DesiredArray->Num() != ActualArray->Num()) { return false; }
+            for (int32 Index = 0; Index < DesiredArray->Num(); ++Index)
+            {
+                if (!FunctionStateMatches((*DesiredArray)[Index], (*ActualArray)[Index])) { return false; }
+            }
+            return true;
+        }
+
+        return JsonSubsetMatches(Desired, Actual);
+    }
+
+    /** The function object the INSPECTOR reports, or null when there is no such
+        function. Read through the shared snapshot for the same reason
+        ActualVariableType is: the caller verifies with graph_inspect, so the
+        state this command compares against has to be that same rendering. */
+    TSharedPtr<FJsonObject> ActualFunction(UBlueprint* Blueprint, const FString& Name)
+    {
+        const TSharedPtr<FJsonObject> Snapshot = MCPBridgeBlueprintMembers::BuildSnapshot(Blueprint);
+        const TArray<TSharedPtr<FJsonValue>>* Functions = nullptr;
+        if (!Snapshot->TryGetArrayField(TEXT("functions"), Functions) || Functions == nullptr)
+        {
+            return nullptr;
+        }
+        for (const TSharedPtr<FJsonValue>& Value : *Functions)
+        {
+            const TSharedPtr<FJsonObject>* Object = nullptr;
+            FString Found;
+            if (Value.IsValid() && Value->TryGetObject(Object)
+                && (*Object)->TryGetStringField(TEXT("name"), Found) && Found == Name)
+            {
+                return *Object;
+            }
+        }
+        return nullptr;
+    }
+
+    /**
+     * The set_function spec rewritten into the shape the inspector reports, so
+     * one subset comparison answers "is this already true".
+     *
+     * Two translations happen here and nowhere else:
+     *
+     * `rename_from` is dropped. It is an instruction about how to reach the
+     * desired state, not part of the state, and comparing it against a reader
+     * that has no such field would make every rename look permanently
+     * unsatisfied - the batch would rename on every rerun.
+     *
+     * The metadata keys are spelled the way the inspector spells them
+     * (pure -> is_pure, const -> is_const), because a caller writes the verb and
+     * a reader reports the adjective, and the two have to meet somewhere.
+     */
+    TSharedPtr<FJsonObject> DesiredFunctionAsInspected(const TSharedPtr<FJsonObject>& Spec)
+    {
+        TSharedPtr<FJsonObject> Out = MakeShared<FJsonObject>();
+
+        auto CopyParams = [&Spec, &Out](const TCHAR* Field)
+        {
+            const TArray<TSharedPtr<FJsonValue>>* Source = nullptr;
+            if (!Spec->TryGetArrayField(Field, Source) || Source == nullptr) { return; }
+            TArray<TSharedPtr<FJsonValue>> Copied;
+            for (const TSharedPtr<FJsonValue>& Value : *Source)
+            {
+                const TSharedPtr<FJsonObject>* Object = nullptr;
+                if (!Value.IsValid() || !Value->TryGetObject(Object)) { continue; }
+                TSharedPtr<FJsonObject> Param = MakeShared<FJsonObject>(**Object);
+                Param->RemoveField(TEXT("rename_from"));
+                Copied.Add(MakeShared<FJsonValueObject>(Param));
+            }
+            Out->SetArrayField(Field, Copied);
+        };
+        CopyParams(TEXT("inputs"));
+        CopyParams(TEXT("outputs"));
+        CopyParams(TEXT("locals"));
+
+        const TSharedPtr<FJsonObject>* Metadata = nullptr;
+        if (Spec->TryGetObjectField(TEXT("metadata"), Metadata) && Metadata != nullptr)
+        {
+            FString Text;
+            if ((*Metadata)->TryGetStringField(TEXT("category"), Text)) { Out->SetStringField(TEXT("category"), Text); }
+            if ((*Metadata)->TryGetStringField(TEXT("tooltip"), Text))  { Out->SetStringField(TEXT("tooltip"), Text); }
+            if ((*Metadata)->TryGetStringField(TEXT("access"), Text))   { Out->SetStringField(TEXT("access"), Text); }
+            bool bFlag = false;
+            if ((*Metadata)->TryGetBoolField(TEXT("pure"), bFlag))  { Out->SetBoolField(TEXT("is_pure"), bFlag); }
+            if ((*Metadata)->TryGetBoolField(TEXT("const"), bFlag)) { Out->SetBoolField(TEXT("is_const"), bFlag); }
+        }
+        return Out;
+    }
+
+    /** Every call site of a Blueprint function, as {graph, node_guid} entries.
+        Walked over the Blueprint's own graphs only: a caller needs to know what
+        THIS asset's rename is about to reconstruct, and other assets calling in
+        are the reference graph's question, not this command's. */
+    TArray<TSharedPtr<FJsonValue>> FunctionCallSites(UBlueprint* Blueprint, const FString& FunctionName)
+    {
+        TArray<TSharedPtr<FJsonValue>> Out;
+        TArray<UEdGraph*> Graphs;
+        Blueprint->GetAllGraphs(Graphs);
+        const FName Wanted(*FunctionName);
+        for (const UEdGraph* Graph : Graphs)
+        {
+            if (Graph == nullptr) { continue; }
+            for (const UEdGraphNode* Node : Graph->Nodes)
+            {
+                const UK2Node_CallFunction* Call = Cast<UK2Node_CallFunction>(Node);
+                if (Call == nullptr || Call->FunctionReference.GetMemberName() != Wanted) { continue; }
+                TSharedPtr<FJsonObject> Site = MakeShared<FJsonObject>();
+                Site->SetStringField(TEXT("graph"), Graph->GetName());
+                Site->SetStringField(TEXT("node_guid"), Call->NodeGuid.ToString(EGuidFormats::DigitsWithHyphens));
+                Out.Add(MakeShared<FJsonValueObject>(Site));
+            }
+        }
+        return Out;
+    }
+
+    /**
+     * What a set_function operation is about to change, named field by field.
+     *
+     * Derived from the SAME two JSON objects the satisfied-predicate compares -
+     * the desired state rewritten into inspector shape, and the inspector's
+     * current reading - so the plan cannot claim a change the applier will not
+     * make, or miss one it will. Re-deriving the convergence rules here to
+     * produce a prettier plan is exactly how a plan starts lying.
+     */
+    TSharedPtr<FJsonObject> BuildFunctionPlan(UBlueprint* Blueprint, const FResolvedOp& R, const FString& Name)
+    {
+        TSharedPtr<FJsonObject> Plan = MakeShared<FJsonObject>();
+        Plan->SetStringField(TEXT("function"), Name);
+
+        const TSharedPtr<FJsonObject> Actual = ActualFunction(Blueprint, Name);
+        const bool bExists = Actual.IsValid();
+        Plan->SetBoolField(TEXT("function_exists"), bExists);
+
+        const TSharedPtr<FJsonObject> Desired = DesiredFunctionAsInspected(*R.Spec);
+
+        TArray<TSharedPtr<FJsonValue>> SignatureChanges;
+        TArray<TSharedPtr<FJsonValue>> MetadataChanges;
+        TArray<TSharedPtr<FJsonValue>> LocalsToAdd;
+        TArray<TSharedPtr<FJsonValue>> LocalsToUpdate;
+
+        auto Named = [](const TSharedPtr<FJsonObject>& Object, const TCHAR* Field, const FString& ParamName)
+            -> TSharedPtr<FJsonObject>
+        {
+            const TArray<TSharedPtr<FJsonValue>>* Array = nullptr;
+            if (!Object.IsValid() || !Object->TryGetArrayField(Field, Array) || Array == nullptr)
+            {
+                return nullptr;
+            }
+            for (const TSharedPtr<FJsonValue>& Value : *Array)
+            {
+                const TSharedPtr<FJsonObject>* Element = nullptr;
+                FString Found;
+                if (Value.IsValid() && Value->TryGetObject(Element)
+                    && (*Element)->TryGetStringField(TEXT("name"), Found) && Found == ParamName)
+                {
+                    return *Element;
+                }
+            }
+            return nullptr;
+        };
+
+        auto DiffCollection = [&](const TCHAR* Field, TArray<TSharedPtr<FJsonValue>>& Additions,
+            TArray<TSharedPtr<FJsonValue>>& Updates)
+        {
+            const TArray<TSharedPtr<FJsonValue>>* DesiredArray = nullptr;
+            if (!Desired->TryGetArrayField(Field, DesiredArray) || DesiredArray == nullptr) { return; }
+
+            const TArray<TSharedPtr<FJsonValue>>* SpecArray = nullptr;
+            (*R.Spec)->TryGetArrayField(Field, SpecArray);
+
+            TSet<FString> DesiredNames;
+            int32 SpecIndex = 0;
+            for (const TSharedPtr<FJsonValue>& Value : *DesiredArray)
+            {
+                const TSharedPtr<FJsonObject>* Element = nullptr;
+                FString ParamName;
+                if (!Value.IsValid() || !Value->TryGetObject(Element)
+                    || !(*Element)->TryGetStringField(TEXT("name"), ParamName))
+                {
+                    ++SpecIndex;
+                    continue;
+                }
+                DesiredNames.Add(ParamName);
+
+                // rename_from lives on the spec, not on the inspector-shaped
+                // copy, so it is read back out of the original at the same index.
+                FString RenameFrom;
+                if (SpecArray != nullptr && SpecArray->IsValidIndex(SpecIndex))
+                {
+                    const TSharedPtr<FJsonObject>* SpecElement = nullptr;
+                    if ((*SpecArray)[SpecIndex]->TryGetObject(SpecElement))
+                    {
+                        (*SpecElement)->TryGetStringField(TEXT("rename_from"), RenameFrom);
+                    }
+                }
+                ++SpecIndex;
+
+                const TSharedPtr<FJsonObject> Current = Named(Actual, Field, ParamName);
+                if (!Current.IsValid())
+                {
+                    const FString Change = RenameFrom.IsEmpty()
+                        ? FString::Printf(TEXT("add %s %s"), Field, *ParamName)
+                        : FString::Printf(TEXT("rename %s %s -> %s"), Field, *RenameFrom, *ParamName);
+                    Additions.Add(MakeShared<FJsonValueString>(Change));
+                }
+                else if (!FunctionStateMatches(Value, MakeShared<FJsonValueObject>(Current)))
+                {
+                    // The same comparator the applier's skip decision uses. A
+                    // plan that judged "changed" by a different rule would list
+                    // work the applier then skips.
+                    Updates.Add(MakeShared<FJsonValueString>(
+                        FString::Printf(TEXT("update %s %s"), Field, *ParamName)));
+                }
+            }
+
+            const TArray<TSharedPtr<FJsonValue>>* ActualArray = nullptr;
+            if (Actual.IsValid() && Actual->TryGetArrayField(Field, ActualArray) && ActualArray != nullptr)
+            {
+                for (const TSharedPtr<FJsonValue>& Value : *ActualArray)
+                {
+                    const TSharedPtr<FJsonObject>* Element = nullptr;
+                    FString ParamName;
+                    if (Value.IsValid() && Value->TryGetObject(Element)
+                        && (*Element)->TryGetStringField(TEXT("name"), ParamName)
+                        && !DesiredNames.Contains(ParamName))
+                    {
+                        Updates.Add(MakeShared<FJsonValueString>(
+                            FString::Printf(TEXT("remove %s %s"), Field, *ParamName)));
+                    }
+                }
+            }
+        };
+
+        DiffCollection(TEXT("inputs"),  SignatureChanges, SignatureChanges);
+        DiffCollection(TEXT("outputs"), SignatureChanges, SignatureChanges);
+        DiffCollection(TEXT("locals"),  LocalsToAdd,      LocalsToUpdate);
+
+        static const TCHAR* const MetadataFields[] = {
+            TEXT("category"), TEXT("tooltip"), TEXT("access"), TEXT("is_pure"), TEXT("is_const") };
+        for (const TCHAR* Field : MetadataFields)
+        {
+            const TSharedPtr<FJsonValue> Wanted = Desired->TryGetField(Field);
+            if (!Wanted.IsValid()) { continue; }
+            const TSharedPtr<FJsonValue> Current = Actual.IsValid() ? Actual->TryGetField(Field) : nullptr;
+            if (!FunctionStateMatches(Wanted, Current))
+            {
+                MetadataChanges.Add(MakeShared<FJsonValueString>(Field));
+            }
+        }
+
+        Plan->SetArrayField(TEXT("signature_changes"), SignatureChanges);
+        Plan->SetArrayField(TEXT("metadata_changes"), MetadataChanges);
+        Plan->SetArrayField(TEXT("locals_to_add"), LocalsToAdd);
+        Plan->SetArrayField(TEXT("locals_to_update"), LocalsToUpdate);
+        Plan->SetArrayField(TEXT("call_sites_affected"), FunctionCallSites(Blueprint, Name));
+        return Plan;
+    }
+
+    /** Serialize one field of a spec back to the compact JSON text the mutator
+        entry points take, or an empty string when the caller did not mention it.
+        Empty means "leave that collection alone" all the way down. */
+    FString SpecArrayAsJson(const TSharedPtr<FJsonObject>& Spec, const TCHAR* Field)
+    {
+        const TArray<TSharedPtr<FJsonValue>>* Array = nullptr;
+        if (!Spec->TryGetArrayField(Field, Array) || Array == nullptr) { return FString(); }
+        return ValueToJsonText(MakeShared<FJsonValueArray>(*Array));
+    }
+
+    /**
      * Is this operation's requested end state ALREADY true of the Blueprint as
      * it stands right now?
      *
@@ -321,6 +650,18 @@ namespace
         }
         if (R.Op == TEXT("add_function")) { return HasGraphNamed(Blueprint->FunctionGraphs, Name); }
         if (R.Op == TEXT("remove_function")) { return !HasGraphNamed(Blueprint->FunctionGraphs, Name); }
+        if (R.Op == TEXT("set_function"))
+        {
+            const TSharedPtr<FJsonObject> Actual = ActualFunction(Blueprint, Name);
+            if (!Actual.IsValid()) { return false; }
+            // Subset, not equality: a caller that named only a tooltip is asking
+            // about a tooltip, and demanding it also restate every parameter
+            // would report an unsatisfied operation for a function that already
+            // is exactly what was asked for.
+            return FunctionStateMatches(
+                MakeShared<FJsonValueObject>(DesiredFunctionAsInspected(*R.Spec)),
+                MakeShared<FJsonValueObject>(Actual));
+        }
         if (R.Op == TEXT("add_event_dispatcher"))
         {
             return HasGraphNamed(Blueprint->DelegateSignatureGraphs, Name);
@@ -564,7 +905,8 @@ bool UMCPPuerTSBridgeService::PatchBlueprintMembersJson(
                 }
             }
         }
-        else if (R.Op == TEXT("add_function") || R.Op == TEXT("remove_function"))
+        else if (R.Op == TEXT("add_function") || R.Op == TEXT("remove_function")
+            || R.Op == TEXT("set_function"))
         {
             FString Name;
             if (!RequireString(TEXT("name"), Name)) { continue; }
@@ -574,6 +916,68 @@ bool UMCPPuerTSBridgeService::PatchBlueprintMembersJson(
             // a batch naming the same graph as each is a batch with no single
             // desired state.
             R.MemberKey = FString::Printf(TEXT("graph:%s"), *Name);
+
+            if (R.Op == TEXT("set_function"))
+            {
+                // Shape only. Whether a type descriptor RESOLVES is the
+                // mutator's answer, and it gives it before it opens its own
+                // transaction; an unresolvable type there fails the operation
+                // and the batch's rollback boundary puts everything back, which
+                // is what proves no mutation happened. Duplicating the type
+                // resolver here would be a second opinion that can disagree
+                // with the one that actually writes.
+                bool bShapeRefused = false;
+                auto CheckParams = [&](const TCHAR* Field)
+                {
+                    const TArray<TSharedPtr<FJsonValue>>* Array = nullptr;
+                    if (!(*R.Spec)->TryGetArrayField(Field, Array) || Array == nullptr) { return; }
+                    TSet<FString> SeenParams;
+                    for (const TSharedPtr<FJsonValue>& Value : *Array)
+                    {
+                        const TSharedPtr<FJsonObject>* Param = nullptr;
+                        FString ParamName;
+                        if (!Value.IsValid() || !Value->TryGetObject(Param))
+                        {
+                            Refusals.Add(FString::Printf(
+                                TEXT("operation %d (set_function %s): every entry in '%s' must be an "
+                                     "object."), Index, *Name, Field));
+                            bShapeRefused = true;
+                            return;
+                        }
+                        if (!(*Param)->TryGetStringField(TEXT("name"), ParamName) || ParamName.IsEmpty())
+                        {
+                            Refusals.Add(FString::Printf(
+                                TEXT("operation %d (set_function %s): an entry in '%s' has no 'name'."),
+                                Index, *Name, Field));
+                            bShapeRefused = true;
+                            return;
+                        }
+                        if (SeenParams.Contains(ParamName))
+                        {
+                            Refusals.Add(FString::Printf(
+                                TEXT("operation %d (set_function %s): '%s' is listed twice in '%s', so "
+                                     "there is no single desired signature."),
+                                Index, *Name, *ParamName, Field));
+                            bShapeRefused = true;
+                            return;
+                        }
+                        SeenParams.Add(ParamName);
+                        const TSharedPtr<FJsonObject>* TypeObject = nullptr;
+                        if (!(*Param)->TryGetObjectField(TEXT("type"), TypeObject))
+                        {
+                            Refusals.Add(FString::Printf(
+                                TEXT("operation %d (set_function %s): '%s' in '%s' needs a 'type' "
+                                     "descriptor object."), Index, *Name, *ParamName, Field));
+                            bShapeRefused = true;
+                            return;
+                        }
+                    }
+                };
+                CheckParams(TEXT("inputs"));
+                CheckParams(TEXT("outputs"));
+                CheckParams(TEXT("locals"));
+                if (bShapeRefused) { continue; }
+            }
         }
         else if (R.Op == TEXT("add_event_dispatcher") || R.Op == TEXT("remove_event_dispatcher"))
         {
@@ -680,12 +1084,26 @@ bool UMCPPuerTSBridgeService::PatchBlueprintMembersJson(
         (R.bSatisfied ? Unchanged : ToApply).Add(MakeShared<FJsonValueString>(R.Label));
     }
 
+    // A function is the one member whose desired state is a structure rather
+    // than a name, so "operation N will apply" does not tell a caller what is
+    // about to happen to it. Every set_function operation gets its diff named,
+    // in plan mode and in the applied result alike.
+    TArray<TSharedPtr<FJsonValue>> FunctionPlans;
+    for (const FResolvedOp& R : Resolved)
+    {
+        if (R.Op != TEXT("set_function")) { continue; }
+        FString FunctionName;
+        (*R.Spec)->TryGetStringField(TEXT("name"), FunctionName);
+        FunctionPlans.Add(MakeShared<FJsonValueObject>(BuildFunctionPlan(Blueprint, R, FunctionName)));
+    }
+
     TSharedPtr<FJsonObject> Result = MakeShared<FJsonObject>();
     Result->SetStringField(TEXT("asset_path"), AssetPath);
     Result->SetNumberField(TEXT("requested_operation_count"), Operations->Num());
     Result->SetArrayField(TEXT("operations_to_apply"), ToApply);
     Result->SetArrayField(TEXT("unchanged_operations"), Unchanged);
     Result->SetNumberField(TEXT("expected_change_count"), ToApply.Num());
+    Result->SetArrayField(TEXT("function_plans"), FunctionPlans);
     Result->SetStringField(TEXT("pre_member_hash"), PreHash);
 
     if (Refusals.Num() > 0)
@@ -861,6 +1279,54 @@ bool UMCPPuerTSBridgeService::PatchBlueprintMembersJson(
         {
             bOk = UBlueprintMutatorLibrary::RemoveFunction(Blueprint, Name);
         }
+        else if (R.Op == TEXT("set_function"))
+        {
+            // Create first if it is not there, with NO parameters, and then let
+            // the same convergence step below author them. One code path writes
+            // a signature, so a function created by this operation and a
+            // function patched by it cannot end up different.
+            if (!HasGraphNamed(Blueprint->FunctionGraphs, Name))
+            {
+                if (UBlueprintMutatorLibrary::AddFunction(Blueprint, Name, TEXT("[]"), TEXT("[]")).IsEmpty())
+                {
+                    return FailWithRollback(FString::Printf(
+                        TEXT("operation %d (set_function %s): the function could not be created; see "
+                             "the LogBlueprintMutator output for the reason."), R.Index, *Name));
+                }
+            }
+
+            const FString InputsJson  = SpecArrayAsJson(*R.Spec, TEXT("inputs"));
+            const FString OutputsJson = SpecArrayAsJson(*R.Spec, TEXT("outputs"));
+            const FString LocalsJson  = SpecArrayAsJson(*R.Spec, TEXT("locals"));
+
+            FString SetError;
+            bOk = true;
+            if (!InputsJson.IsEmpty() || !OutputsJson.IsEmpty())
+            {
+                bOk = UBlueprintMutatorLibrary::SetFunctionParameters(
+                    Blueprint, Name, InputsJson, OutputsJson, SetError);
+            }
+            if (bOk && !LocalsJson.IsEmpty())
+            {
+                bOk = UBlueprintMutatorLibrary::SetFunctionLocals(Blueprint, Name, LocalsJson, SetError);
+            }
+            const TSharedPtr<FJsonObject>* MetadataObject = nullptr;
+            if (bOk && (*R.Spec)->TryGetObjectField(TEXT("metadata"), MetadataObject)
+                && MetadataObject != nullptr)
+            {
+                bOk = UBlueprintMutatorLibrary::SetFunctionMetadata(
+                    Blueprint, Name,
+                    ValueToJsonText(MakeShared<FJsonValueObject>(*MetadataObject)), SetError);
+            }
+            if (!bOk)
+            {
+                // The mutator's own sentence, not a generic one. It names the
+                // parameter, the type or the rename that could not be done,
+                // which is the difference between a fixable request and a shrug.
+                return FailWithRollback(FString::Printf(
+                    TEXT("operation %d (set_function %s): %s"), R.Index, *Name, *SetError));
+            }
+        }
         else if (R.Op == TEXT("add_event_dispatcher"))
         {
             TSharedPtr<FJsonObject> Signature = MakeShared<FJsonObject>();
@@ -918,7 +1384,12 @@ bool UMCPPuerTSBridgeService::PatchBlueprintMembersJson(
     // already surfaces the same two arrays from the same report.
     TArray<TSharedPtr<FJsonValue>> CompileWarnings;
     TArray<TSharedPtr<FJsonValue>> CompileErrors;
-    if (bCompile)
+    // Applied.Num() > 0, not bCompile alone. A batch that changed nothing has
+    // nothing to compile, and compiling anyway is work a converged rerun is
+    // supposed to avoid - it also dirties the package, which then makes the
+    // "converged runs do not save" guarantee below the only thing standing
+    // between an idempotent request and a rewritten file.
+    if (bCompile && Applied.Num() > 0)
     {
         TSharedPtr<FJsonObject> CompileReport;
         TSharedRef<TJsonReader<>> CompileReader =

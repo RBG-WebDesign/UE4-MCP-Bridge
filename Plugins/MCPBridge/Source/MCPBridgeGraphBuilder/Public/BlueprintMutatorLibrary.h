@@ -202,6 +202,33 @@ public:
     static bool RemoveFunction(UBlueprint* Blueprint, const FString& FunctionName);
 
     /**
+     * Converge an existing function's declared metadata. MetadataJson understands
+     * category, tooltip, pure, const and access; only the keys present are
+     * written, and an unrecognised key is refused rather than ignored.
+     *
+     * These three Set* entry points are what makes a function incrementally
+     * patchable. AddFunction can only create, and re-creating a function to
+     * change its tooltip would take its graph body and every call site with it.
+     */
+    static bool SetFunctionMetadata(UBlueprint* Blueprint, const FString& FunctionName,
+        const FString& MetadataJson, FString& OutError);
+
+    /**
+     * Converge an existing function's parameters. Elements are
+     * {name, type, default?, rename_from?}; an empty json string leaves that
+     * direction alone and a present array is authoritative. rename_from carries
+     * the caller's intent that a parameter was RENAMED rather than replaced,
+     * which is the only way a call site's connection to it can survive.
+     */
+    static bool SetFunctionParameters(UBlueprint* Blueprint, const FString& FunctionName,
+        const FString& InputsJson, const FString& OutputsJson, FString& OutError);
+
+    /** Converge an existing function's local variables. Elements are
+     *  {name, type, default?}; a present array is authoritative. */
+    static bool SetFunctionLocals(UBlueprint* Blueprint, const FString& FunctionName,
+        const FString& LocalsJson, FString& OutError);
+
+    /**
      * Create a new event dispatcher (delegate signature graph). SignatureJson is
      * {parameters: [{name, type: TypeDescriptor}]}. Returns the dispatcher's name on success.
      */
