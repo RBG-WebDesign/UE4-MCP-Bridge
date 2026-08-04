@@ -908,13 +908,13 @@
       "canonical_capability": "ai.behavior_tree_build",
       "migration_action": "ALIAS",
       "replacement_tool": "puerts_behavior_tree_build",
-      "notes": "alias not yet written; native replacement is pending_live"
+      "notes": "Compatibility alias joins path and name, passes blackboard_path and keys, and maps tree to the native root. The legacy empty-tree form is refused because the native builder requires a root. Editor-free routing tests pass; live result-shape proof remains."
     },
     "blackboard_create": {
-      "canonical_capability": "ai.behavior_tree_build",
+      "canonical_capability": "ai.blackboard_build",
       "migration_action": "ALIAS",
-      "replacement_tool": "puerts_behavior_tree_build",
-      "notes": "blackboard creation is part of the native BT build; alias not yet written"
+      "replacement_tool": "puerts_blackboard_build",
+      "notes": "Compatibility alias joins path and name and passes keys to the native desired-state Blackboard builder without remove_unlisted. Editor-free routing tests pass; live result-shape proof remains."
     },
     "input_mapping_add": {
       "migration_action": "ALIAS",
@@ -1151,7 +1151,7 @@
       "migration_action": "ALIAS",
       "replacement_tool": "puerts_widget_build",
       "python_handler": "Plugins/MCPBridge/Content/Python/mcp_bridge/handlers/widgets.py",
-      "notes": "alias not yet written; native replacement is live-verified"
+      "notes": "Compatibility alias joins package_path and asset_name into the native asset_path and preserves the legacy root-wrapping behavior. Editor-free routing tests pass; live result-shape proof remains."
     },
     "widget_lower_third_create": {
       "migration_action": "REFRONT",

@@ -537,6 +537,9 @@ export const toolAnnotations: Record<string, ToolAnnotations> = {
  */
 export const compatAliasAnnotations: Record<string, ToolAnnotations> = {
   blueprint_info: readOnly,                 // -> puerts_graph_inspect
+  widget_build_from_json: destructiveIdempotent, // -> puerts_widget_build
+  behavior_tree_create: mutatingIdempotent, // -> puerts_behavior_tree_build
+  blackboard_create: mutatingIdempotent,    // -> puerts_blackboard_build (no removals)
   viewport_fit: mutatingIdempotent,         // -> puerts_viewport_screenshot
   viewport_focus: mutatingIdempotent,       // -> puerts_viewport_screenshot
   actor_spawn: mutating,                  // -> puerts_spawn_actor
