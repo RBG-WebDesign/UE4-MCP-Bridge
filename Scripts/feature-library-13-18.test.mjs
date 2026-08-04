@@ -47,5 +47,13 @@ const sequence = readFileSync(join(root, "Scripts", "feature-sequencer-events.mj
 assert.ok(sequence.includes("director Blueprint") && sequence.includes("never execute"), "event-track blocker must name the director endpoint gap");
 const packaged = readFileSync(join(root, "Scripts", "feature-packaged-demo.mjs"), "utf8");
 assert.ok(packaged.includes("async job API") && packaged.includes("project_settings_maps"), "packaged demo must name both release gates");
+for (const marker of [
+  'process.argv.includes("--package")', "packageTimeoutMs", "puerts_job_status",
+  "puerts_job_result", "puerts_job_cancel", "output_file_count",
+]) assert.ok(packaged.includes(marker), `packaged demo must include ${marker}`);
+assert.ok(packaged.indexOf("if (!includePackage)") < packaged.indexOf("plan_only: false"),
+  "the package job must stay behind explicit --package opt-in");
+assert.equal((packaged.match(/puerts_job_result/g) ?? []).length, 1,
+  "the package result must be collected exactly once");
 
 console.log("feature library 13-18 source contract: PASS");

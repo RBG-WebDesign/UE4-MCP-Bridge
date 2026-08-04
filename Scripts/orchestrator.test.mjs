@@ -307,4 +307,18 @@ assert.ok(examplePlan.expect.min_nodes <= examplePlan.blueprint.graph.nodes.leng
 assert.equal(typeof planFingerprint(examplePlan), "string");
 ok("the committed example plan passes the orchestrator's own plan validation");
 
+const releasePlan = JSON.parse(readFileSync(
+  join(root, "docs", "evidence", "orchestrator-release-demo.json"), "utf8",
+));
+validatePlan(releasePlan);
+assert.match(releasePlan.blueprint.asset_path, /^\/Game\/MCPGenerated\/ReleaseDemo\//);
+assert.equal(releasePlan.member_patch.asset_path, releasePlan.blueprint.asset_path);
+assert.ok(releasePlan.scene_batch.operations.some((operation) => operation.op === "upsert_actor"));
+assert.equal(releasePlan.material.tool, "puerts_material_build");
+assert.deepEqual(releasePlan.runtime_verify,
+  { actor: "BridgeReleaseDemo", property: "PulseCount", equals: 1 });
+assert.ok(releasePlan.expect.variables.includes("DemoLabel"));
+assert.equal(typeof planFingerprint(releasePlan), "string");
+ok("the committed AO-3 release demo exercises every AO-2 stage and passes plan validation");
+
 console.log(`\norchestrator: ${passed} checks passed.`);
