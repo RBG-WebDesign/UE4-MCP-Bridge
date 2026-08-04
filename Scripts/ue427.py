@@ -38,7 +38,18 @@ SKILL_SRC = os.path.join(REPO_ROOT, "skills", SKILL_NAME)
 SERVER_NAME = "unreal-bridge"
 SERVER_ENTRY = os.path.join(REPO_ROOT, "mcp-server", "dist", "index.js")
 MCP_JSON = os.path.join(REPO_ROOT, ".mcp.json")
-AGENTS = ("claude", "codex", "gemini")
+
+# CLI clients are detected by their executable; Antigravity is an application,
+# so it is detected by its configuration directory.
+#
+# Claude Desktop is deliberately absent. Its Code tab runs Claude Code and
+# shares CLAUDE.md, project skills, hooks and MCP configuration with the CLI,
+# so installing for "claude" already covers it. Its Chat tab uses a separate
+# claude_desktop_config.json, which is not a coding surface; writing the bridge
+# there would add a second, redundant registration.
+CLI_AGENTS = ("claude", "codex", "gemini")
+APP_AGENTS = ("antigravity",)
+AGENTS = CLI_AGENTS + APP_AGENTS
 
 sys.path.insert(0, os.path.join(SKILL_SRC, "scripts"))
 import verify_project_version as vpv  # noqa: E402
@@ -62,26 +73,51 @@ def cli_path(name: str) -> Optional[str]:
     return shutil.which(name)
 
 
-def detect_agents() -> List[str]:
-    """Return the agent CLIs actually installed on this machine."""
-    return [agent for agent in AGENTS if cli_path(agent)]
-
-
 def home() -> str:
     """Return the user home directory."""
     return os.path.expanduser("~")
 
 
+def antigravity_root() -> str:
+    """Antigravity's global customization root.
+
+    Its own docs name `~/.gemini/config/` as the global root and `.agents/` as
+    the per-project one. `~/.gemini/antigravity/skills` is a link to
+    `~/.gemini/config/skills`, so writing to the documented root covers both.
+    """
+    return os.path.join(home(), ".gemini", "config")
+
+
+
+
+def app_installed(agent: str) -> bool:
+    """Whether an application client (not a CLI) is present on this machine."""
+    if agent == "antigravity":
+        return os.path.isdir(antigravity_root()) or os.path.isdir(
+            os.path.join(home(), ".gemini", "antigravity"))
+    return False
+
+
+def detect_agents() -> List[str]:
+    """Return every agent client actually installed on this machine."""
+    found = [agent for agent in CLI_AGENTS if cli_path(agent)]
+    found += [agent for agent in APP_AGENTS if app_installed(agent)]
+    return found
+
+
 def skill_roots(agent: str, scope: str, project_dir: Optional[str]) -> List[str]:
     """Return the skill parent directories for an agent and scope.
 
-    Claude Code uses .claude/skills; Codex and Gemini share the .agents/skills
-    location. Gemini also reads .gemini/skills, which is only used when the
-    shared location is unavailable.
+    Claude Code uses .claude/skills, which Claude Desktop's Code tab shares.
+    Codex, Gemini and Antigravity all read the shared .agents/skills location
+    for a project. At user scope Antigravity differs: its global customization
+    root is ~/.gemini/config, not ~/.agents.
     """
     base = home() if scope == "user" else (project_dir or REPO_ROOT)
     if agent == "claude":
         return [os.path.join(base, ".claude", "skills")]
+    if agent == "antigravity" and scope == "user":
+        return [os.path.join(antigravity_root(), "skills")]
     return [os.path.join(base, ".agents", "skills")]
 
 
@@ -288,32 +324,24 @@ class Installer:
                 handle.write(merged)
         self.log("mcp-register(codex,%s)" % scope, config)
 
-    def register_gemini(self, scope: str, project: Optional[str],
-                        project_dir: Optional[str]) -> None:
-        """Merge unreal-bridge into the Gemini settings.json, preserving the rest."""
-        base = home() if scope == "user" else (project_dir or REPO_ROOT)
-        config = os.path.join(base, ".gemini", "settings.json")
+    def register_json_mcp(self, label: str, config: str, entry: Dict[str, Any]) -> None:
+        """Merge one server into a JSON config's mcpServers, preserving the rest.
+
+        Used by every client whose MCP configuration is a JSON file with an
+        mcpServers object: Gemini CLI, Antigravity, and Claude Desktop. Only the
+        unreal-bridge key is touched; other servers and settings are untouched.
+        """
         settings: Dict[str, Any] = {}
         if os.path.isfile(config):
             try:
                 with open(config, "r", encoding="utf-8-sig") as handle:
                     settings = json.load(handle)
             except ValueError:
-                self.note("gemini settings.json is not valid JSON, leaving it alone")
+                self.note("%s is not valid JSON, leaving it alone" % config)
                 return
-        entry: Dict[str, Any] = {
-            "command": "node",
-            "args": [SERVER_ENTRY.replace("\\", "/")],
-            "cwd": REPO_ROOT.replace("\\", "/"),
-            "timeout": 120000,
-            "trust": False,
-        }
-        env = self.server_env(project)
-        if env:
-            entry["env"] = env
         servers = settings.setdefault("mcpServers", {})
         if servers.get(SERVER_NAME) == entry:
-            self.note("gemini settings already current: %s" % config)
+            self.note("%s already current: %s" % (label, config))
             return
         servers[SERVER_NAME] = entry
         if os.path.isfile(config) and not self.dry_run:
@@ -323,7 +351,44 @@ class Installer:
             with open(config, "w", encoding="utf-8") as handle:
                 json.dump(settings, handle, indent=2)
                 handle.write("\n")
-        self.log("mcp-register(gemini,%s)" % scope, config)
+        self.log("mcp-register(%s)" % label, config)
+
+    def stdio_entry(self, project: Optional[str], extras: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+        """Build a plain stdio MCP entry for the unreal-bridge server."""
+        entry: Dict[str, Any] = {
+            "command": "node",
+            "args": [SERVER_ENTRY.replace("\\", "/")],
+            "cwd": REPO_ROOT.replace("\\", "/"),
+        }
+        env = self.server_env(project)
+        if env:
+            entry["env"] = env
+        if extras:
+            entry.update(extras)
+        return entry
+
+    def register_gemini(self, scope: str, project: Optional[str],
+                        project_dir: Optional[str]) -> None:
+        """Merge unreal-bridge into the Gemini CLI settings.json."""
+        base = home() if scope == "user" else (project_dir or REPO_ROOT)
+        config = os.path.join(base, ".gemini", "settings.json")
+        entry = self.stdio_entry(project, {"timeout": 120000, "trust": False})
+        self.register_json_mcp("gemini,%s" % scope, config, entry)
+
+    def register_antigravity(self, scope: str, project: Optional[str],
+                             project_dir: Optional[str]) -> None:
+        """Merge unreal-bridge into Antigravity's mcp_config.json.
+
+        Antigravity accepts a plain {command, args} entry; the $typeName field
+        on some of its own entries is serialization metadata, not required.
+        """
+        if scope == "user":
+            config = os.path.join(antigravity_root(), "mcp_config.json")
+        else:
+            config = os.path.join(project_dir or REPO_ROOT, ".agents", "mcp_config.json")
+        self.register_json_mcp("antigravity,%s" % scope, config,
+                               self.stdio_entry(project))
+
 
     def install(self, agent: str, scope: str, project: Optional[str],
                 project_dir: Optional[str]) -> None:
@@ -337,6 +402,8 @@ class Installer:
             self.register_codex(scope, project)
         elif agent == "gemini":
             self.register_gemini(scope, project, project_dir)
+        elif agent == "antigravity":
+            self.register_antigravity(scope, project, project_dir)
 
 
 def codex_toml_section(entry: str, cwd: str, env: Mapping[str, str]) -> str:
@@ -472,8 +539,11 @@ def check_mcp_registered() -> List[Finding]:
                                                      "registered" if present else "missing",
                                                      config),
                                     None if present else "python Scripts/ue427.py install --agent codex"))
-        elif agent == "gemini":
-            config = os.path.join(home(), ".gemini", "settings.json")
+        else:
+            config = {
+                "gemini": os.path.join(home(), ".gemini", "settings.json"),
+                "antigravity": os.path.join(antigravity_root(), "mcp_config.json"),
+            }[agent]
             present = False
             if os.path.isfile(config):
                 try:
@@ -481,10 +551,11 @@ def check_mcp_registered() -> List[Finding]:
                         present = SERVER_NAME in json.load(handle).get("mcpServers", {})
                 except ValueError:
                     present = False
-            findings.append(Finding("ok" if present else "error", "mcp(gemini)",
+            findings.append(Finding("ok" if present else "error", "mcp(%s)" % agent,
                                     "%s %s" % (SERVER_NAME,
                                                "registered" if present else "missing"),
-                                    None if present else "python Scripts/ue427.py install --agent gemini"))
+                                    None if present else
+                                    "python Scripts/ue427.py install --agent %s" % agent))
     return findings
 
 
@@ -684,9 +755,13 @@ def uninstall(agents: Sequence[str], scopes: Sequence[str],
                     subprocess.run([cli_path("codex"), "mcp", "remove", SERVER_NAME],
                                    capture_output=True, text=True, encoding="utf-8", errors="replace")
                 installer.log("mcp-remove(codex,user)", SERVER_NAME)
-            elif agent == "gemini":
-                config = os.path.join(home() if scope == "user" else (project_dir or REPO_ROOT),
-                                      ".gemini", "settings.json")
+            else:
+                if agent == "gemini":
+                    config = os.path.join(home() if scope == "user" else (project_dir or REPO_ROOT),
+                                          ".gemini", "settings.json")
+                else:
+                    config = (os.path.join(antigravity_root(), "mcp_config.json") if scope == "user"
+                              else os.path.join(project_dir or REPO_ROOT, ".agents", "mcp_config.json"))
                 if os.path.isfile(config):
                     with open(config, encoding="utf-8-sig") as handle:
                         settings = json.load(handle)
@@ -697,7 +772,7 @@ def uninstall(agents: Sequence[str], scopes: Sequence[str],
                             with open(config, "w", encoding="utf-8") as handle:
                                 json.dump(settings, handle, indent=2)
                                 handle.write("\n")
-                        installer.log("mcp-remove(gemini,%s)" % scope, config)
+                        installer.log("mcp-remove(%s,%s)" % (agent, scope), config)
     print("")
     print("Changed paths:")
     for line in installer.changed or ["  (none)"]:
@@ -788,43 +863,72 @@ def verify_gemini_discovery() -> Tuple[bool, str]:
 
 
 def verify(project: Optional[str]) -> int:
-    """Prove each installed client actually discovers the skill."""
+    """Report what is proven about each client, separating two kinds of claim.
+
+    DIRECTLY VERIFIED means the client itself was asked and answered: Codex
+    over its app-server protocol, Gemini through its CLI, Claude Code through
+    `claude mcp get`. CONFIGURATION PRESENT means files are in the right place
+    with the right contents, which is necessary but is not proof the
+    application loaded them. Antigravity exposes no query interface, so its
+    configuration cannot be confirmed at runtime from here; open the app and
+    check its MCP panel.
+    """
     print("ue427 verify")
     failures = 0
-
-    for agent in AGENTS:
-        if cli_path(agent) is None:
-            print("SKIP %s: CLI not installed" % agent)
-            continue
-        root = skill_roots(agent, "user", None)[0]
-        installed = os.path.join(root, SKILL_NAME, "SKILL.md")
-        present = os.path.isfile(installed)
-        print("%s skill file(%s): %s" % ("OK  " if present else "FAIL", agent, installed))
-        if not present:
-            failures += 1
-
-    if cli_path("codex"):
-        expect = os.path.join(home(), ".agents", "skills", SKILL_NAME, "SKILL.md")
-        ok, detail = verify_codex_discovery(expect, REPO_ROOT)
-        print("%s codex discovery: %s" % ("OK  " if ok else "FAIL", detail))
-        if not ok:
-            failures += 1
-
-    if cli_path("gemini"):
-        ok, detail = verify_gemini_discovery()
-        print("%s gemini discovery: %s" % ("OK  " if ok else "FAIL", detail))
-        if not ok:
-            failures += 1
+    direct: List[str] = []
+    config_only: List[str] = []
 
     if cli_path("claude"):
         result = subprocess.run([cli_path("claude"), "mcp", "get", SERVER_NAME],
                                 capture_output=True, text=True, encoding="utf-8", errors="replace")
         ok = result.returncode == 0
         connected = "Connected" in (result.stdout or "")
-        print("%s claude mcp: %s%s" % ("OK  " if ok else "FAIL", SERVER_NAME,
-                                       " (connected)" if connected else ""))
+        direct.append("%s claude mcp: %s%s" % ("OK  " if ok else "FAIL", SERVER_NAME,
+                                               " (connected)" if connected else " (registered, not connected)"))
         if not ok:
             failures += 1
+
+    if cli_path("codex"):
+        expect = os.path.join(home(), ".agents", "skills", SKILL_NAME, "SKILL.md")
+        ok, detail = verify_codex_discovery(expect, REPO_ROOT)
+        direct.append("%s codex discovery: %s" % ("OK  " if ok else "FAIL", detail))
+        if not ok:
+            failures += 1
+
+    if cli_path("gemini"):
+        ok, detail = verify_gemini_discovery()
+        direct.append("%s gemini discovery: %s" % ("OK  " if ok else "FAIL", detail))
+        if not ok:
+            failures += 1
+
+    for agent in AGENTS:
+        if agent in CLI_AGENTS and cli_path(agent) is None:
+            continue
+        if agent in APP_AGENTS and not app_installed(agent):
+            continue
+        root = skill_roots(agent, "user", None)[0]
+        installed = os.path.join(root, SKILL_NAME, "SKILL.md")
+        present = os.path.isfile(installed)
+        config_only.append("%s skill file(%s): %s"
+                           % ("OK  " if present else "FAIL", agent, installed))
+        if not present:
+            failures += 1
+
+    print("")
+    print("DIRECTLY VERIFIED (the client was asked and answered)")
+    for line in direct or ["  (none: no queryable client installed)"]:
+        print("  " + line)
+
+    print("")
+    print("CONFIGURATION PRESENT (on disk and correct, runtime load not proven)")
+    for line in config_only or ["  (none)"]:
+        print("  " + line)
+    if app_installed("antigravity"):
+        print("  NOTE antigravity: exposes no query interface. Open the app and")
+        print("       check its MCP panel to confirm it loaded unreal-bridge.")
+    print("  NOTE claude-desktop: its Code tab shares Claude Code's CLAUDE.md,")
+    print("       skills and MCP config, so the claude rows above cover it.")
+    print("       Confirm in the app: the Code tab, not the Chat tab.")
 
     print("")
     print("%d failure(s)" % failures)

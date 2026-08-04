@@ -218,6 +218,39 @@ class TestServerTarget(unittest.TestCase):
             self.assertNotIn(forbidden, text, "ue427.py must not reference %s" % forbidden)
 
 
+class TestClientTargets(unittest.TestCase):
+    """Each client must be pointed at the location it genuinely reads."""
+
+    def test_claude_desktop_is_not_a_separate_target(self) -> None:
+        """Claude Desktop's Code tab runs Claude Code and shares its CLAUDE.md,
+        skills and MCP config, so installing for 'claude' already covers it.
+        Registering the bridge in claude_desktop_config.json would configure the
+        Chat tab, which is not a coding surface, and leave Code unconfigured."""
+        self.assertNotIn("claude-desktop", ue427.AGENTS)
+        with open(os.path.join(REPO, "Scripts", "ue427.py"), encoding="utf-8") as handle:
+            text = handle.read()
+        code = "\n".join(l for l in text.splitlines() if not l.strip().startswith("#"))
+        self.assertNotIn("claude_desktop_config.json", code,
+                         "the installer must not write Claude Desktop's Chat config")
+
+    def test_antigravity_user_scope_uses_gemini_config_root(self) -> None:
+        # Antigravity's global customization root is ~/.gemini/config, not the
+        # ~/.agents that Codex and Gemini share.
+        root = ue427.skill_roots("antigravity", "user", None)[0]
+        self.assertTrue(root.endswith(os.path.join(".gemini", "config", "skills")), root)
+
+    def test_antigravity_project_scope_uses_shared_agents_dir(self) -> None:
+        root = ue427.skill_roots("antigravity", "project", os.sep + "proj")[0]
+        self.assertTrue(root.endswith(os.path.join(".agents", "skills")), root)
+        # Codex and Gemini resolve to the same project directory.
+        for peer in ("codex", "gemini"):
+            self.assertEqual(root, ue427.skill_roots(peer, "project", os.sep + "proj")[0])
+
+    def test_claude_scope_is_dot_claude(self) -> None:
+        root = ue427.skill_roots("claude", "project", os.sep + "proj")[0]
+        self.assertTrue(root.endswith(os.path.join(".claude", "skills")), root)
+
+
 class TestSkillContent(unittest.TestCase):
     """The canonical skill must be well formed and free of banned transports."""
 

@@ -1,8 +1,11 @@
 # GEMINI.md
 
-Read `AGENTS.md` in this directory. It is the canonical instruction file for this
-repository and applies to every AI coding agent, including Gemini. Nothing in
-this file overrides it.
+@AGENTS.md
+
+`AGENTS.md` is the canonical instruction file for this repository and applies to
+every AI coding agent, including Gemini. The `@AGENTS.md` line above imports it,
+so its contents are already in context rather than being a file Gemini has to
+decide to open. Nothing in this file overrides it.
 
 Do not copy content out of `AGENTS.md` into here. An earlier version of this
 repository kept a per-client duplicate that drifted out of date and described

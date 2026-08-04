@@ -30,12 +30,21 @@ On Windows you can also use the shim from the repository root:
 
 | Client | Skill | MCP registration |
 |---|---|---|
-| Claude Code | `~/.claude/skills/unreal-engine-4-27` | `claude mcp add --scope user` |
+| Claude Code | `~/.claude/skills/unreal-engine-4-27` | `claude mcp add --scope user`, which writes `~/.claude.json` |
+| Claude Desktop, Code tab | shares Claude Code's | shares Claude Code's |
 | OpenAI Codex | `~/.agents/skills/unreal-engine-4-27` | `codex mcp add`, falling back to `~/.codex/config.toml` |
-| Google Gemini | `~/.agents/skills/unreal-engine-4-27` (shared with Codex) | `~/.gemini/settings.json` |
+| Google Antigravity | `~/.gemini/config/skills/unreal-engine-4-27` | `~/.gemini/config/mcp_config.json` |
+| Gemini CLI | `~/.agents/skills/unreal-engine-4-27` (shared with Codex) | `~/.gemini/settings.json` |
+
+Claude Desktop's Code tab runs Claude Code and shares its `CLAUDE.md`, project
+skills, hooks and MCP configuration, so `--agent claude` covers both. Its Chat
+tab uses a separate `claude_desktop_config.json` and is not a coding surface;
+the installer leaves it untouched.
 
 Project scope uses `.claude/skills` and `.agents/skills` under the project,
-plus that client's project-level MCP config:
+plus that client's project-level MCP config. Antigravity reads
+`.agents/mcp_config.json` and `.agents/skills` from the workspace, which is the
+same directory Codex and Gemini use:
 
 ```bash
 python Scripts/ue427.py install --agent all --scope project --project "D:/Unreal Projects/MyGame"

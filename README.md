@@ -166,14 +166,24 @@ Useful flags: `--agent claude|codex|gemini|all`, `--scope user|project`,
 
 One skill source, installed everywhere.
 
-| Client | Skill location | MCP registration |
-|---|---|---|
-| **Claude Code** | `~/.claude/skills/unreal-engine-4-27` | `claude mcp add` |
-| **OpenAI Codex** | `~/.agents/skills/unreal-engine-4-27` | `codex mcp add`, falling back to `~/.codex/config.toml` |
-| **Google Gemini** | `~/.agents/skills/unreal-engine-4-27` | `~/.gemini/settings.json` |
+| Client | Repository rules | Skill | MCP registration |
+|---|---|---|---|
+| **Claude Code** | `CLAUDE.md` imports `AGENTS.md` | `~/.claude/skills/unreal-engine-4-27` | `claude mcp add` (writes `~/.claude.json`) |
+| **Claude Desktop, Code tab** | same as Claude Code | same as Claude Code | same as Claude Code |
+| **OpenAI Codex** | reads `AGENTS.md` natively | `~/.agents/skills/unreal-engine-4-27` | `codex mcp add`, falling back to `~/.codex/config.toml` |
+| **Google Antigravity** | reads `AGENTS.md` and `GEMINI.md` | `~/.gemini/config/skills` globally, `.agents/skills` per project | `~/.gemini/config/mcp_config.json`, or `.agents/mcp_config.json` per project |
+| **Gemini CLI** | `GEMINI.md` imports `AGENTS.md` | `~/.agents/skills/unreal-engine-4-27` | `~/.gemini/settings.json` |
 
-Codex and Gemini share the `.agents/skills` location, so both read the same file.
-Project scope uses `.claude/skills` and `.agents/skills` under the project.
+Codex, Gemini and Antigravity all read the shared `.agents/skills` location in a
+project, so one directory serves all three. At user scope Antigravity differs:
+its global customization root is `~/.gemini/config`, not `~/.agents`.
+
+> [!NOTE]
+> **Claude Desktop needs no separate install.** Its Code tab runs Claude Code
+> and shares `CLAUDE.md`, project skills, hooks, and MCP configuration with the
+> CLI, so `--agent claude` already covers it. Its Chat tab is a different
+> surface with its own `claude_desktop_config.json`; the installer deliberately
+> leaves that alone rather than adding a second, redundant registration.
 
 > [!NOTE]
 > Gemini disables MCP servers in untrusted folders. Start `gemini` once inside
