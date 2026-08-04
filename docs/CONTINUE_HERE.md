@@ -33,40 +33,14 @@ docs/FINAL_IMPLEMENTATION_PLAN.md.
 
 ## Paste this into a fresh session
 
-```
-Continue the UE4_Bridge finish program as integration lead.
-
-Repo: D:\Unreal Projects\UE4_Bridge
-Branch: bridge/native-consolidation-2026-07-31 (clean, verify green, 256 tools)
-
-Read docs/CONTINUE_HERE.md, then docs/CAPABILITY_FINDINGS.md findings 0m to 0r.
-All nine lanes are merged and the batch compile passes. Do not re-merge them and
-do not relaunch those lanes.
-
-1. Merge whatever wave five committed, one lane at a time, with
-   node Scripts/merge-lane.mjs lane/<name>. Findings 0p and 0r are CLOSED; do
-   not reopen them.
-2. Batch compile after the merge set. Roughly every lane carries uncompiled C++
-   and only a real build finds cross-lane collisions.
-3. Settle finding 0q if lane R did not: read compile_status on the FULL member-patch fixture
-   immediately after it is built and BEFORE the patch runs. If it is already
-   UpToDateWithWarnings the patch is innocent and the assertion is wrong.
-4. Close the capability regression lane P found: puerts_spawn_actor lost name,
-   folder and scale, and puerts_find_actors lost include_transforms and
-   folder_filter, against AGENTS.md's rule that legacy capability is preserved.
-   scene_batch and scene_inspect are merged and compiled now, so this is wiring.
-5. Run the seven slice harnesses against the live editor (npm run slice:summary).
-   Nothing has ever run them with the new commands present.
-6. Run the perf harness live for its first evidence file, and lane N's
-   docs/RELEASE.md section 3a steps 5-7 to prove the packaged plugin LOADS.
-
-Rules that earned their place: merge one branch at a time and resolve centrally;
-install:check before AND after every live run; a lane cannot mark its own work
-live_verified; every harness needs a control that must SUCCEED and move state;
-compilation and mocks are not live proof.
-
-Commit integrations separately. Do not push.
-```
+This used to duplicate an execution prompt inline. That copy drifted out of
+sync with reality (it described wave five's merge as still pending after wave
+A had already merged and compiled) and gave a fresh session wrong first
+actions. There is now exactly one paste-able executor prompt, kept current in
+one place: **`docs/WORKHORSE_EXECUTION_PROMPT.md`**. Paste that file's content
+below its `---` line into a fresh session. It already states the current
+state (wave A merged, three of seven slices run) and the correct first
+action (relaunch, run all seven slices, then RB-2 and RB-6).
 
 ## Merge lessons, do not rediscover these
 
@@ -103,6 +77,7 @@ now `Scripts/merge-lane.mjs`, and its header explains the failure it prevents.
 5. **Packaging: source YES, binaries NO.** Lane N ran `-RunUAT` and proved it
    cannot work in 4.27 with an engine citation. The zip installs and compiles;
    it has never been proven to LOAD.
-6. **A zip install has no `[MCPPuerTSBridge]` section** and the compiled default
-   pipe name is one constant, so two zip installs on one machine contend for one
-   pipe.
+6. **RL-2 is implemented and editor-free proven, but not native-compiled.** An
+   unconfigured zip install now derives its pipe from project name and canonical
+   path; an ini override still wins. `npm run test:package` passes. The next
+   native compile and two-project session proof remain.

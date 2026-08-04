@@ -3,7 +3,7 @@
   "title": "a master material with parameters, an instance that overrides them, compiled and applied",
   "proves": "author a material graph, instance it, read the parameter values back, and see it on a mesh",
   "phase": "warm",
-  "generated_at": "2026-08-03T19:44:55.563Z",
+  "generated_at": "2026-08-04T03:25:44.894Z",
   "verdict": "PRESENT_BUT_FAILING",
   "editor": {
     "available": true,
@@ -11,7 +11,7 @@
   },
   "install_gate": {
     "ok": true,
-    "project_root": "D:/Unreal Projects/BridgeInstallTest"
+    "project_root": "D:\\Unreal Projects\\BridgeInstallTest"
   },
   "catalog": {
     "registered_tool_count": 63,
@@ -39,8 +39,8 @@
     {
       "n": 4,
       "label": "1. the master material was saved after its read-back agreed",
-      "status": "PASS",
-      "detail": "true"
+      "status": "FAIL",
+      "detail": "false"
     },
     {
       "n": 5,
@@ -135,7 +135,7 @@
     {
       "n": 20,
       "label": "3b. a converged rerun of the master wrote no new bytes to disk",
-      "status": "FAIL"
+      "status": "PASS"
     },
     {
       "n": 21,
@@ -185,10 +185,10 @@
       "inspect_tool": "puerts_material_inspect",
       "structure_hash": "38c731ea902cf88fca2613b840b480617e9c7717",
       "node_count": null,
-      "file_sha256": "7533a1cc1e744415940ecf63dd544e187aabad90fd9ab4918205a58e7e1f8992"
+      "file_sha256": "954db7551c98aebf89f24e201df063c35a3681be172df53438588061fcbdb55c"
     }
   ],
   "mcp_round_trips": 9,
-  "elapsed_ms": 5834,
+  "elapsed_ms": 6103,
   "blocks": []
 }

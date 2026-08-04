@@ -14,6 +14,16 @@ Engine: UE4.27 ONLY, at D:/UE/UE_4.27. Installed target:
 D:/Unreal Projects/BridgeInstallTest (the ONLY one; Tests/UE427PuerTSMCP does
 not exist).
 
+Wave A is DONE: lane/x-slice-green, lane/z-async-jobs and lane/y-animbp-snapshot
+are all ancestors of HEAD, batch-compiled clean, verify green at 273
+registrations / 60 native tools. Do not merge them again and do not relaunch
+those lanes. Since that merge, only three of seven slices have run live: ui
+PASS 20/0, ai PASS 22/0, gameplay PRESENT_BUT_FAILING 16/1 (the hidden-pin
+hash fix is compiled but its rerun is what's missing). materials, level,
+animation and cinematics were rewritten this session and have never run
+against the merged code. Your first live action is the slice re-run below,
+not a merge.
+
 READ FIRST, in this order, before any action:
 1. docs/FINAL_IMPLEMENTATION_PLAN.md and .json — the plan you are executing.
    The JSON carries every work package with files, deps, tests, acceptance,
@@ -23,18 +33,31 @@ READ FIRST, in this order, before any action:
    filler, strict TS, no `any`), testing etiquette (PIE is user-gated).
 3. docs/CAPABILITY_FINDINGS.md findings 0g through 0u — the defects already
    found and settled. Re-deriving any of them is wasted budget; reopening a
-   FIXED one requires new evidence.
+   FIXED one requires new evidence. The file's own "## Unknown" section
+   header says "None open" — that line is stale; the file grew past it
+   without updating it. Two are genuinely open and not yet in any work
+   package's ID: set_variable_default reads back double-JSON-quoted where
+   blueprint_build does not (line ~2142); whether RebuildAll alone (without
+   ProcessRegistrationCandidates/UpdateInvokers) produces a complete navmesh
+   is read from source only, never run live (line ~2416). Fold both into
+   whichever work package touches that code, or file them as new findings.
 4. docs/CONTINUE_HERE.md and docs/SUBAGENT_INTEGRATION_LOG.md — branch state
    and the verdicts record.
 
 FIRST ACTIONS, always:
 - git status (must be clean), git worktree list, and
-  `git log --oneline HEAD..lane/<name>` for every lane/* branch. Merge any
-  unmerged committed lane work BEFORE launching anything: wave A order is
-  X, then Z, then Y (lane/x-slice-green, lane/z-async-jobs,
-  lane/y-animbp-snapshot).
+  `git log --oneline HEAD..lane/<name>` for every lane/* branch. Wave A's
+  three lanes are already merged (see above) — this check is for wave B and
+  later lane work only, not a signal to re-run wave A's merge.
 - Verify no orphan agents: one claude-code session only.
 - npm run verify must be green before and after every merge.
+- Launch the editor (Scripts/start-ue4-project.ps1 -Confirm:$false against
+  D:/Unreal Projects/BridgeInstallTest), wait for
+  Saved/MCPPuerTSBridge/session.json to advertise a live pid, then run all
+  seven slices: `npm run slice:ui ; npm run slice:ai ; npm run slice:gameplay ;
+  npm run slice:materials ; npm run slice:level ; npm run slice:animation ;
+  npm run slice:cinematics`. This is the actual next action, before touching
+  any work package.
 
 THE MERGE LAW (violating this cost a full session):
 - One branch at a time via `node Scripts/merge-lane.mjs lane/<name>`.
@@ -91,7 +114,8 @@ THE LANE LAW:
   before the writer: this codebase has repeatedly had the reader be wrong.
 
 EXECUTION ORDER (details and gates in FINAL_IMPLEMENTATION_PLAN.json):
-- Wave A: merge X/Z/Y, batch compile, smoke 12/12, re-run all seven slices.
+- Wave A: DONE (merge, batch compile, smoke). The re-run of all seven slices
+  is the FIRST ACTION above, not a separate wave A step — do it before Wave B.
 - Wave B: gameplay join (RB-2), materials/level live debug (RB-3), promotion
   sweep batch 1 (RB-6); offline FP-1/FP-2 and FP-3/FP-4/FP-5.
 - Wave C: feature acceptance library 1-6 live via orchestrator; 7-12 authored

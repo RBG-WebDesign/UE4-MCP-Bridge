@@ -100,12 +100,24 @@ try {
   assert("PROVEN", /JsEnv/.test(noBundle.output),
     "and the refusal says why: MCPBridgePuerTS links JsEnv, so the zip would not load");
 
+  console.log("\n-- 3. an unconfigured zip install gets a project-specific native pipe");
+  const serviceSource = readFileSync(join(repoRoot, "Plugins", "MCPBridge", "Source",
+    "MCPBridgePuerTS", "Private", "MCPPuerTSBridgeService.cpp"), "utf8");
+  const serviceHeader = readFileSync(join(repoRoot, "Plugins", "MCPBridge", "Source",
+    "MCPBridgePuerTS", "Public", "MCPPuerTSBridgeService.h"), "utf8");
+  assert("PROVEN", serviceSource.includes("BuildDefaultProjectPipeName()") &&
+      serviceSource.includes("FCrc::StrCrc32(*ProjectRoot)"),
+    "the native fallback includes both project name and canonical project path");
+  assert("PROVEN", serviceSource.includes("GConfig->GetString(BridgeConfigSection, TEXT(\"PipeName\")") &&
+      serviceSource.includes("PipeName = BuildDefaultProjectPipeName();") &&
+      !serviceHeader.includes("FString PipeName = TEXT(\"\\\\\\\\.\\\\pipe\\\\UE427PuerTSMCP\")"),
+    "an explicit PipeName still wins and the shared compiled constant is gone");
   if (!haveBundle) {
-    console.log("\n-- 3-6. the artefact itself");
+    console.log("\n-- 4-7. the artefact itself");
     skip(`no PuerTS bundle at ${bundlePath}, so no release can be produced here. ` +
       "Pass --bundle <path>, or set MCP_PUERTS_BUNDLE, on a machine that has one");
   } else {
-    console.log("\n-- 3. it runs and names the artefact after the descriptor");
+    console.log("\n-- 4. it runs and names the artefact after the descriptor");
     const outputRoot = join(scratch, "Releases");
     const run = runPackager({ outputRoot, puertsPath: bundlePath });
     const zipPath = join(outputRoot, zipName);
@@ -116,7 +128,7 @@ try {
     assert("PROVEN", !existsSync(join(repoRoot, "Releases", zipName)) || outputRoot.startsWith(scratch),
       "nothing was written into the repository when an output root was given");
 
-    console.log("\n-- 4. the zip carries both plugins the recipient needs");
+    console.log("\n-- 5. the zip carries both plugins the recipient needs");
     const entries = zipEntries(zipPath);
     const roots = new Set(entries.map((e) => e.split("/")[0]));
     assert("PROVEN", roots.has("MCPBridge") && roots.has("Puerts"),
@@ -139,13 +151,13 @@ try {
     assert("PROVEN", !entries.some((e) => e.includes("\\")),
       "entry names use forward slashes, as the zip format requires");
 
-    console.log("\n-- 5. every module the descriptor declares is actually in the zip");
+    console.log("\n-- 6. every module the descriptor declares is actually in the zip");
     for (const module of descriptor.Modules) {
       assert("PROVEN", entries.includes(`MCPBridge/Source/${module.Name}/${module.Name}.Build.cs`),
         `${module.Name} ships its Build.cs, so UBT can build the module the descriptor promises`);
     }
 
-    console.log("\n-- 6. the generated runtime, and the pinned support files under it");
+    console.log("\n-- 7. the generated runtime, and the pinned support files under it");
     for (const file of ["bootstrap.js", "registry.js", "runtime.js", "safety.js"]) {
       assert("PROVEN", entries.includes(`MCPBridge/Content/JavaScript/${file}`),
         `Content/JavaScript/${file} is packaged`);
@@ -156,7 +168,7 @@ try {
       `all ${pinnedSupport.length} pinned puerts support files are staged inside the plugin ` +
       `(found ${stagedPuerts.length})`);
 
-    console.log("\n-- 7. GAPS: what the artefact still does not carry");
+    console.log("\n-- 8. GAPS: what the artefact still does not carry");
     assert("GAP", !entries.some((e) => e.endsWith("MCPBridgeInstall.json")),
       "the zip carries no MCPBridgeInstall.json, so install:check calls a project installed from it an " +
       "unmanaged copy of unknown provenance");

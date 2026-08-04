@@ -182,6 +182,19 @@ namespace
         const FString& PropertyName,
         const TSharedPtr<FJsonValue>& Desired)
     {
+        FProperty* Property = FindFProperty<FProperty>(Object->GetClass(), *PropertyName);
+        if (const FObjectPropertyBase* ObjectProperty = CastField<FObjectPropertyBase>(Property))
+        {
+            UObject* Actual = ObjectProperty->GetObjectPropertyValue(
+                Property->ContainerPtrToValuePtr<void>(Object));
+            if (Desired->Type == EJson::Null) { return Actual == nullptr; }
+            if (Desired->Type == EJson::String)
+            {
+                return Actual != nullptr
+                    && Actual->GetPathName() == FPackageName::ExportTextPathToObjectPath(Desired->AsString());
+            }
+        }
+
         FString ValueJson;
         FString ObjectPath;
         FString Error;
@@ -403,7 +416,8 @@ namespace
         return ClassPath.StartsWith(TEXT("/Game/"))
             || ClassPath.StartsWith(TEXT("/Script/Engine."))
             || ClassPath.StartsWith(TEXT("/Script/NavigationSystem."))
-            || ClassPath == TEXT("/Script/CinematicCamera.CineCameraActor");
+            || ClassPath == TEXT("/Script/CinematicCamera.CineCameraActor")
+            || ClassPath == TEXT("/Script/LevelSequence.LevelSequenceActor");
     }
 }
 
@@ -712,7 +726,8 @@ bool UMCPPuerTSBridgeService::ApplySceneBatchJson(
                     Refusals.Add(FString::Printf(
                         TEXT("operation %d (%s): actor classes are limited to /Game/, "
                              "/Script/Engine., /Script/NavigationSystem. and "
-                             "/Script/CinematicCamera.CineCameraActor; '%s' is none of those."),
+                             "/Script/CinematicCamera.CineCameraActor and "
+                             "/Script/LevelSequence.LevelSequenceActor; '%s' is none of those."),
                         Index, *R.Label, *ClassPath));
                     continue;
                 }
@@ -964,6 +979,7 @@ bool UMCPPuerTSBridgeService::ApplySceneBatchJson(
 
     bool bRollbackAttempted = false;
     bool bRollbackSucceeded = false;
+    bool bMutationStarted = false;
     TArray<TSharedPtr<FJsonValue>> Warnings;
 
     // Declared before the failure path so a refusal partway through the batch
@@ -976,7 +992,24 @@ bool UMCPPuerTSBridgeService::ApplySceneBatchJson(
     auto FailWithRollback = [&](const FString& Error) -> bool
     {
         bRollbackAttempted = true;
-        if (ActiveTransaction != nullptr) { ActiveTransaction->Cancel(); }
+        if (ActiveTransaction != nullptr)
+        {
+            if (bMutationStarted)
+            {
+                // Cancel discards records without restoring objects in UE4.27.
+                // End the transaction and replay it before checking the hash.
+                ActiveTransaction.Reset();
+                if (GEditor == nullptr || !GEditor->UndoTransaction())
+                {
+                    Warnings.Add(MakeShared<FJsonValueString>(
+                        TEXT("Unreal could not replay the failed scene transaction.")));
+                }
+            }
+            else
+            {
+                ActiveTransaction->Cancel();
+            }
+        }
         Rollback.Rollback();
         // Trust the read-back, not the undo. A cancelled transaction looks
         // transactional; the only thing that settles whether the level came back
@@ -1054,6 +1087,7 @@ bool UMCPPuerTSBridgeService::ApplySceneBatchJson(
             continue;
         }
 
+        bMutationStarted = true;
         int32 MatchCount = 0;
         AActor* Actor = ResolveOne(World, R, MatchCount);
         if (MatchCount > 1)
@@ -1319,9 +1353,18 @@ bool UMCPPuerTSBridgeService::ApplySceneBatchJson(
         {
             if (!IsOpSatisfied(*this, World, R))
             {
+                int32 MatchCount = 0;
+                const AActor* Actual = ResolveOne(World, R, MatchCount);
+                const FString ActualSummary = Actual == nullptr
+                    ? FString::Printf(TEXT("selector_matches=%d"), MatchCount)
+                    : FString::Printf(TEXT("actual={class:%s,label:%s,folder:%s,location:%s,rotation:%s,scale:%s}"),
+                        *Actual->GetClass()->GetPathName(), *Actual->GetActorLabel(),
+                        *Actual->GetFolderPath().ToString(), *Actual->GetActorLocation().ToString(),
+                        *Actual->GetActorRotation().ToString(), *Actual->GetActorScale3D().ToString());
                 VerificationMismatches.Add(MakeShared<FJsonValueString>(FString::Printf(
-                    TEXT("operation %d (%s) is not true of the level after the batch."),
-                    R.Index, *R.Label)));
+                    TEXT("operation %d (%s) is not true after the batch; %s; requested=%s"),
+                    R.Index, *R.Label, *ActualSummary,
+                    *ValueToJsonText(MakeShared<FJsonValueObject>(*R.Spec)))));
             }
         }
         if (Applied.Num() > 0 && PostHash == PreHash)

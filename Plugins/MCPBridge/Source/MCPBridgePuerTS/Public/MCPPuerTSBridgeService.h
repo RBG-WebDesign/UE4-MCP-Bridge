@@ -455,7 +455,7 @@ private:
     void WriteSessionManifest(const TCHAR* ShutdownState) const;
     bool TickHeartbeat(float DeltaSeconds);
 
-    FString PipeName = TEXT("\\\\.\\pipe\\UE427PuerTSMCP");
+    FString PipeName;
     FString AllowedScriptRoot = TEXT("../Plugins/MCPBridge/Content/JavaScript");
     FString BootstrapModule = TEXT("bootstrap.js");
     int32 RequestTimeoutMilliseconds = 5000;

@@ -28,7 +28,7 @@ import { execFileSync, spawn } from "node:child_process";
 import { createHash } from "node:crypto";
 import {
   copyFileSync, cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync,
-  rmSync, symlinkSync, writeFileSync,
+  realpathSync, rmSync, symlinkSync, writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
@@ -154,6 +154,7 @@ try {
 
   const projectRoot = join(scratch, "FreshProject");
   mkdirSync(projectRoot);
+  const canonicalProjectRoot = realpathSync(projectRoot);
   const uprojectPath = join(projectRoot, "Fresh.uproject");
   writeFileSync(uprojectPath, JSON.stringify({
     FileVersion: 3, EngineAssociation: "4.27", Category: "", Description: "",
@@ -191,7 +192,7 @@ try {
   assert(bridgeLines !== null, "the ini has an [MCPPuerTSBridge] section");
   const pipeLines = (bridgeLines ?? []).filter((l) => /^\s*PipeName\s*=/.test(l));
   assert(pipeLines.length === 1, `exactly one PipeName line (found ${pipeLines.length})`);
-  const wantPipe = expectedPipeName(projectRoot, "Fresh");
+  const wantPipe = expectedPipeName(canonicalProjectRoot, "Fresh");
   const gotPipe = (pipeLines[0] ?? "").split("=").slice(1).join("=").trim();
   assert(gotPipe === wantPipe, `the pipe name is the one the rule derives for this project\n          want ${wantPipe}\n          got  ${gotPipe}`);
 
@@ -214,7 +215,7 @@ try {
   assert(entry?.args?.[0] === wantEntry, `the server path is the bridge root's built entry point\n          want ${wantEntry}\n          got  ${entry?.args?.[0]}`);
   assert(existsSync(entry?.args?.[0] ?? ""), "that path exists on disk");
   assert(entry?.cwd === fwd(bridgeRoot), `the working directory is the bridge root (got ${entry?.cwd})`);
-  assert(entry?.env?.MCP_UNREAL_PROJECT_ROOT === fwd(projectRoot),
+  assert(entry?.env?.MCP_UNREAL_PROJECT_ROOT.toLowerCase() === fwd(canonicalProjectRoot).toLowerCase(),
     `MCP_UNREAL_PROJECT_ROOT is this project (got ${entry?.env?.MCP_UNREAL_PROJECT_ROOT})`);
   // The two files have to agree. They are written by different functions from
   // the same computed value, and if they ever drift the client addresses one
@@ -262,7 +263,7 @@ try {
   assert(existsSync(join(installedPlugin, MANIFEST_NAME)), `${MANIFEST_NAME} was written into the plugin`);
   assert(manifest.schema_version === MANIFEST_SCHEMA_VERSION,
     `it declares schema_version ${MANIFEST_SCHEMA_VERSION} (got ${manifest.schema_version})`);
-  assert(fwd(manifest.target_project).toLowerCase() === fwd(projectRoot).toLowerCase(),
+  assert(fwd(manifest.target_project).toLowerCase() === fwd(canonicalProjectRoot).toLowerCase(),
     "it records the project it was written for");
   assert(typeof manifest.group_hashes?.native_source === "string",
     "it records a hash per declared file group");

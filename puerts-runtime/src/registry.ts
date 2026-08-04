@@ -251,8 +251,9 @@ async function callApprovedFunction(context: ToolContext, input: JsonObject): Pr
 async function spawnActor(context: ToolContext, input: JsonObject): Promise<CommandResponse> {
   const classPath = requireString(input, "class_path");
   if (!classPath.startsWith("/Game/") && !classPath.startsWith("/Script/Engine.")
-      && classPath !== "/Script/CinematicCamera.CineCameraActor") {
-    throw new Error("Actor classes are limited to /Game and /Script/Engine");
+      && classPath !== "/Script/CinematicCamera.CineCameraActor"
+      && classPath !== "/Script/LevelSequence.LevelSequenceActor") {
+    throw new Error("Actor classes are limited to /Game, /Script/Engine, CineCameraActor, and LevelSequenceActor");
   }
   const location = optionalObject(input, "location") ?? {};
   const rotation = optionalObject(input, "rotation") ?? {};

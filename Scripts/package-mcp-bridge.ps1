@@ -204,16 +204,15 @@ to link against it:
     LINK : fatal error LNK1181: cannot open input file
     '...\ParamDefaultValueMetas\UE4Editor-ParamDefaultValueMetas.lib'
 
-Set a pipe name before you start the editor. Every bridge setting has a default
-compiled in, so it runs without configuration, but the default pipe name is one
-constant shared by every project. Two projects installed from a release zip on
-the same machine will ask for the same pipe. Add to Config\DefaultEngine.ini:
+The bridge runs without project configuration. When PipeName is absent, it
+derives a stable project-specific pipe from the .uproject name and canonical
+project path, so two zip installs do not contend for one shared default. To use
+an explicit override, add to Config\DefaultEngine.ini:
 
     [MCPPuerTSBridge]
     PipeName=\\.\pipe\UE427PuerTSMCP_<YourProjectName>
 
 MCPBridge\Config\DefaultEngine.ini.example in this archive has the long form.
-
 The MCP server is NOT in this archive. It is Node and lives in the bridge
 repository under mcp-server/. Point your MCP client at that checkout; see
 docs/MCP_BRIDGE_INSTALLER.md.

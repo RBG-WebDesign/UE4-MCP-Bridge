@@ -542,7 +542,7 @@
       "id": "RL-2",
       "category": 7,
       "domain": "release",
-      "gap": "zip installs share one compiled pipe name",
+      "gap": "project-derived fallback implemented; native compile and two-project live proof remain",
       "files": [
         "MCPPuerTSBridge config",
         "README_INSTALL"
@@ -559,7 +559,8 @@
       "evidence": "collision test",
       "risk": "medium (touches session discovery)",
       "lane": "offline then live",
-      "merge_order": 20
+      "merge_order": 20,
+      "status": "IMPLEMENTED_UNVERIFIED; npm run test:package green; native compile and live collision proof outstanding"
     },
     {
       "id": "RL-3",

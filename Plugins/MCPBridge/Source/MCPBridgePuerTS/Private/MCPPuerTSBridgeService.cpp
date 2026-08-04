@@ -13,6 +13,7 @@
 #include "Json.h"
 #include "JsonObjectConverter.h"
 #include "Misc/ConfigCacheIni.h"
+#include "Misc/Crc.h"
 #include "Misc/FileHelper.h"
 #include "Misc/Guid.h"
 #include "Misc/Paths.h"
@@ -35,6 +36,31 @@ DEFINE_LOG_CATEGORY_STATIC(LogMCPPuerTSBridge, Log, All);
 namespace
 {
 const TCHAR* BridgeConfigSection = TEXT("MCPPuerTSBridge");
+
+FString BuildDefaultProjectPipeName()
+{
+    FString Name = FPaths::GetBaseFilename(FPaths::GetProjectFilePath());
+    if (Name.IsEmpty())
+    {
+        Name = TEXT("Project");
+    }
+    for (TCHAR& Character : Name)
+    {
+        if (!FChar::IsAlnum(Character) && Character != TEXT('_'))
+        {
+            Character = TEXT('_');
+        }
+    }
+    Name.LeftInline(32);
+
+    FString ProjectRoot = FPaths::ConvertRelativePathToFull(FPaths::ProjectDir());
+    FPaths::NormalizeDirectoryName(ProjectRoot);
+    ProjectRoot.ToLowerInline();
+    return FString::Printf(
+        TEXT("\\\\.\\pipe\\UE427PuerTSMCP_%s_%08x"),
+        *Name,
+        FCrc::StrCrc32(*ProjectRoot));
+}
 
 /** Where Initialize advertises the live pipe name and where Shutdown retracts it. */
 FString GetPipeAdvertisePath()
@@ -169,7 +195,11 @@ UMCPPuerTSBridgeService::~UMCPPuerTSBridgeService() = default;
 
 bool UMCPPuerTSBridgeService::Initialize(FString& OutError)
 {
-    GConfig->GetString(BridgeConfigSection, TEXT("PipeName"), PipeName, GEngineIni);
+    if (!GConfig->GetString(BridgeConfigSection, TEXT("PipeName"), PipeName, GEngineIni)
+        || PipeName.TrimStartAndEnd().IsEmpty())
+    {
+        PipeName = BuildDefaultProjectPipeName();
+    }
     GConfig->GetString(BridgeConfigSection, TEXT("AllowedScriptRoot"), AllowedScriptRoot, GEngineIni);
     GConfig->GetString(BridgeConfigSection, TEXT("BootstrapModule"), BootstrapModule, GEngineIni);
     GConfig->GetInt(BridgeConfigSection, TEXT("RequestTimeoutMilliseconds"), RequestTimeoutMilliseconds, GEngineIni);
@@ -1105,7 +1135,8 @@ bool UMCPPuerTSBridgeService::SpawnActorJson(
 {
     if ((!ClassPath.StartsWith(TEXT("/Game/"))
             && !ClassPath.StartsWith(TEXT("/Script/Engine."))
-            && ClassPath != TEXT("/Script/CinematicCamera.CineCameraActor"))
+            && ClassPath != TEXT("/Script/CinematicCamera.CineCameraActor")
+            && ClassPath != TEXT("/Script/LevelSequence.LevelSequenceActor"))
         || GEditor == nullptr
         || ActiveTransaction == nullptr)
     {

@@ -146,7 +146,7 @@ and the recipe; failures name the missing primitive (slice-harness pattern).
 
 ### 7. Installer, packaging, CI, security, release
 - **RL-1** Packaged-zip LOADS proof (RELEASE.md 3a steps 5–7; the one unrun step).
-- **RL-2** Zip config: per-install pipe name + [MCPPuerTSBridge] section (two zip installs currently fight over one pipe).
+- **RL-2** Zip config: project-derived fallback implemented and editor-free package acceptance green; native compile and two-project live proof remain.
 - **RL-3** Teammate install proof executed by a human once.
 - **RL-4** CI: editor-free jobs green in Actions; live suite list documented as human-run.
 - **RL-5** Binary packaging: permanently blocked in 4.27 (BuildPluginCommand writes a one-plugin descriptor; cited). Source-zip is the ship vehicle. Document as engine limitation.
