@@ -28,6 +28,7 @@ Nothing new goes at the root without a reason. The allowed entries are:
 | `skills/` | Scenario prompt templates, plus `unreal-engine-4-27/`, the canonical Agent Skill installed into every client |
 | `puerts-runtime/` | Declared npm workspace: the TypeScript that runs inside UE4. Built before `mcp-server` |
 | `reports/` | Machine-readable session records, one JSON per session. See `reports/README.md` |
+| `Saved/` | Gitignored, repository-owned acceptance-test fixtures under `Saved/AgentScratch/` |
 | `ue427`, `ue427.cmd` | Launcher shims for `Scripts/ue427.py` |
 | `tests/` | Cross-cutting tests |
 | `orchestrator.mjs` | Multi-agent batch coordinator |
@@ -48,6 +49,7 @@ thing this file exists to prevent.
 | Architecture playbooks | `docs/playbooks/` |
 | Design specs | `docs/superpowers/specs/` |
 | Reusable automation | `Scripts/` |
+| Acceptance-test fixtures | `Saved/AgentScratch/<agent>/<task-slug>/` in this repository, gitignored |
 | Temporary logs, JSON, screenshots, exports, notes, experiments | `Saved/AgentScratch/<agent>/<task-slug>/` in the **game project**, never here |
 | Tools with no listener support yet | `mcp-server/incubator/` |
 

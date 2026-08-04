@@ -55,6 +55,8 @@ const ALLOWED_ROOT = new Set([
   "tests",
   "orchestrator.mjs", "package.json", "package-lock.json",
   "node_modules", "_releases",
+  // Ignored acceptance fixtures stay inside the repository, not system TEMP.
+  "Saved",
   // ue427 launcher shims. These are user-facing entry points, not automation
   // internals: the whole point is `ue427 doctor` from the repo root on either
   // platform. The implementation itself lives in Scripts/ue427.py.

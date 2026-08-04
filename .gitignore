@@ -21,6 +21,7 @@ decisions.md
 # MCP bridge generated cache
 Saved/MCP/index/
 Saved/MCP/titles/
+Saved/AgentScratch/
 
 # UE project plugins are not part of this repo, except the unified bridge plugin.
 # PuerTS is installed locally at Plugins/Puerts from the pinned Unreal_v1.0.9 bundle.

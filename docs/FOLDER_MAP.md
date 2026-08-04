@@ -63,7 +63,7 @@ UE4_Bridge\
 │   ├── codex-config.toml        -> ~/.codex/config.toml
 │   └── gemini-settings.json     -> ~/.gemini/settings.json
 ├── mcp-server\              the TypeScript MCP server
-│   ├── src\                     21 tool modules, 146 registered tools
+│   ├── src\                     25 tool modules, 146 registered tools
 │   ├── incubator\               written but NOT shipped. Nothing here compiles.
 │   ├── tests\                   16 suites, 199 assertions, mock listener
 │   └── dist\                    build output. Clients run dist/index.js.

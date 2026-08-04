@@ -29,13 +29,45 @@ import shutil
 import sys
 import tempfile
 import unittest
+from typing import Optional
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+SCRATCH_ROOT = os.path.join(REPO, "Saved", "AgentScratch", "codex",
+                            "ue427-skill-acceptance")
 sys.path.insert(0, os.path.join(REPO, "Scripts"))
 sys.path.insert(0, os.path.join(REPO, "skills", "unreal-engine-4-27", "scripts"))
 
 import ue427  # noqa: E402
 import verify_project_version as vpv  # noqa: E402
+
+
+def create_scratch_directory() -> str:
+    """Create one repository-owned fixture directory for an acceptance test."""
+    os.makedirs(SCRATCH_ROOT, exist_ok=True)
+    return tempfile.mkdtemp(dir=SCRATCH_ROOT)
+
+
+class ScratchDirectoryTestCase(unittest.TestCase):
+    """Keep failed fixtures, but remove each successful test's fixture."""
+
+    def setUp(self) -> None:
+        self.dir = create_scratch_directory()
+
+    def run(self, result: Optional[unittest.TestResult] = None) -> unittest.TestResult:
+        if result is None:
+            result = self.defaultTestResult()
+        failures_before = len(result.failures) + len(result.errors)
+        super().run(result)
+        if len(result.failures) + len(result.errors) == failures_before:
+            shutil.rmtree(self.dir)
+            try:
+                os.rmdir(SCRATCH_ROOT)
+            except OSError:
+                pass
+        else:
+            print("Preserved failed acceptance fixture: %s" % self.dir,
+                  file=sys.stderr)
+        return result
 
 
 def write_uproject(directory: str, association: str) -> str:
@@ -54,15 +86,8 @@ def write_build_version(root: str, major: int, minor: int) -> None:
         json.dump({"MajorVersion": major, "MinorVersion": minor, "PatchVersion": 2}, handle)
 
 
-class TestVersionGate(unittest.TestCase):
+class TestVersionGate(ScratchDirectoryTestCase):
     """The 4.27 gate must accept only 4.27, with no way to switch it off."""
-
-    def setUp(self) -> None:
-        self.tmp = tempfile.TemporaryDirectory()
-        self.dir = self.tmp.name
-
-    def tearDown(self) -> None:
-        self.tmp.cleanup()
 
     def test_accepts_427(self) -> None:
         write_uproject(self.dir, "4.27")
@@ -148,16 +173,13 @@ class TestCodexTomlMerge(unittest.TestCase):
         self.assertIn("command = 'node'", section)
 
 
-class TestSkillInstall(unittest.TestCase):
+class TestSkillInstall(ScratchDirectoryTestCase):
     """Installing must link, back up, stay idempotent, and honour dry run."""
 
     def setUp(self) -> None:
-        self.tmp = tempfile.TemporaryDirectory()
-        self.root = os.path.join(self.tmp.name, "skills")
+        super().setUp()
+        self.root = os.path.join(self.dir, "skills")
         os.makedirs(self.root)
-
-    def tearDown(self) -> None:
-        self.tmp.cleanup()
 
     def test_installs_and_resolves_to_canonical(self) -> None:
         installer = ue427.Installer()
@@ -216,6 +238,15 @@ class TestServerTarget(unittest.TestCase):
             text = handle.read()
         for forbidden in ("30010", "remote/object", "WebControl", "http://127.0.0.1"):
             self.assertNotIn(forbidden, text, "ue427.py must not reference %s" % forbidden)
+
+
+class TestScratchPath(ScratchDirectoryTestCase):
+    """Acceptance fixtures must stay inside the repository, not system TEMP."""
+
+    def test_fixture_uses_repository_scratch_root(self) -> None:
+        self.assertEqual(os.path.commonpath([os.path.realpath(self.dir),
+                                             os.path.realpath(SCRATCH_ROOT)]),
+                         os.path.realpath(SCRATCH_ROOT))
 
 
 class TestClientTargets(unittest.TestCase):
