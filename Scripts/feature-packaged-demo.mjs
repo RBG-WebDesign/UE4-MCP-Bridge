@@ -4,6 +4,9 @@
 import { runSlice } from "./slice-harness.mjs";
 
 const includePie = process.argv.includes("--pie");
+const includePackage = process.argv.includes("--package");
+const packageTimeoutMs = 45 * 60 * 1000;
+const packagePollMs = 3000;
 const runId = `${new Date().toISOString().replace(/\D/g, "").slice(0, 14)}_${process.pid}`;
 const DEMO = `/Game/MCPGenerated/FeatureAcceptance/BP_PackagedDemo_${runId}`;
 const DEMO_CLASS = `${DEMO}.BP_PackagedDemo_${runId}_C`;
@@ -94,8 +97,7 @@ await runSlice({
   }
 
   // project_settings_maps persists the startup contract before package preflight.
-  // project_package_start uses the async job API for the real cook, stage and package;
-  // plan_only exercises every refusal here without starting a long external build.
+  // A real async job API run is opt-in because it writes a long-lived archive.
   const scene = await h.call("puerts_scene_inspect", {}, { label: "6. read the saved map selected for packaging" });
   const mapPath = scene?.data?.level_path ?? scene?.data?.world?.package_name ?? null;
   if (typeof mapPath === "string" && mapPath.startsWith("/Game/")) {
@@ -104,11 +106,57 @@ await runSlice({
       global_default_game_mode: "/Script/Engine.GameModeBase",
     }, { label: "6. persist package defaults" });
     if (configured?.success === true) {
-      const packaged = await h.call("puerts_project_package_start", {
-        target: "Win64", configuration: "Development", plan_only: true,
+      const packageSpec = {
+        target: "Win64", configuration: "Development",
         output_directory: "Saved/MCPGenerated/PackagedDemo", maps: [mapPath],
-      }, { label: "6. validate the asynchronous package plan" });
-      h.check(packaged?.data?.status === "planned", "6. package preflight completed without starting UAT");
+      };
+      if (!includePackage) {
+        const packaged = await h.call("puerts_project_package_start", {
+          ...packageSpec, plan_only: true,
+        }, { label: "6. validate the asynchronous package plan" });
+        h.check(packaged?.data?.status === "planned", "6. package preflight completed without starting UAT");
+        h.policy("6. run the real package job",
+          "Packaging is off by default. Re-run with --package only when a long UAT archive build is intended.");
+      } else {
+        const started = await h.call("puerts_project_package_start", {
+          ...packageSpec, plan_only: false,
+        }, { label: "6. start the explicitly requested asynchronous package job" });
+        const jobId = started?.data?.job_id;
+        h.check(typeof jobId === "string" && jobId.length > 0, "6. package start returned an owned job id", String(jobId));
+        if (typeof jobId === "string" && jobId.length > 0) {
+          const deadline = Date.now() + packageTimeoutMs;
+          let terminal = null;
+          while (Date.now() < deadline) {
+            const status = await h.call("puerts_job_status", { job_id: jobId }, {
+              label: "6. poll the owned package job",
+            });
+            const state = status?.data?.job?.state;
+            if (["succeeded", "failed", "cancelled"].includes(state)) {
+              terminal = status;
+              break;
+            }
+            await new Promise((resolve) => setTimeout(resolve, packagePollMs));
+          }
+          if (terminal === null) {
+            const cancelled = await h.call("puerts_job_cancel", { job_id: jobId }, {
+              label: "6. cancel the owned package job after the bounded timeout",
+            });
+            h.check(cancelled?.success === true, "6. the timed-out owned package job accepted cancellation");
+            h.check(false, "6. package job completed inside the bounded timeout", `${packageTimeoutMs}ms`);
+          } else {
+            const result = await h.call("puerts_job_result", { job_id: jobId }, {
+              label: "6. collect the completed package result exactly once",
+            });
+            const job = result?.data?.job ?? terminal?.data?.job ?? {};
+            h.check(job.state === "succeeded" && job.return_code === 0,
+              "6. the package process completed successfully", `state=${job.state} return_code=${job.return_code}`);
+            h.check(typeof job.output_directory === "string" && job.output_directory.length > 0
+              && job.output_file_count > 0,
+            "6. the package result reports a non-empty archive output",
+            `directory=${job.output_directory} files=${job.output_file_count}`);
+          }
+        }
+      }
     }
   } else {
     h.check(false, "6. loaded level is a saved /Game map", String(mapPath));
