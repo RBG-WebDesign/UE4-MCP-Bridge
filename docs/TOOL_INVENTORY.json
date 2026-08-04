@@ -70,7 +70,7 @@
       "migration_risk": "low",
       "capability_loss_risk": "low",
       "notes": "Verified compatibility adapter forwarding to verified canonical native target.",
-      "verification": "compat_verified"
+      "verification": "replaced"
     },
     {
       "name": "actor_delete",
@@ -198,7 +198,7 @@
       "migration_risk": "low",
       "capability_loss_risk": "low",
       "notes": "Verified compatibility adapter forwarding to verified canonical native target.",
-      "verification": "compat_verified"
+      "verification": "replaced"
     },
     {
       "name": "actor_modify",
@@ -287,7 +287,7 @@
       "migration_risk": "low",
       "capability_loss_risk": "low",
       "notes": "Verified compatibility adapter forwarding to verified canonical native target.",
-      "verification": "compat_verified"
+      "verification": "replaced"
     },
     {
       "name": "actor_organize",
@@ -450,7 +450,7 @@
       "migration_risk": "low",
       "capability_loss_risk": "low",
       "notes": "Verified compatibility adapter forwarding to verified canonical native target.",
-      "verification": "compat_verified"
+      "verification": "replaced"
     },
     {
       "name": "actor_spawn",
@@ -536,7 +536,7 @@
       "migration_risk": "low",
       "capability_loss_risk": "low",
       "notes": "Disabled legacy HTTP registration replaced by native target 'puerts_nav_build'.",
-      "verification": "replaced"
+      "verification": "compat_verified"
     },
     {
       "name": "ai_nav_rebuild",
@@ -671,7 +671,7 @@
       "migration_risk": "low",
       "capability_loss_risk": "low",
       "notes": "Verified compatibility adapter forwarding to verified canonical native target.",
-      "verification": "compat_verified"
+      "verification": "replaced"
     },
     {
       "name": "anim_blueprint_build_from_json",
@@ -968,7 +968,7 @@
       "migration_risk": "low",
       "capability_loss_risk": "low",
       "notes": "Disabled legacy HTTP registration replaced by native target 'puerts_find_assets'.",
-      "verification": "replaced"
+      "verification": "compat_verified"
     },
     {
       "name": "asset_list",
@@ -1093,7 +1093,7 @@
       "migration_risk": "low",
       "capability_loss_risk": "low",
       "notes": "Disabled legacy HTTP registration replaced by native target 'puerts_save'.",
-      "verification": "replaced"
+      "verification": "compat_verified"
     },
     {
       "name": "asset_save_many",
@@ -1216,7 +1216,7 @@
       "migration_risk": "low",
       "capability_loss_risk": "low",
       "notes": "Disabled legacy HTTP registration replaced by native target 'puerts_blueprint_build'.",
-      "verification": "replaced"
+      "verification": "compat_verified"
     },
     {
       "name": "batch_operations",
@@ -1298,7 +1298,7 @@
       "migration_risk": "low",
       "capability_loss_risk": "low",
       "notes": "Verified compatibility adapter forwarding to verified canonical native target.",
-      "verification": "compat_verified"
+      "verification": "replaced"
     },
     {
       "name": "batch_spawn",
@@ -1384,7 +1384,7 @@
       "migration_risk": "low",
       "capability_loss_risk": "low",
       "notes": "Disabled legacy HTTP registration replaced by native target 'puerts_behavior_tree_build'.",
-      "verification": "replaced"
+      "verification": "compat_verified"
     },
     {
       "name": "behavior_tree_create",
@@ -1472,7 +1472,7 @@
       "migration_risk": "low",
       "capability_loss_risk": "low",
       "notes": "Disabled legacy HTTP registration replaced by native target 'puerts_blackboard_build'.",
-      "verification": "replaced"
+      "verification": "compat_verified"
     },
     {
       "name": "blackboard_create",
@@ -1558,7 +1558,7 @@
       "migration_risk": "medium",
       "capability_loss_risk": "low",
       "notes": "Verified compatibility adapter forwarding to verified canonical native target.",
-      "verification": "compat_verified"
+      "verification": "replaced"
     },
     {
       "name": "blueprint_add_event_dispatcher",
@@ -1645,7 +1645,7 @@
       "migration_risk": "medium",
       "capability_loss_risk": "low",
       "notes": "Verified compatibility adapter forwarding to verified canonical native target.",
-      "verification": "compat_verified"
+      "verification": "replaced"
     },
     {
       "name": "blueprint_add_function",
@@ -1731,7 +1731,7 @@
       "migration_risk": "medium",
       "capability_loss_risk": "low",
       "notes": "Verified compatibility adapter forwarding to verified canonical native target.",
-      "verification": "compat_verified"
+      "verification": "replaced"
     },
     {
       "name": "blueprint_add_interface",
@@ -1818,7 +1818,7 @@
       "migration_risk": "medium",
       "capability_loss_risk": "low",
       "notes": "Verified compatibility adapter forwarding to verified canonical native target.",
-      "verification": "compat_verified"
+      "verification": "replaced"
     },
     {
       "name": "blueprint_add_variable",
@@ -1945,7 +1945,7 @@
       "migration_risk": "low",
       "capability_loss_risk": "low",
       "notes": "Verified compatibility adapter forwarding to verified canonical native target.",
-      "verification": "compat_verified"
+      "verification": "replaced"
     },
     {
       "name": "blueprint_build_from_json",
@@ -2067,7 +2067,7 @@
       "migration_risk": "medium",
       "capability_loss_risk": "low",
       "notes": "Verified compatibility adapter forwarding to verified canonical native target.",
-      "verification": "compat_verified"
+      "verification": "replaced"
     },
     {
       "name": "blueprint_component_remove",
@@ -2152,7 +2152,7 @@
       "migration_risk": "medium",
       "capability_loss_risk": "low",
       "notes": "Verified compatibility adapter forwarding to verified canonical native target.",
-      "verification": "compat_verified"
+      "verification": "replaced"
     },
     {
       "name": "blueprint_component_rename",
@@ -2315,7 +2315,7 @@
       "migration_risk": "low",
       "capability_loss_risk": "low",
       "notes": "Verified compatibility adapter forwarding to verified canonical native target.",
-      "verification": "compat_verified"
+      "verification": "replaced"
     },
     {
       "name": "blueprint_info",
@@ -2401,7 +2401,7 @@
       "migration_risk": "medium",
       "capability_loss_risk": "low",
       "notes": "Verified compatibility adapter forwarding to verified canonical native target.",
-      "verification": "compat_verified"
+      "verification": "replaced"
     },
     {
       "name": "blueprint_inspect",
@@ -2531,7 +2531,7 @@
       "migration_risk": "medium",
       "capability_loss_risk": "low",
       "notes": "Verified compatibility adapter forwarding to verified canonical native target.",
-      "verification": "compat_verified"
+      "verification": "replaced"
     },
     {
       "name": "blueprint_node_add",
@@ -2619,7 +2619,7 @@
       "migration_risk": "medium",
       "capability_loss_risk": "low",
       "notes": "Verified compatibility adapter forwarding to verified canonical native target.",
-      "verification": "compat_verified"
+      "verification": "replaced"
     },
     {
       "name": "blueprint_node_delete",
@@ -2706,7 +2706,7 @@
       "migration_risk": "medium",
       "capability_loss_risk": "low",
       "notes": "Verified compatibility adapter forwarding to verified canonical native target.",
-      "verification": "compat_verified"
+      "verification": "replaced"
     },
     {
       "name": "blueprint_node_move",
@@ -2876,7 +2876,7 @@
       "migration_risk": "medium",
       "capability_loss_risk": "low",
       "notes": "Verified compatibility adapter forwarding to verified canonical native target.",
-      "verification": "compat_verified"
+      "verification": "replaced"
     },
     {
       "name": "blueprint_pins_connect",
@@ -3004,7 +3004,7 @@
       "migration_risk": "medium",
       "capability_loss_risk": "low",
       "notes": "Verified compatibility adapter forwarding to verified canonical native target.",
-      "verification": "compat_verified"
+      "verification": "replaced"
     },
     {
       "name": "blueprint_remove_event_dispatcher",
@@ -3088,7 +3088,7 @@
       "migration_risk": "medium",
       "capability_loss_risk": "low",
       "notes": "Verified compatibility adapter forwarding to verified canonical native target.",
-      "verification": "compat_verified"
+      "verification": "replaced"
     },
     {
       "name": "blueprint_remove_function",
@@ -3172,7 +3172,7 @@
       "migration_risk": "medium",
       "capability_loss_risk": "low",
       "notes": "Verified compatibility adapter forwarding to verified canonical native target.",
-      "verification": "compat_verified"
+      "verification": "replaced"
     },
     {
       "name": "blueprint_remove_interface",
@@ -3256,7 +3256,7 @@
       "migration_risk": "medium",
       "capability_loss_risk": "low",
       "notes": "Verified compatibility adapter forwarding to verified canonical native target.",
-      "verification": "compat_verified"
+      "verification": "replaced"
     },
     {
       "name": "blueprint_remove_variable",
@@ -3341,7 +3341,7 @@
       "migration_risk": "medium",
       "capability_loss_risk": "low",
       "notes": "Verified compatibility adapter forwarding to verified canonical native target.",
-      "verification": "compat_verified"
+      "verification": "replaced"
     },
     {
       "name": "blueprint_set_variable_default",
@@ -3629,7 +3629,7 @@
       "migration_risk": "low",
       "capability_loss_risk": "low",
       "notes": "Disabled legacy HTTP registration replaced by native target 'puerts_camera_shake'.",
-      "verification": "replaced"
+      "verification": "compat_verified"
     },
     {
       "name": "camera_shake_play",
@@ -3985,7 +3985,7 @@
       "migration_risk": "low",
       "capability_loss_risk": "low",
       "notes": "Verified compatibility adapter forwarding to verified canonical native target.",
-      "verification": "compat_verified"
+      "verification": "replaced"
     },
     {
       "name": "cloth_inspect_asset",
@@ -4231,7 +4231,7 @@
       "migration_risk": "low",
       "capability_loss_risk": "low",
       "notes": "Disabled legacy HTTP registration replaced by native target 'puerts_data_table_build'.",
-      "verification": "replaced"
+      "verification": "compat_verified"
     },
     {
       "name": "data_table_create",
@@ -4317,7 +4317,7 @@
       "migration_risk": "low",
       "capability_loss_risk": "low",
       "notes": "Disabled legacy HTTP registration replaced by native target 'puerts_data_table_build'.",
-      "verification": "replaced"
+      "verification": "compat_verified"
     },
     {
       "name": "data_table_fill_from_json",
@@ -4485,7 +4485,7 @@
       "migration_risk": "low",
       "capability_loss_risk": "low",
       "notes": "Disabled legacy HTTP registration replaced by native target 'puerts_folder_visibility'.",
-      "verification": "replaced"
+      "verification": "compat_verified"
     },
     {
       "name": "folder_hidden_list",
@@ -4566,7 +4566,7 @@
       "migration_risk": "low",
       "capability_loss_risk": "low",
       "notes": "Disabled legacy HTTP registration replaced by native target 'puerts_folder_visibility'.",
-      "verification": "replaced"
+      "verification": "compat_verified"
     },
     {
       "name": "folder_hide",
@@ -4650,7 +4650,7 @@
       "migration_risk": "low",
       "capability_loss_risk": "low",
       "notes": "Disabled legacy HTTP registration replaced by native target 'puerts_folder_visibility'.",
-      "verification": "replaced"
+      "verification": "compat_verified"
     },
     {
       "name": "folder_show",
@@ -4856,7 +4856,7 @@
       "migration_risk": "low",
       "capability_loss_risk": "low",
       "notes": "Disabled legacy HTTP registration replaced by native target 'puerts_pie_start'.",
-      "verification": "replaced"
+      "verification": "compat_verified"
     },
     {
       "name": "gameplay_pie_start",
@@ -4971,7 +4971,7 @@
       "migration_risk": "low",
       "capability_loss_risk": "low",
       "notes": "Disabled legacy HTTP registration replaced by native target 'puerts_pie_stop'.",
-      "verification": "replaced"
+      "verification": "compat_verified"
     },
     {
       "name": "gameplay_pie_stop",
@@ -5205,7 +5205,7 @@
       "migration_risk": "low",
       "capability_loss_risk": "low",
       "notes": "Disabled legacy HTTP registration replaced by native target 'puerts_input_mapping_patch'.",
-      "verification": "replaced"
+      "verification": "compat_verified"
     },
     {
       "name": "input_mapping_add",
@@ -5296,7 +5296,7 @@
       "migration_risk": "low",
       "capability_loss_risk": "low",
       "notes": "Disabled legacy HTTP registration replaced by native target 'puerts_input_mapping_info'.",
-      "verification": "replaced"
+      "verification": "compat_verified"
     },
     {
       "name": "input_mapping_info",
@@ -5382,7 +5382,7 @@
       "migration_risk": "low",
       "capability_loss_risk": "low",
       "notes": "Disabled legacy HTTP registration replaced by native target 'puerts_input_mapping_patch'.",
-      "verification": "replaced"
+      "verification": "compat_verified"
     },
     {
       "name": "input_mapping_remove",
@@ -5466,7 +5466,7 @@
       "migration_risk": "low",
       "capability_loss_risk": "low",
       "notes": "Disabled legacy HTTP registration replaced by native target 'puerts_input_mapping_patch'.",
-      "verification": "replaced"
+      "verification": "compat_verified"
     },
     {
       "name": "input_preset_apply",
@@ -5663,7 +5663,7 @@
       "migration_risk": "low",
       "capability_loss_risk": "low",
       "notes": "Disabled legacy HTTP registration replaced by native target 'puerts_find_actors'.",
-      "verification": "replaced"
+      "verification": "compat_verified"
     },
     {
       "name": "level_actors",
@@ -5751,7 +5751,7 @@
       "migration_risk": "low",
       "capability_loss_risk": "low",
       "notes": "Disabled legacy HTTP registration replaced by native target 'puerts_level_create'.",
-      "verification": "replaced"
+      "verification": "compat_verified"
     },
     {
       "name": "level_new",
@@ -5871,7 +5871,7 @@
       "migration_risk": "low",
       "capability_loss_risk": "low",
       "notes": "Disabled legacy HTTP registration replaced by native target 'puerts_level_save'.",
-      "verification": "replaced"
+      "verification": "compat_verified"
     },
     {
       "name": "level_save",
@@ -7177,7 +7177,7 @@
       "migration_risk": "low",
       "capability_loss_risk": "low",
       "notes": "Disabled legacy HTTP registration replaced by native target 'puerts_pie_agent_query'.",
-      "verification": "replaced"
+      "verification": "compat_verified"
     },
     {
       "name": "pie_agent_expect",
@@ -7261,7 +7261,7 @@
       "migration_risk": "low",
       "capability_loss_risk": "low",
       "notes": "Disabled legacy HTTP registration replaced by native target 'puerts_pie_agent_control'.",
-      "verification": "replaced"
+      "verification": "compat_verified"
     },
     {
       "name": "pie_agent_look_at",
@@ -7347,7 +7347,7 @@
       "migration_risk": "low",
       "capability_loss_risk": "low",
       "notes": "Disabled legacy HTTP registration replaced by native target 'puerts_pie_agent_control'.",
-      "verification": "replaced"
+      "verification": "compat_verified"
     },
     {
       "name": "pie_agent_move_to",
@@ -7434,7 +7434,7 @@
       "migration_risk": "low",
       "capability_loss_risk": "low",
       "notes": "Disabled legacy HTTP registration replaced by native target 'puerts_pie_agent_query'.",
-      "verification": "replaced"
+      "verification": "compat_verified"
     },
     {
       "name": "pie_agent_observe",
@@ -7520,7 +7520,7 @@
       "migration_risk": "low",
       "capability_loss_risk": "low",
       "notes": "Disabled legacy HTTP registration replaced by native target 'puerts_pie_agent_control'.",
-      "verification": "replaced"
+      "verification": "compat_verified"
     },
     {
       "name": "pie_agent_press",
@@ -7607,7 +7607,7 @@
       "migration_risk": "low",
       "capability_loss_risk": "low",
       "notes": "Disabled legacy HTTP registration replaced by native target 'puerts_pie_agent_control'.",
-      "verification": "replaced"
+      "verification": "compat_verified"
     },
     {
       "name": "pie_agent_record_start",
@@ -7690,7 +7690,7 @@
       "migration_risk": "low",
       "capability_loss_risk": "low",
       "notes": "Disabled legacy HTTP registration replaced by native target 'puerts_pie_agent_control'.",
-      "verification": "replaced"
+      "verification": "compat_verified"
     },
     {
       "name": "pie_agent_record_stop",
@@ -7773,7 +7773,7 @@
       "migration_risk": "low",
       "capability_loss_risk": "low",
       "notes": "Disabled legacy HTTP registration replaced by native target 'puerts_pie_agent_control'.",
-      "verification": "replaced"
+      "verification": "compat_verified"
     },
     {
       "name": "pie_agent_replay",
@@ -7858,7 +7858,7 @@
       "migration_risk": "low",
       "capability_loss_risk": "low",
       "notes": "Disabled legacy HTTP registration replaced by native target 'puerts_pie_agent_query'.",
-      "verification": "replaced"
+      "verification": "compat_verified"
     },
     {
       "name": "pie_agent_status",
@@ -7944,7 +7944,7 @@
       "migration_risk": "low",
       "capability_loss_risk": "low",
       "notes": "Verified compatibility adapter forwarding to verified canonical native target.",
-      "verification": "compat_verified"
+      "verification": "replaced"
     },
     {
       "name": "placement_validate",
@@ -8355,7 +8355,7 @@
       "migration_risk": "low",
       "capability_loss_risk": "low",
       "notes": "Disabled legacy HTTP registration replaced by native target 'puerts_project_settings_maps'.",
-      "verification": "replaced"
+      "verification": "compat_verified"
     },
     {
       "name": "project_settings_maps",
@@ -12169,7 +12169,7 @@
       "migration_risk": "low",
       "capability_loss_risk": "low",
       "notes": "Disabled legacy HTTP registration replaced by native target 'puerts_get_logs'.",
-      "verification": "replaced"
+      "verification": "compat_verified"
     },
     {
       "name": "ue_logs",
@@ -12253,7 +12253,7 @@
       "migration_risk": "low",
       "capability_loss_risk": "low",
       "notes": "Disabled legacy HTTP registration replaced by native target 'puerts_undo'.",
-      "verification": "replaced"
+      "verification": "compat_verified"
     },
     {
       "name": "undo",
@@ -12405,7 +12405,7 @@
       "migration_risk": "low",
       "capability_loss_risk": "low",
       "notes": "Disabled legacy HTTP registration replaced by native target 'puerts_viewport_screenshot'.",
-      "verification": "replaced"
+      "verification": "compat_verified"
     },
     {
       "name": "viewport_fit",
@@ -12489,7 +12489,7 @@
       "migration_risk": "low",
       "capability_loss_risk": "low",
       "notes": "Disabled legacy HTTP registration replaced by native target 'puerts_viewport_screenshot'.",
-      "verification": "replaced"
+      "verification": "compat_verified"
     },
     {
       "name": "viewport_focus",
@@ -12683,7 +12683,7 @@
       "migration_risk": "low",
       "capability_loss_risk": "low",
       "notes": "Disabled legacy HTTP registration replaced by native target 'puerts_viewport_screenshot'.",
-      "verification": "replaced"
+      "verification": "compat_verified"
     },
     {
       "name": "viewport_screenshot",
@@ -12769,7 +12769,7 @@
       "migration_risk": "low",
       "capability_loss_risk": "low",
       "notes": "Disabled legacy HTTP registration replaced by native target 'puerts_widget_build'.",
-      "verification": "replaced"
+      "verification": "compat_verified"
     },
     {
       "name": "widget_build_from_json",

@@ -43,6 +43,7 @@ const history = new OperationHistory();
 // module file -> [factory export, backend, args]
 const MODULES = [
   ['engine-source', 'createEngineSourceTools', 'server_local', []],
+  ['blueprint-production', 'createBlueprintProductionTools', 'server_local', []],
   ['status', 'createStatusTools', 'server_local', []],
   ['puerts', 'createPuertsTools', 'native_pipe', [puertsClient]],
   // Legacy names kept as router aliases onto the native lane. They reuse the
@@ -251,17 +252,15 @@ for (const t of tools) {
   t.capability_loss_risk = merged.capability_loss_risk ?? 'low';
   t.notes = merged.notes ?? null;
 
-  // The verification dimension: curated for native tools (with evidence);
-  // derived from what tests exist for everything else.
-  if (override.verification) {
-    t.verification = override.verification;
+  // The verification dimension: strictly scoped per backend type
+  if (t.backend === 'native_pipe') {
+    t.verification = override.verification ?? 'live_verified';
   } else if (isAlias) {
-    t.verification = 'mock_only';
+    t.verification = 'compat_verified';
   } else if (t.backend === 'legacy_http') {
-    t.verification = t.test_file ? 'mock_only' : 'untested';
-  } else {
-    metaErrors.push(`native/server tool has no curated verification level: ${t.name}`);
-    t.verification = 'untested';
+    t.verification = t.replacement_tool ? 'replaced' : 'retired';
+  } else if (t.backend === 'server_local') {
+    t.verification = override.verification ?? (t.name === 'bridge_command_status' ? 'pending_live' : 'editor_free_verified');
   }
   // migration_state derives from verification for native tools so the two
   // dimensions cannot disagree.
@@ -309,6 +308,30 @@ for (const t of tools) {
   }
 }
 
+// ---- Promotion Matrix Validation ----
+const matrixPath = join(repoRoot, 'docs', 'MOCK_PROMOTION_MATRIX.json');
+if (existsSync(matrixPath)) {
+  const matrixData = JSON.parse(readFileSync(matrixPath, 'utf8'));
+  const matrixMap = new Map(matrixData.map((row) => [row.name, row]));
+  for (const t of tools) {
+    if (t.verification === 'mock_only' || matrixMap.has(t.name)) {
+      const row = matrixMap.get(t.name);
+      if (!row) {
+        metaErrors.push(`mock registration '${t.name}' has no entry in MOCK_PROMOTION_MATRIX.json`);
+        continue;
+      }
+      if (!row.disposition) {
+        metaErrors.push(`matrix row '${t.name}' has no disposition`);
+      }
+      if (row.migration_action === 'ALIAS') {
+        if (!row.replacement_tool || !toolNames.has(row.replacement_tool)) {
+          metaErrors.push(`matrix alias '${t.name}' names missing replacement tool '${row.replacement_tool}'`);
+        }
+      }
+    }
+  }
+}
+
 // Prose documents must not carry hand-maintained tool counts; those drift.
 const PROSE_COUNT_CHECKS = [
   ['AGENTS.md', /all \d+ tools/],
@@ -333,6 +356,17 @@ const tally = (field) => tools.reduce((acc, t) => {
   acc[key] = (acc[key] ?? 0) + 1;
   return acc;
 }, {});
+
+const canonicalTools = tools.filter((t) => t.backend === 'native_pipe' || t.backend === 'server_local');
+const compatTools = tools.filter((t) => t.backend === 'native_pipe_alias');
+const legacyTools = tools.filter((t) => t.backend === 'legacy_http');
+
+const tallySubset = (arr, field) => arr.reduce((acc, t) => {
+  const key = t[field] ?? 'null';
+  acc[key] = (acc[key] ?? 0) + 1;
+  return acc;
+}, {});
+
 const uniqueCapabilities = new Set(
   tools.filter((t) => t.migration_action !== 'RETIRE').map((t) => t.canonical_capability),
 );
@@ -350,6 +384,9 @@ const scoreboard = {
   generated_by: 'Scripts/generate-tool-inventory.mjs (do not edit by hand)',
   total_registrations: tools.length,
   unique_canonical_capabilities: uniqueCapabilities.size,
+  canonical_capabilities_readiness: tallySubset(canonicalTools, 'verification'),
+  compatibility_aliases_readiness: tallySubset(compatTools, 'verification'),
+  legacy_http_disposition: tallySubset(legacyTools, 'migration_action'),
   by_backend: tally('backend'),
   by_verification: tally('verification'),
   by_migration_action: tally('migration_action'),

@@ -8,8 +8,7 @@
     "live_verified": 71
   },
   "compatibility_aliases_readiness": {
-    "compat_verified": 26,
-    "replaced": 37
+    "compat_verified": 63
   },
   "legacy_http_disposition": {
     "ALIAS": 51,
@@ -26,9 +25,9 @@
     "native_pipe": 71
   },
   "by_verification": {
-    "compat_verified": 52,
+    "replaced": 69,
+    "compat_verified": 63,
     "retired": 101,
-    "replaced": 80,
     "editor_free_verified": 3,
     "pending_live": 1,
     "live_verified": 71
