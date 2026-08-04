@@ -96,6 +96,17 @@ export function isExpectedRefusal(result) {
   return result !== null && typeof result === "object" && result.success === false;
 }
 
+export function collectWidgetNames(root) {
+  if (!root) return [];
+  const names = [];
+  const pending = [root];
+  for (const node of pending) {
+    names.push(node.name);
+    pending.push(...(node.children ?? []));
+  }
+  return names;
+}
+
 function argPhase() {
   return process.argv.includes("--phase=cold") ? "cold" : "warm";
 }
@@ -413,6 +424,27 @@ export async function runSlice(spec, warmBody) {
 
       expectFailure(tool, args, options = {}) {
         return h.call(tool, args, { ...options, expectedFailure: true });
+      },
+
+      /** Prove a generated fixture path is unused through both the asset index
+          and the independent reader that will verify it after construction. */
+      async assertFreshFixture(assetPath, inspectTool) {
+        const name = assetPath.split("/").pop();
+        const path = assetPath.slice(0, assetPath.lastIndexOf("/"));
+        const found = await h.call("puerts_find_assets", {
+          path,
+          name,
+          recursive: false,
+          limit: 2,
+        }, { label: `assert the fresh fixture is unused: ${name}` });
+        if (found === null) return false;
+        const unused = found?.success === true && (found.data?.assets ?? []).length === 0;
+        h.check(unused, `the fixture path ${assetPath} did not exist before the control`);
+        if (!unused) return false;
+        const refused = await h.expectFailure(inspectTool, { asset_path: assetPath }, {
+          label: `the independent reader refuses the unused path: ${name}`,
+        });
+        return refused !== null;
       },
 
       /** An assertion about a result that already came back. */
