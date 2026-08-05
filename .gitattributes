@@ -15,6 +15,12 @@
 *.uplugin text eol=lf
 *.ini text eol=lf
 
+# Git hooks are run by sh even on Windows. A CRLF checkout makes the shebang
+# read "/usr/bin/env sh\r" and the hook dies with "bad interpreter", which looks
+# like the hook is absent rather than broken. They have no extension, so
+# text=auto above would otherwise hand them native line endings.
+.githooks/* text eol=lf
+
 *.ps1 text eol=crlf
 *.bat text eol=crlf
 
