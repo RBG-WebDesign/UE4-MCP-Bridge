@@ -23,10 +23,13 @@ namespace
         answered with the vocabulary rather than with a shrug. */
     const TCHAR* const SupportedOps[] = {
         TEXT("add_variable"), TEXT("remove_variable"), TEXT("set_variable_default"),
+        TEXT("rename_variable"), TEXT("set_variable_metadata"),
         TEXT("add_function"), TEXT("remove_function"), TEXT("set_function"),
+        TEXT("rename_function"), TEXT("add_macro"), TEXT("remove_macro"),
+        TEXT("rename_macro"), TEXT("set_macro"),
         TEXT("add_interface"), TEXT("remove_interface"),
         TEXT("add_event_dispatcher"), TEXT("remove_event_dispatcher"),
-        TEXT("remove_component"), TEXT("rename_component"),
+        TEXT("remove_component"), TEXT("rename_component"), TEXT("reparent_component"),
     };
 
     FString SupportedOpList()
@@ -161,6 +164,38 @@ namespace
         return false;
     }
 
+    TSharedPtr<FJsonObject> SnapshotNamedEntry(UBlueprint* Blueprint, const TCHAR* Field, const FString& Name)
+    {
+        const TSharedPtr<FJsonObject> Snapshot = MCPBridgeBlueprintMembers::BuildSnapshot(Blueprint);
+        const TArray<TSharedPtr<FJsonValue>>* Values = nullptr;
+        if (!Snapshot->TryGetArrayField(Field, Values) || Values == nullptr) return nullptr;
+        for (const TSharedPtr<FJsonValue>& Value : *Values)
+        {
+            const TSharedPtr<FJsonObject>* Object = nullptr;
+            FString Found;
+            if (Value.IsValid() && Value->TryGetObject(Object)
+                && (*Object)->TryGetStringField(TEXT("name"), Found) && Found == Name) return *Object;
+        }
+        return nullptr;
+    }
+
+    FString ComponentParentName(const UBlueprint* Blueprint, const FString& Name)
+    {
+        if (!Blueprint || !Blueprint->SimpleConstructionScript) return FString();
+        const FName Wanted(*Name);
+        USCS_Node* Target = nullptr;
+        for (USCS_Node* Node : Blueprint->SimpleConstructionScript->GetAllNodes())
+        {
+            if (Node && Node->GetVariableName() == Wanted) Target = Node;
+        }
+        if (!Target) return FString();
+        for (USCS_Node* Candidate : Blueprint->SimpleConstructionScript->GetAllNodes())
+        {
+            if (Candidate && Candidate->GetChildNodes().Contains(Target))
+                return Candidate->GetVariableName().ToString();
+        }
+        return FString();
+    }
     bool ImplementsInterface(const UBlueprint* Blueprint, const UClass* InterfaceClass)
     {
         return Blueprint->ImplementedInterfaces.ContainsByPredicate(
@@ -623,6 +658,58 @@ namespace
         FString Name;
         (*R.Spec)->TryGetStringField(TEXT("name"), Name);
 
+        if (R.Op == TEXT("rename_variable"))
+        {
+            FString From, To;
+            (*R.Spec)->TryGetStringField(TEXT("from"), From);
+            (*R.Spec)->TryGetStringField(TEXT("to"), To);
+            return FindVariable(Blueprint, From) == nullptr && FindVariable(Blueprint, To) != nullptr;
+        }
+        if (R.Op == TEXT("set_variable_metadata"))
+        {
+            const TSharedPtr<FJsonObject> Actual = SnapshotNamedEntry(Blueprint, TEXT("variables"), Name);
+            const TSharedPtr<FJsonObject>* Metadata = nullptr;
+            if (!Actual.IsValid() || !(*R.Spec)->TryGetObjectField(TEXT("metadata"), Metadata)) return false;
+            TSharedPtr<FJsonObject> Desired = MakeShared<FJsonObject>();
+            FString Text;
+            bool bValue = false;
+            if ((*Metadata)->TryGetStringField(TEXT("category"), Text)) Desired->SetStringField(TEXT("category"), Text);
+            if ((*Metadata)->TryGetStringField(TEXT("tooltip"), Text)) Desired->SetStringField(TEXT("tooltip"), Text);
+            if ((*Metadata)->TryGetBoolField(TEXT("editable"), bValue)) Desired->SetBoolField(TEXT("is_editable"), bValue);
+            if ((*Metadata)->TryGetBoolField(TEXT("replicated"), bValue)) Desired->SetBoolField(TEXT("is_replicated"), bValue);
+            if ((*Metadata)->TryGetBoolField(TEXT("private"), bValue)) Desired->SetBoolField(TEXT("is_private"), bValue);
+            if ((*Metadata)->TryGetBoolField(TEXT("expose_on_spawn"), bValue)) Desired->SetBoolField(TEXT("expose_on_spawn"), bValue);
+            return JsonSubsetMatches(MakeShared<FJsonValueObject>(Desired), MakeShared<FJsonValueObject>(Actual));
+        }
+        if (R.Op == TEXT("rename_function") || R.Op == TEXT("rename_macro"))
+        {
+            FString From, To;
+            (*R.Spec)->TryGetStringField(TEXT("from"), From);
+            (*R.Spec)->TryGetStringField(TEXT("to"), To);
+            const TArray<UEdGraph*>& Graphs = R.Op == TEXT("rename_function")
+                ? Blueprint->FunctionGraphs : Blueprint->MacroGraphs;
+            return !HasGraphNamed(Graphs, From) && HasGraphNamed(Graphs, To);
+        }
+
+        if (R.Op == TEXT("remove_macro")) { return !HasGraphNamed(Blueprint->MacroGraphs, Name); }
+        if (R.Op == TEXT("add_macro") || R.Op == TEXT("set_macro"))
+        {
+            const TSharedPtr<FJsonObject> Actual = SnapshotNamedEntry(Blueprint, TEXT("macros"), Name);
+            if (!Actual.IsValid()) return false;
+            TSharedPtr<FJsonObject> Desired = MakeShared<FJsonObject>();
+            const TArray<TSharedPtr<FJsonValue>>* Params = nullptr;
+            if ((*R.Spec)->TryGetArrayField(TEXT("inputs"), Params)) Desired->SetArrayField(TEXT("inputs"), *Params);
+            else if (R.Op == TEXT("add_macro")) Desired->SetArrayField(TEXT("inputs"), TArray<TSharedPtr<FJsonValue>>());
+            if ((*R.Spec)->TryGetArrayField(TEXT("outputs"), Params)) Desired->SetArrayField(TEXT("outputs"), *Params);
+            else if (R.Op == TEXT("add_macro")) Desired->SetArrayField(TEXT("outputs"), TArray<TSharedPtr<FJsonValue>>());
+            return JsonSubsetMatches(MakeShared<FJsonValueObject>(Desired), MakeShared<FJsonValueObject>(Actual));
+        }
+        if (R.Op == TEXT("reparent_component"))
+        {
+            FString Parent;
+            (*R.Spec)->TryGetStringField(TEXT("parent"), Parent);
+            return HasComponentNamed(Blueprint, Name) && ComponentParentName(Blueprint, Name) == Parent;
+        }
         if (R.Op == TEXT("add_variable"))
         {
             if (FindVariable(Blueprint, Name) == nullptr) { return false; }
@@ -801,7 +888,77 @@ bool UMCPPuerTSBridgeService::PatchBlueprintMembersJson(
             return false;
         };
 
-        if (R.Op == TEXT("add_variable") || R.Op == TEXT("remove_variable")
+        if (R.Op == TEXT("rename_variable"))
+        {
+            FString From, To;
+            if (!RequireString(TEXT("from"), From) || !RequireString(TEXT("to"), To)) continue;
+            R.Label = FString::Printf(TEXT("rename_variable %s -> %s"), *From, *To);
+            R.MemberKey = FString::Printf(TEXT("variable:%s"), *From);
+            const bool bFrom = FindVariable(Blueprint, From) != nullptr;
+            const bool bTo = FindVariable(Blueprint, To) != nullptr;
+            if ((!bFrom && !bTo) || (bFrom && bTo))
+            {
+                Refusals.Add(FString::Printf(TEXT("operation %d (rename_variable): source/destination state is ambiguous."), Index));
+                continue;
+            }
+        }
+        else if (R.Op == TEXT("set_variable_metadata"))
+        {
+            FString Name;
+            if (!RequireString(TEXT("name"), Name)) continue;
+            R.Label = FString::Printf(TEXT("set_variable_metadata %s"), *Name);
+            R.MemberKey = FString::Printf(TEXT("variable:%s"), *Name);
+            const TSharedPtr<FJsonObject>* Metadata = nullptr;
+            if (FindVariable(Blueprint, Name) == nullptr || !(*OpObject)->TryGetObjectField(TEXT("metadata"), Metadata))
+            {
+                Refusals.Add(FString::Printf(TEXT("operation %d needs an existing variable and metadata object."), Index));
+                continue;
+            }
+        }
+        else if (R.Op == TEXT("rename_function") || R.Op == TEXT("rename_macro"))
+        {
+            FString From, To;
+            if (!RequireString(TEXT("from"), From) || !RequireString(TEXT("to"), To)) continue;
+            R.Label = FString::Printf(TEXT("%s %s -> %s"), *R.Op, *From, *To);
+            R.MemberKey = FString::Printf(TEXT("graph:%s"), *From);
+            const TArray<UEdGraph*>& Graphs = R.Op == TEXT("rename_function")
+                ? Blueprint->FunctionGraphs : Blueprint->MacroGraphs;
+            const bool bFrom = HasGraphNamed(Graphs, From);
+            const bool bTo = HasGraphNamed(Graphs, To);
+            if ((!bFrom && !bTo) || (bFrom && bTo))
+            {
+                Refusals.Add(FString::Printf(TEXT("operation %d (%s): source/destination state is ambiguous."), Index, *R.Op));
+                continue;
+            }
+        }
+        else if (R.Op == TEXT("add_macro") || R.Op == TEXT("remove_macro") || R.Op == TEXT("set_macro"))
+        {
+            FString Name;
+            if (!RequireString(TEXT("name"), Name)) continue;
+            R.Label = FString::Printf(TEXT("%s %s"), *R.Op, *Name);
+            R.MemberKey = FString::Printf(TEXT("graph:%s"), *Name);
+            if (R.Op == TEXT("set_macro") && !HasGraphNamed(Blueprint->MacroGraphs, Name))
+            {
+                Refusals.Add(FString::Printf(TEXT("operation %d (set_macro): macro '%s' does not exist."), Index, *Name));
+                continue;
+            }
+        }
+        else if (R.Op == TEXT("reparent_component"))
+        {
+            FString Name;
+            if (!RequireString(TEXT("name"), Name)) continue;
+            FString Parent;
+            (*OpObject)->TryGetStringField(TEXT("parent"), Parent);
+            R.Label = FString::Printf(TEXT("reparent_component %s -> %s"), *Name,
+                Parent.IsEmpty() ? TEXT("<root>") : *Parent);
+            R.MemberKey = FString::Printf(TEXT("component:%s"), *Name);
+            if (!HasComponentNamed(Blueprint, Name) || (!Parent.IsEmpty() && !HasComponentNamed(Blueprint, Parent)) || Name == Parent)
+            {
+                Refusals.Add(FString::Printf(TEXT("operation %d (reparent_component) names a missing or cyclic component."), Index));
+                continue;
+            }
+        }
+        else if (R.Op == TEXT("add_variable") || R.Op == TEXT("remove_variable")
             || R.Op == TEXT("set_variable_default"))
         {
             FString Name;
@@ -1222,7 +1379,39 @@ bool UMCPPuerTSBridgeService::PatchBlueprintMembersJson(
         FString Name;
         (*R.Spec)->TryGetStringField(TEXT("name"), Name);
 
-        if (R.Op == TEXT("add_variable"))
+        if (R.Op == TEXT("rename_variable"))
+        {
+            FString From, To; (*R.Spec)->TryGetStringField(TEXT("from"), From); (*R.Spec)->TryGetStringField(TEXT("to"), To);
+            bOk = UBlueprintMutatorLibrary::RenameVariable(Blueprint, From, To);
+        }
+        else if (R.Op == TEXT("set_variable_metadata"))
+        {
+            const TSharedPtr<FJsonObject>* Metadata = nullptr; (*R.Spec)->TryGetObjectField(TEXT("metadata"), Metadata); FString SetError;
+            bOk = Metadata != nullptr && UBlueprintMutatorLibrary::SetVariableMetadata(Blueprint, Name, ValueToJsonText(MakeShared<FJsonValueObject>(*Metadata)), SetError);
+            if (!bOk && !SetError.IsEmpty()) return FailWithRollback(SetError);
+        }
+        else if (R.Op == TEXT("rename_function") || R.Op == TEXT("rename_macro"))
+        {
+            FString From, To, SetError; (*R.Spec)->TryGetStringField(TEXT("from"), From); (*R.Spec)->TryGetStringField(TEXT("to"), To);
+            bOk = R.Op == TEXT("rename_function") ? UBlueprintMutatorLibrary::RenameFunction(Blueprint, From, To, SetError) : UBlueprintMutatorLibrary::RenameMacro(Blueprint, From, To, SetError);
+            if (!bOk && !SetError.IsEmpty()) return FailWithRollback(SetError);
+        }
+        else if (R.Op == TEXT("add_macro") || R.Op == TEXT("set_macro"))
+        {
+            FString SetError; const FString Inputs = SpecArrayAsJson(*R.Spec, TEXT("inputs")); const FString Outputs = SpecArrayAsJson(*R.Spec, TEXT("outputs"));
+            if (R.Op == TEXT("add_macro")) bOk = !UBlueprintMutatorLibrary::AddMacro(Blueprint, Name, Inputs.IsEmpty() ? TEXT("[]") : Inputs, Outputs.IsEmpty() ? TEXT("[]") : Outputs, SetError).IsEmpty();
+            else bOk = UBlueprintMutatorLibrary::SetMacroSignature(Blueprint, Name, Inputs.IsEmpty() ? TEXT("[]") : Inputs, Outputs.IsEmpty() ? TEXT("[]") : Outputs, SetError);
+            if (!bOk && !SetError.IsEmpty()) return FailWithRollback(SetError);
+        }
+        else if (R.Op == TEXT("remove_macro"))
+        {
+            FString SetError; bOk = UBlueprintMutatorLibrary::RemoveMacro(Blueprint, Name, SetError); if (!bOk && !SetError.IsEmpty()) return FailWithRollback(SetError);
+        }
+        else if (R.Op == TEXT("reparent_component"))
+        {
+            FString Parent; (*R.Spec)->TryGetStringField(TEXT("parent"), Parent); bOk = UBlueprintMutatorLibrary::ReparentSCSNode(Blueprint, Name, Parent);
+        }
+        else if (R.Op == TEXT("add_variable"))
         {
             const TSharedPtr<FJsonObject>* TypeObject = nullptr;
             (*R.Spec)->TryGetObjectField(TEXT("type"), TypeObject);

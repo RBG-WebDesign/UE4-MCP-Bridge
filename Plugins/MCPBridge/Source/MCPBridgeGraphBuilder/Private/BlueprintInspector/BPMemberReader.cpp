@@ -18,6 +18,7 @@
 #include "K2Node_FunctionResult.h"
 #include "K2Node_EditablePinBase.h"
 #include "K2Node_Tunnel.h"
+#include "Kismet2/BlueprintEditorUtils.h"
 #include "UObject/Class.h"
 #include "UObject/Script.h"
 
@@ -220,6 +221,14 @@ FString FBPMemberReader::ListVariables(UBlueprint* Blueprint)
         VO->SetStringField(TEXT("default_value"), DefaultValue);
         VO->SetBoolField(TEXT("is_editable"), (V.PropertyFlags & CPF_Edit) != 0);
         VO->SetBoolField(TEXT("is_replicated"), (V.PropertyFlags & CPF_Net) != 0);
+        FString PrivateValue;
+        VO->SetBoolField(TEXT("is_private"),
+            FBlueprintEditorUtils::GetBlueprintVariableMetaData(Blueprint, V.VarName, nullptr, FName(TEXT("BlueprintPrivate")), PrivateValue)
+            && PrivateValue == TEXT("true"));
+        FString ExposeValue;
+        VO->SetBoolField(TEXT("expose_on_spawn"),
+            FBlueprintEditorUtils::GetBlueprintVariableMetaData(Blueprint, V.VarName, nullptr, FName(TEXT("ExposeOnSpawn")), ExposeValue)
+            && ExposeValue == TEXT("true"));
 
         FString Tooltip;
         for (const FBPVariableMetaDataEntry& Entry : V.MetaDataArray)

@@ -331,7 +331,9 @@ namespace
             || NodeType == TEXT("Tick")
             || NodeType == TEXT("ActorBeginOverlap")
             || NodeType == TEXT("ActorEndOverlap")
-            || NodeType == TEXT("InputKey");
+            || NodeType == TEXT("InputKey")
+            || NodeType == TEXT("InputAction")
+            || NodeType == TEXT("InputAxisEvent");
     }
 
     /** Run the builder's variable pass and unpack its JSON report.
