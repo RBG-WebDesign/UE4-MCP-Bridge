@@ -1,0 +1,89 @@
+#!/usr/bin/env sh
+#
+# Refuse to publish game content, or committed build outputs, to a public
+# bridge-only repository.
+#
+# AGENTS.md: "The git remote is public and is the bridge only. Never push a
+# local main whose history predates the bridge/game boundary; game source is in
+# that history even where the paths are untracked at HEAD."
+#
+# Untracked at HEAD is the part that makes this worth a hook. Deleting game
+# files in a later commit does not remove them from the history a push
+# publishes, so looking at the working tree proves nothing. This inspects every
+# commit the push would actually send.
+#
+# Enable once per clone:
+#
+#     git config core.hooksPath .githooks
+#
+# Git feeds us one line per ref on stdin:
+#     <local ref> <local sha> <remote ref> <remote sha>
+#
+# Exit 1 blocks the push. --no-verify skips every hook and is not the intended
+# escape: if a refusal below is wrong, fix the pattern so the next person is
+# protected too.
+
+ZERO='0000000000000000000000000000000000000000'
+FAILED=0
+
+# Root-level Content, Source and Config are the game project layout. The
+# plugin's own Plugins/MCPBridge/{Content,Source,Config} are legitimate and are
+# why every pattern here is anchored at the start of the path.
+#
+# .uasset and .umap are game binary assets and never belong here.
+#
+# .pdb, .dll, .obj, .lib and .exp are compiled build outputs. They were
+# committed once by accident, embedded a developer's absolute paths in binary
+# form, and could not be scrubbed by any text replacement afterwards.
+FORBIDDEN='^Content/|^Source/|^Config/|\.uasset$|\.umap$|\.(pdb|dll|obj|lib|exp)$'
+
+while read -r LOCAL_REF LOCAL_SHA REMOTE_REF REMOTE_SHA; do
+    # Branch deletion: nothing is published, nothing to inspect.
+    if [ "$LOCAL_SHA" = "$ZERO" ]; then
+        continue
+    fi
+
+    if [ "$REMOTE_SHA" = "$ZERO" ]; then
+        # New branch. Everything not already reachable from some origin ref is
+        # about to become public for the first time.
+        RANGE_ARGS="$LOCAL_SHA --not --remotes=origin"
+    else
+        RANGE_ARGS="$REMOTE_SHA..$LOCAL_SHA"
+    fi
+
+    # shellcheck disable=SC2086
+    OFFENDERS=$(git log --pretty=format: --name-only $RANGE_ARGS 2>/dev/null \
+        | sed '/^$/d' \
+        | grep -E "$FORBIDDEN" \
+        | sort -u)
+
+    if [ -n "$OFFENDERS" ]; then
+        FAILED=1
+        echo ""
+        echo "pre-push REFUSED: $LOCAL_REF -> $REMOTE_REF"
+        echo ""
+        echo "  These paths appear in the commits this push would publish to a"
+        echo "  public, bridge-only repository:"
+        echo ""
+        echo "$OFFENDERS" | sed 's/^/    /' | head -40
+        COUNT=$(echo "$OFFENDERS" | wc -l | tr -d ' ')
+        if [ "$COUNT" -gt 40 ]; then
+            echo "    ... and $((COUNT - 40)) more"
+        fi
+        echo ""
+        echo "  Root-level Content, Source and Config are the game project"
+        echo "  layout; .uasset and .umap are game assets; .pdb, .dll, .obj,"
+        echo "  .lib and .exp are build outputs that embed absolute paths."
+        echo ""
+        echo "  A later commit deleting them does not help: the push publishes"
+        echo "  the history, not the current tree. Push a branch that never"
+        echo "  contained them instead."
+        echo ""
+    fi
+done
+
+if [ "$FAILED" -ne 0 ]; then
+    exit 1
+fi
+
+exit 0
