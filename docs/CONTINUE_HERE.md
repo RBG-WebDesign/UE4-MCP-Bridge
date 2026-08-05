@@ -381,6 +381,177 @@ Precise remaining blockers added by features 13 through 18:
 - Sequencer Event tracks need atomic director Blueprint endpoint authoring.
 - Packaged demo needs native project-settings routing and an async cook,
   stage and package job.
+## Code-first wave stopped
+
+Unreal and live editor tests stayed off. The TypeScript build passed; the
+focused PuerTS contract was blocked by named-pipe EPERM in the sandbox. The
+dirty tree now includes montage and sequence-event fronts, the DataTable native
+front, AnimPose validation, scene aliases, shared metadata, generated inventory,
+and focused contract edits.
+
+Remaining repository-side items and owners:
+
+- AnimPose public native fronts for snapshot, delta, root-motion analysis,
+  reanchor, and batch reanchor: root shared service, PuerTS registry/types,
+  MCP schemas, annotations, and the animation domain.
+- Wave 1 native contract repairs and partial legacy-facing fronts:
+  root shared service plus the listed Blueprint, editor-state, cloth,
+  inspect, folder, input, asset, audio, camera, material, and post-process
+  domain files from docs/CODE_FIRST_100_PLAN.md.
+- DataTable/gameplay-pattern and project/intelligence native or server-local
+  integration: project-index helpers, content/gameplay/project/intelligence
+  wrappers, and focused fixtures.
+- UI/title, scene, material, gameplay, and viewport strict adapters:
+  title/promptbrush, actor/level, material/effects, gameplay, viewport,
+  operations, cloth, and compat fronts.
+- Final shared reconciliation: service allowlist, registry/types, MCP
+  schemas, annotations, generated metadata/catalogs, and plan checkmarks.
+
+Review-only artifacts kept:
+
+- .codex_patches/wave_remaining_root.diff montage notify-count fix.
+- .codex_patches/wave_remaining_ui_scene_v3.diff strict actor schemas.
+
+Rejected artifacts:
+
+- .codex_patches/wave_remaining_anim.diff: converged detection misses
+  ordinary non-identity deltas.
+- .codex_patches/wave_remaining_data_project.diff: unintegrated speculative
+  snapshot abstractions.
+## Exact remaining owner paths
+
+- AnimPose fronts: Plugins/MCPBridge/Source/MCPBridgeGraphBuilder/Public/AnimPoseLibrary.h;
+  Plugins/MCPBridge/Source/MCPBridgeGraphBuilder/Private/AnimPose/AnimPoseLibrary.cpp;
+  mcp-server/src/tools/animation.ts; mcp-server/tests/animation-tools.test.ts;
+  plus root-owned MCPPuerTSBridgeService.h/.cpp, puerts-runtime/src/registry.ts,
+  puerts-runtime/types/puerts-bootstrap.d.ts, mcp-server/src/tools/puerts.ts,
+  and mcp-server/src/annotations.ts.
+- Wave 1 contract repairs: MCPPuerTSBridgeBlueprintMember.cpp,
+  MCPPuerTSBridgeEditorState.cpp, MCPPuerTSBridgeCloth.cpp,
+  MCPPuerTSBridgeInspect.cpp, FolderVisibilityLibrary.cpp,
+  MCPBridgeInputLibrary.cpp, and their matching native contract tests.
+- Partial legacy-facing fronts: mcp-server/src/tools/content.ts,
+  mcp-server/src/tools/materials.ts, mcp-server/src/tools/effects.ts,
+  mcp-server/src/tools/gameplay.ts, and matching focused tests.
+- DataTable and pattern fronts: MCPBridgeDataLibrary.h/.cpp,
+  mcp-server/src/tools/content.ts, mcp-server/src/tools/gameplay.ts,
+  and the gameplay-pattern focused tests.
+- UI/title workflows: mcp-server/src/tools/titles.ts,
+  mcp-server/src/tools/promptbrush.ts, mcp-server/src/tools/compat.ts,
+  and mcp-server/tests/widget-title-tools.test.ts.
+- Scene and level adapters: mcp-server/src/tools/actors.ts, level.ts,
+  compat.ts, MCPPuerTSBridgeScene.cpp, actor-tools.test.ts,
+  and level-viewport-tools.test.ts.
+- Materials/audio/effects: mcp-server/src/tools/content.ts, materials.ts,
+  effects.ts, compat.ts, MCPPuerTSBridgeMaterial.cpp,
+  MCPPuerTSBridgeMaterialBuild.cpp, MCPPuerTSBridgeMaterialInstance.cpp,
+  and MCPPuerTSBridgeAudioBuild.cpp.
+- Gameplay/cameras: mcp-server/src/tools/gamedev.ts, gameplay.ts, effects.ts,
+  compat.ts, the camera-shake command file, and MCPPuerTSBridgeEditorState.cpp.
+- Project/intelligence: mcp-server/src/tools/project.ts, intelligence.ts,
+  mcp-server/src/project-index.ts, project-index tests, and server-local
+  descriptor helpers.
+- Viewport/operations/config: mcp-server/src/tools/viewport.ts, operations.ts,
+  cloth.ts, compat.ts, MCPPuerTSBridgeViewport.cpp, MCPPuerTSBridgeCloth.cpp,
+  FolderVisibilityLibrary.cpp, MCPBridgeInputLibrary.cpp, and focused tests.
+- Final shared reconciliation: MCPPuerTSBridgeService.h/.cpp,
+  puerts-runtime/src/registry.ts, puerts-runtime/types/puerts-bootstrap.d.ts,
+  mcp-server/src/tools/puerts.ts, mcp-server/src/annotations.ts,
+  docs/TOOL_CAPABILITY_METADATA.json, docs/TOOL_INVENTORY.json,
+  docs/CAPABILITY_SCOREBOARD.json, docs/CAPABILITY_PRESERVATION_AUDIT.md,
+  skills/unreal-engine-4-27/references/tool-catalog.md, and CODE_FIRST_100_PLAN.md.
 
 Ponytail review: Lean already. Ship. No capability-preserving deletion remains
 after the shared feature fixture helper and existing orchestrator reuse.
+
+## Latest code-first handoff
+
+The DataTable native front is now implemented and registered as
+`puerts_data_table_build` / `data_table_build`, with generated inventory entry
+and skill catalog entry. Remaining repository work is the other Wave 1 to 3
+items listed above, especially animation pose native fronts and gameplay-pattern,
+project, UI, scene, material, camera, and viewport migrations.
+## Integration correction, 2026-08-04
+
+This section supersedes the stale sandbox and artifact notes above.
+
+- The stale Claude process tree was stopped, and repeated source hashes stayed stable.
+- Late-writer patch files were quarantined outside the repository without deletion.
+- The DataTable slice is integrated end to end: native C++ desired-state builder,
+  PuerTS runtime command, MCP schema, annotations, two compatibility aliases,
+  metadata, inventory, catalog, and focused tests.
+- DataTable mutation now validates through a transient table, detects no-op state,
+  reads back before save, and reports verified rollback evidence on failure.
+- Editor-free gates are green: TypeScript build, PuerTS contracts, compatibility
+  contracts at 438 assertions, content tools, and inventory at 307 tools.
+- The final metadata-marked ALIAS gap, `blueprint_build_from_json`, now preserves
+  the legacy existing-asset precondition and result vocabulary through native
+  graph inspection plus `puerts_blueprint_build`.
+- Unreal, UBT, plugin install sync, live MCP calls, and PIE remain untouched.
+
+The repository is not yet at code-complete 100. The remaining owner paths above
+still apply except that the DataTable front is finished. Gameplay-pattern,
+AnimPose public fronts, Wave 1 contract repairs, project and intelligence,
+UI and title, scene and material, camera, viewport, and final reconciliation
+remain repository-side work.
+
+## Repository state, 2026-08-05
+
+Read this before touching git. An aborted history rewrite happened on this
+date and left specific conditions a fresh session would otherwise misread.
+
+**There is exactly one repository: `D:\Unreal Projects\UE4_Bridge`.** A second
+copy at `UE4-Bridge-Recovered` existed briefly during recovery and was deleted
+after verifying every commit in it was reachable elsewhere. If a second bridge
+checkout ever appears again, it is a recovery artifact, not a worktree; do not
+edit in it.
+
+- Branch `bridge/native-consolidation-2026-07-31`, HEAD `0b39132`.
+- `origin` is `https://github.com/RBG-WebDesign/UE4-MCP-Bridge.git`.
+- **Nothing from 2026-08-05 has been pushed.** Six commits are local only.
+
+### Do not rewrite history for the Windows user name
+
+It was removed from the two tracked `reports/session-2026-08-02-*.json` files by
+an ordinary commit (`0b39132`). It remains in published history on `origin/main`
+(`23fc605`, `e751de0`, `6e602e8`, `e488552`) and inside committed binary `.pdb`
+blobs under `Plugins/MCPBridge/Binaries/`, which no text replacement reaches.
+A `git filter-repo` pass was run and then abandoned: it rewrote 616 commits,
+removed the `origin` remote, and still did not purge the binaries. The decision
+is to leave published history alone. Do not reopen this.
+
+Consequence worth knowing: GitHub now has **only `refs/heads/main`**. The
+`lane/*` and `checkpoint/*` branches were deleted from the remote at some point,
+so this clone's `refs/remotes/origin/*` are the only surviving copies of three
+bridge WIP commits (`b8a0a35`, `7bb2fd3`, `c842eaa`). Do not prune them.
+
+### The dirty tree is expected
+
+50 modified and 14 untracked files, nearly all pre-existing native-consolidation
+work that predates 2026-08-05. **Do not `git add -A`.** Stage only files related
+to one change per commit. `stash@{0}` holds a redundant copy of the same work
+from the aborted rewrite; it is safe to drop once the tree is reviewed.
+
+A full backup bundle of the pre-rewrite repository (all 61 refs) was written to
+the session scratchpad. It is a temp directory and may be cleaned; the active
+repository no longer depends on it.
+
+### Landed on 2026-08-05
+
+- `puerts_project_settings_patch`: one command reaching every Project Settings
+  page by writing config properties on the page's settings class CDO and
+  persisting through `UpdateDefaultConfigFile`. Refuses a property without
+  `CPF_Config` rather than changing it in memory only. Live acceptance is
+  `npm run test:project-settings`.
+- `.mcp.json` is portable. `UE_ENGINE_ROOT` and `MCP_UNREAL_PROJECT_ROOT` now
+  come from the gitignored `bridge.local.json`, seeded into the environment by
+  `mcp-server/src/local-config.ts`, so no client config carries a machine path.
+- `Scripts/setup-unreal-project.ps1` points the bridge at any 4.27 project in
+  one command and discovers the engine root from the project's
+  `EngineAssociation`. `-EngineRoot` is an override, not a requirement.
+- `unreal-api` runs from a pinned venv (`mcp==1.29.0`) through
+  `Scripts/start-unreal-api-mcp.mjs`. `uvx unreal-api-mcp` resolves `mcp` 2.0.0,
+  which dropped `fastmcp`, and crashes on import.
+- The editor panel reports installed-plugin provenance and adds an
+  `install:check` instruction to the copied chat prompt when the source tree was
+  dirty or the install manifest is absent.
