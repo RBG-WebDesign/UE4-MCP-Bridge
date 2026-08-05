@@ -3,9 +3,64 @@
 #include "MCPBridgeDataLibrary.h"
 
 #include "Engine/DataTable.h"
+#include "Factories/DataTableFactory.h"
+#include "UObject/Package.h"
 #include "Dom/JsonObject.h"
 #include "Serialization/JsonSerializer.h"
 #include "Serialization/JsonWriter.h"
+
+UDataTable* UMCPBridgeDataLibrary::CreateDataTable(
+	UObject* Outer,
+	FName ObjectName,
+	UScriptStruct* RowStruct,
+	FString& OutError)
+{
+	OutError.Reset();
+	if (!Outer)
+	{
+		OutError = TEXT("Outer is null");
+		return nullptr;
+	}
+	if (ObjectName.IsNone())
+	{
+		OutError = TEXT("ObjectName is empty");
+		return nullptr;
+	}
+	if (!RowStruct)
+	{
+		OutError = TEXT("RowStruct is null");
+		return nullptr;
+	}
+	if (!RowStruct->IsChildOf(FTableRowBase::StaticStruct()))
+	{
+		OutError = FString::Printf(
+			TEXT("RowStruct '%s' must derive from FTableRowBase"),
+			*RowStruct->GetPathName());
+		return nullptr;
+	}
+	if (FindObject<UObject>(Outer, *ObjectName.ToString()))
+	{
+		OutError = FString::Printf(
+			TEXT("A DataTable named '%s' already exists in '%s'"),
+			*ObjectName.ToString(), *Outer->GetPathName());
+		return nullptr;
+	}
+
+	UDataTableFactory* Factory = NewObject<UDataTableFactory>();
+	Factory->Struct = RowStruct;
+	UDataTable* Table = Cast<UDataTable>(Factory->FactoryCreateNew(
+		UDataTable::StaticClass(), Outer, ObjectName,
+		RF_Public | RF_Standalone | RF_Transactional, nullptr, GWarn));
+	if (!Table)
+	{
+		OutError = FString::Printf(
+			TEXT("Failed to create DataTable '%s' in '%s'"),
+			*ObjectName.ToString(), *Outer->GetPathName());
+		return nullptr;
+	}
+	Table->MarkPackageDirty();
+	return Table;
+}
 
 FString UMCPBridgeDataLibrary::FillDataTableFromJSON(UDataTable* DataTable, const FString& JsonString)
 {
