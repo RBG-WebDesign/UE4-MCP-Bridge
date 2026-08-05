@@ -81,7 +81,18 @@ async function main(): Promise<void> {
         ? seen.some((entry) => entry.command === "pie_agent_control" && entry.params?.actor === "CancelTarget")
           ? { status: "cancelled", error: "cancelled by caller" }
           : { status: "succeeded", result: { completed: true } }
-        : request.command === "graph_inspect" ? {
+        : request.command === "data_table_build" ? {
+          object_path: "/Game/MCPGenerated/DT_Items.DT_Items",
+          row_struct: "/Script/GameplayTags.GameplayTagTableRow",
+          row_names: ["Row1"],
+          row_count: 1,
+          saved: true,
+        }
+        : request.command === "blueprint_build" ? {
+          asset_path: request.params?.asset_path,
+          compiled: true,
+          compile_status: "UpToDate",
+        }        : request.command === "graph_inspect" ? {
           graphs: [{ name: "EventGraph" }],
           functions: [{ name: "Use" }],
           variables: [{ name: "Health" }],
@@ -124,7 +135,7 @@ async function main(): Promise<void> {
     // --- catalog shape ----------------------------------------------------
     // A literal on purpose: this is the canary that catches an alias silently
     // disappearing. Raise it deliberately when a wave adds legacy names.
-    const ALIAS_COUNT = 57;
+    const ALIAS_COUNT = 63;
     assert(compat.length === ALIAS_COUNT, `expected ${ALIAS_COUNT} compat aliases, got ${compat.length}`);
     assert(
       Object.keys(compatAliasTargets).length === ALIAS_COUNT,
@@ -270,12 +281,34 @@ async function main(): Promise<void> {
       ["folder_hidden_list", {}, "folder_visibility", {}],
       ["camera_shake_play", { shake_class: "/Game/CS.CS_C", scale: 2 },
         "camera_shake", { shake_class: "/Game/CS.CS_C", scale: 2 }],
+      ["actor_organize", { actors: ["A", "B"], folder: "Lighting/Interior" }, "scene_batch", {
+        operations: [
+          { op: "upsert_actor", select: { label: "A" }, folder: "Lighting/Interior" },
+          { op: "upsert_actor", select: { label: "B" }, folder: "Lighting/Interior" },
+        ], verify: true,
+      }],
+      ["batch_spawn", { spawns: [{ asset_path: "/Script/Engine.StaticMeshActor", name: "Pillar", location: { x: 1, y: 2, z: 3 } }] }, "scene_batch", {
+        operations: [{ op: "upsert_actor", class: "/Script/Engine.StaticMeshActor", label: "Pillar", location: { x: 1, y: 2, z: 3 } }], verify: true,
+      }],
+      ["batch_operations", { operations: [{ command: "actor_delete", params: { actor_name: "OldPillar" } }] }, "scene_batch", {
+        operations: [{ op: "delete_actor", select: { label: "OldPillar" } }], verify: true,
+      }],
       ["pie_agent_observe", { radius: 800 }, "pie_agent_query", { op: "observe", radius: 800 }],
       ["pie_agent_status", { operation_id: 3 }, "pie_agent_query", { op: "status", operation_id: 3 }],
       ["pie_agent_expect", { conditions: ["actor_count:Cube:1"] },
         "pie_agent_query", { op: "expect", conditions: ["actor_count:Cube:1"] }],
       ["project_settings_maps", { game_default_map: "/Game/Maps/Main.Main" },
         "project_settings_maps", { game_default_map: "/Game/Maps/Main.Main" }],
+      ["data_table_create", {
+        path: "/Game/MCPGenerated", name: "DT_Items",
+        row_struct: "/Script/GameplayTags.GameplayTagTableRow", rows_json: [{ Name: "Row1", Tag: "Items.Key" }],
+      }, "data_table_build", {
+        asset_path: "/Game/MCPGenerated/DT_Items",
+        row_struct: "/Script/GameplayTags.GameplayTagTableRow", rows_json: [{ Name: "Row1", Tag: "Items.Key" }],
+      }],
+      ["data_table_fill_from_json", {
+        data_table: "/Game/MCPGenerated/DT_Items.DT_Items", rows_json: "[]",
+      }, "data_table_build", { asset_path: "/Game/MCPGenerated/DT_Items", rows_json: "[]" }],
       ["pie_agent_look_at", { actor: "BP_Target" },
         "pie_agent_control", { op: "look_at", actor: "BP_Target" }],
       ["pie_agent_record_start", { events: ["spawn"], max_events: 64 },
@@ -342,6 +375,38 @@ async function main(): Promise<void> {
       assert(payload.canonical_tool === compatAliasTargets[alias], `${alias} reported the wrong canonical_tool`);
     }
 
+    seen.length = 0;
+    const legacyBlueprintBuild = await call(toolNamed(compat, "blueprint_build_from_json"), {
+      blueprint_path: "/Game/MCPGenerated/BP_A.BP_A",
+      graph: {
+        nodes: [
+          { id: "begin", type: "BeginPlay" },
+          { id: "print", type: "CallFunction", function: "PrintString", params: { InString: "Hello" } },
+        ],
+        connections: [{ from: "begin.exec", to: "print.exec" }],
+      },
+      clear_existing: true,
+    });
+    assert(seen.length === 2, "blueprint_build_from_json must inspect once, then build once");
+    assert(seen[0]?.command === "graph_inspect", "blueprint_build_from_json must preserve the legacy existing-asset precondition");
+    assert(stable(seen[0]?.params) === stable({ asset_path: "/Game/MCPGenerated/BP_A" }),
+      "blueprint_build_from_json must normalize an object path before inspection");
+    assert(seen[1]?.command === "blueprint_build", "blueprint_build_from_json must use the native Blueprint builder");
+    assert(stable(seen[1]?.params) === stable({
+      asset_path: "/Game/MCPGenerated/BP_A",
+      graph: {
+        nodes: [
+          { id: "begin", type: "BeginPlay" },
+          { id: "print", type: "CallFunction", params: { class: "KismetSystemLibrary", function: "PrintString", InString: "Hello" } },
+        ],
+        connections: [{ from: "begin.exec", to: "print.exec" }],
+      },
+      clear_existing_graph: true,
+    }), `blueprint_build_from_json translated to ${JSON.stringify(seen[1]?.params)}`);
+    const legacyBuildData = legacyBlueprintBuild.data as Record<string, unknown>;
+    assert(legacyBuildData.path === "/Game/MCPGenerated/BP_A.BP_A", "legacy Blueprint path must survive the result adapter");
+    assert(legacyBuildData.compiled === true, "legacy Blueprint build must report the native compile verdict");
+    assert(legacyBuildData.compile_method === "MCPBridgeGraphBuilder", "legacy Blueprint build must identify the native compile path");
     // These three legacy tools blocked until their native operation reached a
     // terminal state. Preserve that envelope by polling the existing query op.
     for (const [alias, input, expectedControl] of [
@@ -435,6 +500,8 @@ async function main(): Promise<void> {
       ["blueprint_node_add",
         { blueprint_path: "/Game/MCPGenerated/BP_A", graph_name: "EventGraph", node_type: "InputAction" },
         "node_type"],
+      ["batch_operations", { operations: [{ command: "project_index_rebuild", params: {} }] }, "operations"],
+      ["batch_operations", { operations: [{ command: "actor_delete", params: { actor_name: "Old_*" } }] }, "operations"],
     ];
     for (const [alias, input, parameter] of unmappable) {
       seen.length = 0;

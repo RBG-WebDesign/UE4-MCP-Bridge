@@ -255,6 +255,116 @@ function pieControlAlias(
 
 const aliases: readonly CompatAlias[] = [
   {
+    name: "actor_organize",
+    canonical: "puerts_scene_batch",
+    description: "Move actors into World Outliner folders through one native scene transaction.",
+    inputSchema: z.object({
+      actors: z.array(z.string()).min(1),
+      folder: z.string(),
+    }).strict(),
+    translate: (params) => routed({
+      operations: (params.actors as string[]).map((actor) => ({
+        op: "upsert_actor",
+        select: { label: actor },
+        folder: params.folder,
+      })),
+      verify: true,
+    }),
+  },
+  {
+    name: "batch_spawn",
+    canonical: "puerts_scene_batch",
+    description: "Spawn actors in one native scene transaction while preserving actor_spawn fields.",
+    inputSchema: z.object({
+      spawns: z.array(z.object({
+        asset_path: z.string(),
+        location: vector.optional(),
+        rotation: rotation.optional(),
+        scale: vector.optional(),
+        name: z.string().optional(),
+        folder: z.string().optional(),
+        validate: z.boolean().optional(),
+      }).strict()).min(1),
+    }).strict(),
+    translate: (params) => routed({
+      operations: (params.spawns as Params[]).map((spawn) => {
+        const operation: Params = { op: "upsert_actor" };
+        if (spawn.asset_path !== undefined) operation.class = spawn.asset_path;
+        if (spawn.name !== undefined) operation.label = spawn.name;
+        carry(spawn, ["location", "rotation", "scale", "folder"], operation);
+        return operation;
+      }),
+      verify: (params.spawns as Params[]).every((spawn) => spawn.validate !== false),
+    }),
+  },
+  {
+    name: "batch_operations",
+    canonical: "puerts_scene_batch",
+    description:
+      "Merge actor-only batch operations onto puerts_scene_batch. Cross-domain commands are refused " +
+      "instead of claiming one transaction across unrelated native domains.",
+    inputSchema: z.object({
+      operations: z.array(z.object({
+        command: z.string(),
+        params: z.record(z.unknown()).optional(),
+      }).strict()).min(1),
+    }).strict(),
+    translate: (params) => {
+      const nativeOperations: Params[] = [];
+      for (const entry of params.operations as Params[]) {
+        const command = String(entry.command);
+        const opParams = entry.params !== null && typeof entry.params === "object"
+          ? entry.params as Params
+          : {};
+        if (command === "actor_spawn") {
+          if (typeof opParams.asset_path !== "string" || opParams.asset_path.length === 0) {
+            return unmappable(["operations"], ["actor_spawn requires asset_path."]);
+          }
+          const operation: Params = { op: "upsert_actor", class: opParams.asset_path };
+          carry(opParams, ["location", "rotation", "scale", "folder"], operation);
+          if (opParams.name !== undefined) operation.label = opParams.name;
+          nativeOperations.push(operation);
+          continue;
+        }
+        if (command === "actor_modify") {
+          if (typeof opParams.actor_name !== "string" || opParams.actor_name.length === 0) {
+            return unmappable(["operations"], ["actor_modify requires actor_name."]);
+          }
+          if (opParams.mesh !== undefined) {
+            return unmappable(["operations"], ["actor_modify.mesh has no scene-batch property equivalent."]);
+          }
+          const operation: Params = { op: "upsert_actor", select: { label: opParams.actor_name } };
+          carry(opParams, ["location", "rotation", "scale"], operation);
+          if (opParams.visible !== undefined) operation.properties = { bHidden: !Boolean(opParams.visible) };
+          nativeOperations.push(operation);
+          continue;
+        }
+        if (command === "actor_delete") {
+          if (typeof opParams.actor_name !== "string" || opParams.actor_name.length === 0) {
+            return unmappable(["operations"], ["actor_delete requires actor_name."]);
+          }
+          if (WILDCARD.test(opParams.actor_name)) {
+            return unmappable(["operations"], ["actor_delete wildcard actor_name cannot be expressed by one native selector."]);
+          }
+          nativeOperations.push({ op: "delete_actor", select: { label: opParams.actor_name } });
+          continue;
+        }
+        if (command === "actor_organize") {
+          if (!Array.isArray(opParams.actors) || typeof opParams.folder !== "string") {
+            return unmappable(["operations"], ["actor_organize requires actors and folder."]);
+          }
+          for (const actor of opParams.actors) {
+            if (typeof actor !== "string") return unmappable(["operations"], ["actor_organize actors must be strings."]);
+            nativeOperations.push({ op: "upsert_actor", select: { label: actor }, folder: opParams.folder });
+          }
+          continue;
+        }
+        return unmappable(["operations"], [`${command} is outside the actor-only scene-batch adapter.`]);
+      }
+      return routed({ operations: nativeOperations, verify: true });
+    },
+  },
+  {
     name: "project_settings_maps",
     canonical: "puerts_project_settings_maps",
     description: "Set default maps and game mode through the native UE4.27 project config writer.",
@@ -332,6 +442,85 @@ const aliases: readonly CompatAlias[] = [
     (params) => params.export === true ? undefined : Number(params.budget_seconds ?? 120),
   ),
   {
+    name: "blueprint_build_from_json",
+    canonical: "puerts_blueprint_build",
+    description:
+      "Populate an existing generated Blueprint through the native desired-state builder. "
+      + "The alias first inspects the asset so the legacy not-found precondition is preserved. "
+      + "Legacy CallFunction nodes are pinned to KismetSystemLibrary, as before. Paths outside "
+      + "/Game/MCPGenerated are refused by the canonical command.",
+    inputSchema: z.object({
+      blueprint_path: legacyBlueprintPath,
+      graph: z.object({
+        nodes: z.array(z.object({
+          id: z.string().min(1),
+          type: z.string().min(1),
+          function: z.string().min(1).optional(),
+          params: z.record(z.union([z.string(), z.number(), z.boolean()])).optional(),
+        }).strict()),
+        connections: z.array(z.object({
+          from: z.string().min(1),
+          to: z.string().min(1),
+        }).strict()),
+      }).strict(),
+      clear_existing: z.boolean().default(true),
+    }).strict(),
+    translate: (params) => {
+      const requested = String(params.blueprint_path);
+      const slash = requested.lastIndexOf("/");
+      const dot = requested.lastIndexOf(".");
+      const graph = params.graph as { nodes: Params[]; connections: Params[] };
+      const nodes: Params[] = [];
+      for (const node of graph.nodes) {
+        const type = String(node.type);
+        if (node.function !== undefined && type !== "CallFunction") {
+          return unmappable(
+            ["graph.nodes.function"],
+            [`graph.nodes.function: only a CallFunction node accepts the legacy function field, not ${type}.`],
+          );
+        }
+        const nodeParams: Params = { ...((node.params ?? {}) as Params) };
+        if (type === "CallFunction") {
+          if (node.function === undefined) {
+            return unmappable(
+              ["graph.nodes.function"],
+              ["graph.nodes.function: every legacy CallFunction requires a function name."],
+            );
+          }
+          nodeParams.class = "KismetSystemLibrary";
+          nodeParams.function = node.function;
+        }
+        nodes.push({
+          id: node.id,
+          type,
+          ...(Object.keys(nodeParams).length > 0 ? { params: nodeParams } : {}),
+        });
+      }
+      return routed({
+        asset_path: dot > slash ? requested.slice(0, dot) : requested,
+        graph: { nodes, connections: graph.connections },
+        clear_existing_graph: params.clear_existing,
+      });
+    },
+    execute: async (client, _params, translated) => {
+      const inspected = await executeCompatNative(client, "puerts_graph_inspect", {
+        asset_path: translated.asset_path,
+      });
+      if (inspected.success !== true) return inspected;
+      return executeCompatNative(client, "puerts_blueprint_build", translated);
+    },
+    adaptResult: (payload, params) => {
+      if (payload.success !== true || payload.data === null
+          || typeof payload.data !== "object" || Array.isArray(payload.data)) return payload;
+      const data = payload.data as Params;
+      return { ...payload, data: {
+        ...data,
+        path: params.blueprint_path,
+        compiled: data.compiled === true,
+        compile_method: "MCPBridgeGraphBuilder",
+      } };
+    },
+  },  {
     name: "blueprint_info",
     canonical: "puerts_graph_inspect",
     description:
@@ -826,6 +1015,70 @@ const aliases: readonly CompatAlias[] = [
       save_all: z.boolean().optional().describe("Also save all dirty project packages. Default false."),
     }),
     translate: (params) => routed({ save_all: params.save_all === true }),
+  },
+  {
+    name: "data_table_create",
+    canonical: "puerts_data_table_build",
+    description:
+      "Create or reconcile a DataTable through the native desired-state writer. The native lane is limited to /Game/MCPGenerated and returns actual export read-back.",
+    inputSchema: z.object({
+      path: z.string().startsWith("/"),
+      name: z.string().min(1).regex(/^[A-Za-z0-9_]+$/),
+      row_struct: z.string().startsWith("/"),
+      rows_json: z.union([z.string().min(1), z.array(z.record(z.unknown()))]).optional(),
+    }).strict(),
+    translate: (params) => {
+      const translated: Params = {
+        asset_path: `${String(params.path).replace(/\/+$/, "")}/${params.name}`,
+        row_struct: params.row_struct,
+      };
+      if (params.rows_json !== undefined) translated.rows_json = params.rows_json;
+      return routed(translated);
+    },
+    adaptResult: (payload, params) => {
+      if (payload.success !== true || payload.data === null
+          || typeof payload.data !== "object" || Array.isArray(payload.data)) return payload;
+      const data = payload.data as Params;
+      const rows = Array.isArray(data.row_names) ? data.row_names : [];
+      return { ...payload, data: {
+        data_table: `${String(params.path).replace(/\/+$/, "")}/${params.name}`,
+        row_struct: data.row_struct ?? params.row_struct,
+        rows,
+        row_count: typeof data.row_count === "number" ? data.row_count : rows.length,
+        saved: data.saved === true,
+      } };
+    },
+  },
+  {
+    name: "data_table_fill_from_json",
+    canonical: "puerts_data_table_build",
+    description:
+      "Replace all rows in an existing DataTable through the native desired-state writer. Object paths are normalized to package paths. The native lane is limited to /Game/MCPGenerated.",
+    inputSchema: z.object({
+      data_table: z.string().startsWith("/"),
+      rows_json: z.union([z.string().min(1), z.array(z.record(z.unknown()))]),
+    }).strict(),
+    translate: (params) => {
+      const requested = String(params.data_table);
+      const slash = requested.lastIndexOf("/");
+      const dot = requested.lastIndexOf(".");
+      return routed({
+        asset_path: dot > slash ? requested.slice(0, dot) : requested,
+        rows_json: params.rows_json,
+      });
+    },
+    adaptResult: (payload, params) => {
+      if (payload.success !== true || payload.data === null
+          || typeof payload.data !== "object" || Array.isArray(payload.data)) return payload;
+      const data = payload.data as Params;
+      const rows = Array.isArray(data.row_names) ? data.row_names : [];
+      return { ...payload, data: {
+        data_table: params.data_table,
+        rows,
+        row_count: typeof data.row_count === "number" ? data.row_count : rows.length,
+        saved: data.saved === true,
+      } };
+    },
   },
   {
     name: "level_new",

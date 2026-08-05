@@ -46,6 +46,9 @@ async function setup(): Promise<void> {
   server.setHandler("data_table_create", (params) => ({
     success: true, data: { data_table: "/Game/DT_X", rows: ["Row1"], row_count: 1, received: params },
   }));
+  server.setHandler("data_table_fill_from_json", (params) => ({
+    success: true, data: { data_table: "/Game/DT_X", rows: ["Row1"], row_count: 1, received: params },
+  }));
   server.setHandler("game_template_create", (params) => ({
     success: true,
     data: { template: (params as Record<string, unknown>).template, framework: { game_mode: "/Game/GM" } },
@@ -81,6 +84,21 @@ test("data_table_create returns row names", async () => {
   });
   const data = result.data as Record<string, unknown>;
   assert(data.row_count === 1, "row count returned");
+  const received = data.received as Record<string, unknown>;
+  assert(received.row_struct === "/Script/GameplayTags.GameplayTagTableRow", "row struct forwarded");
+  assert(Array.isArray(received.rows_json), "rows JSON forwarded");
+});
+
+test("data_table_fill_from_json forwards the existing asset and rows", async () => {
+  const result = await callTool("data_table_fill_from_json", {
+    data_table: "/Game/DT_X",
+    rows_json: [{ Name: "Row1", Tag: "A.B" }],
+  });
+  assert(result.success === true, "fill should succeed");
+  const data = result.data as Record<string, unknown>;
+  const received = data.received as Record<string, unknown>;
+  assert(received.data_table === "/Game/DT_X", "existing table path forwarded");
+  assert(Array.isArray(received.rows_json), "fill rows JSON forwarded");
 });
 
 test("game_template_create forwards template name", async () => {

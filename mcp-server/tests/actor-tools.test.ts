@@ -118,6 +118,18 @@ test("batch_spawn schema requires spawns array", async () => {
   assert(!result.success, "Should reject missing spawns");
 });
 
+test("scene adapter schemas reject unmappable fields", async () => {
+  const duplicate = toolMap.get("actor_duplicate")!;
+  const duplicateResult = duplicate.inputSchema.safeParse({ actor_name: "Cube", unsupported: true });
+  assert(!duplicateResult.success, "actor_duplicate must reject unmappable fields");
+
+  const batch = toolMap.get("batch_spawn")!;
+  const batchResult = batch.inputSchema.safeParse({
+    spawns: [{ asset_path: "/Script/Engine.StaticMeshActor", unsupported: true }],
+  });
+  assert(!batchResult.success, "batch_spawn must reject unmappable fields");
+});
+
 test("placement_validate schema requires actors array", async () => {
   const tool = toolMap.get("placement_validate")!;
   const result = tool.inputSchema.safeParse({});
