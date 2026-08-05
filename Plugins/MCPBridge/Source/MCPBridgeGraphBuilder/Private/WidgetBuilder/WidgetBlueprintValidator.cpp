@@ -179,12 +179,13 @@ static bool ValidateSlotCompatibility(const FWidgetSlotSpec& Slot, const FString
         Allowed = { TEXT("padding"), TEXT("row"), TEXT("column"), TEXT("rowSpan"), TEXT("columnSpan"), TEXT("horizontalAlignment"), TEXT("verticalAlignment") };
     }
     const TPair<const TCHAR*, bool> Fields[] = {
-        { TEXT("position"), Slot.bHasPosition }, { TEXT("size"), Slot.bHasSize },
-        { TEXT("alignment"), Slot.bHasAlignment }, { TEXT("padding"), Slot.bHasPadding },
-        { TEXT("zOrder"), Slot.bHasZOrder }, { TEXT("autoSize"), Slot.bHasAutoSize },
-        { TEXT("row"), Slot.bHasRow }, { TEXT("column"), Slot.bHasColumn },
-        { TEXT("rowSpan"), Slot.bHasRowSpan }, { TEXT("columnSpan"), Slot.bHasColumnSpan },
-        { TEXT("horizontalAlignment"), Slot.bHasHorizontalAlignment }, { TEXT("verticalAlignment"), Slot.bHasVerticalAlignment }
+        MakeTuple(TEXT("position"), Slot.bHasPosition), MakeTuple(TEXT("size"), Slot.bHasSize),
+        MakeTuple(TEXT("alignment"), Slot.bHasAlignment), MakeTuple(TEXT("padding"), Slot.bHasPadding),
+        MakeTuple(TEXT("zOrder"), Slot.bHasZOrder), MakeTuple(TEXT("autoSize"), Slot.bHasAutoSize),
+        MakeTuple(TEXT("row"), Slot.bHasRow), MakeTuple(TEXT("column"), Slot.bHasColumn),
+        MakeTuple(TEXT("rowSpan"), Slot.bHasRowSpan), MakeTuple(TEXT("columnSpan"), Slot.bHasColumnSpan),
+        MakeTuple(TEXT("horizontalAlignment"), Slot.bHasHorizontalAlignment),
+        MakeTuple(TEXT("verticalAlignment"), Slot.bHasVerticalAlignment)
     };
     for (const TPair<const TCHAR*, bool>& Field : Fields)
     {

@@ -79,8 +79,10 @@
 #include "Materials/MaterialExpressionVectorParameter.h"
 #include "Misc/PackageName.h"
 #include "Modules/ModuleManager.h"
+#include "RenderingThread.h"
 #include "RHI.h"
 #include "ScopedTransaction.h"
+#include "ShaderCompiler.h"
 #include "ShaderCompiler.h"
 #include "UObject/Package.h"
 #include "UObject/UnrealType.h"
@@ -1367,6 +1369,26 @@ bool UMCPPuerTSBridgeService::BuildMaterialJson(
     FMaterialResource* Resource = Material->GetMaterialResource(GMaxRHIFeatureLevel);
     if (Resource != nullptr)
     {
+        // RecompileMaterial's PostEditChange leaves a compiling shader map
+        // registered with zero jobs submitted: BeginCompileShaderMap's dedupe
+        // (MaterialShared.cpp ~2090-2098) finds that map's own placeholder
+        // clone already non-null and returns early before PrecompileMode is
+        // ever consulted, so the "submit in Background/Synchronous mode"
+        // machinery is never reached at all. The engine's real submission path
+        // is FMaterialRenderProxy::GetMaterialWithFallback on the render
+        // thread, driven by a viewport drawing the material -- which never
+        // happens on this headless build path. SubmitCompileJobs is the same
+        // public call the renderer makes; it reads render-thread-mirrored
+        // state, so it must run as a render command, flushed here so it has
+        // definitely applied before the blocking wait below. Idempotent: the
+        // job scheduler dedupes by (compiling id, key) and only raises priority.
+        ENQUEUE_RENDER_COMMAND(MCPBridgeSubmitMaterialCompileJobs)(
+            [Resource](FRHICommandListImmediate&)
+            {
+                Resource->SubmitCompileJobs(EShaderCompileJobPriority::High);
+            });
+        FlushRenderingCommands();
+
         // Blocking on purpose: an asynchronous compile that has not finished
         // cannot tell a caller whether the material is valid, and answering
         // "requested" instead of "compiled" is the assumption this command
@@ -1374,17 +1396,20 @@ bool UMCPPuerTSBridgeService::BuildMaterialJson(
         Resource->FinishCompilation();
         if (GShaderCompilingManager != nullptr)
         {
-            // FMaterial::FinishCompilation waits for jobs but UE4.27 does not
-            // assign the finished shader map. FinishAllCompilation does both.
+            // FMaterial::FinishCompilation already calls FShaderCompilingManager
+            // ::FinishCompilation, which applies the finished shader map itself
+            // (ProcessCompiledShaderMaps). This second call is redundant but
+            // harmless, kept for safety against other in-flight compiles.
             GShaderCompilingManager->FinishAllCompilation();
         }
         Resource = Material->GetMaterialResource(GMaxRHIFeatureLevel);
 
-        // FinishAllCompilation empties and applies the manager's queues. A
-        // resource can retain a stale compiling id after that in UE4.27, so
-        // renderability is the independent success check.
-        bCompileFinished = Resource != nullptr
-            && (GShaderCompilingManager == nullptr || !GShaderCompilingManager->IsCompiling());
+        // Whether the manager's global queue is empty says nothing about this
+        // specific resource: other materials can be mid-compile, or this one's
+        // jobs could have never been submitted at all (the bug this file's
+        // ForceRecompileForRendering call above fixes). IsCompilationFinished
+        // checks this resource's own GameThreadCompilingShaderMapId directly.
+        bCompileFinished = Resource != nullptr && Resource->IsCompilationFinished();
         for (const FString& Error : Resource->GetCompileErrors())
         {
             CompileErrors.Add(MakeShared<FJsonValueString>(Error));
