@@ -171,6 +171,27 @@ async function main() {
     properties: { Description: "x" },
   });
   assert(badSection.success === false, "an unresolvable section is refused rather than guessed at");
+
+  // The editor shows EncryptionKey as VisibleAnywhere: a human cannot retype it
+  // in the Project Settings window, and neither can this tool. Overwriting a
+  // live key leaves already-packaged content unreadable and cannot be undone.
+  const readOnly = await raw("puerts_project_settings_patch", {
+    section: "CryptoKeysSettings",
+    properties: { EncryptionKey: "bm90LWEtcmVhbC1rZXk=" },
+  });
+  assert(readOnly.success === false, "a VisibleAnywhere property is refused, matching the editor's own UI");
+  assert(JSON.stringify(readOnly.errors).includes("read-only in the Project Settings window"),
+    "the refusal explains the parity rule rather than naming a forbidden class");
+
+  // The same page's editable toggles are still writable, so this is UI parity,
+  // not a blanket ban on the crypto page.
+  const editableOnSamePage = await raw("puerts_project_settings_patch", {
+    section: "CryptoKeysSettings",
+    properties: { bEncryptPakIniFiles: false },
+    plan_only: true,
+  });
+  assert(editableOnSamePage.success === true,
+    "an EditAnywhere property on that same page is still allowed");
 }
 
 main()

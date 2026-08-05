@@ -277,6 +277,23 @@ bool UMCPPuerTSBridgeService::PatchProjectSettingsJson(
                 *Class->GetName(), *Pair.Key);
             return false;
         }
+        // Parity with the editor's own Project Settings window rather than a
+        // list of forbidden classes. CPF_EditConst is what VisibleAnywhere
+        // sets, and Epic reserves it for values a tool generates and a human
+        // must not retype: the CryptoKeys encryption key and the RSA signing
+        // exponents are the ones that matter here, because overwriting a live
+        // key cannot be undone and leaves already-packaged content unreadable.
+        // Note VisibleAnywhere sets CPF_Edit too, so testing for CPF_Edit here
+        // would pass every one of them.
+        if (Property->HasAnyPropertyFlags(CPF_EditConst))
+        {
+            OutError = FString::Printf(
+                TEXT("%s.%s is read-only in the Project Settings window itself (VisibleAnywhere), ")
+                TEXT("so it is refused here. The engine generates these values; retyping one is not ")
+                TEXT("reversible."),
+                *Class->GetName(), *Pair.Key);
+            return false;
+        }
         TSharedPtr<FJsonValue> Current = FJsonObjectConverter::UPropertyToJsonValue(
             Property, Property->ContainerPtrToValuePtr<void>(Settings));
         if (!Current.IsValid())
