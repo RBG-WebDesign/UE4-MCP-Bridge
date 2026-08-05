@@ -80,6 +80,19 @@ struct FMCPBridgePanelState
     FString EngineVersion;
     FString ProjectName;
     FString CurrentLevel;
+
+    // Provenance of the installed plugin, from Plugins/MCPBridge/MCPBridgeInstall.json.
+    // The plugin reaches a project by being copied, and a copy goes stale in
+    // silence: the editor keeps working while the tools it exposes are older
+    // than the repository they came from, so a live run passes and proves
+    // nothing. These are what let the reader notice that before authoring.
+    bool bInstallManifestFound = false;
+    FString InstallCommit;
+    FString InstallBranch;
+    FString InstallAt;
+    FString InstallSourceRepo;
+    bool bInstallTreeDirty = false;
+    int32 InstallDirtyFileCount = 0;
     FString LastPingAt;
     FString LastCommand;
     FString LastResult;
@@ -314,6 +327,7 @@ private:
 
         LoadSessionFile();
         LoadStatusFile();
+        LoadInstallManifest();
         LoadConfigFile();
         State.Safety.FindOrAdd(TEXT("allow_python_proxy")) = false;
     }
@@ -385,6 +399,51 @@ private:
     FString PipeNameForDisplay() const
     {
         return State.PipeName.IsEmpty() ? TEXT("(not advertised)") : State.PipeName;
+    }
+
+    /** Written by Scripts/bridge-install.mjs into the target project when the
+        plugin is installed or synced. Absent means the plugin arrived some
+        other way, which is worth saying rather than reporting nothing. */
+    void LoadInstallManifest()
+    {
+        State.bInstallManifestFound = false;
+        const FString ManifestPath = FPaths::Combine(
+            FPaths::ProjectPluginsDir(), TEXT("MCPBridge"), TEXT("MCPBridgeInstall.json"));
+        TSharedPtr<FJsonObject> Json;
+        if (!ReadJsonFile(ManifestPath, Json))
+        {
+            return;
+        }
+        State.bInstallManifestFound = true;
+        Json->TryGetStringField(TEXT("bridge_commit"), State.InstallCommit);
+        Json->TryGetStringField(TEXT("bridge_branch"), State.InstallBranch);
+        Json->TryGetStringField(TEXT("installed_at"), State.InstallAt);
+        Json->TryGetStringField(TEXT("source_repository"), State.InstallSourceRepo);
+        Json->TryGetBoolField(TEXT("bridge_tree_dirty"), State.bInstallTreeDirty);
+        const TArray<TSharedPtr<FJsonValue>>* DirtyFiles = nullptr;
+        State.InstallDirtyFileCount = Json->TryGetArrayField(TEXT("bridge_dirty_files"), DirtyFiles) && DirtyFiles
+            ? DirtyFiles->Num()
+            : 0;
+    }
+
+    /** One line on whether the installed plugin can be trusted to match its
+        repository, or empty when there is nothing useful to say. */
+    FString InstallFreshnessText() const
+    {
+        if (!State.bInstallManifestFound)
+        {
+            return TEXT("no MCPBridgeInstall.json, so this plugin was not installed by the bridge installer "
+                        "and its version cannot be established");
+        }
+        const FString ShortCommit = State.InstallCommit.Len() >= 7 ? State.InstallCommit.Left(7) : State.InstallCommit;
+        if (State.bInstallTreeDirty)
+        {
+            return FString::Printf(
+                TEXT("installed from %s with %d uncommitted file(s) in the source tree, so this commit does not "
+                     "identify what is running"),
+                *ShortCommit, State.InstallDirtyFileCount);
+        }
+        return FString::Printf(TEXT("installed from %s"), *ShortCommit);
     }
 
     void LoadStatusFile()
@@ -615,12 +674,19 @@ private:
             TEXT("Engine: %s\n")
             TEXT("Project: %s\n")
             TEXT("Project file: %s\n")
-            TEXT("MCP_UNREAL_PROJECT_ROOT: %s\n"),
+            TEXT("MCP_UNREAL_PROJECT_ROOT: %s\n")
+            TEXT("Plugin: %s\n"),
             *Engine,
             *Project,
             *FPaths::GetProjectFilePath(),
-            *ProjectRoot
+            *ProjectRoot,
+            *InstallFreshnessText()
         );
+
+        if (!State.InstallSourceRepo.IsEmpty())
+        {
+            Prompt += FString::Printf(TEXT("Bridge repo: %s\n"), *State.InstallSourceRepo);
+        }
 
         if (bIncludeLevel)
         {
@@ -628,6 +694,19 @@ private:
                 TEXT("Current level: %s\n"),
                 State.CurrentLevel.IsEmpty() ? TEXT("Unknown") : *State.CurrentLevel
             );
+        }
+
+        // Only when there is something to act on. A clean install needs no
+        // instruction, and a prompt that always demands a check trains the
+        // reader to skip the line that matters.
+        if (!State.bInstallManifestFound || State.bInstallTreeDirty)
+        {
+            Prompt += FString::Printf(
+                TEXT("\nThe plugin running in this editor may be older than its repository, which would make a ")
+                TEXT("live run pass while proving nothing. Confirm before authoring:\n")
+                TEXT("  npm run install:check -- --project \"%s\"\n")
+                TEXT("Resync with install:sync if it reports a difference; that rebuilds and restarts the editor.\n"),
+                *ProjectRoot);
         }
 
         Prompt += TEXT("\nUse only puerts_* MCP tools for editor operations. Never use HTTP, REST, Python sockets, or shell scripts as a fallback. ")
@@ -839,6 +918,7 @@ private:
             + SVerticalBox::Slot().AutoHeight().Padding(ScaledMargin(0.0f, 0.0f, 0.0f, 10.0f))[MakeKeyValue(TEXT("Engine"), [this]() { return TextFor(State.EngineVersion); })]
             + SVerticalBox::Slot().AutoHeight().Padding(ScaledMargin(0.0f, 0.0f, 0.0f, 10.0f))[MakeKeyValue(TEXT("Project"), [this]() { return TextFor(State.ProjectName); })]
             + SVerticalBox::Slot().AutoHeight().Padding(ScaledMargin(0.0f, 0.0f, 0.0f, 10.0f))[MakeKeyValue(TEXT("Level"), [this]() { return TextFor(State.CurrentLevel); })]
+            + SVerticalBox::Slot().AutoHeight().Padding(ScaledMargin(0.0f, 0.0f, 0.0f, 10.0f))[MakeKeyValue(TEXT("Plugin"), [this]() { return FText::FromString(InstallFreshnessText()); })]
             + SVerticalBox::Slot().AutoHeight().Padding(ScaledMargin(0.0f, 0.0f, 0.0f, 12.0f))[MakeKeyValue(TEXT("Runtime"), [this]() { return TextFor(State.LastPingAt, TEXT("Waiting for PuerTS")); })]
             + SVerticalBox::Slot().AutoHeight()[MakeActionButton(TEXT("Copy Chat Prompt"), TEXT("bridge_copy_connection_prompt"))]);
     }

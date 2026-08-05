@@ -65,12 +65,39 @@ Step "Verifying engine version"
 & python (Join-Path $repoRoot 'skills\unreal-engine-4-27\scripts\verify_project_version.py') $projectRoot
 if ($LASTEXITCODE -ne 0) { throw "This bridge supports Unreal Engine 4.27 only. Nothing was changed." }
 
-# --- 3. Resolve and validate the engine root -------------------------------
+# --- 3. Build the bridge server if it is missing ----------------------------
+# Before the engine root is resolved, because that resolution runs through the
+# built resolver rather than a second copy of the registry lookup.
+Step "Building the MCP server"
+if (-not (Test-Path -LiteralPath (Join-Path $repoRoot 'mcp-server\dist\index.js'))) {
+    Push-Location $repoRoot
+    try { & npm run build; if ($LASTEXITCODE -ne 0) { throw "npm run build failed." } }
+    finally { Pop-Location }
+} else {
+    Write-Host "  mcp-server/dist already present, leaving it alone. Run 'npm run build' after changing src."
+}
+
+# --- 4. Resolve and validate the engine root -------------------------------
+# Order: -EngineRoot, then the environment, then whatever was recorded for a
+# previous project, then the project's own EngineAssociation through the
+# registry. The last one is what makes this automatic for a launcher install.
 Step "Resolving engine root"
 if (-not $EngineRoot) { $EngineRoot = $env:UE_ENGINE_ROOT }
 if (-not $EngineRoot -and (Test-Path -LiteralPath $localConfigPath)) {
     $existing = Get-Content -LiteralPath $localConfigPath -Raw | ConvertFrom-Json
     if ($existing.PSObject.Properties.Name -contains 'UE_ENGINE_ROOT') { $EngineRoot = $existing.UE_ENGINE_ROOT }
+}
+if (-not $EngineRoot) {
+    Write-Host "  Not configured; asking the project's EngineAssociation."
+    # Same resolver engine_source_search uses. UE_ENGINE_ROOT is cleared for the
+    # child so an empty-but-present variable cannot short-circuit the lookup.
+    $discovered = & node (Join-Path $repoRoot 'Scripts\resolve-engine-root.mjs') $projectRoot 2>&1
+    if ($LASTEXITCODE -eq 0 -and $discovered) {
+        $EngineRoot = ($discovered | Select-Object -Last 1).ToString().Trim()
+        Write-Host "  Discovered from EngineAssociation: $EngineRoot"
+    } else {
+        Write-Host "  Automatic lookup failed: $discovered"
+    }
 }
 if (-not $EngineRoot) {
     throw "No engine root. Pass -EngineRoot <path>, or set UE_ENGINE_ROOT. It is the directory containing Engine\Source."
@@ -85,16 +112,6 @@ Write-Host "  $EngineRoot"
 Step "Preparing the unreal-api environment"
 & powershell -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot 'setup-unreal-api-mcp.ps1')
 if ($LASTEXITCODE -ne 0) { throw "unreal-api environment setup failed." }
-
-# --- 5. Build the bridge server if it is missing ----------------------------
-Step "Building the MCP server"
-if (-not (Test-Path -LiteralPath (Join-Path $repoRoot 'mcp-server\dist\index.js'))) {
-    Push-Location $repoRoot
-    try { & npm run build; if ($LASTEXITCODE -ne 0) { throw "npm run build failed." } }
-    finally { Pop-Location }
-} else {
-    Write-Host "  mcp-server/dist already present, leaving it alone. Run 'npm run build' after changing src."
-}
 
 # --- 6. Record the machine-local paths -------------------------------------
 # Written before the plugin install so a failed build still leaves a usable

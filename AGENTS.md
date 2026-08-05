@@ -134,8 +134,13 @@ through `tsx` with a custom assert helper. Unit tests use a mock HTTP server
   .\Scripts\setup-unreal-project.ps1 -Project "D:\Unreal Projects\MyGame\MyGame.uproject"
   ```
 
-  `-EngineRoot` is needed only on the first run; it is remembered afterwards.
-  Restart the MCP client when it finishes, because servers register at startup.
+  The engine root is discovered automatically from the project's
+  `EngineAssociation` through the registry, using the same resolver
+  `engine_source_search` uses (`resolveEngineRoot` in
+  `mcp-server/src/tools/engine-source.ts`, reached by
+  `Scripts/resolve-engine-root.mjs`). `-EngineRoot` overrides it for a source
+  build the registry does not know about. Restart the MCP client when the script
+  finishes, because servers register at startup.
   `unreal-api` needs its own pinned environment once per machine
   (`Scripts/setup-unreal-api-mcp.ps1`, called automatically by the above): the
   package imports `mcp.server.fastmcp`, which `mcp` 2.0.0 removed.
