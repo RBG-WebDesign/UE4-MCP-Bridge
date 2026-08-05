@@ -4,6 +4,13 @@
                      "Copy the mcpServers block into ~/.gemini/settings.json (user-wide) or",
                      ".gemini/settings.json in a project. Gemini does not read .mcp.json.",
                      "Paths are absolute because Gemini launches the server with its own cwd.",
+                     "UE_ENGINE_ROOT and MCP_UNREAL_PROJECT_ROOT are deliberately absent: the",
+                     "server reads them from the gitignored bridge.local.json in the repository",
+                     "root, written by Scripts/setup-unreal-project.ps1. Setting either here",
+                     "still works and takes priority.",
+                     "unreal-api runs through the launcher so it uses the pinned virtual",
+                     "environment. 'uvx unreal-api-mcp' resolves mcp 2.0.0, which dropped",
+                     "fastmcp, and crashes on import.",
                      "Build the server first: npm run build",
                      "Remove this _comment key if your Gemini version rejects unknown fields."
                  ],
@@ -13,18 +20,15 @@
                                              "args":  [
                                                           "D:/Unreal Projects/UE4_Bridge/mcp-server/dist/index.js"
                                                       ],
-                                             "env":  {
-                                                         "UE_ENGINE_ROOT":  "D:/UE/UE_4.27",
-                                                         "MCP_UNREAL_PROJECT_ROOT":  "D:/Path/To/Your/UE427Project"
-                                                     },
+                                             "env":  {},
                                              "timeout":  120000,
                                              "trust":  false,
                                              "cwd":  "D:/Unreal Projects/UE4_Bridge"
                                          },
                        "unreal-api":  {
-                                          "command":  "uvx",
+                                          "command":  "node",
                                           "args":  [
-                                                       "unreal-api-mcp"
+                                                       "D:/Unreal Projects/UE4_Bridge/Scripts/start-unreal-api-mcp.mjs"
                                                    ],
                                           "env":  {
                                                       "UNREAL_VERSION":  "4.27"

@@ -194,7 +194,8 @@ function newestMtime(dir, exts) {
   if (!root) {
     warn("engine-root",
       "UE_ENGINE_ROOT is not set in this shell, so engine_source_search and engine_source_read fail",
-      "It is already set in .mcp.json and clients/, so MCP clients are fine. Export it for shell use: UE_ENGINE_ROOT=D:/UE/UE_4.27");
+      "MCP clients are fine: the server reads it from bridge.local.json at startup. This warning is about "
+      + "your shell only. Export it for shell use, or run Scripts/setup-unreal-project.ps1 to record it.");
   } else if (!existsSync(join(root, "Engine", "Source"))) {
     err("engine-root", `UE_ENGINE_ROOT=${root} but ${join(root, "Engine", "Source")} does not exist`,
       "Point it at the directory containing Engine/Source.");
@@ -282,8 +283,19 @@ function newestMtime(dir, exts) {
 // Codex and Gemini do not read .mcp.json. Their templates carry absolute paths,
 // which rot silently when the tree moves.
 {
+  // .mcp.json is committed and deliberately carries no machine-local paths, so
+  // UE_ENGINE_ROOT now comes from the gitignored bridge.local.json instead.
+  // Treating its absence from .mcp.json as an error reported a failure for the
+  // supported configuration, which is worse than the drift this check exists
+  // to catch.
+  const localConfigPath = join(repoRoot, "bridge.local.json");
+  let localConfig = {};
+  if (existsSync(localConfigPath)) {
+    // Tolerate a UTF-8 BOM; PowerShell and Windows editors write one routinely.
+    try { localConfig = JSON.parse(readFileSync(localConfigPath, "utf-8").replace(/^﻿/, "")); } catch { localConfig = {}; }
+  }
   const checks = [
-    { file: ".mcp.json", label: "Claude Code" },
+    { file: ".mcp.json", label: "Claude Code", localConfigCounts: true },
     { file: join("clients", "codex-config.toml"), label: "Codex" },
     { file: join("clients", "gemini-settings.json"), label: "Gemini" },
   ];
@@ -292,8 +304,14 @@ function newestMtime(dir, exts) {
     const p = join(repoRoot, c.file);
     if (!existsSync(p)) { problems.push(`${c.label}: ${c.file} missing`); continue; }
     const text = readFileSync(p, "utf-8");
-    if (!/UE_ENGINE_ROOT/.test(text)) {
-      problems.push(`${c.label}: no UE_ENGINE_ROOT, so engine_source_* will fail`);
+    const suppliedLocally = c.localConfigCounts && typeof localConfig.UE_ENGINE_ROOT === "string";
+    if (!/UE_ENGINE_ROOT/.test(text) && !suppliedLocally) {
+      problems.push(
+        `${c.label}: no UE_ENGINE_ROOT in ${c.file} and none in bridge.local.json, so engine_source_* will fail`);
+    }
+    if (suppliedLocally && !existsSync(join(localConfig.UE_ENGINE_ROOT, "Engine", "Source"))) {
+      problems.push(
+        `${c.label}: bridge.local.json UE_ENGINE_ROOT ${localConfig.UE_ENGINE_ROOT} has no Engine/Source`);
     }
     // absolute server paths must still resolve
     for (const m of text.matchAll(/([A-Za-z]:[\\/][^"']*?mcp-server[\\/]dist[\\/]index\.js)/g)) {

@@ -8,7 +8,7 @@ Subcommands:
   doctor      Diagnose repo build, skill install, MCP config, project version, session
   repair      Fix what doctor found that is safe to fix automatically
   update      git pull, rebuild the MCP server, reinstall the skill
-  start       Verify, then launch an agent from the UE4.27 project directory
+  start       Verify, launch the editor if it isn't running, then launch an agent
   verify      Prove each client actually discovers the installed skill
   catalog     Regenerate references/tool-catalog.md from annotations.ts
 
@@ -38,6 +38,8 @@ SKILL_SRC = os.path.join(REPO_ROOT, "skills", SKILL_NAME)
 SERVER_NAME = "unreal-bridge"
 SERVER_ENTRY = os.path.join(REPO_ROOT, "mcp-server", "dist", "index.js")
 MCP_JSON = os.path.join(REPO_ROOT, ".mcp.json")
+# Gitignored. Holds the absolute paths that must not live in a committed file.
+LOCAL_CONFIG_JSON = os.path.join(REPO_ROOT, "bridge.local.json")
 
 # CLI clients are detected by their executable; Antigravity is an application,
 # so it is detected by its configuration directory.
@@ -144,8 +146,32 @@ def skill_roots(agent: str, scope: str, project_dir: Optional[str]) -> List[str]
     return [os.path.join(base, ".agents", "skills")]
 
 
+def read_local_config() -> Dict[str, str]:
+    """Read the gitignored bridge.local.json holding this machine's paths.
+
+    .mcp.json is committed, so the absolute engine root and target project moved
+    here rather than into a tracked file carrying one developer's drive layout.
+    """
+    if not os.path.isfile(LOCAL_CONFIG_JSON):
+        return {}
+    try:
+        with open(LOCAL_CONFIG_JSON, "r", encoding="utf-8-sig") as handle:
+            data = json.load(handle)
+    except (OSError, ValueError):
+        return {}
+    if not isinstance(data, dict):
+        return {}
+    return {k: v for k, v in data.items() if isinstance(v, str)}
+
+
 def read_configured_project() -> Optional[str]:
-    """Read MCP_UNREAL_PROJECT_ROOT from the repo .mcp.json, if present."""
+    """Read MCP_UNREAL_PROJECT_ROOT: environment, bridge.local.json, .mcp.json."""
+    from_env = os.environ.get("MCP_UNREAL_PROJECT_ROOT")
+    if from_env:
+        return from_env
+    from_local = read_local_config().get("MCP_UNREAL_PROJECT_ROOT")
+    if from_local:
+        return from_local
     if not os.path.isfile(MCP_JSON):
         return None
     try:
@@ -158,10 +184,13 @@ def read_configured_project() -> Optional[str]:
 
 
 def read_engine_root() -> Optional[str]:
-    """Read UE_ENGINE_ROOT from the environment or the repo .mcp.json."""
+    """Read UE_ENGINE_ROOT: environment, bridge.local.json, then .mcp.json."""
     from_env = os.environ.get("UE_ENGINE_ROOT")
     if from_env:
         return from_env
+    from_local = read_local_config().get("UE_ENGINE_ROOT")
+    if from_local:
+        return from_local
     if os.path.isfile(MCP_JSON):
         try:
             with open(MCP_JSON, "r", encoding="utf-8-sig") as handle:
@@ -281,7 +310,15 @@ class Installer:
             env["UE_ENGINE_ROOT"] = engine_root
         target = project or read_configured_project()
         if target:
-            env["MCP_UNREAL_PROJECT_ROOT"] = target.replace("\\", "/")
+            # MCP_UNREAL_PROJECT_ROOT must be the project directory: the client
+            # joins it directly with Saved/MCPPuerTSBridge/session.json
+            # (puerts-client.ts resolveSession). --project's own documented
+            # contract is "path to .uproject", so a caller passing the file
+            # itself is the expected input, not a misuse; without this, the
+            # server looks for Saved/ nested inside the .uproject file path
+            # and never finds a running editor.
+            root = os.path.dirname(target) if target.lower().endswith(".uproject") else target
+            env["MCP_UNREAL_PROJECT_ROOT"] = root.replace("\\", "/")
         return env
 
     def register_claude(self, scope: str, project: Optional[str],
@@ -600,8 +637,9 @@ def check_project(project: Optional[str]) -> List[Finding]:
         findings.append(Finding(
             "error", "editor-session",
             "no editor advertises a session for %s" % target,
-            "open that project in UE4Editor (Scripts/start-ue4-project.ps1), or point "
-            "MCP_UNREAL_PROJECT_ROOT at the project that is actually running"))
+            "python Scripts/ue427.py start <agent> opens it for you, or run "
+            "Scripts/start-ue4-project.ps1 directly, or point MCP_UNREAL_PROJECT_ROOT "
+            "at the project that is actually running"))
     elif session.get("shutdown_state") != "running":
         findings.append(Finding("warn", "editor-session",
                                 "session state is %r" % session.get("shutdown_state"),
@@ -700,8 +738,23 @@ def update(project: Optional[str]) -> int:
     return 0
 
 
+def launch_editor(uproject: str) -> bool:
+    """Launch the UE4 editor via start-ue4-project.ps1 and wait for its bridge session.
+
+    That script owns the duplicate-process guard and the readiness wait; this
+    just runs it and streams its output, so a refusal or a crash is reported
+    exactly as the script prints it.
+    """
+    script = os.path.join(REPO_ROOT, "Scripts", "start-ue4-project.ps1")
+    result = subprocess.run([
+        "powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass",
+        "-File", script, "-Project", uproject,
+    ])
+    return result.returncode == 0
+
+
 def start(agent: str, project: Optional[str]) -> int:
-    """Verify the project and bridge, then launch an agent in the project directory."""
+    """Verify the project, launch the editor if needed, then launch an agent."""
     target = project or read_configured_project()
     if not target:
         print("No project configured. Pass --project <path to .uproject>.", file=sys.stderr)
@@ -713,8 +766,14 @@ def start(agent: str, project: Optional[str]) -> int:
     print("Project verified: Unreal Engine %s (%s)" % (result["version"], result["source"]))
 
     if read_session(target) is None:
-        print("WARNING: no editor advertises a session for this project yet.")
-        print("         Open it with Scripts/start-ue4-project.ps1 before running editor tools.")
+        if os.name != "nt":
+            print("WARNING: no editor advertises a session for this project yet.")
+            print("         Open it with Scripts/start-ue4-project.ps1 before running editor tools.")
+        else:
+            print("No editor session yet, launching one via Scripts/start-ue4-project.ps1...")
+            if not launch_editor(result["uproject"]):
+                print("FAIL: could not launch the editor (see the error above).", file=sys.stderr)
+                return 3
 
     project_dir = target if os.path.isdir(target) else os.path.dirname(target)
 
@@ -1080,7 +1139,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     p_update = sub.add_parser("update", help="Pull, rebuild, and reinstall")
     p_update.add_argument("--project")
 
-    p_start = sub.add_parser("start", help="Verify, then launch an agent in the project")
+    p_start = sub.add_parser("start", help="Verify, launch the editor if needed, then launch an agent")
     p_start.add_argument("agent", choices=list(AGENTS))
     p_start.add_argument("--project")
 

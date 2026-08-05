@@ -7,6 +7,11 @@
  * Uses authenticated local named-pipe IPC to the in-process UE4.27 PuerTS runtime.
  */
 
+// First, so UE_ENGINE_ROOT and MCP_UNREAL_PROJECT_ROOT are in the environment
+// before any consumer reads them. The environment still wins over the file.
+import { loadLocalConfig } from "./local-config.js";
+const localConfig = loadLocalConfig();
+
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import {
@@ -59,6 +64,7 @@ import { createOptimizationTools } from "./tools/optimization.js";
 import { createEngineSourceTools } from "./tools/engine-source.js";
 import { createPuertsTools } from "./tools/puerts.js";
 import { createStatusTools } from "./tools/status.js";
+import { createBlueprintProductionTools } from "./tools/blueprint-production.js";
 import { registerCompatAliases } from "./tools/compat.js";
 import { toolAnnotations } from "./annotations.js";
 import { loadExtensions } from "./extensions.js";
@@ -97,6 +103,7 @@ async function main(): Promise<void> {
     ...createEngineSourceTools(),
     ...createStatusTools(),
     ...createPuertsTools(puertsClient),
+    ...createBlueprintProductionTools(),
   ];
 
   // The old HTTP/Python catalog is migration-only and invisible unless a human
@@ -261,6 +268,22 @@ async function main(): Promise<void> {
   await server.connect(transport);
 
   console.error(`[Unreal MCP Bridge] Server started with ${allTools.length} tools`);
+  // Say where the machine-local paths came from. A wrong project root surfaces
+  // only as session_missing later, so naming the source here is what turns that
+  // into a one-line diagnosis instead of a hunt.
+  if (localConfig.error !== undefined) {
+    console.error(`[Unreal MCP Bridge] WARNING: ${localConfig.path}: ${localConfig.error}`);
+  } else if (localConfig.found) {
+    const parts = [`applied ${localConfig.applied.join(", ") || "nothing"}`];
+    if (localConfig.skipped.length > 0) parts.push(`environment already set ${localConfig.skipped.join(", ")}`);
+    if (localConfig.unknown.length > 0) parts.push(`IGNORED unknown ${localConfig.unknown.join(", ")}`);
+    console.error(`[Unreal MCP Bridge] bridge.local.json: ${parts.join("; ")}`);
+  } else if (process.env.MCP_UNREAL_PROJECT_ROOT === undefined) {
+    console.error(
+      `[Unreal MCP Bridge] No bridge.local.json and no MCP_UNREAL_PROJECT_ROOT. The bridge will look for an `
+      + `editor session under the current directory. Run Scripts/setup-unreal-project.ps1 -Project <path.uproject>.`
+    );
+  }
   console.error(`[Unreal MCP Bridge] Native IPC mode: ${legacyHttpEnabled ? "PuerTS plus explicit legacy HTTP" : "PuerTS only"}`);
   if (legacyClient !== undefined) {
     console.error(`[Unreal MCP Bridge] Legacy listener endpoint: ${legacyClient.endpoint}`);

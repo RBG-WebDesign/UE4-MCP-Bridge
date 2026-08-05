@@ -4,14 +4,12 @@
       "command": "node",
       "args": ["mcp-server/dist/index.js"],
       "cwd": ".",
-      "env": {
-        "UE_ENGINE_ROOT": "D:/UE/UE_4.27",
-        "MCP_UNREAL_PROJECT_ROOT": "D:/Unreal Projects/BridgeInstallTest"
-      }
+      "env": {}
     },
     "unreal-api": {
-      "command": "C:/Users/austi/.venvs/unreal-api-mcp/Scripts/unreal-api-mcp.exe",
-      "args": [],
+      "command": "node",
+      "args": ["Scripts/start-unreal-api-mcp.mjs"],
+      "cwd": ".",
       "env": {
         "UNREAL_VERSION": "4.27"
       }

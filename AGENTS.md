@@ -114,9 +114,31 @@ through `tsx` with a custom assert helper. Unit tests use a mock HTTP server
 - UE4.27 with the Python Editor Script Plugin enabled
 - Node.js 18+
 - `UE_ENGINE_ROOT` pointing at the engine root (the directory containing
-  `Engine/Source`). Currently `D:/UE/UE_4.27`. Without it the `engine_source_*`
-  tools cannot find the engine: their fallback reads `EngineAssociation` from a
-  `.uproject`, and a bridge-only clone has none.
+  `Engine/Source`). Without it the `engine_source_*` tools cannot find the
+  engine: their fallback reads `EngineAssociation` from a `.uproject`, and a
+  bridge-only clone has none.
+- `MCP_UNREAL_PROJECT_ROOT` selecting which editor the bridge addresses.
+
+  Both are absolute and differ per machine, so they do **not** live in the
+  committed `.mcp.json`. They come from `bridge.local.json` at the repository
+  root, which is gitignored; `bridge.local.example.json` is the template. The
+  server seeds them into its own environment at startup
+  (`mcp-server/src/local-config.ts`), so every client gets them, not just Claude
+  Code, and no client config needs a project path edited into it. An explicit
+  environment variable always wins over the file.
+
+  One command per project writes that file, installs the plugin, builds the
+  target editor, and validates the result:
+
+  ```powershell
+  .\Scripts\setup-unreal-project.ps1 -Project "D:\Unreal Projects\MyGame\MyGame.uproject"
+  ```
+
+  `-EngineRoot` is needed only on the first run; it is remembered afterwards.
+  Restart the MCP client when it finishes, because servers register at startup.
+  `unreal-api` needs its own pinned environment once per machine
+  (`Scripts/setup-unreal-api-mcp.ps1`, called automatically by the above): the
+  package imports `mcp.server.fastmcp`, which `mcp` 2.0.0 removed.
 - `Plugins/Puerts`, the pinned vendored bundle. It is gitignored, so a fresh
   **git worktree does not have it** and `npm run build` warns, stages an
   incomplete `Content/JavaScript`, and leaves `install:check` reporting 22 extra
@@ -289,7 +311,11 @@ Builder subsystems inside `MCPBridgeGraphBuilder`:
 
 - **Blueprint Graph Builder** (11 passes complete) - `UBlueprintGraphBuilderLibrary::BuildBlueprintFromJSON`
 - **Behavior Tree Builder** (complete, 26 node types) - `UBehaviorTreeBuilderLibrary::BuildBehaviorTreeFromJSON`
-- **Animation Blueprint Builder** (v1 complete) - `UAnimBlueprintBuilderLibrary::BuildAnimBlueprintFromJSON`
+- **Animation Blueprint Builder** (v1 complete, two bugs found and fixed in live testing 2026-08-05: both
+  `FAnimBPAnimGraphBuilder::FindAnimGraph` and the `puerts_anim_blueprint_inspect` read-back path compared
+  `Graph->Schema->GetClass()->GetName()` instead of `Graph->Schema->GetName()`, always yielding "Class" since
+  `Schema` is already a `TSubclassOf<UEdGraphSchema>`; build, inspect, patch and pawn-attach re-verified live,
+  14/14) - `UAnimBlueprintBuilderLibrary::BuildAnimBlueprintFromJSON`
 - **Widget Blueprint Builder** (design complete, implementation not started) - `UWidgetBlueprintBuilderLibrary`
 
 Specs live in `docs/superpowers/specs/`.
