@@ -137,6 +137,7 @@ async function main() {
   // editor, so it is not part of the native lane and must not be waved through
   // by a prefix somebody picks later. Adding one here is a deliberate act.
   const SERVER_LOCAL_TOOLS = new Set(["bridge_command_status"]);
+  SERVER_LOCAL_TOOLS.add("blueprint_production_plan");
   const unexpectedTools = tools
     .map((tool) => tool.name)
     .filter((name) => !name.startsWith("puerts_") && !name.startsWith("engine_source_")

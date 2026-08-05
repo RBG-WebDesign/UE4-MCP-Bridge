@@ -69,8 +69,14 @@ await runSlice({
     h.check(master.data?.compile?.succeeded === true || master.data?.compile_status === "UpToDate",
       "1. the master material compiled",
       JSON.stringify(master.data?.compile ?? master.data?.compile_status ?? null).slice(0, 300));
-    h.check(master.data?.saved === true,
-      "1. the master material was saved after its read-back agreed", String(master.data?.saved));
+    // A converged rerun against an already-saved, unchanged material
+    // deliberately reports saved:false (MCPPuerTSBridgeMaterialBuild.cpp's
+    // converged branch) because there is nothing to save, not because a save
+    // was attempted and skipped. Same shape as the level slice's converged
+    // scene_batch: a correct no-op is not a failed assertion.
+    h.check(master.data?.saved === true || master.data?.converged === true,
+      "1. the master material was saved after its read-back agreed, or converged",
+      `saved=${master.data?.saved} converged=${master.data?.converged}`);
   }
 
   // The independent read of the PARENT, before anything instances it. A builder

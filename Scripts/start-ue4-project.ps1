@@ -15,6 +15,17 @@ caller knows the bridge is actually up, not just that a process started.
 .PARAMETER StopOnly
 Close any running UE4Editor process(es) for this project's engine and
 return without launching a new one.
+
+.PARAMETER Unattended
+Launch with -unattended, which UE4.27 checks via FApp::IsUnattended() to
+suppress interactive prompts that only a human can answer - notably the
+"Restore Packages" dialog FPackageAutoSaver::OfferToRestorePackages shows on
+next launch after this same script's -CloseExisting/-StopOnly force-killed a
+prior editor (PackageAutoSaver.cpp:300), which blocks Slate/viewport
+initialization until dismissed. Not the default: a human's own interactive
+session may want other prompts -unattended also suppresses (e.g. source
+control checkout dialogs) to actually ask. Use this for bridge-driven
+automated rebuild/relaunch/test cycles, which never want any UI interaction.
 #>
 param(
     [Parameter(Mandatory = $true, Position = 0)]
@@ -25,7 +36,8 @@ param(
     [switch]$CloseExisting,
     [switch]$AllowAdditional,
     [switch]$StopOnly,
-    [int]$ReadyTimeoutSeconds = 120
+    [int]$ReadyTimeoutSeconds = 120,
+    [switch]$Unattended
 )
 
 Set-StrictMode -Version Latest
@@ -62,7 +74,9 @@ if (Test-Path -LiteralPath $sessionFile) {
     Remove-Item -LiteralPath $sessionFile -Force
 }
 
-$proc = Start-Process -FilePath $editorExe -ArgumentList ('"{0}"' -f $projectPath) -PassThru
+$launchArgs = @('"{0}"' -f $projectPath)
+if ($Unattended) { $launchArgs += '-unattended' }
+$proc = Start-Process -FilePath $editorExe -ArgumentList $launchArgs -PassThru
 Write-Host "Launched UE4 editor (PID $($proc.Id)) for $projectPath. Waiting up to ${ReadyTimeoutSeconds}s for the bridge session..."
 
 $deadline = (Get-Date).AddSeconds($ReadyTimeoutSeconds)
