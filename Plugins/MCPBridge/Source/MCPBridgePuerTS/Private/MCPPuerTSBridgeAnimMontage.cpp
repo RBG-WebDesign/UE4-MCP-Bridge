@@ -54,8 +54,13 @@ namespace
         USkeleton* Skeleton, int32& OutSegments, FString& OutError)
     {
         const TArray<TSharedPtr<FJsonValue>>* NotifyValues = nullptr;
-        if (Request->TryGetArrayField(TEXT("notifies"), NotifyValues)
-            && NotifyValues != nullptr && NotifyValues->Num() > 0)
+        const bool bHasNotifies = Request->HasField(TEXT("notifies"));
+        if (bHasNotifies && !Request->TryGetArrayField(TEXT("notifies"), NotifyValues))
+        {
+            OutError = TEXT("notifies must be an array.");
+            return false;
+        }
+        if (bHasNotifies && NotifyValues != nullptr && NotifyValues->Num() > 0)
         {
             OutError = TEXT("notifies are refused: safe notify and notify-state authoring requires "
                 "full start/end FAnimLinkableElement read-back, which this implementation does not claim.");
@@ -220,7 +225,12 @@ namespace
             Section.LinkMontage(Montage, Input.Time, 0);
             Montage->CompositeSections.Add(Section);
         }
-        Montage->Notifies.Reset();
+        // Notify authoring is intentionally refused. Preserve existing notify data when
+        // callers omit the unsupported field; an explicit empty array means clear it.
+        if (bHasNotifies)
+        {
+            Montage->Notifies.Reset();
+        }
 
         float BlendIn = 0.25f, BlendOut = 0.25f, BlendTrigger = -1.0f;
         bool bAutoBlendOut = true;
@@ -491,7 +501,13 @@ bool UMCPPuerTSBridgeService::BuildAnimMontageJson(
     Result->SetNumberField(TEXT("slot_count"), Scratch->SlotAnimTracks.Num());
     Result->SetNumberField(TEXT("segment_count"), SegmentCount);
     Result->SetNumberField(TEXT("section_count"), Scratch->CompositeSections.Num());
-    Result->SetNumberField(TEXT("notify_count"), 0);
+    int32 NotifyCount = 0;
+    double InspectionNotifyCount = 0.0;
+    if (Inspection->TryGetNumberField(TEXT("notify_count"), InspectionNotifyCount))
+    {
+        NotifyCount = FMath::Max(0, FMath::RoundToInt(InspectionNotifyCount));
+    }
+    Result->SetNumberField(TEXT("notify_count"), NotifyCount);
     OutResultJson = MontageJson(Result);
     return true;
 }
