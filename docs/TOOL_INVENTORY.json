@@ -23,12 +23,12 @@
     "native_live_partial": "live acceptance passed, but part of the evidence is the builder own report because no independent reader exists yet",
     "legacy_untested": "no live editor proof of any kind; a non-null test_file covers only the mock listener"
   },
-  "tool_count": 308,
+  "tool_count": 310,
   "by_backend": {
     "legacy_http": 170,
     "native_pipe_alias": 63,
     "server_local": 4,
-    "native_pipe": 71
+    "native_pipe": 73
   },
   "tools": [
     {
@@ -8608,12 +8608,56 @@
       "verification": "live_verified"
     },
     {
+      "name": "puerts_anim_blend_space_build",
+      "module": "mcp-server/src/tools/puerts.ts",
+      "backend": "native_pipe",
+      "migration_state": "native",
+      "target_replacement": null,
+      "description": "[PRIMARY NATIVE IPC] Create a NEW UE4.27 Blend Space 1D from one JSON spec: target skeleton, one axis (name, min, max, grid_divisions) and a sample list (animation, position, optional rate_scale). CREATE-ONLY, the same shape as anim_blueprint_build and for the same reason: it refuses outright when asset_path already names an asset rather than editing it, because UE4.27 rebuilds a blend space's whole triangulation from its sample set and there is no atomic way to replace an existing one's samples (see puerts_anim_blend_space_inspect). Every sample is added through the engine's own AddSample before ValidateSampleData() rebuilds the grid once, and the result is kept only if every sample validates AND an independent read through puerts_anim_blend_space_inspect agrees with the request; anything else rolls the whole asset back and nothing is left under /Game/MCPGenerated/. Position values must fall within [min, max] and no two samples may share a position - both are refused before any asset is touched.",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "asset_path": "string",
+          "skeleton_path": "string",
+          "axis": "object",
+          "samples": "array",
+          "plan_only": "boolean?",
+          "save": "boolean?"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": "mcp-server/tests/puerts-tools.test.ts",
+      "capability_category": "animation",
+      "canonical_capability": "animation.anim_blend_space_build",
+      "owner": "MCPBridgePuerTS service",
+      "lifecycle": "active",
+      "migration_action": "KEEP",
+      "replacement_tool": null,
+      "compatibility_alias": false,
+      "cpp_builder": "MCPPuerTSBridgeService",
+      "cpp_entry_point": "BuildAnimBlendSpaceJson",
+      "python_handler": null,
+      "live_evidence": [
+        "mcp-server/tests/puerts-tools.test.ts"
+      ],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": "New 2026-08-05: no blend space write tool existed before this. Live-verified against a running UE4.27 editor: built BS_SurvivorA_Standing (Idle/Walk/Jog on a Speed axis) and its independent anim_blend_space_inspect read-back agreed byte-for-byte (structure_hash_sha1 matched).",
+      "verification": "live_verified"
+    },
+    {
       "name": "puerts_anim_blend_space_inspect",
       "module": "mcp-server/src/tools/puerts.ts",
       "backend": "native_pipe",
       "migration_state": "native",
       "target_replacement": null,
-      "description": "[PRIMARY NATIVE IPC] Read an existing UE4.27 Blend Space, Blend Space 1D or Aim Offset back as machine-readable JSON. READ ONLY, on the same terms as the other inspectors: no transaction, no compile, no save, and the package dirty flag reported before and after. Returns the target skeleton, blend_space_class (which is what tells 1D from 2D, since UE4.27 exposes no dimension count), all three axes with display_name, min, max and grid_divisions, and every sample with its animation, x/y/z position and rate_scale. Samples are SORTED by position and animation rather than reported in array order, because a blend space's array order carries no meaning, so structure_hash_sha1 is stable across two reads of an unchanged asset. A sample with no animation is reported as a warning rather than a silent row: it contributes nothing at runtime. There is deliberately no blend space write tool: UE4.27 rebuilds the triangulation from the sample set, so a partly applied sample edit leaves a space that interpolates wrong rather than one that fails, and there is no atomic sample-set replacement to wrap. Reading is allowed anywhere under /Game and /Engine.",
+      "description": "[PRIMARY NATIVE IPC] Read an existing UE4.27 Blend Space, Blend Space 1D or Aim Offset back as machine-readable JSON. READ ONLY, on the same terms as the other inspectors: no transaction, no compile, no save, and the package dirty flag reported before and after. Returns the target skeleton, blend_space_class (which is what tells 1D from 2D, since UE4.27 exposes no dimension count), all three axes with display_name, min, max and grid_divisions, and every sample with its animation, x/y/z position and rate_scale. Samples are SORTED by position and animation rather than reported in array order, because a blend space's array order carries no meaning, so structure_hash_sha1 is stable across two reads of an unchanged asset. A sample with no animation is reported as a warning rather than a silent row: it contributes nothing at runtime. puerts_anim_blend_space_build creates new Blend Spaces; this tool has no write counterpart of its own because UE4.27 rebuilds the triangulation from the whole sample set, so an update-in-place tool would need an atomic sample-set replacement UE4.27 does not offer. Reading is allowed anywhere under /Game and /Engine.",
       "schema": {
         "kind": "object",
         "params": {
@@ -10872,6 +10916,47 @@
       "migration_risk": "low",
       "capability_loss_risk": "low",
       "notes": "Verified over authenticated PuerTS named pipe connection on UE4.27.",
+      "verification": "live_verified"
+    },
+    {
+      "name": "puerts_project_settings_patch",
+      "module": "mcp-server/src/tools/puerts.ts",
+      "backend": "native_pipe",
+      "migration_state": "native",
+      "target_replacement": null,
+      "description": "[PRIMARY NATIVE IPC] Set any config property on any Project Settings page and persist it to that page's Default*.ini. Every page in the Project Settings window is a settings class whose class default object holds the values, so section names that class: \"GameMapsSettings\", \"ProjectPackagingSettings\", \"GeneralProjectSettings\", \"RendererSettings\", \"InputSettings\". The engine picks the target ini from the class itself, so Description lands in DefaultGame.ini and Maps and Modes in DefaultEngine.ini with no path given here. Read current values first with puerts_read_property against the CDO path, for example object_path \"/Script/EngineSettings.Default__GameMapsSettings\". A property that is not marked config is REFUSED rather than set, because it would change in memory and silently vanish on the next editor start. Convergent: a value already equal to the request is reported in unchanged_properties and not rewritten. Verification reads the ini file back off disk and compares it against the exported property text; on any disagreement both the class default object and the previous ini bytes are restored. Container properties (arrays, maps, sets) are confirmed present but not compared element by element, and are listed in persisted_but_not_value_compared. This edits project config rather than an asset, so editor undo does not take it back. puerts_project_settings_maps stays the better call for maps and game mode, which it validates as existing assets first.",
+      "schema": {
+        "kind": "object",
+        "params": {
+          "section": "string",
+          "properties": "record",
+          "plan_only": "boolean?"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "module_listener_commands": [],
+      "test_file": "mcp-server/tests/puerts-tools.test.ts",
+      "capability_category": "project",
+      "canonical_capability": "project.settings_patch",
+      "owner": "MCPBridgePuerTS service",
+      "lifecycle": "active",
+      "migration_action": "KEEP",
+      "replacement_tool": null,
+      "compatibility_alias": false,
+      "cpp_builder": "MCPPuerTSBridgeService",
+      "cpp_entry_point": "PatchProjectSettingsJson",
+      "python_handler": null,
+      "live_evidence": [
+        "Scripts/project-settings-patch-acceptance.mjs"
+      ],
+      "migration_risk": "low",
+      "capability_loss_risk": "low",
+      "notes": "Generic config-property patch for any Project Settings page. Live run on UE4.27 proved plan_only writes nothing, an applied change reaches the ini file on disk, a rerun converges, and a non-config property is refused.",
       "verification": "live_verified"
     },
     {

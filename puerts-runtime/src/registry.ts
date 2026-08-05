@@ -294,8 +294,15 @@ async function spawnActor(context: ToolContext, input: JsonObject): Promise<Comm
   const classPath = requireString(input, "class_path");
   if (!classPath.startsWith("/Game/") && !classPath.startsWith("/Script/Engine.")
       && classPath !== "/Script/CinematicCamera.CineCameraActor"
-      && classPath !== "/Script/LevelSequence.LevelSequenceActor") {
-    throw new Error("Actor classes are limited to /Game, /Script/Engine, CineCameraActor, and LevelSequenceActor");
+      && classPath !== "/Script/LevelSequence.LevelSequenceActor"
+      // NavMeshBoundsVolume is NotBlueprintable, so the usual "wrap it in an
+      // empty Blueprint" workaround (which is how project-native C++ classes
+      // get placed at all) is refused by the engine itself, not by this
+      // allowlist - there is no other route to a navigable level.
+      && classPath !== "/Script/NavigationSystem.NavMeshBoundsVolume") {
+    throw new Error(
+      "Actor classes are limited to /Game, /Script/Engine, CineCameraActor, "
+      + "LevelSequenceActor, and NavMeshBoundsVolume");
   }
   const location = optionalObject(input, "location") ?? {};
   const rotation = optionalObject(input, "rotation") ?? {};
@@ -962,6 +969,60 @@ async function queryNavigation(context: ToolContext, input: JsonObject): Promise
   return result;
 }
 
+/** Reconcile a DataTable from its complete row JSON. The native command owns
+    validation, rollback, independent export read-back and saving. */
+async function buildDataTable(context: ToolContext, input: JsonObject): Promise<CommandResponse> {
+  const assetPath = requireString(input, "asset_path");
+  if (!assetPath.startsWith("/Game/MCPGenerated/")) {
+    throw new Error("DataTable builds are limited to /Game/MCPGenerated/");
+  }
+  const spec: JsonObject = { asset_path: assetPath };
+  const rowStruct = optionalString(input, "row_struct");
+  if (rowStruct !== undefined) { spec.row_struct = rowStruct; }
+  const rows = input.rows_json;
+  if (rows === undefined) {
+    spec.rows_json = [];
+  } else if (typeof rows === "string" || Array.isArray(rows)) {
+    spec.rows_json = rows as JsonValue;
+  } else {
+    throw new Error("rows_json must be a JSON array or JSON text.");
+  }
+  if (input.plan_only !== undefined) {
+    spec.plan_only = optionalBoolean(input, "plan_only", false);
+  }
+  if (input.save !== undefined) {
+    spec.save = optionalBoolean(input, "save", true);
+  }
+
+  const resultJson = puerts.$ref<string>("");
+  const error = puerts.$ref<string>("");
+  if (!context.bridge.BuildDataTableJson(JSON.stringify(spec), resultJson, error)) {
+    const body = puerts.$unref(resultJson);
+    if (body.length > 0) {
+      return commandFailure(new Error(puerts.$unref(error)), JSON.parse(body) as JsonObject);
+    }
+    throw new Error(puerts.$unref(error));
+  }
+  const parsed = JSON.parse(puerts.$unref(resultJson)) as JsonObject;
+  const planOnly = parsed.plan_only === true;
+  const created = parsed.created === true;
+  const unchanged = parsed.unchanged === true;
+  const result = response(
+    true,
+    planOnly
+      ? "DataTable build planned."
+      : created ? "DataTable created."
+      : unchanged ? "DataTable already matches the requested rows."
+      : "DataTable rows replaced.",
+    parsed,
+  );
+  const objectPath = parsed.object_path;
+  if (!planOnly && !unchanged && typeof objectPath === "string" && objectPath.length > 0) {
+    result.changed_assets.push(objectPath);
+  }
+  return result;
+}
+
 /** Reconcile one Sound Cue node tree. Validation, rollback, graph regeneration,
     independent read-back and saving all stay inside the native command. */
 async function buildAudio(context: ToolContext, input: JsonObject): Promise<CommandResponse> {
@@ -1002,6 +1063,7 @@ async function buildAudio(context: ToolContext, input: JsonObject): Promise<Comm
   }
   return result;
 }
+
 
 /** Read a Sound Cue or Sound Wave. Read-only: the native side opens no
     transaction and touches no package. */
@@ -1230,6 +1292,51 @@ async function inspectAnimMontage(context: ToolContext, input: JsonObject): Prom
   return result;
 }
 
+async function buildAnimMontage(context: ToolContext, input: JsonObject): Promise<CommandResponse> {
+  const assetPath = requireString(input, "asset_path");
+  if (!assetPath.startsWith("/Game/")) {
+    throw new Error("Animation Montage authoring is limited to /Game/");
+  }
+  const spec: JsonObject = {
+    asset_path: assetPath,
+    skeleton: requireString(input, "skeleton"),
+    slots: objectArray(input, "slots") as unknown as JsonValue,
+    sections: objectArray(input, "sections") as unknown as JsonValue,
+    plan_only: optionalBoolean(input, "plan_only", false),
+    save: optionalBoolean(input, "save", true),
+  };
+  if (input.notifies !== undefined) {
+    if (!Array.isArray(input.notifies)) throw new Error("notifies must be an array");
+    spec.notifies = input.notifies;
+  }
+  const blend = optionalObject(input, "blend");
+  if (blend !== undefined) spec.blend = blend;
+  const syncGroup = optionalString(input, "sync_group");
+  if (syncGroup !== undefined) spec.sync_group = syncGroup;
+  const resultJson = puerts.$ref<string>("");
+  const error = puerts.$ref<string>("");
+  if (!context.bridge.BuildAnimMontageJson(JSON.stringify(spec), resultJson, error)) {
+    const body = puerts.$unref(resultJson);
+    if (body.length > 0) {
+      return commandFailure(new Error(puerts.$unref(error)), JSON.parse(body) as JsonObject);
+    }
+    throw new Error(puerts.$unref(error));
+  }
+  const parsed = JSON.parse(puerts.$unref(resultJson)) as JsonObject;
+  const result = response(
+    true,
+    parsed.plan_only === true ? "Animation Montage build planned."
+      : parsed.built === true ? "Animation Montage built."
+      : "Animation Montage build completed.",
+    parsed,
+  );
+  if (parsed.built === true && parsed.plan_only !== true
+      && typeof parsed.object_path === "string" && parsed.object_path.length > 0) {
+    result.changed_assets.push(parsed.object_path);
+  }
+  return result;
+}
+
 /** Read a Blend Space, Blend Space 1D or Aim Offset back as JSON: axes and
     samples. Read-only with no write counterpart, for the reason recorded on
     InspectAnimBlendSpaceJson. */
@@ -1251,6 +1358,48 @@ async function inspectAnimBlendSpace(context: ToolContext, input: JsonObject): P
 
   const result = response(true, "Blend Space inspected.", parsed);
   result.warnings.push(...warnings);
+  return result;
+}
+
+/** Create a NEW UBlendSpace1D from one JSON spec: skeleton, one axis, and a
+    sample list. Create-only, for the reason recorded on BuildAnimBlendSpaceJson:
+    UE4.27 rebuilds a blend space's whole triangulation from its sample set, so
+    there is no atomic way to replace an existing one's samples - only to build
+    a new asset from nothing and refuse if it already exists. */
+async function buildAnimBlendSpace(context: ToolContext, input: JsonObject): Promise<CommandResponse> {
+  const assetPath = requireString(input, "asset_path");
+  if (!assetPath.startsWith("/Game/MCPGenerated/")) {
+    throw new Error("Blend Space builds are limited to /Game/MCPGenerated/");
+  }
+  const spec: JsonObject = {
+    asset_path: assetPath,
+    skeleton_path: requireString(input, "skeleton_path"),
+    axis: requireObject(input, "axis"),
+    samples: objectArray(input, "samples") as unknown as JsonValue,
+  };
+  for (const flag of ["plan_only", "save"]) {
+    if (input[flag] !== undefined) { spec[flag] = optionalBoolean(input, flag, false); }
+  }
+
+  const resultJson = puerts.$ref<string>("");
+  const error = puerts.$ref<string>("");
+  if (!context.bridge.BuildAnimBlendSpaceJson(JSON.stringify(spec), resultJson, error)) {
+    const body = puerts.$unref(resultJson);
+    if (body.length > 0) {
+      return commandFailure(new Error(puerts.$unref(error)), JSON.parse(body) as JsonObject);
+    }
+    throw new Error(puerts.$unref(error));
+  }
+  const parsed = JSON.parse(puerts.$unref(resultJson)) as JsonObject;
+  const planOnly = parsed.plan_only === true;
+  const result = response(
+    true,
+    planOnly ? "Blend Space build planned." : "Blend Space built.",
+    parsed,
+  );
+  if (!planOnly && typeof parsed.object_path === "string") {
+    result.changed_assets.push(parsed.object_path);
+  }
   return result;
 }
 
@@ -2131,6 +2280,53 @@ async function buildSequence(context: ToolContext, input: JsonObject): Promise<C
   return result;
 }
 
+async function buildSequenceEventTrack(context: ToolContext, input: JsonObject): Promise<CommandResponse> {
+  const assetPath = requireString(input, "asset_path");
+  if (!assetPath.startsWith("/Game/MCPGenerated/")) {
+    throw new Error("Sequence event authoring is limited to /Game/MCPGenerated/");
+  }
+  const events = objectArray(input, "events");
+  if (events.length === 0) throw new Error("events must be a non-empty array");
+  const spec: JsonObject = {
+    asset_path: assetPath,
+    endpoint_name: requireString(input, "endpoint_name"),
+    events: events as unknown as JsonValue,
+    plan_only: optionalBoolean(input, "plan_only", false),
+    save: optionalBoolean(input, "save", true),
+  };
+  const bindingId = optionalString(input, "binding_id");
+  if (bindingId !== undefined) spec.binding_id = bindingId;
+  if (input.call_in_editor !== undefined) {
+    spec.call_in_editor = optionalBoolean(input, "call_in_editor", false);
+  }
+  const resultJson = puerts.$ref<string>("");
+  const error = puerts.$ref<string>("");
+  if (!context.bridge.BuildSequenceEventTrackJson(JSON.stringify(spec), resultJson, error)) {
+    const body = puerts.$unref(resultJson);
+    if (body.length > 0) {
+      return commandFailure(new Error(puerts.$unref(error)), JSON.parse(body) as JsonObject);
+    }
+    throw new Error(puerts.$unref(error));
+  }
+  const parsed = JSON.parse(puerts.$unref(resultJson)) as JsonObject;
+  const planOnly = parsed.plan_only === true;
+  const changed = parsed.created_track === true || parsed.created_section === true
+    || parsed.created_endpoint === true
+    || (typeof parsed.applied_key_count === "number" && parsed.applied_key_count > 0)
+    || parsed.pre_structure_hash !== parsed.post_structure_hash;
+  const result = response(
+    true,
+    planOnly ? "Sequence event track build planned."
+      : changed ? "Sequence event track updated."
+      : "Sequence event track already matches.",
+    parsed,
+  );
+  if (!planOnly && changed && typeof parsed.object_path === "string" && parsed.object_path.length > 0) {
+    result.changed_assets.push(parsed.object_path);
+  }
+  return result;
+}
+
 async function buildPhysics(context: ToolContext, input: JsonObject): Promise<CommandResponse> {
   const actors = input.actors;
   if (!Array.isArray(actors) || actors.length === 0 || actors.length > 200) {
@@ -2233,8 +2429,10 @@ async function saveChanges(context: ToolContext, input: JsonObject): Promise<Com
     const savedPath = puerts.$ref<string>("");
     if (!context.bridge.SaveCurrentLevel(requestedLevelPath ?? "", savedPath)) {
       throw new Error(requestedLevelPath !== undefined
-        ? "Level save failed. Save-as paths must be under /Game/MCPTests/."
-        : "Current level save failed.");
+        ? "Level save failed. level_path must be a valid package path under /Game/."
+        : "Current level save failed. If this level has never been saved, the "
+          + "bridge refuses rather than opening a Save As dialog; retry with "
+          + "level_path set to a /Game/ package path to name it.");
     }
     level = puerts.$unref(savedPath);
   }
@@ -2410,6 +2608,44 @@ async function configureProjectMaps(context: ToolContext, input: JsonObject): Pr
   );
 }
 
+async function patchProjectSettings(context: ToolContext, input: JsonObject): Promise<CommandResponse> {
+  const section = optionalString(input, "section");
+  if (section === undefined || section.trim() === "") {
+    throw new Error(
+      "section must name the settings class behind a Project Settings page, such as "
+      + "GameMapsSettings or ProjectPackagingSettings.",
+    );
+  }
+  const properties = input.properties;
+  if (typeof properties !== "object" || properties === null || Array.isArray(properties)
+    || Object.keys(properties as JsonObject).length === 0) {
+    throw new Error("properties must be a non-empty object of {propertyName: value}.");
+  }
+  const spec: JsonObject = { section, properties: properties as JsonObject };
+  if (input.plan_only === true) { spec.plan_only = true; }
+  const resultJson = puerts.$ref<string>("");
+  const error = puerts.$ref<string>("");
+  if (!context.bridge.PatchProjectSettingsJson(JSON.stringify(spec), resultJson, error)) {
+    throw new Error(puerts.$unref(error));
+  }
+  const data = JSON.parse(puerts.$unref(resultJson)) as JsonObject;
+  const result = response(
+    true,
+    data.applied === true
+      ? `Project settings persisted to ${String(data.ini)}.`
+      : `Planned only. Nothing was written to ${String(data.ini)}.`,
+    data,
+  );
+  const unverified = data.persisted_but_not_value_compared;
+  if (Array.isArray(unverified) && unverified.length > 0) {
+    result.warnings.push(
+      `Container properties were confirmed present in the ini but not compared element by element: `
+      + `${unverified.join(", ")}. Read them back if the exact contents matter.`,
+    );
+  }
+  return result;
+}
+
 async function startProjectPackage(context: ToolContext, input: JsonObject): Promise<CommandResponse> {
   const rawMaps = input.maps;
   if (!Array.isArray(rawMaps) || rawMaps.length === 0 || rawMaps.length > 32) {
@@ -2488,6 +2724,7 @@ export const toolDefinitions: readonly ToolDefinition[] = [
   { name: "anim_blueprint_inspect", inputSchema: schema({ asset_path: { type: "string" } }, ["asset_path"]), outputSchema, permissions: ["assets.read"], executionTimeoutMs: 15000, execute: inspectAnimBlueprint },
   { name: "anim_montage_inspect", inputSchema: schema({ asset_path: { type: "string" } }, ["asset_path"]), outputSchema, permissions: ["assets.read"], executionTimeoutMs: 15000, execute: inspectAnimMontage },
   { name: "anim_blend_space_inspect", inputSchema: schema({ asset_path: { type: "string" } }, ["asset_path"]), outputSchema, permissions: ["assets.read"], executionTimeoutMs: 15000, execute: inspectAnimBlendSpace },
+  { name: "anim_blend_space_build", inputSchema: schema({ asset_path: { type: "string" }, skeleton_path: { type: "string" }, axis: { type: "object" }, samples: { type: "array", items: { type: "object" } }, plan_only: { type: "boolean" }, save: { type: "boolean" } }, ["asset_path", "skeleton_path", "axis", "samples"]), outputSchema, permissions: ["assets.write"], executionTimeoutMs: 30000, execute: buildAnimBlendSpace },
   { name: "blackboard_build", inputSchema: schema({ asset_path: { type: "string" }, parent_path: { type: "string" }, keys: { type: "array", items: { type: "object" } }, remove_unlisted: { type: "boolean" }, plan_only: { type: "boolean" }, save: { type: "boolean" } }, ["asset_path"]), outputSchema, permissions: ["assets.write"], executionTimeoutMs: 20000, execute: buildBlackboard },
   { name: "blackboard_inspect", inputSchema: schema({ asset_path: { type: "string" } }, ["asset_path"]), outputSchema, permissions: ["assets.read"], executionTimeoutMs: 10000, execute: inspectBlackboard },
   { name: "eqs_inspect", inputSchema: schema({ asset_path: { type: "string" } }, ["asset_path"]), outputSchema, permissions: ["assets.read"], executionTimeoutMs: 10000, execute: inspectEnvQuery },
@@ -2503,6 +2740,7 @@ export const toolDefinitions: readonly ToolDefinition[] = [
   { name: "ai_controller_inspect", inputSchema: schema({ asset_path: { type: "string" } }, ["asset_path"]), outputSchema, permissions: ["assets.read"], executionTimeoutMs: 15000, execute: inspectAIController },
   { name: "material_inspect", inputSchema: schema({ asset_path: { type: "string" } }, ["asset_path"]), outputSchema, permissions: ["assets.read"], executionTimeoutMs: 15000, execute: inspectMaterial },
   { name: "audio_build", inputSchema: schema({ asset_path: { type: "string" }, first_node: { type: "string" }, nodes: { type: "array", items: { type: "object" } }, properties: { type: "object" }, plan_only: { type: "boolean" }, save: { type: "boolean" } }, ["asset_path", "first_node", "nodes"]), outputSchema, permissions: ["assets.write"], executionTimeoutMs: 30000, execute: buildAudio },
+  { name: "data_table_build", inputSchema: schema({ asset_path: { type: "string" }, row_struct: { type: "string" }, rows_json: { oneOf: [{ type: "string" }, { type: "array", items: { type: "object" } }] }, plan_only: { type: "boolean" }, save: { type: "boolean" } }, ["asset_path"]), outputSchema, permissions: ["assets.write"], executionTimeoutMs: 30000, execute: buildDataTable },
   { name: "audio_inspect", inputSchema: schema({ asset_path: { type: "string" } }, ["asset_path"]), outputSchema, permissions: ["assets.read"], executionTimeoutMs: 15000, execute: inspectAudioAsset },
   // 25000: the snapshot walks every LOD's render sections and every clothing
   // asset's physical mesh, and a character mesh with several cloth LODs is a
@@ -2549,7 +2787,12 @@ export const toolDefinitions: readonly ToolDefinition[] = [
   // wait for the render, so the budget covers the asset load and the spawn.
   { name: "sequence_render_start", inputSchema: schema({ asset_path: { type: "string" }, output_directory: { type: "string" }, format: { type: "string" }, output_format: { type: "string" }, resolution_x: { type: "number" }, resolution_y: { type: "number" }, frame_rate: { type: "number" }, warm_up_frames: { type: "number" }, overwrite_existing: { type: "boolean" }, plan_only: { type: "boolean" } }, ["asset_path"]), outputSchema, permissions: ["assets.read", "jobs.control"], executionTimeoutMs: 20000, execute: startSequenceRender },
   { name: "project_settings_maps", inputSchema: schema({ game_default_map: { type: "string" }, editor_startup_map: { type: "string" }, global_default_game_mode: { type: "string" } }), outputSchema, permissions: ["project.config.write"], executionTimeoutMs: 10000, execute: configureProjectMaps },
+  // Reaches every Project Settings page, so the timeout covers a CDO write plus
+  // one ini rewrite and read-back, not an asset build.
+  { name: "project_settings_patch", inputSchema: schema({ section: { type: "string" }, properties: { type: "object" }, plan_only: { type: "boolean" } }, ["section", "properties"]), outputSchema, permissions: ["project.config.write"], executionTimeoutMs: 10000, execute: patchProjectSettings },
   { name: "project_package_start", inputSchema: schema({ maps: { type: "array", items: { type: "string" } }, target: { type: "string" }, configuration: { type: "string" }, output_directory: { type: "string" }, plan_only: { type: "boolean" } }, ["maps"]), outputSchema, permissions: ["assets.read", "jobs.control"], executionTimeoutMs: 20000, execute: startProjectPackage },
+  { name: "anim_montage_build", inputSchema: schema({ asset_path: { type: "string" }, skeleton: { type: "string" }, slots: { type: "array", items: { type: "object" } }, sections: { type: "array", items: { type: "object" } }, notifies: { type: "array" }, blend: { type: "object" }, sync_group: { type: "string" }, plan_only: { type: "boolean" }, save: { type: "boolean" } }, ["asset_path", "skeleton", "slots", "sections"]), outputSchema, permissions: ["assets.write"], executionTimeoutMs: 60000, execute: buildAnimMontage },
+  { name: "sequence_event_track_build", inputSchema: schema({ asset_path: { type: "string" }, binding_id: { type: "string" }, endpoint_name: { type: "string" }, events: { type: "array", items: { type: "object" } }, call_in_editor: { type: "boolean" }, plan_only: { type: "boolean" }, save: { type: "boolean" } }, ["asset_path", "endpoint_name", "events"]), outputSchema, permissions: ["assets.write"], executionTimeoutMs: 30000, execute: buildSequenceEventTrack },
 ];
 
 export class ToolRegistry {

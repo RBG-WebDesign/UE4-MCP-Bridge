@@ -644,6 +644,17 @@
       ],
       "notes": "Verified over authenticated PuerTS named pipe connection on UE4.27."
     },
+    "puerts_anim_blend_space_build": {
+      "canonical_capability": "animation.anim_blend_space_build",
+      "capability_category": "animation",
+      "cpp_builder": "MCPPuerTSBridgeService",
+      "cpp_entry_point": "BuildAnimBlendSpaceJson",
+      "verification": "live_verified",
+      "live_evidence": [
+        "mcp-server/tests/puerts-tools.test.ts"
+      ],
+      "notes": "New 2026-08-05: no blend space write tool existed before this. Live-verified against a running UE4.27 editor: built BS_SurvivorA_Standing (Idle/Walk/Jog on a Speed axis) and its independent anim_blend_space_inspect read-back agreed byte-for-byte (structure_hash_sha1 matched)."
+    },
     "puerts_anim_blend_space_inspect": {
       "canonical_capability": "animation.anim_blend_space_inspect",
       "capability_category": "animation",
@@ -1964,6 +1975,17 @@
         "docs/evidence/mock-promotion/2026-08-04/summary.json"
       ],
       "notes": "Verified over authenticated PuerTS named pipe connection on UE4.27."
+    },
+    "puerts_project_settings_patch": {
+      "canonical_capability": "project.settings_patch",
+      "capability_category": "project",
+      "cpp_builder": "MCPPuerTSBridgeService",
+      "cpp_entry_point": "PatchProjectSettingsJson",
+      "verification": "live_verified",
+      "live_evidence": [
+        "Scripts/project-settings-patch-acceptance.mjs"
+      ],
+      "notes": "Generic config-property patch for any Project Settings page. Live run on UE4.27 proved plan_only writes nothing, an applied change reaches the ini file on disk, a rerun converges, and a non-config property is refused."
     },
     "puerts_project_package_start": {
       "canonical_capability": "project.package",

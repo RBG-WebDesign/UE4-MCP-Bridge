@@ -581,28 +581,22 @@ private:
         UE4.27 exposes no atomic operation for, and a half-applied edit would
         leave a montage that plays the wrong thing. This reads; it never
         writes. */
+public:
     UFUNCTION(BlueprintCallable, Category="MCP PuerTS Bridge")
     bool InspectAnimMontageJson(
         const FString& RequestJson,
         FString& OutResultJson,
         FString& OutError) const;
 
-    /** Read a Blend Space, Blend Space 1D or Aim Offset back as
-        machine-readable JSON: the target skeleton, all three blend axes with
-        their display name, range and grid divisions, and every sample with its
-        animation, position and rate scale.
-
-        READ ONLY, on the same terms as the other inspectors, and read-only for
-        the same kind of reason the montage reader is: UE4.27 rebuilds a blend
-        space's triangulation from its sample set, so a partially applied sample
-        edit leaves a space that interpolates wrong rather than one that fails,
-        and there is no atomic sample-set replacement to wrap.
-
-        Samples are sorted by position and animation rather than reported in
-        array order, because a blend space's array order carries no meaning:
-        sorting is what makes two reads of an unchanged asset agree by hash. All
-        three axes are reported because UE4.27 exposes no dimension count; the
-        class is what distinguishes 1D from 2D. */
+private:
+    /** Create or update an Animation Montage from one validated JSON spec.
+        The native writer owns validation, transaction scope, inspect read-back,
+        save and rollback evidence. */
+    UFUNCTION(BlueprintCallable, Category="MCP PuerTS Bridge")
+    bool BuildAnimMontageJson(
+        const FString& SpecJson,
+        FString& OutResultJson,
+        FString& OutError);
 
     /** Read a Blend Space, Blend Space 1D or Aim Offset back as
         machine-readable JSON: the target skeleton, all three blend axes with
@@ -625,6 +619,29 @@ private:
         const FString& RequestJson,
         FString& OutResultJson,
         FString& OutError) const;
+
+    /** Create a NEW UBlendSpace1D from one JSON spec: target skeleton, one
+        axis (name, min, max, grid divisions) and a sample list (animation,
+        position, optional rate scale).
+
+        This is the write half InspectAnimBlendSpaceJson's own comment says
+        does not exist, and the reason it can exist now is that it does not
+        attempt the thing that comment ruled out. It never touches an
+        existing Blend Space's sample set: CREATE-ONLY, refused outright if
+        asset_path already names an asset, exactly like anim_blueprint_build.
+        A new asset is built entirely in memory - every sample added through
+        the engine's own AddSample, then ValidateSampleData() rebuilds the
+        triangulation and marks each sample valid or not - and only kept if
+        every sample comes back valid and an independent read through
+        InspectAnimBlendSpaceJson agrees with what was requested. Anything
+        else rolls the whole asset back through FBridgeAssetRollback, so a
+        failed build leaves nothing under /Game/MCPGenerated/ for the reason
+        the read tool's comment gives: there is no partial state to leave. */
+    UFUNCTION(BlueprintCallable, Category="MCP PuerTS Bridge")
+    bool BuildAnimBlendSpaceJson(
+        const FString& RequestJson,
+        FString& OutResultJson,
+        FString& OutError);
 
     /** Create a NEW Animation Blueprint from one JSON spec, handed to the
         existing UAnimBlueprintBuilderLibrary: variables, the anim graph
@@ -880,6 +897,15 @@ private:
         audio_inspect before it may be saved. */
     UFUNCTION(BlueprintCallable, Category="MCP PuerTS Bridge")
     bool BuildSoundCueJson(
+        const FString& RequestJson,
+        FString& OutResultJson,
+        FString& OutError);
+
+    /** Create or reconcile a DataTable using the native raw JSON importer.
+        The row struct is validated before creation, rows are read back by name,
+        and the command requires the shared transaction boundary. */
+    UFUNCTION(BlueprintCallable, Category="MCP PuerTS Bridge")
+    bool BuildDataTableJson(
         const FString& RequestJson,
         FString& OutResultJson,
         FString& OutError);
@@ -1458,6 +1484,15 @@ private:
         FString& OutResultJson,
         FString& OutError);
 
+    /** Add or converge a director Blueprint event endpoint and event keys on a
+        Level Sequence. The native writer verifies both assets and restores the
+        captured package on failure. */
+    UFUNCTION(BlueprintCallable, Category="MCP PuerTS Bridge")
+    bool BuildSequenceEventTrackJson(
+        const FString& SpecJson,
+        FString& OutResultJson,
+        FString& OutError);
+
     // -----------------------------------------------------------------------
     // The asynchronous job API. See MCPPuerTSBridgeJobs.cpp for the whole
     // model and docs/PERF_AND_LONG_JOBS.md 6.10 for why it is shaped this way.
@@ -1479,6 +1514,19 @@ private:
         UGameMapsSettings CDO and persist Config/DefaultEngine.ini. */
     UFUNCTION(BlueprintCallable, Category="MCP PuerTS Bridge")
     bool ConfigureProjectMapsJson(
+        const FString& RequestJson,
+        FString& OutResultJson,
+        FString& OutError);
+
+    /** Patch any config property on any Project Settings class CDO and persist
+        it to that class's Default*.ini. Every page in the Project Settings
+        window is such a class, so this reaches all of them; the per-page tools
+        stay for the values worth validating specifically. Refuses a property
+        without CPF_Config rather than changing it in memory only, verifies
+        against the file on disk, and restores both the CDO and the previous ini
+        bytes when the read-back disagrees. */
+    UFUNCTION(BlueprintCallable, Category="MCP PuerTS Bridge")
+    bool PatchProjectSettingsJson(
         const FString& RequestJson,
         FString& OutResultJson,
         FString& OutError);

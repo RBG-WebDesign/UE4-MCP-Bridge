@@ -73,7 +73,8 @@ async function main(): Promise<void> {
     });
     const client = new PuerTSClient();
     const tools = createPuertsTools(client);
-    assert(tools.length === 68, "expected all 68 PuerTS tools");
+    assert(tools.length === 73, "expected all 73 PuerTS tools");
+    assert(tools.some((tool) => tool.name === "puerts_project_settings_patch"), "generic project settings tool is missing");
     assert(tools.some((tool) => tool.name === "puerts_behavior_tree_build"), "native Behavior Tree builder tool is missing");
     assert(tools.some((tool) => tool.name === "puerts_behavior_tree_inspect"), "native Behavior Tree inspector tool is missing");
     assert(tools.some((tool) => tool.name === "puerts_sky_shader_create"), "native sky shader tool is missing");
@@ -90,6 +91,7 @@ async function main(): Promise<void> {
       "puerts_anim_blueprint_build",
       "puerts_anim_blueprint_inspect",
       "puerts_anim_montage_inspect",
+      "puerts_anim_montage_build",
       "puerts_anim_blend_space_inspect",
       "puerts_blackboard_build",
       "puerts_blackboard_inspect",
@@ -307,6 +309,19 @@ async function blueprintBuildSuite(): Promise<void> {
     const tool = createPuertsTools(new PuerTSClient())
       .find((entry) => entry.name === "puerts_blueprint_build");
     assert(tool !== undefined, "puerts_blueprint_build is missing");
+
+    const newlyNativeNodeTypes = [
+      "InputAction", "InputAxisEvent", "MacroInstance", "AddDelegate", "RemoveDelegate",
+      "CallDelegate", "ClearDelegate", "AssignDelegate", "CreateDelegate",
+    ] as const;
+    for (const nodeType of newlyNativeNodeTypes) {
+      assert(tool.inputSchema.safeParse({
+        asset_path: "/Game/MCPGenerated/BP_NodeVocabulary",
+        graph: { nodes: [{ id: `node_${nodeType}`, type: nodeType }] },
+      }).success === true, `blueprint_build schema is missing native node type ${nodeType}`);
+      assert(tool.description.includes(nodeType),
+        `blueprint_build description is missing native node type ${nodeType}`);
+    }
 
     const built = await tool.handler({
       asset_path: "/Game/MCPGenerated/BP_ProbeDoor",
@@ -2146,6 +2161,25 @@ async function animationSuite(): Promise<void> {
     const tools = createPuertsTools(new PuerTSClient());
     const inspect = tools.find((entry) => entry.name === "puerts_anim_blueprint_inspect");
     const montage = tools.find((entry) => entry.name === "puerts_anim_montage_inspect");
+    const montageBuild = tools.find((entry) => entry.name === "puerts_anim_montage_build");
+    const sequenceEventBuild = tools.find((entry) => entry.name === "puerts_sequence_event_track_build");
+    const dataTableBuild = tools.find((entry) => entry.name === "puerts_data_table_build");
+    assert(montageBuild !== undefined && sequenceEventBuild !== undefined, "new animation and sequence writers are missing");
+    assert(dataTableBuild !== undefined, "native DataTable writer is missing");
+    assert(dataTableBuild.inputSchema.safeParse({ asset_path: "/Game/MCPGenerated/DT_Items", row_struct: "/Script/GameplayTags.GameplayTagTableRow", rows_json: [], plan_only: true }).success, "data_table_build rejected its smallest valid spec");
+    assert(montageBuild.inputSchema.safeParse({
+      asset_path: "/Game/MCPGenerated/AM_Attack",
+      skeleton: "/Game/Characters/Hero_Skeleton",
+      slots: [{ slot_name: "DefaultGroup", segments: [{ animation: "/Game/Anim/Idle" }] }],
+      sections: [{ name: "Default", start_time: 0 }],
+      plan_only: true,
+    }).success, "anim_montage_build rejected its smallest valid spec");
+    assert(sequenceEventBuild.inputSchema.safeParse({
+      asset_path: "/Game/MCPGenerated/LS_Intro",
+      endpoint_name: "OnBeat",
+      events: [{ frame: 0 }],
+      plan_only: true,
+    }).success, "sequence_event_track_build rejected its smallest valid spec");
     const build = tools.find((entry) => entry.name === "puerts_anim_blueprint_build");
     assert(inspect !== undefined && montage !== undefined && build !== undefined, "an animation tool is missing");
 
@@ -2220,6 +2254,21 @@ async function animationSuite(): Promise<void> {
     assert(
       received[received.length - 1]?.__tool === "anim_blend_space_inspect",
       "the Blend Space runtime command name is wrong",
+    );
+
+    const dataTableReadback = await dataTableBuild.handler({
+      asset_path: "/Game/MCPGenerated/DT_Items",
+      row_struct: "/Script/GameplayTags.GameplayTagTableRow",
+      rows_json: [{ Name: "Row1", Tag: "Items.Key" }],
+      plan_only: true,
+    });
+    assert(
+      JSON.parse(dataTableReadback.content[0]?.text ?? "null").success === true,
+      "a valid DataTable build request was rejected",
+    );
+    assert(
+      received[received.length - 1]?.__tool === "data_table_build",
+      "the DataTable front dispatched the wrong runtime command",
     );
 
     const sentSoFar = received.length;
@@ -2328,7 +2377,9 @@ async function jobApiSuite(): Promise<void> {
 
   const render = find("puerts_sequence_render_start");
   const settings = find("puerts_project_settings_maps");
-  const packageStart = find("puerts_project_package_start");  const memberPatch = find("puerts_blueprint_member_patch");
+  const packageStart = find("puerts_project_package_start");
+  const graphPatch = find("puerts_blueprint_graph_patch");
+  const memberPatch = find("puerts_blueprint_member_patch");
   const validSetFunction = {
     asset_path: "/Game/MCPGenerated/BP_FunctionContract",
     operations: [{
@@ -2347,6 +2398,38 @@ async function jobApiSuite(): Promise<void> {
   assert(memberPatch?.description.includes("set_function")
       && memberPatch.description.includes("function_plans"),
     "member_patch must describe set_function and its plan result");
+
+  const memberOperationContracts = [
+    { op: "rename_variable", from: "HeldObject", to: "GrabbedObject" },
+    { op: "set_variable_metadata", name: "GrabbedObject", metadata: { category: "Interaction" } },
+    { op: "rename_function", from: "Grab", to: "TryGrab" },
+    { op: "add_macro", name: "TraceForTarget", inputs: [{ name: "Range", type: { category: "float" } }] },
+    { op: "remove_macro", name: "OldTrace" },
+    { op: "rename_macro", from: "TraceTarget", to: "TraceForTarget" },
+    { op: "set_macro", name: "TraceForTarget", outputs: [{ name: "Hit", type: { category: "bool" } }] },
+    { op: "reparent_component", name: "HoldPoint", parent: "Camera" },
+  ] as const;
+  for (const operation of memberOperationContracts) {
+    assert(memberPatch?.inputSchema.safeParse({
+      asset_path: "/Game/MCPGenerated/BP_MemberContracts",
+      operations: [operation],
+    }).success === true, `member_patch schema rejected ${operation.op}`);
+    assert(memberPatch?.description.includes(operation.op),
+      `member_patch description is missing ${operation.op}`);
+  }
+
+  for (const operation of [
+    { op: "set_node_enabled", target: { node_guid: "0123456789ABCDEF0123456789ABCDEF" }, enabled: false },
+    { op: "break_pin_links", target: { node_guid: "0123456789ABCDEF0123456789ABCDEF" }, pin: "execute" },
+  ]) {
+    assert(graphPatch?.inputSchema.safeParse({
+      asset_path: "/Game/MCPGenerated/BP_GraphContracts",
+      operations: [operation],
+    }).success === true, `graph_patch schema rejected ${operation.op}`);
+    assert(graphPatch?.description.includes(operation.op),
+      `graph_patch description is missing ${operation.op}`);
+  }
+
   assert(settings?.inputSchema.safeParse({}).success === false,
     "project_settings_maps must require at least one setting");
   assert(settings?.inputSchema.safeParse({ game_default_map: "/Engine/Maps/Entry" }).success === false,
@@ -2368,6 +2451,27 @@ async function jobApiSuite(): Promise<void> {
     "project packaging starts a new process and may overwrite archive output");
 
   const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
+  const graphBuilderSource = await readFile(join(repoRoot, "Plugins", "MCPBridge", "Source",
+    "MCPBridgeGraphBuilder", "Private", "BlueprintGraphBuilderLibrary.cpp"), "utf8");
+  for (const token of [
+    "InputAction", "InputAxisEvent", "MacroInstance", "AddDelegate", "RemoveDelegate",
+    "CallDelegate", "ClearDelegate", "AssignDelegate", "CreateDelegate",
+    "set_node_enabled", "break_pin_links",
+  ]) {
+    assert(graphBuilderSource.includes(`TEXT("${token}")`),
+      `native graph builder source is missing ${token}`);
+  }
+
+  const memberPatchSource = await readFile(join(repoRoot, "Plugins", "MCPBridge", "Source",
+    "MCPBridgePuerTS", "Private", "MCPPuerTSBridgeBlueprintMember.cpp"), "utf8");
+  for (const token of [
+    "rename_variable", "set_variable_metadata", "rename_function", "add_macro", "remove_macro",
+    "rename_macro", "set_macro", "reparent_component",
+  ]) {
+    assert(memberPatchSource.includes(`TEXT("${token}")`),
+      `native member patch source is missing ${token}`);
+  }
+
   const settingsSource = await readFile(join(repoRoot, "Plugins", "MCPBridge", "Source",
     "MCPBridgePuerTS", "Private", "MCPPuerTSBridgeProjectSettings.cpp"), "utf8");
   for (const token of [

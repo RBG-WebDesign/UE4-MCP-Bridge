@@ -68,6 +68,7 @@ export const destructiveIdempotent: ToolAnnotations = {
 };
 
 export const toolAnnotations: Record<string, ToolAnnotations> = {
+  blueprint_production_plan: readOnly,
   // --- PuerTS native named-pipe lane ---------------------------------------
   puerts_diagnostic: readOnly,
   puerts_find_assets: readOnly,
@@ -93,14 +94,20 @@ export const toolAnnotations: Record<string, ToolAnnotations> = {
   // can verify rather than assert. Kept out of IsToolMutating on the native
   // side; reports the package dirty flag before and after the read.
   puerts_anim_blueprint_inspect: readOnly,
-  // Read-only with no write counterpart, and that is a finding rather than an
-  // omission: UE4.27 exposes no atomic way to rebuild a montage's section chain
-  // or re-link its notifies, so a montage writer could not be failure-atomic.
+  // Read-only inspector paired with the native montage writer. It remains
+  // independently callable so callers can verify canonical asset state.
   puerts_anim_montage_inspect: readOnly,
+  puerts_anim_montage_build: destructiveIdempotent,
   // Read-only for the same shape of reason as the montage reader: UE4.27
   // rebuilds a blend space's triangulation from its sample set, so there is no
   // atomic sample-set replacement a writer could be failure-atomic around.
   puerts_anim_blend_space_inspect: readOnly,
+  // Create-only, same reasoning as puerts_anim_blueprint_build: a rerun
+  // against an existing asset_path refuses rather than converges, so this is
+  // not destructiveIdempotent. On failure the creation is rolled back and an
+  // existing Blend Space is never touched at all - there is nothing for this
+  // command to destroy.
+  puerts_anim_blend_space_build: mutating,
   // Mutating, NOT idempotent, and not destructive. The distinction is the whole
   // shape of the command: it creates a new Animation Blueprint and REFUSES an
   // asset that already exists, because the UE4.27 builder's rebuild path clears
@@ -270,6 +277,11 @@ export const toolAnnotations: Record<string, ToolAnnotations> = {
   // converging. It touches no asset, so there is nothing for undo to cover.
   puerts_sequence_render_start: destructive,
   puerts_project_settings_maps: mutatingIdempotent,
+  // Mutating and idempotent, NOT destructive: a value already equal to the
+  // request is reported unchanged and not rewritten, and a failed read-back
+  // restores both the CDO and the previous ini bytes. It edits project config
+  // rather than an asset, so editor undo does not cover it.
+  puerts_project_settings_patch: mutatingIdempotent,
   puerts_project_package_start: destructive,
   // Mutating and idempotent, NOT destructive: it writes only the class defaults
   // it was given, a value already equal to the request is reported unchanged and
@@ -286,6 +298,7 @@ export const toolAnnotations: Record<string, ToolAnnotations> = {
   // channel with a different value, which is what "converge on this spec" means
   // and is covered by the transaction.
   puerts_sequence_build: mutatingIdempotent,
+  puerts_sequence_event_track_build: destructiveIdempotent,
   puerts_delete_actor: destructiveIdempotent,
   puerts_save: destructive,
   // Map switching and package writes are outside editor transactions. Creation
@@ -450,6 +463,7 @@ export const toolAnnotations: Record<string, ToolAnnotations> = {
   cpp_class_create: mutating, // writes new source files, never overwrites existing ones
   data_table_create: mutating,
   data_table_fill_from_json: mutating,
+  puerts_data_table_build: destructiveIdempotent,
   game_template_create: mutating,
   gameplay_framework_create: mutating,
   input_mapping_add: mutating,
@@ -536,6 +550,7 @@ export const toolAnnotations: Record<string, ToolAnnotations> = {
  * whichever lane answers the name.
  */
 export const compatAliasAnnotations: Record<string, ToolAnnotations> = {
+  blueprint_build_from_json: destructiveIdempotent, // -> puerts_blueprint_build
   blueprint_info: readOnly,                 // -> puerts_graph_inspect
   blueprint_inspect: readOnly,              // -> puerts_graph_inspect
   anim_blueprint_build_from_json: mutating, // -> puerts_anim_blueprint_build

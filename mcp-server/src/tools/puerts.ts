@@ -133,6 +133,15 @@ const blueprintNodeType = z.enum([
   "MultiGate",
   "DoOnceMultiInput",
   "InputKey",
+  "InputAction",
+  "InputAxisEvent",
+  "MacroInstance",
+  "AddDelegate",
+  "RemoveDelegate",
+  "CallDelegate",
+  "ClearDelegate",
+  "AssignDelegate",
+  "CreateDelegate",
 ]);
 
 /** The symbolic operators the Operator node type accepts. Authority is
@@ -167,7 +176,13 @@ const blueprintGraphNode = z.object({
     + "SwitchString {case_values, has_default, is_case_sensitive}; MultiGate "
     + "{num_outputs, is_random, loop, start_index_from_zero}; DoOnceMultiInput "
     + "{num_inputs}; InputKey {fkey_name, consume_input, execute_when_paused, "
-    + "override_parent}; Comment {text, width, height}. Everything else is a pin "
+    + "override_parent}; InputAction {action_name, consume_input, execute_when_paused, "
+    + "override_parent}; InputAxisEvent {axis_name, consume_input, execute_when_paused, "
+    + "override_parent}; MacroInstance {macro_bp, macro_name}; AddDelegate, "
+    + "RemoveDelegate, CallDelegate, ClearDelegate and AssignDelegate take "
+    + "{self_var_name} or {delegate_owner_class, delegate_name}; CreateDelegate takes "
+    + "{selected_function_name} or {function_name}; Comment {text, width, height}. "
+    + "Everything else is a pin "
     + "default: a number for a float pin, true/false for a bool pin, "
     + "{\"x\":0,\"y\":0,\"z\":0} for a vector pin, an object path string for an "
     + "object pin.",
@@ -491,9 +506,13 @@ const specs = [
     + "ActorEndOverlap, PrintString, CallFunction, Operator, Delay, Branch, Sequence, "
     + "Comment, Event, CustomEvent, VariableGet, VariableSet, Cast, Select, Knot, MakeStruct, "
     + "BreakStruct, FormatText, SpawnActor, SwitchInt, SwitchString, MultiGate, "
-    + "DoOnceMultiInput and InputKey; anything else is rejected before the asset is touched. "
-    + "InputKey binds a literal FKey (params.fkey_name, for example \"LeftShift\") and needs no "
-    + "project input mapping, which is why it is the one input node type advertised. Rerunning the "
+    + "DoOnceMultiInput, InputKey, InputAction, InputAxisEvent, MacroInstance, AddDelegate, "
+    + "RemoveDelegate, CallDelegate, ClearDelegate, AssignDelegate and CreateDelegate; anything "
+    + "else is rejected before the asset is touched. InputKey binds a literal FKey "
+    + "(params.fkey_name, for example \"LeftShift\") and needs no project input mapping. "
+    + "InputAction and InputAxisEvent require an existing project input mapping and are refused "
+    + "when it is missing. MacroInstance and delegate nodes expose their routing metadata through "
+    + "the independent graph inspector. Rerunning the "
     + "same spec converges: the asset is loaded rather than duplicated, an existing component "
     + "or variable of the same name and type is left alone, and the event graph is rebuilt "
     + "from the spec. A component or variable that exists under a different type is an error, "
@@ -502,7 +521,8 @@ const specs = [
     + "SaveGame and ActorComponent, so a data-only Blueprint is authorable here. "
     + "Actor-only capability is gated rather than the parent being refused: with a "
     + "non-Actor parent the components array and the BeginPlay, Tick, ActorBeginOverlap, "
-    + "ActorEndOverlap and InputKey node types are rejected by name before the asset "
+    + "ActorEndOverlap, InputKey, InputAction and InputAxisEvent node types are rejected by name "
+    + "before the asset "
     + "exists, and variables plus the parent-neutral node types build normally. "
     + "A VariableGet or VariableSet takes scope \"target\" with target_class to read or write "
     + "the variable on another object through its self pin, and a Cast's result is addressed "
@@ -568,7 +588,9 @@ const specs = [
     + "means changing one pin default on a graph of forty nodes requires restating all forty "
     + "correctly or losing what was not mentioned. This is the other shape. operations is an "
     + "ordered batch of add_node, update_node, remove_node, set_pin_default, connect_pins, "
-    + "disconnect_pins and move_node. Every node is addressed by a selector that must resolve to "
+    + "disconnect_pins, move_node, set_node_enabled and break_pin_links. set_node_enabled takes "
+    + "an enabled boolean; break_pin_links removes every connection on the named pin. Every node "
+    + "is addressed by a selector that must resolve to "
     + "exactly one node: node_guid, or a structural combination of type, node_class, var_name, "
     + "function and position, or new_id to name a node added earlier in the same batch. A bare "
     + "object id is REFUSED, because a UObject name changes whenever a node is recreated and a "
@@ -593,13 +615,14 @@ const specs = [
       verify: z.boolean().optional(),
     }).strict()],
   ["puerts_blueprint_member_patch", "blueprint_member_patch",
-    "Change a Blueprint's MEMBERS incrementally: variables, functions, interfaces, event "
+    "Change a Blueprint's MEMBERS incrementally: variables, functions, macros, interfaces, event "
     + "dispatchers and components. puerts_blueprint_graph_patch owns nodes and pins and cannot "
     + "reach any of these; puerts_blueprint_build reaches them only by restating the whole asset. "
-    + "operations is an ordered batch of add_variable, remove_variable, set_variable_default, "
-    + "add_function, set_function, remove_function, add_interface, remove_interface, "
-    + "add_event_dispatcher, "
-    + "remove_event_dispatcher, remove_component and rename_component. "
+    + "operations is an ordered batch of add_variable, remove_variable, rename_variable, "
+    + "set_variable_default, set_variable_metadata, add_function, set_function, remove_function, "
+    + "rename_function, add_macro, remove_macro, rename_macro, set_macro, add_interface, "
+    + "remove_interface, add_event_dispatcher, remove_event_dispatcher, remove_component, "
+    + "rename_component and reparent_component. "
     + "The whole batch is resolved and classified before the first mutation runs, because each "
     + "underlying mutator entry point recompiles the Blueprint: an unloadable interface path, a "
     + "default value the variable's type cannot hold, a rename onto a name already taken, a "
@@ -643,17 +666,23 @@ const specs = [
       }).describe(
         "Ordered batch. Each entry is {op, ...}: "
         + "{op:\"add_variable\", name, type:{category:\"float\"}, default?, category?}, "
-        + "{op:\"remove_variable\", name}, "
+        + "{op:\"remove_variable\", name}, {op:\"rename_variable\", from, to}, "
         + "{op:\"set_variable_default\", name, default}, "
+        + "{op:\"set_variable_metadata\", name, metadata:{category?,tooltip?,editable?,private?,"
+        + "expose_on_spawn?,replicated?}}, "
         + "{op:\"add_function\", name, inputs?:[{name,type}], outputs?:[{name,type}]}, "
-        + "{op:\"remove_function\", name}, "
+        + "{op:\"remove_function\", name}, {op:\"rename_function\", from, to}, "
+        + "{op:\"add_macro\", name, inputs?:[{name,type}], outputs?:[{name,type}]}, "
+        + "{op:\"remove_macro\", name}, {op:\"rename_macro\", from, to}, "
+        + "{op:\"set_macro\", name, inputs?:[{name,type}], outputs?:[{name,type}]}, "
         + "{op:\"set_function\", name, inputs?:[{name,type,default?,rename_from?}], "
         + "outputs?:[{name,type,default?,rename_from?}], locals?:[{name,type,default?}], "
         + "metadata?:{category?,tooltip?,pure?,const?,access?}}, "
         + "{op:\"add_interface\", path}, {op:\"remove_interface\", path}, "
         + "{op:\"add_event_dispatcher\", name, parameters?:[{name,type}]}, "
         + "{op:\"remove_event_dispatcher\", name}, "
-        + "{op:\"remove_component\", name}, {op:\"rename_component\", from, to}. "
+        + "{op:\"remove_component\", name}, {op:\"rename_component\", from, to}, "
+        + "{op:\"reparent_component\", name, parent}. An empty parent makes the component root. "
         + "type is the same Type Descriptor puerts_graph_inspect reports for a variable, and a "
         + "partial descriptor matches a variable whose reported type agrees on the fields given. "
         + "For set_function, an omitted list is left unchanged and a supplied list is authoritative. "
@@ -1283,15 +1312,61 @@ const specs = [
     + "array order carries no meaning, so structure_hash_sha1 is stable across two reads of an "
     + "unchanged asset. A sample with no animation is reported as a warning rather than a silent "
     + "row: it contributes nothing at runtime. "
-    + "There is deliberately no blend space write tool: UE4.27 rebuilds the triangulation from "
-    + "the sample set, so a partly applied sample edit leaves a space that interpolates wrong "
-    + "rather than one that fails, and there is no atomic sample-set replacement to wrap. "
+    + "puerts_anim_blend_space_build creates new Blend Spaces; this tool has no write "
+    + "counterpart of its own because UE4.27 rebuilds the triangulation from the whole sample "
+    + "set, so an update-in-place tool would need an atomic sample-set replacement UE4.27 does "
+    + "not offer. "
     + "Reading is allowed anywhere under /Game and /Engine.",
     z.object({
       asset_path: z.string().describe(
         "The Blend Space, as a package path (\"/Game/Anim/BS_Locomotion\") or the object path "
         + "other tools hand back. Limited to /Game and /Engine.",
       ),
+    }).strict()],
+  ["puerts_anim_blend_space_build", "anim_blend_space_build",
+    "Create a NEW UE4.27 Blend Space 1D from one JSON spec: target skeleton, one axis (name, "
+    + "min, max, grid_divisions) and a sample list (animation, position, optional rate_scale). "
+    + "CREATE-ONLY, the same shape as anim_blueprint_build and for the same reason: it refuses "
+    + "outright when asset_path already names an asset rather than editing it, because UE4.27 "
+    + "rebuilds a blend space's whole triangulation from its sample set and there is no atomic "
+    + "way to replace an existing one's samples (see puerts_anim_blend_space_inspect). Every "
+    + "sample is added through the engine's own AddSample before ValidateSampleData() rebuilds "
+    + "the grid once, and the result is kept only if every sample validates AND an independent "
+    + "read through puerts_anim_blend_space_inspect agrees with the request; anything else "
+    + "rolls the whole asset back and nothing is left under /Game/MCPGenerated/. Position values "
+    + "must fall within [min, max] and no two samples may share a position - both are refused "
+    + "before any asset is touched.",
+    z.object({
+      asset_path: z.string().regex(/^\/Game\/MCPGenerated\//).describe(
+        "Package path under /Game/MCPGenerated/, no asset-name suffix. Must not already exist.",
+      ),
+      skeleton_path: z.string().describe(
+        "Object path of the target USkeleton, e.g. \"/Game/Characters/Hero_Skeleton\".",
+      ),
+      axis: z.object({
+        name: z.string().describe("Display name for the axis, e.g. \"Speed\"."),
+        min: z.number().describe("Minimum axis value."),
+        max: z.number().describe("Maximum axis value. Must be greater than min."),
+        grid_divisions: z.number().int().min(1).optional().describe(
+          "Number of grid divisions for this axis. Default 4.",
+        ),
+      }).strict().describe("The blend space's single axis (1D builder)."),
+      samples: z.array(z.object({
+        animation: z.string().describe(
+          "Object path of the AnimSequence this sample plays. Must target the same skeleton.",
+        ),
+        position: z.number().describe(
+          "Where this sample sits on the axis, within [axis.min, axis.max]. No two samples "
+          + "may share a position.",
+        ),
+        rate_scale: z.number().positive().optional().describe(
+          "Playback rate multiplier for this sample. Default 1.0.",
+        ),
+      }).strict()).min(1).max(64).describe("1 to 64 sample points."),
+      plan_only: z.boolean().optional().describe(
+        "Default false. Validate everything and report would_create without touching anything.",
+      ),
+      save: z.boolean().optional().describe("Default true."),
     }).strict()],
   ["puerts_anim_blueprint_build", "anim_blueprint_build",
     "Create a NEW UE4.27 Animation Blueprint from one JSON spec, in one transaction: member "
@@ -1835,6 +1910,38 @@ const specs = [
         || value.global_default_game_mode !== undefined,
       { message: "At least one project setting is required." },
     )],
+  ["puerts_project_settings_patch", "project_settings_patch",
+    "Set any config property on any Project Settings page and persist it to that page's "
+    + "Default*.ini. Every page in the Project Settings window is a settings class whose class "
+    + "default object holds the values, so section names that class: \"GameMapsSettings\", "
+    + "\"ProjectPackagingSettings\", \"GeneralProjectSettings\", \"RendererSettings\", "
+    + "\"InputSettings\". The engine picks the target ini from the class itself, so Description "
+    + "lands in DefaultGame.ini and Maps and Modes in DefaultEngine.ini with no path given here. "
+    + "Read current values first with puerts_read_property against the CDO path, for example "
+    + "object_path \"/Script/EngineSettings.Default__GameMapsSettings\". A property that is not "
+    + "marked config is REFUSED rather than set, because it would change in memory and silently "
+    + "vanish on the next editor start. Convergent: a value already equal to the request is "
+    + "reported in unchanged_properties and not rewritten. Verification reads the ini file back "
+    + "off disk and compares it against the exported property text; on any disagreement both the "
+    + "class default object and the previous ini bytes are restored. Container properties "
+    + "(arrays, maps, sets) are confirmed present but not compared element by element, and are "
+    + "listed in persisted_but_not_value_compared. This edits project config rather than an "
+    + "asset, so editor undo does not take it back. puerts_project_settings_maps stays the "
+    + "better call for maps and game mode, which it validates as existing assets first.",
+    z.object({
+      section: z.string().describe(
+        "The settings class behind the page, such as \"GameMapsSettings\". The full "
+        + "\"/Script/EngineSettings.GameMapsSettings\" path and a leading U are both accepted.",
+      ),
+      properties: z.record(z.unknown()).describe(
+        "{propertyName: value}, each value in the property's own reflected shape. Names are the "
+        + "reflected C++ names, not the UI labels: \"bUseBorderlessWindow\", not \"Use Borderless "
+        + "Window\". engine_source_search finds the reflected name behind a label.",
+      ),
+      plan_only: z.boolean().optional().describe(
+        "Default false. Report properties_to_apply and unchanged_properties, and write nothing.",
+      ),
+    }).strict()],
   ["puerts_project_package_start", "project_package_start",
     "Start an asynchronous UE4.27 game-project cook, stage and package through a fixed UAT "
     + "BuildCookRun child process. This returns a job_id immediately and never waits on UAT. "
@@ -2239,6 +2346,62 @@ const specs = [
   ["puerts_pie_stop", "pie_stop", "Request Play In Editor stop.", z.object({}).strict()],
   ["puerts_get_logs", "get_logs", "Read captured Unreal logs and command output.", z.object({ maximum_lines: z.number().optional() }).strict()],
   ["puerts_undo", "undo", "Undo the exact last PuerTS transaction.", z.object({ transaction_id: z.string() }).strict()],
+  ["puerts_anim_montage_build", "anim_montage_build",
+    "Create or update a UE4.27 Animation Montage from one desired-state spec. The native writer validates slots, segments, sections and blend fields, independently inspects the result and restores the package on failure. Non-empty notifies are refused because UE4.27 has no atomic notify relink operation.",
+    z.object({
+      asset_path: z.string().regex(/^\/Game\/[A-Za-z0-9_]+(?:\/[A-Za-z0-9_]+)*(?:\.[A-Za-z0-9_]+)?$/),
+      skeleton: z.string().min(1),
+      slots: z.array(z.object({
+        slot_name: z.string().min(1),
+        segments: z.array(z.object({
+          animation: z.string().min(1),
+          start_time: z.number().finite().optional(),
+          start_position: z.number().finite().optional(),
+          end_position: z.number().finite().optional(),
+          play_rate: z.number().finite().optional(),
+          loop_count: z.number().finite().optional(),
+        }).strict()).min(1),
+      }).strict()).min(1),
+      sections: z.array(z.object({
+        name: z.string().min(1),
+        start_time: z.number().finite().optional(),
+        next_section: z.string().optional(),
+      }).strict()).min(1),
+      notifies: z.array(z.unknown()).optional(),
+      blend: z.object({
+        blend_in_time: z.number().finite().optional(),
+        blend_out_time: z.number().finite().optional(),
+        blend_out_trigger_time: z.number().finite().optional(),
+        enable_auto_blend_out: z.boolean().optional(),
+      }).strict().optional(),
+      sync_group: z.string().optional(),
+      plan_only: z.boolean().optional(),
+      save: z.boolean().optional(),
+    }).strict()],
+  ["puerts_sequence_event_track_build", "sequence_event_track_build",
+    "Add or converge a director Blueprint event endpoint and event keys on an existing UE4.27 Level Sequence. The native command compiles the contained director Blueprint, verifies every requested key, saves when requested and restores the package on failure.",
+    z.object({
+      asset_path: z.string().regex(/^\/Game\/MCPGenerated\/[A-Za-z0-9_]+(?:\/[A-Za-z0-9_]+)*(?:\.[A-Za-z0-9_]+)?$/),
+      binding_id: z.string().optional(),
+      endpoint_name: z.string().min(1).max(64).regex(/^[A-Za-z_][A-Za-z0-9_]*$/),
+      events: z.array(z.object({ frame: z.number().int() }).strict()).min(1).max(1024),
+      call_in_editor: z.boolean().optional(),
+      plan_only: z.boolean().optional(),
+      save: z.boolean().optional(),
+    }).strict()],
+  ["puerts_data_table_build", "data_table_build",
+    "Create or reconcile a UE4.27 DataTable from complete desired row JSON. The row struct and rows are validated on a transient table before mutation. Existing clean assets use package-file rollback, new assets use creation rollback, and UDataTable::GetTableAsJSON must match before save. Assets are limited to /Game/MCPGenerated/.",
+    z.object({
+      asset_path: z.string().regex(/^\/Game\/MCPGenerated\/[A-Za-z0-9_]+(?:\/[A-Za-z0-9_]+)*$/),
+      row_struct: z.string().min(1).optional().describe(
+        "ScriptStruct path. Required when creating; on update it may be omitted or must match.",
+      ),
+      rows_json: z.union([z.string().min(1), z.array(z.record(z.unknown()))]).optional().describe(
+        "Complete desired rows as DataTable JSON text or an array. Omit for an empty table.",
+      ),
+      plan_only: z.boolean().optional().describe("Validate and report create/change state without writing."),
+      save: z.boolean().optional().describe("Save after verified export read-back. Defaults true."),
+    }).strict()],
 ] as const;
 
 /** One native pipe tool: its public MCP name, the runtime command it sends,
@@ -2317,6 +2480,8 @@ const structuredParameters: Readonly<Record<string, readonly string[]>> = {
   puerts_blackboard_build: ["keys"],
   puerts_nav_query: ["queries"],
   puerts_ai_perception_build: ["senses"],
+  puerts_anim_montage_build: ["slots", "sections", "notifies", "blend"],
+  puerts_sequence_event_track_build: ["events"],
 };
 
 /** Round-trip budget per tool, in milliseconds. Absent means the 7 second
@@ -2358,6 +2523,8 @@ const commandTimeouts: Readonly<Record<string, number>> = {
   // The spawn finishes through a one-operation scene batch when name, folder or
   // scale is given, and that batch verifies by reading the level back.
   puerts_project_settings_maps: 10000,
+  // One CDO write plus one ini rewrite and read-back. No asset, no compile.
+  puerts_project_settings_patch: 10000,
   puerts_project_package_start: 20000,
   puerts_spawn_actor: 15000,
   puerts_material_inspect: 15000,
@@ -2386,6 +2553,12 @@ const commandTimeouts: Readonly<Record<string, number>> = {
   puerts_anim_blueprint_inspect: 15000,
   puerts_anim_montage_inspect: 15000,
   puerts_anim_blend_space_inspect: 15000,
+  // AddSample per sample plus one ValidateSampleData() triangulation rebuild,
+  // then an independent anim_blend_space_inspect read-back before save. Same
+  // budget as audio_build for a comparably small single-asset builder.
+  puerts_anim_blend_space_build: 30000,
+  puerts_anim_montage_build: 60000,
+  puerts_sequence_event_track_build: 30000,
   puerts_blackboard_build: 20000,
   puerts_blackboard_inspect: 10000,
   puerts_eqs_inspect: 10000,

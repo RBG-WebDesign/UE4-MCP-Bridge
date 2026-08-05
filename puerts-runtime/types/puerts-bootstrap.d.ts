@@ -110,7 +110,9 @@ declare module "ue" {
     PatchAnimBlueprintJson(specJson: string, outResultJson: $Ref<string>, outError: $Ref<string>): boolean;
     InspectAnimBlueprintJson(requestJson: string, outResultJson: $Ref<string>, outError: $Ref<string>): boolean;
     InspectAnimMontageJson(requestJson: string, outResultJson: $Ref<string>, outError: $Ref<string>): boolean;
+    BuildAnimMontageJson(specJson: string, outResultJson: $Ref<string>, outError: $Ref<string>): boolean;
     InspectAnimBlendSpaceJson(requestJson: string, outResultJson: $Ref<string>, outError: $Ref<string>): boolean;
+    BuildAnimBlendSpaceJson(specJson: string, outResultJson: $Ref<string>, outError: $Ref<string>): boolean;
     BuildBlackboardJson(specJson: string, outResultJson: $Ref<string>, outError: $Ref<string>): boolean;
     InspectBlackboardJson(requestJson: string, outResultJson: $Ref<string>, outError: $Ref<string>): boolean;
     InspectEnvQueryJson(requestJson: string, outResultJson: $Ref<string>, outError: $Ref<string>): boolean;
@@ -118,6 +120,7 @@ declare module "ue" {
     QueryNavigationJson(requestJson: string, outResultJson: $Ref<string>, outError: $Ref<string>): boolean;
     BuildNavigationJson(requestJson: string, outResultJson: $Ref<string>, outError: $Ref<string>): boolean;
     BuildSoundCueJson(requestJson: string, outResultJson: $Ref<string>, outError: $Ref<string>): boolean;
+    BuildDataTableJson(requestJson: string, outResultJson: $Ref<string>, outError: $Ref<string>): boolean;
     InspectAudioAssetJson(requestJson: string, outResultJson: $Ref<string>, outError: $Ref<string>): boolean;
     InspectClothJson(requestJson: string, outResultJson: $Ref<string>, outError: $Ref<string>): boolean;
     BuildAIPerceptionJson(specJson: string, outResultJson: $Ref<string>, outError: $Ref<string>): boolean;
@@ -132,9 +135,11 @@ declare module "ue" {
     PatchClassDefaultsJson(specJson: string, outResultJson: $Ref<string>, outError: $Ref<string>): boolean;
     InspectLevelSequenceJson(requestJson: string, outResultJson: $Ref<string>, outError: $Ref<string>): boolean;
     BuildLevelSequenceJson(specJson: string, outResultJson: $Ref<string>, outError: $Ref<string>): boolean;
+    BuildSequenceEventTrackJson(specJson: string, outResultJson: $Ref<string>, outError: $Ref<string>): boolean;
     RenderLevelSequenceJson(specJson: string, outResultJson: $Ref<string>, outError: $Ref<string>): boolean;
     ControlJobJson(requestJson: string, outResultJson: $Ref<string>, outError: $Ref<string>): boolean;
     ConfigureProjectMapsJson(requestJson: string, outResultJson: $Ref<string>, outError: $Ref<string>): boolean;
+    PatchProjectSettingsJson(requestJson: string, outResultJson: $Ref<string>, outError: $Ref<string>): boolean;
     PackageProjectJson(requestJson: string, outResultJson: $Ref<string>, outError: $Ref<string>): boolean;
     InspectInputMappingsJson(requestJson: string, outResultJson: $Ref<string>, outError: $Ref<string>): boolean;
     PatchInputMappingsJson(specJson: string, outResultJson: $Ref<string>, outError: $Ref<string>): boolean;
