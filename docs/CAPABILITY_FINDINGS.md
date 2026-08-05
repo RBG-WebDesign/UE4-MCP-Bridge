@@ -1090,7 +1090,51 @@ maintains this file; Phase L consumes it.
 
 ## Unknown (tracked, not explained)
 
-None open. The one entry that was here is resolved below.
+**`puerts_level_load` and `puerts_level_create` reproducibly crash the editor
+on level switch** (found 2026-08-05, building a third-person character in
+BridgeInstallTest).
+
+Reproduced 3/3, on three different maps, two of them brand new:
+
+1. `puerts_level_load` onto a level saved moments earlier via `puerts_save
+level_path=...` (itself fine - save-as-new-path never crashed). The editor
+   answered `loaded: true`, then died ~4s later during ordinary Tick:
+   `EXCEPTION_ACCESS_VIOLATION reading address 0xffffffffffffffff` inside
+   `FTickFunctionTask::DoTask()`.
+2. The same `level_path`, second attempt, after a clean relaunch: crashed
+   synchronously this time, inside the command itself -
+   `UMCPPuerTSBridgeService::LoadLevelJson()` at
+   `MCPPuerTSBridgeService.cpp:1629` (the `UEditorLoadingAndSavingUtils::LoadMap`
+   call), reached through PuerTS's own V8/libnode call stack
+   (`FJsEnvImpl::UvRunOnce` -> `FFunctionTranslator::Call` -> `execLoadLevelJson`).
+3. `puerts_level_create` on a brand-new, never-before-loaded blank map: same
+   failure mode, editor gone before the next `puerts_diagnostic`.
+
+Two different crash sites (async Tick vs. synchronous inside the load call)
+against three different levels including a fresh one rules out a
+level-specific corrupt asset. Native engine map loads that happen without the
+bridge - the editor's own `EditorStartupMap` load at process start - never
+crashed across five separate launches tonight. Only a *bridge-driven* level
+switch crashes. That points at PuerTS's own UObject/JS binding table not
+surviving `UWorld` teardown (`CleanupWorld`) during `LoadMap`: something it is
+still holding a raw pointer to gets freed mid-switch, and either the next Tick
+or the load call itself dereferences it.
+
+Not root-caused further this session: the fault is inside vendored
+`Plugins/Puerts` internals (`JsEnvImpl.cpp`, `FunctionTranslator.cpp`), which
+`AGENTS.md` calls "pinned" and out of scope for casual edits, and diagnosing a
+V8-to-UObject lifetime bug is its own session, not a one-line fix. `FP-5`
+(`docs/CONTINUE_HERE.md`) already flagged `puerts_level_create`/
+`puerts_level_load`/`puerts_level_save` as implemented but never live-tested;
+this is that live test, and it fails. `puerts_level_save` with a `level_path`
+(save current level to a new package) does NOT reproduce this and remains
+safe - every level-path change made while building the third-person character
+went through save-as, never load/create, after the second crash.
+
+**Workaround in place, not a fix:** avoid `puerts_level_load` and
+`puerts_level_create` until this is root-caused. Do all work in the level the
+editor already has open, and use `puerts_save level_path=...` to move it to a
+new package path when needed.
 
 ## Resolved Unknowns
 
@@ -2992,3 +3036,263 @@ reflected property bag. The inspector now reports each Wave Player's resolved
 compare that field and every requested cue property through the same inspector.
 The focused contract, UHT, UE4.27 compile, library creation and DLL link pass.
 Live warm and cold evidence remains user-gated.
+
+## Finding 0ac: FIXED. World Settings' Game Mode panel was entirely unwritable, and two existing allowlist entries were already dead
+
+Found 2026-08-05, user-directed: "master control over everything in World
+Settings," pointing at the editor's World Settings > Game Mode panel where
+every field (`GameMode Override`, `Default Pawn Class`, `HUD Class`, `Game
+State Class`, `Player State Class`, `Spectator Class`) read `None`.
+
+Reproduced live before touching anything: `puerts_set_property` on a
+`WorldSettings` actor's `DefaultGameMode` (the reflected name behind the
+"GameMode Override" display label, confirmed against
+`Engine/Classes/GameFramework/WorldSettings.h:566` via `engine_source_search`)
+refused with `"Writable property is not approved."`
+
+Root cause read from `IsWritablePropertyAllowed()`
+(`MCPPuerTSBridgeService.cpp:811`): it checks
+`AllowedWritableProperties.Contains(Class->GetName() + "." + PropertyName)`
+walking the object's class chain - always a `ClassName.PropertyName` pair,
+never a bare name. BridgeInstallTest's own `Config/DefaultEngine.ini` had
+`+AllowedWritableProperties=DefaultPawnClass` and `=PlayerControllerClass`
+with no class prefix. Since `GConfig->GetArray` only falls back to the
+compiled-in defaults when the ini array is completely empty
+(`MCPPuerTSBridgeService.cpp:351`), and this project's ini was non-empty, both
+entries were live but permanently unmatchable - dead config nobody had
+noticed because nothing had tried to use them since whatever session added
+them.
+
+Fixed at both layers: the compiled-in default list in
+`MCPPuerTSBridgeService.cpp` gained
+`WorldSettings.DefaultGameMode` and `GameModeBase.{DefaultPawnClass,
+PlayerControllerClass, HUDClass, GameStateClass, PlayerStateClass,
+SpectatorClass}` (ships for every project going forward), and
+BridgeInstallTest's local ini was corrected to the qualified form so it
+benefits immediately without depending on the ini being cleared. Verified live
+after rebuild and editor restart: the exact `WorldSettings.DefaultGameMode`
+write that was refused before now succeeds and reads back correctly, and
+`WorldSettings.DefaultGameMode` was set to a real project GameMode class as
+part of the same session's third-person character work.
+
+`World`, `Physics`, `Lightmass`, `Broadphase` and `VR` sections of World
+Settings remain unwidened - "master control over everything" is a bigger,
+deliberate follow-up, not attempted this session per the one-capability-per-
+session rule. This finding covers the Game Mode panel specifically, which is
+what blocked the actual task.
+
+## Finding 0ad: class_defaults_patch cannot reach a component's properties, only the actor class's own
+
+Found 2026-08-05, same session, immediately after finding 0ac made
+`SkeletalMeshComponent.SkeletalMesh` and `.AnimClass` writable-allowlist
+entries. Setting a Character Blueprint's mesh through
+`puerts_class_defaults_patch` still could not work, and reading
+`PatchClassDefaultsJson` (`MCPPuerTSBridgeClassDefaults.cpp:182`) shows why
+before ever calling it: `Op.Property = FindFProperty<FProperty>(CDO->GetClass(),
+*Op.Name)` resolves the property name only against the CDO's own class chain.
+A property that lives on a *component* subobject (`Mesh`/`CharacterMesh0`,
+`CollisionCylinder`, any SCS node) is never on that chain - `FindFProperty`
+returns null and the whole op is refused as "not a reflected property," never
+reaching the allowlist check at all. Widening the allowlist for a component
+class name (as 0ac did) makes the property reachable through
+`puerts_set_property` on a placed actor INSTANCE's component object path
+(proven working), but not through `class_defaults_patch` on a Blueprint's
+CDO - there is no subobject-path resolution in that command at all.
+
+Practical effect: there is currently no bridge-only way to set a class-default
+mesh/material/anything-on-a-component for a Blueprint. The standard UE4
+fallback - `ConstructorHelpers::FObjectFinder`/`FClassFinder` in the native
+C++ base class's constructor - is what `ABridgeThirdPersonCharacter` uses
+instead, and it is arguably the more idiomatic answer anyway, not just a
+workaround. Not fixed: extending `class_defaults_patch` to resolve dotted
+component paths is real new scope (component lookup by name, then property
+lookup on the subobject's class, then the same allowlist check qualified by
+the component's class rather than the actor's) - a distinct future capability,
+not attempted this session.
+
+## Finding 0ae: puerts_spawn_actor's class allowlist excludes a project's own native (non-Blueprint) classes
+
+Found 2026-08-05, same session. `puerts_spawn_actor` with
+`class_path=/Script/BridgeInstallTest.BridgeThirdPersonCharacter` (a plain
+native `ACharacter` subclass in the target project's own game module, not a
+Blueprint) refused: `"Actor classes are limited to /Game, /Script/Engine,
+CineCameraActor, and LevelSequenceActor."` A project's own compiled C++
+gameplay classes are not `/Script/Engine` and are not under `/Game`, so they
+cannot be placed directly.
+
+This turned out to match standard UE4 practice rather than fight it: Epic's
+own convention is to place a thin Blueprint wrapper of a native class in a
+level, never the raw native class, precisely so editor tooling (here, the
+bridge's spawn allowlist) has a `/Game` asset to address. The fix used this
+session was exactly that - `puerts_blueprint_build` with `parent_class:
+"/Script/BridgeInstallTest.BridgeThirdPersonCharacter"` and no components or
+graph, a few lines, then `puerts_spawn_actor` on the generated
+`_C` class path, which the allowlist already permits. Recorded as a finding
+rather than left silent because the refusal message doesn't say this is the
+expected shape - a caller hitting it for the first time has no reason to guess
+"wrap it in an empty Blueprint" is the sanctioned fix rather than a dead end.
+
+## Finding 0af: FIXED. spawn_actor's class allowlist blocked NavMeshBoundsVolume, which is also NotBlueprintable so 0ae's own fix doesn't apply to it
+
+Found 2026-08-05, building an AI-controlled chaser (Assailant): no level had a
+NavMeshBoundsVolume, so no AI could path anywhere. `puerts_spawn_actor` with
+`class_path=/Script/NavigationSystem.NavMeshBoundsVolume` refused with the
+same "/Game, /Script/Engine, CineCameraActor, LevelSequenceActor" allowlist
+finding 0ae describes. That finding's own fix - wrap the class in an empty
+`/Game` Blueprint - does NOT apply here: `puerts_blueprint_build` refused with
+"Unreal refuses Blueprints of class ...NavMeshBoundsVolume" (`AVolume` and
+several of its subclasses are marked `NotBlueprintable` in engine source, a
+real engine restriction, not a bridge one). With no Blueprint route and the
+class outside every allowed prefix, there was no way to make a level
+navigable through this bridge at all - a hard blocker for every future AI
+task, not just this one.
+
+The allowlist turned out to be enforced TWICE, independently, with near-
+identical wording: once in `puerts-runtime/src/registry.ts`'s `spawnActor`
+(a plain TS prefix check, no C++ involved) and again natively in
+`UMCPPuerTSBridgeService::SpawnActorJson`
+(`MCPPuerTSBridgeService.cpp:1380`). Fixing only one produces a different,
+confusing refusal from the other layer ("Actor spawn requires an approved
+class path and active transaction" from native, after the TS layer had
+already been widened) - worth knowing before assuming one fix covers a spawn
+allowlist change. Both are now widened by exactly one class,
+`/Script/NavigationSystem.NavMeshBoundsVolume`, not the whole module: verified
+live, spawned into `L_BridgeThirdPerson`, and `puerts_nav_build wait:true`
+produced a real `RecastNavMesh-Default`.
+
+## Finding 0ag: three separate tools share one blind spot - Blueprint-level component tooling cannot see or touch a component a native C++ parent class created
+
+Found across this session building `ABridgeThirdPersonCharacter` and then
+`AAssailantAIController`/`AAssailantCharacter`, in three independent tools:
+
+1. `puerts_class_defaults_patch` (finding 0ad): `FindFProperty<FProperty>`
+   only walks the CDO's own class chain, never a subobject's.
+2. `puerts_blueprint_build`'s `components` array: adding a component named
+   the same as one already inherited from C++ does not attach to or
+   configure it; the native one stays whatever the constructor set.
+3. `puerts_ai_perception_build`: pointed at `AAssailantAIController` (which
+   creates its own `UAIPerceptionComponent` named "AIPerception" in its
+   constructor), it could not find that component, instead ran
+   `AddComponentToBlueprint` and created a SECOND, differently-named one
+   ("AIPerception1"), then failed to give it a template
+   ("Component 'AIPerception' was added but has no AIPerceptionComponent
+   template") and rolled back the transaction - but the stray SCS component
+   survived the rollback. `puerts_ai_controller_inspect` and
+   `puerts_anim_blend_space_inspect`'s siblings already say this plainly in
+   their own docstrings ("Only components this Blueprint declares in its
+   SimpleConstructionScript are visible... which this reader does not walk"),
+   but the write-side tools do not warn before acting, and in perception's
+   case the failure left real litter: `puerts_delete_asset` with `force:true`
+   was needed to clean up the half-built Blueprint (the plain `confirm:true`
+   delete refused with "may still have an in-memory reference").
+
+The working pattern, used for all three cases this session: give the native
+C++ base class everything a Blueprint-level tool cannot reach - mesh,
+AnimClass, AIPerceptionComponent plus its sense config, `AIControllerClass` -
+via the constructor (`ConstructorHelpers`, `CreateDefaultSubobject`,
+`ConfigureSense`), and let the Blueprint wrapper stay a thin, empty
+placement shim. Not a workaround so much as the correct division of labor
+once you know where the line is: the bridge's Blueprint tools own
+Blueprint-declared state; a native class's own constructor is the only
+reliable way to configure what it declares itself.
+
+Not fixed: extending `class_defaults_patch` and `ai_perception_build` to
+resolve a native-declared component by name (walk the class's default
+subobjects, not just the SCS) is real, shared new scope across at least two
+tools - a distinct future capability, not attempted this session.
+
+## Finding 0ah: behavior_tree_build fails to save when pointed at a separately pre-built blackboard_path
+
+Found 2026-08-05. `puerts_blackboard_build` created `BB_Assailant` (reported
+`created: true, saved: true`). Pointing `puerts_behavior_tree_build` at it via
+`blackboard_path` built the tree graph successfully (5 nodes, log confirms
+"[BTBuilder] built BT 'BT_Assailant'") but then failed to SAVE: "Graph is
+linked to private object(s) in an external package. External Object(s):
+/Game/MCPGenerated/BB_Assailant" - `UPackage::Save` itself refused, not the
+bridge's own verification. The build was correctly rolled back (asset
+removed, `rollback_succeeded: true`).
+
+Not root-caused to the exact private-object flag (likely something about how
+a pre-existing blackboard asset's internal object is referenced versus one
+`behavior_tree_build` creates itself). Workaround, not a fix: let
+`behavior_tree_build` create its own blackboard (omit `blackboard_path`, pass
+`keys` directly) - this is the tool's default, better-trodden path per its
+own description, and it saved cleanly with the identical key set. Sharing one
+blackboard across several trees via a pre-built `blackboard_path` - a use
+case the tool's own schema explicitly documents ("Point several trees at one
+path to share a blackboard") - is confirmed broken and not investigated
+further this session.
+
+## Finding 0ai: FIXED. NavMeshBoundsVolume (and every other spawned Volume) had zero geometry - ABrush::Brush is never constructed by a plain SpawnActor
+
+Found 2026-08-05, same session as 0af, while actually trying to use the
+navmesh that finding fixed the allowlist for. A spawned NavMeshBoundsVolume
+reported correct transform and PolyFlags but `bounds: {extent: {0,0,0}}` no
+matter what `scale` was requested, and `puerts_nav_build` produced a
+`RecastNavMesh-Default` with zero navigable area - a technically-successful
+build over nothing, which is worse than a refusal because nothing in the
+response said so.
+
+Root-caused by reading engine source directly rather than guessing:
+`ABrush::Brush` (`Engine/Brush.h:106`, `UPROPERTY(Instanced)`) is the `UModel`
+holding the actual BSP polygon data, and `ABrush::ABrush()`
+(`Brush.cpp:35-50`) constructs `BrushComponent` but never touches `Brush` -
+it stays null forever unless something else sets it. The confirming detail:
+`UEditorBrushBuilder::EndBrush` (`EditorBrushBuilder.cpp:49-80`, what every
+brush builder's `Build()` call ends with) opens with
+`UModel* Brush = BuilderBrush->Brush; if (Brush == nullptr) { return true; }`
+- silently reports SUCCESS and writes zero polygons when the Model doesn't
+exist yet. A first fix attempt (build a `UCubeBuilder` cube straight after
+`SpawnActor`) hit exactly this silent no-op and looked like it had worked.
+
+The editor's own "Place Actors" volume placement never hits this because
+it constructs the `UModel` as part of placement, before any builder runs;
+`GEditor->AddActor` (what `SpawnActorJson` uses for every actor class) has no
+equivalent step for Brush-derived actors specifically. Fixed by explicitly
+constructing `Brush->Brush = NewObject<UModel>(...)` and calling
+`Brush->Brush->Initialize(Brush, true)` before handing it to `UCubeBuilder`,
+in `SpawnActorJson` itself, gated on `Cast<ABrush>(Actor)` succeeding - so
+every future Volume placed through this bridge gets real geometry by
+default, not just NavMeshBoundsVolume. Verified live: a spawned volume's
+registered nav bounds went from `{0,0,0}` extent to `{2000,2000,500}` (a real
+box matching the requested scale), `puerts_nav_build` produced a
+correspondingly-sized navmesh, and an Assailant AIController's `MoveTo` then
+produced real non-zero pursuit velocity toward the player in PIE where it had
+previously done nothing.
+
+## Finding 0aj: puerts_scene_batch's own convergence check misreads a component-property-only write as a no-op and rolls it back, even though the write succeeded
+
+Found 2026-08-05, building level geometry. `upsert_actor` with only a
+`components: {StaticMeshComponent0: {StaticMesh: "..."}}} ` override (no
+location/rotation/scale/label change) on an existing StaticMeshActor always
+fails with "operation reported as applied, but the structure hash is
+unchanged" and rolls back - even though the identical write through
+`puerts_set_property` on the same object path succeeds immediately and
+sticks.
+
+The cause is legible from the tool's own documented contract, once the two
+halves are put next to each other: `puerts_scene_inspect`'s
+`structure_hash_basis` explicitly excludes property values by design ("Bounds
+and reflected property values are deliberately excluded... property values
+are verified per operation rather than folded into one number") - a
+`StaticMesh` assignment can never move that hash, structurally correctly.
+But `scene_batch`'s own success check for an already-structurally-satisfied
+operation appears to use "did the structure hash change" as its proxy for
+"did anything happen," which is exactly the comparison its sibling inspector
+says is the wrong one for a property-only change. Confirmed by isolating the
+write: identical `StaticMesh` value, same object, `set_property` alone
+succeeds and reads back correctly; the same write wrapped in a `scene_batch`
+`upsert_actor` op reports the mismatch and undoes itself.
+
+Workaround used this session, not a fix: spawn or move actors structurally
+through `scene_batch`/`puerts_spawn_actor` (those fields DO move the hash and
+verify correctly), then set component properties like `StaticMesh`
+individually through `puerts_set_property`. Costs one extra round trip per
+actor instead of the single batched call the tool exists to provide, which
+defeats a real part of its purpose for level-dressing work (placing many
+static meshes is exactly scene_batch's stated use case). Not fixed: the
+native comparison needs to check requested property values against
+independently-read actual values (the way `puerts_audio_build` and
+`puerts_anim_blend_space_build` verify against their own inspectors) rather
+than relying on the structure hash for a case the hash was never meant to
+cover.

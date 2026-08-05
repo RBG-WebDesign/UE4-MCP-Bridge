@@ -3,18 +3,18 @@
   "title": "a LevelSequence with tracks and keyframes",
   "proves": "author a sequence with bindings, tracks and keys, read it back, place it in the level and play it",
   "phase": "warm",
-  "generated_at": "2026-08-04T07:05:40.922Z",
-  "verdict": "UNPROVEN_NO_EDITOR",
+  "generated_at": "2026-08-05T03:06:51.249Z",
+  "verdict": "PASS",
   "editor": {
-    "available": false,
-    "reason": "PuerTS command pipe timed out"
+    "available": true,
+    "reason": "puerts_diagnostic answered"
   },
   "install_gate": {
     "ok": true,
-    "project_root": "D:\\Unreal Projects\\BridgeInstallTest"
+    "project_root": "D:/Unreal Projects/BridgeInstallTest"
   },
   "catalog": {
-    "registered_tool_count": 69,
+    "registered_tool_count": 75,
     "legacy_http_enabled": false
   },
   "steps": [
@@ -34,8 +34,7 @@
       "n": 3,
       "label": "1. place the beacon that the sequence will possess",
       "tool": "puerts_scene_batch",
-      "status": "UNPROVEN_NO_EDITOR",
-      "detail": "PuerTS command pipe timed out"
+      "status": "PASS"
     },
     {
       "n": 4,
@@ -47,8 +46,7 @@
       "n": 5,
       "label": "2. build the intro sequence with two bound tracks and five keys",
       "tool": "puerts_sequence_build",
-      "status": "UNPROVEN_NO_EDITOR",
-      "detail": "PuerTS command pipe timed out"
+      "status": "PASS"
     },
     {
       "n": 6,
@@ -60,15 +58,13 @@
       "n": 7,
       "label": "3. read the sequence back and count the keys that actually landed",
       "tool": "puerts_sequence_inspect",
-      "status": "UNPROVEN_NO_EDITOR",
-      "detail": "PuerTS command pipe timed out"
+      "status": "PASS"
     },
     {
       "n": 8,
       "label": "4. place a LevelSequenceActor that points at it",
       "tool": "puerts_scene_batch",
-      "status": "UNPROVEN_NO_EDITOR",
-      "detail": "PuerTS command pipe timed out"
+      "status": "PASS"
     },
     {
       "n": 9,
@@ -80,18 +76,40 @@
       "n": 10,
       "label": "5. save the level before the child render process reads it",
       "tool": "puerts_save",
-      "status": "UNPROVEN_NO_EDITOR",
-      "detail": "PuerTS command pipe timed out"
+      "status": "PASS"
     },
     {
       "n": 11,
       "label": "6. start rendering the three seconds in a separate UE4 process",
       "tool": "puerts_sequence_render_start",
-      "status": "UNPROVEN_NO_EDITOR",
-      "detail": "PuerTS command pipe timed out"
+      "status": "PASS"
     },
     {
       "n": 12,
+      "label": "6. the render returned a trackable job id",
+      "status": "PASS",
+      "detail": "8804347c-4d6d-a3a9-dbdb-83921ff7aed9-1"
+    },
+    {
+      "n": 13,
+      "label": "primitive puerts_job_status is registered",
+      "tool": "puerts_job_status",
+      "status": "PASS"
+    },
+    {
+      "n": 14,
+      "label": "7. read the asynchronous render state back",
+      "tool": "puerts_job_status",
+      "status": "PASS"
+    },
+    {
+      "n": 15,
+      "label": "7. the render process is running or already completed",
+      "status": "PASS",
+      "detail": "running"
+    },
+    {
+      "n": 16,
       "label": "8. render completion is asynchronous",
       "status": "NOTE",
       "detail": "puerts_sequence_render_start returns immediately. The release run polls job_status until terminal and then calls job_result; this slice proves the sequence, placement, save, child-process launch and job tracking compose."
@@ -99,11 +117,11 @@
   ],
   "missing_primitives": [],
   "checks": {
-    "passed": 0,
+    "passed": 9,
     "failed": 0
   },
   "sealed_artifacts": [],
-  "mcp_round_trips": 1,
-  "elapsed_ms": 8875,
+  "mcp_round_trips": 8,
+  "elapsed_ms": 4484,
   "blocks": []
 }

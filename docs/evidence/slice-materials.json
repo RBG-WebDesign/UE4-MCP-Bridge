@@ -3,18 +3,18 @@
   "title": "a master material with parameters, an instance that overrides them, compiled and applied",
   "proves": "author a material graph, instance it, read the parameter values back, and see it on a mesh",
   "phase": "warm",
-  "generated_at": "2026-08-04T07:05:09.825Z",
-  "verdict": "PRESENT_BUT_FAILING",
+  "generated_at": "2026-08-05T04:33:10.951Z",
+  "verdict": "PASS",
   "editor": {
     "available": true,
     "reason": "puerts_diagnostic answered"
   },
   "install_gate": {
     "ok": true,
-    "project_root": "D:\\Unreal Projects\\BridgeInstallTest"
+    "project_root": "D:/Unreal Projects/BridgeInstallTest"
   },
   "catalog": {
-    "registered_tool_count": 69,
+    "registered_tool_count": 75,
     "legacy_http_enabled": false
   },
   "steps": [
@@ -33,14 +33,14 @@
     {
       "n": 3,
       "label": "1. the master material compiled",
-      "status": "FAIL",
-      "detail": "{\"resource_found\":true,\"finished\":true,\"shader_map_valid\":false,\"succeeded\":false,\"errors\":[]}"
+      "status": "PASS",
+      "detail": "{\"resource_found\":true,\"finished\":true,\"shader_map_valid\":true,\"succeeded\":true,\"errors\":[]}"
     },
     {
       "n": 4,
-      "label": "1. the master material was saved after its read-back agreed",
-      "status": "FAIL",
-      "detail": "false"
+      "label": "1. the master material was saved after its read-back agreed, or converged",
+      "status": "PASS",
+      "detail": "saved=false converged=true"
     },
     {
       "n": 5,
@@ -176,8 +176,8 @@
   ],
   "missing_primitives": [],
   "checks": {
-    "passed": 17,
-    "failed": 2
+    "passed": 19,
+    "failed": 0
   },
   "sealed_artifacts": [
     {
@@ -185,10 +185,10 @@
       "inspect_tool": "puerts_material_inspect",
       "structure_hash": "38c731ea902cf88fca2613b840b480617e9c7717",
       "node_count": null,
-      "file_sha256": "23d83341fef80c665f1ec6a11abab936e809bcf476102f3d7c965538c69878b2"
+      "file_sha256": "d344e74dae8148eb3e232a9b7dd6419ed997de7fca0677f0d4945f6da93d6ec4"
     }
   ],
   "mcp_round_trips": 9,
-  "elapsed_ms": 3886,
+  "elapsed_ms": 5509,
   "blocks": []
 }

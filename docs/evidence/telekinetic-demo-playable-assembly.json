@@ -1,11 +1,11 @@
 {
   "campaign": "Telekinetic Demo Playable Level Assembly",
   "status": "GO",
-  "timestamp": "2026-08-05T00:06:28.040Z",
+  "timestamp": "2026-08-05T00:29:49.541Z",
   "session": {
-    "session_id": "afbbea5e-43a5-0150-7411-dbb9841bfb6a",
-    "editor_pid": 46912,
-    "process_start_time": "0426-08-04T21:20:08.920Z",
+    "session_id": "6cd43076-409c-6d73-0f59-97b80e275264",
+    "editor_pid": 22492,
+    "process_start_time": "0426-08-05T00:28:41.538Z",
     "project_path": "D:/Unreal Projects/BridgeInstallTest",
     "uproject_path": "D:/Unreal Projects/BridgeInstallTest/BridgeInstallTest.uproject",
     "pipe_name": "\\\\.\\pipe\\UE427PuerTSMCP_BridgeInstallTest_eb10ef4f"

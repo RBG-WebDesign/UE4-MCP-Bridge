@@ -3,7 +3,7 @@
   "title": "a scene of several actors with lighting and a volume, placed and verified",
   "proves": "describe a scene as desired state, place it in one call, read it back independently, and save the level",
   "phase": "warm",
-  "generated_at": "2026-08-04T07:05:14.395Z",
+  "generated_at": "2026-08-05T03:06:26.174Z",
   "verdict": "PRESENT_BUT_FAILING",
   "editor": {
     "available": true,
@@ -11,10 +11,10 @@
   },
   "install_gate": {
     "ok": true,
-    "project_root": "D:\\Unreal Projects\\BridgeInstallTest"
+    "project_root": "D:/Unreal Projects/BridgeInstallTest"
   },
   "catalog": {
-    "registered_tool_count": 69,
+    "registered_tool_count": 75,
     "legacy_http_enabled": false
   },
   "steps": [
@@ -57,8 +57,8 @@
     {
       "n": 7,
       "label": "2. every operation in the batch applied",
-      "status": "PASS",
-      "detail": "8 of 8"
+      "status": "FAIL",
+      "detail": "0 of 8"
     },
     {
       "n": 8,
@@ -76,7 +76,7 @@
       "n": 10,
       "label": "3. every actor the prompt asked for is in the level",
       "status": "PASS",
-      "detail": "[\"AbstractNavData-Default\",\"Atmospheric Fog\",\"Brush1\",\"CourtyardEntryTrigger\",\"CourtyardLamp\",\"CourtyardSky\",\"CourtyardSun\",\"DefaultPhysicsVolume\",\"Floor\",\"InstancedFoliageActor\",\"Light Source\",\"Pillar_NE\",\"Pillar_NW\",\"Pillar_SE\",\"Pillar_SW\",\"Player Start\",\"SkyLight\",\"Sky Sphere\",\"SliceBeacon\",\"SphereReflectionCapture\",\"WorldSettings1\"]"
+      "detail": "[\"AbstractNavData-Default\",\"Atmospheric Fog\",\"Brush1\",\"CourtyardEntryTrigger\",\"CourtyardLamp\",\"CourtyardSky\",\"CourtyardSun\",\"DefaultPhysicsVolume\",\"Floor\",\"InstancedFoliageActor\",\"Light Source\",\"Pillar_NE\",\"Pillar_NW\",\"Pillar_SE\",\"Pillar_SW\",\"Player Start\",\"SkyLight\",\"Sky Sphere\",\"SphereReflectionCapture\",\"WorldSettings1\"]"
     },
     {
       "n": 11,
@@ -141,8 +141,7 @@
       "n": 21,
       "label": "6. persist the level, which scene_batch deliberately does not do",
       "tool": "puerts_save",
-      "status": "FAIL",
-      "detail": "PRESENT BUT FAILING: [\"PuerTS command pipe timed out\"]"
+      "status": "PASS"
     },
     {
       "n": 22,
@@ -154,8 +153,7 @@
       "n": 23,
       "label": "7. capture the courtyard",
       "tool": "puerts_viewport_screenshot",
-      "status": "FAIL",
-      "detail": "PRESENT BUT FAILING: [\"PuerTS command pipe timed out\"]"
+      "status": "PASS"
     },
     {
       "n": 24,
@@ -166,11 +164,11 @@
   ],
   "missing_primitives": [],
   "checks": {
-    "passed": 14,
-    "failed": 2
+    "passed": 15,
+    "failed": 1
   },
   "sealed_artifacts": [],
   "mcp_round_trips": 7,
-  "elapsed_ms": 16379,
+  "elapsed_ms": 4237,
   "blocks": []
 }

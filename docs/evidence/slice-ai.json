@@ -3,7 +3,7 @@
   "title": "a Behavior Tree plus Blackboard driving an AIController on a pawn",
   "proves": "author the tree, the blackboard, the controller wiring and the pawn, then prove the wiring by reading it back",
   "phase": "warm",
-  "generated_at": "2026-08-04T07:05:02.186Z",
+  "generated_at": "2026-08-05T02:47:46.203Z",
   "verdict": "PASS",
   "editor": {
     "available": true,
@@ -11,10 +11,10 @@
   },
   "install_gate": {
     "ok": true,
-    "project_root": "D:\\Unreal Projects\\BridgeInstallTest"
+    "project_root": "D:/Unreal Projects/BridgeInstallTest"
   },
   "catalog": {
-    "registered_tool_count": 69,
+    "registered_tool_count": 75,
     "legacy_http_enabled": false
   },
   "steps": [
@@ -164,7 +164,7 @@
       "n": 25,
       "label": "7. did the transaction cover the CDO write",
       "status": "NOTE",
-      "detail": "transaction_covers_cdo=undefined. Finding 0r: a class default object is not RF_Transactional, so Modify() can return false and editor undo does not take the write back. The command's own snapshot-and-restore boundary is the way back."
+      "detail": "transaction_covers_cdo=true. Finding 0r: a class default object is not RF_Transactional, so Modify() can return false and editor undo does not take the write back. The command's own snapshot-and-restore boundary is the way back."
     },
     {
       "n": 26,
@@ -226,10 +226,10 @@
       "inspect_tool": "puerts_behavior_tree_inspect",
       "structure_hash": "BF3824C2AE6A676D9AA54A5558CE0C14F06D2DD9",
       "node_count": null,
-      "file_sha256": "4e0f58a7283d45d9b4df7cfa09d690b04bbbed467c2099046d9cf90961d63016"
+      "file_sha256": "cddaead6e7c1d9241cb4c9dd2a5173ac64f140d0adece1a6ef0394e1bc277e4d"
     }
   ],
   "mcp_round_trips": 11,
-  "elapsed_ms": 2640,
+  "elapsed_ms": 5280,
   "blocks": []
 }

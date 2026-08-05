@@ -3,18 +3,18 @@
   "title": "an Animation Blueprint with a state machine and transitions",
   "proves": "author an AnimBP against a real skeleton, read the state machine back, and drive it from a pawn",
   "phase": "warm",
-  "generated_at": "2026-08-04T07:05:31.405Z",
-  "verdict": "UNPROVEN_NO_EDITOR",
+  "generated_at": "2026-08-05T03:20:43.582Z",
+  "verdict": "PASS",
   "editor": {
-    "available": false,
-    "reason": "PuerTS command pipe timed out"
+    "available": true,
+    "reason": "puerts_diagnostic answered"
   },
   "install_gate": {
     "ok": true,
-    "project_root": "D:\\Unreal Projects\\BridgeInstallTest"
+    "project_root": "D:/Unreal Projects/BridgeInstallTest"
   },
   "catalog": {
-    "registered_tool_count": 69,
+    "registered_tool_count": 75,
     "legacy_http_enabled": false
   },
   "steps": [
@@ -28,77 +28,112 @@
       "n": 2,
       "label": "1. find a Skeleton in the project to build against",
       "tool": "puerts_find_assets",
-      "status": "UNPROVEN_NO_EDITOR",
-      "detail": "PuerTS command pipe timed out"
+      "status": "PASS"
     },
     {
       "n": 3,
-      "label": "2. find AnimSequences the state machine can play",
-      "tool": "puerts_find_assets",
-      "status": "UNPROVEN_NO_EDITOR",
-      "detail": "PuerTS command pipe timed out"
+      "label": "1. the project contains at least one Skeleton",
+      "status": "PASS",
+      "detail": "4 found"
     },
     {
       "n": 4,
-      "label": "3. determine whether the slice asset needs create or patch",
+      "label": "2. find AnimSequences the state machine can play",
       "tool": "puerts_find_assets",
-      "status": "UNPROVEN_NO_EDITOR",
-      "detail": "PuerTS command pipe timed out"
+      "status": "PASS"
     },
     {
       "n": 5,
+      "label": "2. at least three AnimSequences exist to blend between",
+      "status": "PASS",
+      "detail": "20 found"
+    },
+    {
+      "n": 6,
+      "label": "3. determine whether the slice asset needs create or patch",
+      "tool": "puerts_find_assets",
+      "status": "PASS"
+    },
+    {
+      "n": 7,
       "label": "primitive puerts_anim_blueprint_build is registered",
       "tool": "puerts_anim_blueprint_build",
       "status": "PASS"
     },
     {
-      "n": 6,
+      "n": 8,
       "label": "3. build the state machine from one spec",
       "tool": "puerts_anim_blueprint_build",
-      "status": "UNPROVEN_NO_EDITOR",
-      "detail": "PuerTS command pipe timed out"
+      "status": "PASS"
     },
     {
-      "n": 7,
+      "n": 9,
+      "label": "3. the Animation Blueprint compiled clean",
+      "status": "PASS",
+      "detail": "UpToDate"
+    },
+    {
+      "n": 10,
       "label": "primitive puerts_anim_blueprint_inspect is registered",
       "tool": "puerts_anim_blueprint_inspect",
       "status": "PASS"
     },
     {
-      "n": 8,
+      "n": 11,
       "label": "4. read the state machine back with the independent inspector",
       "tool": "puerts_anim_blueprint_inspect",
-      "status": "UNPROVEN_NO_EDITOR",
-      "detail": "PuerTS command pipe timed out"
+      "status": "PASS"
     },
     {
-      "n": 9,
+      "n": 12,
+      "label": "4. all three states are in the asset",
+      "status": "PASS",
+      "detail": "[\"Idle\",\"Run\",\"Walk\"]"
+    },
+    {
+      "n": 13,
+      "label": "4. all four transitions are in the asset",
+      "status": "PASS",
+      "detail": "4 found"
+    },
+    {
+      "n": 14,
       "label": "primitive puerts_anim_blueprint_patch is registered",
       "tool": "puerts_anim_blueprint_patch",
       "status": "PASS"
     },
     {
-      "n": 10,
+      "n": 15,
       "label": "5. apply the same desired state through the failure-atomic patch path",
       "tool": "puerts_anim_blueprint_patch",
-      "status": "UNPROVEN_NO_EDITOR",
-      "detail": "PuerTS command pipe timed out"
+      "status": "PASS"
     },
     {
-      "n": 11,
+      "n": 16,
+      "label": "5. the patched Animation Blueprint compiled clean",
+      "status": "PASS",
+      "detail": "UpToDate"
+    },
+    {
+      "n": 17,
+      "label": "5. patching replaced the state machine instead of appending another",
+      "status": "PASS",
+      "detail": "[\"Idle\",\"Run\",\"Walk\"]"
+    },
+    {
+      "n": 18,
       "label": "primitive puerts_blueprint_build is registered",
       "tool": "puerts_blueprint_build",
       "status": "PASS"
     },
     {
-      "n": 12,
+      "n": 19,
       "label": "6. attach the Animation Blueprint to a pawn's SkeletalMeshComponent",
       "tool": "puerts_blueprint_build",
-      "status": "UNPROVEN_NO_EDITOR",
-      "detail": "PuerTS command pipe timed out"
+      "status": "PASS"
     },
     {
-      "n": 13,
+      "n": 20,
       "label": "7. see the state machine blend",
       "status": "NOT_ATTEMPTED_BY_POLICY",
       "detail": "an Animation Blueprint only evaluates in a running game or in the asset editor's preview viewport. PIE is user-gated, and puerts_viewport_screenshot captures the level viewport, not an asset editor preview. The legacy anim_pose_snapshot / anim_pose_delta pair is the closest thing to a pose read-back and is behind the HTTP opt-in."
@@ -106,11 +141,19 @@
   ],
   "missing_primitives": [],
   "checks": {
-    "passed": 0,
+    "passed": 14,
     "failed": 0
   },
-  "sealed_artifacts": [],
-  "mcp_round_trips": 1,
-  "elapsed_ms": 8875,
+  "sealed_artifacts": [
+    {
+      "asset_path": "/Game/MCPGenerated/ABP_SliceGuard",
+      "inspect_tool": "puerts_anim_blueprint_inspect",
+      "structure_hash": "A4A98EB5179D57EA7F4865875FA8C897EB1EF748",
+      "node_count": null,
+      "file_sha256": "9846118cef7ec22d1f79abbaa1a0f1c228e76f17ca14494b6b7a7cffe3f7236f"
+    }
+  ],
+  "mcp_round_trips": 8,
+  "elapsed_ms": 2642,
   "blocks": []
 }
