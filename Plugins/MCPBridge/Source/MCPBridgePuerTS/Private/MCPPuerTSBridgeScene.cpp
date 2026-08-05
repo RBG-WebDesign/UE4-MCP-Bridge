@@ -4,6 +4,7 @@
 
 #include "MCPBridgeAssetRollback.h"
 #include "MCPBridgeSceneSnapshot.h"
+#include "MCPBridgeVolumeBrush.h"
 
 #include "BSPOps.h"
 #include "Builders/CubeBuilder.h"
@@ -190,8 +191,22 @@ namespace
             if (Desired->Type == EJson::Null) { return Actual == nullptr; }
             if (Desired->Type == EJson::String)
             {
-                return Actual != nullptr
-                    && Actual->GetPathName() == FPackageName::ExportTextPathToObjectPath(Desired->AsString());
+                // ExportTextPathToObjectPath only strips a "ClassName'...'"
+                // wrapper; a bare package path with no such wrapper comes back
+                // unchanged, with no ".AssetName" suffix. GetPathName() always
+                // has that suffix for a top-level asset, so "/Game/Foo/Bar"
+                // (exactly what puerts_set_property and every builder in this
+                // codebase accept and correctly resolve) could never equal
+                // "/Game/Foo/Bar.Bar" here - every object-reference property
+                // request in short form was permanently unsatisfiable. Same
+                // normalization LoadBuildPath-style helpers already use
+                // elsewhere: a result with no '.' gets its leaf name appended.
+                FString DesiredObjectPath = FPackageName::ExportTextPathToObjectPath(Desired->AsString());
+                if (!DesiredObjectPath.IsEmpty() && !DesiredObjectPath.Contains(TEXT(".")))
+                {
+                    DesiredObjectPath += TEXT(".") + FPackageName::GetLongPackageAssetName(DesiredObjectPath);
+                }
+                return Actual != nullptr && Actual->GetPathName() == DesiredObjectPath;
             }
         }
 
@@ -355,57 +370,6 @@ namespace
             if (Walk == Root) { return true; }
         }
         return false;
-    }
-
-    /**
-     * Give a freshly spawned volume the box brush the editor would have given
-     * it, and answer whether it now has one.
-     *
-     * GEditor->AddActor calls World->SpawnActor directly. That is the whole
-     * placement path for a normal actor, but it is only half of one for an
-     * AVolume: the Place Actors panel reaches a volume through
-     * UActorFactoryBoxVolume, whose PostSpawnActor is what builds the cube.
-     * Spawned without it, a TriggerVolume, BlockingVolume, PostProcessVolume or
-     * NavMeshBoundsVolume has a null Brush, zero bounds and no collision. That
-     * is not a cosmetic gap: an empty volume triggers nothing, blocks nothing
-     * and bounds no navmesh, and its zero extent would walk straight through
-     * the PlayerStart clearance check below and report a pass that measured
-     * nothing.
-     *
-     * The engine's own helper for this, CreateBrushForVolumeActor, is a free
-     * function in UnrealEd's ActorFactory.cpp with no declaration in any
-     * header, so it cannot be called from here. This is that function, less the
-     * builder choice: a 200-unit cube, the same one the editor places, sized
-     * from there by the operation's scale.
-     */
-    bool EnsureVolumeBrush(AActor* Actor)
-    {
-        AVolume* Volume = Cast<AVolume>(Actor);
-        if (Volume == nullptr) { return true; }
-        if (Volume->Brush != nullptr) { return true; }
-
-        UCubeBuilder* Builder = NewObject<UCubeBuilder>();
-        Builder->X = 200.0f;
-        Builder->Y = 200.0f;
-        Builder->Z = 200.0f;
-
-        Volume->PreEditChange(nullptr);
-        const EObjectFlags BrushFlags = Volume->GetFlags() & (RF_Transient | RF_Transactional);
-        Volume->PolyFlags = 0;
-        Volume->Brush = NewObject<UModel>(Volume, NAME_None, BrushFlags);
-        Volume->Brush->Initialize(nullptr, true);
-        Volume->Brush->Polys = NewObject<UPolys>(Volume->Brush, NAME_None, BrushFlags);
-        Volume->GetBrushComponent()->Brush = Volume->Brush;
-        Volume->BrushBuilder = DuplicateObject<UBrushBuilder>(Builder, Volume);
-        Builder->Build(Volume->GetWorld(), Volume);
-        FBSPOps::csgPrepMovingBrush(Volume);
-
-        // Untextured, so a volume forms no dependency on a material it never
-        // renders. The engine helper does the same and gives the same reason.
-        for (FPoly& Poly : Volume->Brush->Polys->Element) { Poly.Material = nullptr; }
-        Volume->PostEditChange();
-
-        return Volume->Brush != nullptr && Volume->Brush->Polys->Element.Num() > 0;
     }
 
     /** Actor classes scene_batch may spawn. The same limit spawn_actor carries,
@@ -1077,7 +1041,7 @@ bool UMCPPuerTSBridgeService::ApplySceneBatchJson(
     };
 
     // --- Apply. ---
-    for (const FResolvedOp& R : Resolved)
+    for (FResolvedOp& R : Resolved)
     {
         // Asked here, not read from the plan. The batch is ordered, so this
         // operation's precondition is whatever the operations before it left.
@@ -1202,6 +1166,22 @@ bool UMCPPuerTSBridgeService::ApplySceneBatchJson(
                     TEXT("operation %d (%s): the label was set to '%s' and read back as '%s'. "
                          "Unreal renamed it, so this operation could never converge."),
                     R.Index, *R.Label, *R.DesiredLabel, *Actor->GetActorLabel()));
+            }
+            // AActor::SetActorLabel (ActorEditor.cpp) does not just store the
+            // label: when the object's current name still looks auto-generated,
+            // it also renames the UObject itself to match the new label, so
+            // Actor->GetName() can differ from what it was one line above. A
+            // selector of kind "name" was resolved against the OLD name, and the
+            // final verification pass re-resolves the same selector against
+            // freshly read state (IsOpSatisfied -> ResolveOne), so leaving
+            // R.SelectValue pointing at a name the actor no longer has makes a
+            // successful relabel report as "selector_matches=0" and roll back a
+            // change that actually worked. Track the rename the same way a
+            // caller re-selecting by the actor's current name would.
+            if (R.SelectKind == TEXT("name") && !Actor->GetName().Equals(R.SelectValue, ESearchCase::IgnoreCase))
+            {
+                R.SelectValue = Actor->GetName();
+                R.ActorKey = FString::Printf(TEXT("%s:%s"), *R.SelectKind, *R.SelectValue.ToLower());
             }
         }
 
