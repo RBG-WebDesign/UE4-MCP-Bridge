@@ -587,70 +587,53 @@ private:
         return FText::FromString(FString::Printf(TEXT("PuerTS V8 in-process via %s"), *PipeNameForDisplay()));
     }
 
-    FString BuildConnectionPrompt() const
+    // Carries only what a tool actually consumes. Pipe name, session id and
+    // editor pid are deliberately absent: no tool takes them as a parameter,
+    // the client refuses to guess a pipe name, and puerts_diagnostic echoes all
+    // three back live. Engine version IS here so the reader can satisfy the
+    // 4.27-only precondition without shelling out to verify it separately.
+    FString BuildConnectionPrompt(bool bIncludeLevel = false) const
     {
         const FString Project = State.ProjectName.IsEmpty() ? FPaths::GetBaseFilename(FPaths::GetProjectFilePath()) : State.ProjectName;
+
+        if (!State.bConnected)
+        {
+            return FString::Printf(
+                TEXT("My Unreal Engine MCP Bridge is offline for %s.\n\n%s"),
+                *Project,
+                *BuildRecoveryCommand()
+            );
+        }
+
         const FString ProjectRoot = State.SessionProjectPath.IsEmpty()
             ? FPaths::ConvertRelativePathToFull(FPaths::ProjectDir())
             : State.SessionProjectPath;
-        const FString Status = State.bConnected ? TEXT("ready") : TEXT("not ready");
-
-        return FString::Printf(
-            TEXT("Connect to my Unreal Engine 4.27 MCP Bridge.\n\n")
-            TEXT("Transport: authenticated PuerTS named pipe. There is no HTTP port.\n")
-            TEXT("Pipe: %s\n")
-            TEXT("Project: %s\n")
-            TEXT("Project file: %s\n")
-            TEXT("MCP_UNREAL_PROJECT_ROOT: %s\n")
-            TEXT("Session: %s\n")
-            TEXT("Editor pid: %d\n")
-            TEXT("Session status: %s\n")
-            TEXT("Native runtime: %s\n")
-            TEXT("Approved tools: %d\n\n")
-            TEXT("Point the bridge at the project root above. The client addresses one editor by session ")
-            TEXT("and refuses a reply from any other, so a mismatch here surfaces as session_missing rather than ")
-            TEXT("silently editing the wrong project.\n\n")
-            TEXT("Use only puerts_* MCP tools for editor operations. Never use HTTP, REST, Python sockets, or shell scripts as a fallback. ")
-            TEXT("Start with puerts_diagnostic. If it fails, report the exact native error."),
-            *PipeNameForDisplay(),
-            *Project,
-            *FPaths::GetProjectFilePath(),
-            *ProjectRoot,
-            State.SessionId.IsEmpty() ? TEXT("(none)") : *State.SessionId,
-            State.EditorPid,
-            *SessionFreshnessText(),
-            *Status,
-            State.NativeToolCount
-        );
-    }
-
-    FString BuildProjectInfoPrompt() const
-    {
-        const FString Project = State.ProjectName.IsEmpty() ? FPaths::GetBaseFilename(FPaths::GetProjectFilePath()) : State.ProjectName;
         const FString Engine = State.EngineVersion.IsEmpty() ? TEXT("Unknown") : State.EngineVersion;
-        const FString Level = State.CurrentLevel.IsEmpty() ? TEXT("Unknown") : State.CurrentLevel;
 
-        return FString::Printf(
-            TEXT("Use this Unreal Engine 4.27 MCP Bridge context.\n\n")
-            TEXT("Transport: authenticated PuerTS named pipe. There is no HTTP port.\n")
-            TEXT("Pipe: %s\n")
+        FString Prompt = FString::Printf(
+            TEXT("Connect to my Unreal Engine MCP Bridge.\n\n")
+            TEXT("Engine: %s\n")
             TEXT("Project: %s\n")
             TEXT("Project file: %s\n")
-            TEXT("Project dir: %s\n")
-            TEXT("Engine: %s\n")
-            TEXT("Current level: %s\n")
-            TEXT("Native runtime ready: %s\n")
-            TEXT("Approved tools: %d\n\n")
-            TEXT("Use puerts_diagnostic first, then continue with puerts_* tools only. Do not fall back to HTTP or Python."),
-            *PipeNameForDisplay(),
+            TEXT("MCP_UNREAL_PROJECT_ROOT: %s\n"),
+            *Engine,
             *Project,
             *FPaths::GetProjectFilePath(),
-            *FPaths::ProjectDir(),
-            *Engine,
-            *Level,
-            State.bConnected ? TEXT("true") : TEXT("false"),
-            State.NativeToolCount
+            *ProjectRoot
         );
+
+        if (bIncludeLevel)
+        {
+            Prompt += FString::Printf(
+                TEXT("Current level: %s\n"),
+                State.CurrentLevel.IsEmpty() ? TEXT("Unknown") : *State.CurrentLevel
+            );
+        }
+
+        Prompt += TEXT("\nUse only puerts_* MCP tools for editor operations. Never use HTTP, REST, Python sockets, or shell scripts as a fallback. ")
+            TEXT("Start with puerts_diagnostic. If it fails, report the exact native error.");
+
+        return Prompt;
     }
 
     FString BuildRecoveryCommand() const
@@ -1969,7 +1952,7 @@ private:
 
     void CopyProjectInfo()
     {
-        const FString Text = BuildProjectInfoPrompt();
+        const FString Text = BuildConnectionPrompt(/*bIncludeLevel=*/true);
         FPlatformApplicationMisc::ClipboardCopy(*Text);
         SetMessage(FString::Printf(TEXT("Copied native MCP project handoff for %s"), *State.PipeName));
     }
