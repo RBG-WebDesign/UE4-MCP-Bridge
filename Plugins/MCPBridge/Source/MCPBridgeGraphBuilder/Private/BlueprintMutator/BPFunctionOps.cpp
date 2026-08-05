@@ -664,6 +664,34 @@ bool FBPFunctionOps::RemoveFunction(UBlueprint* Blueprint, const FString& Functi
         });
 }
 
+bool FBPFunctionOps::RenameFunction(UBlueprint* Blueprint, const FString& OldName,
+    const FString& NewName, FString& OutError)
+{
+    UEdGraph* Graph = FindFunctionGraph(Blueprint, OldName);
+    if (!Graph) { OutError = FString::Printf(TEXT("Function '%s' not found."), *OldName); return false; }
+    if (NewName.IsEmpty()) { OutError = TEXT("New function name is empty."); return false; }
+    TArray<UEdGraph*> Graphs;
+    Blueprint->GetAllGraphs(Graphs);
+    for (UEdGraph* Existing : Graphs)
+    {
+        if (Existing && Existing != Graph && Existing->GetFName() == FName(*NewName))
+        {
+            OutError = FString::Printf(TEXT("Graph '%s' already exists."), *NewName);
+            return false;
+        }
+    }
+    return FBPMutatorHelpers::RunMutation(Blueprint,
+        LOCTEXT("RenameFunction", "MCP Bridge: Rename Function"), [&]()
+        {
+            FBlueprintEditorUtils::RenameGraph(Graph, NewName);
+            if (Graph->GetName() != NewName)
+            {
+                OutError = FString::Printf(TEXT("UE4 refused function rename to '%s'."), *NewName);
+                return false;
+            }
+            return true;
+        });
+}
 bool FBPFunctionOps::SetFunctionMetadata(UBlueprint* Blueprint, const FString& FunctionName,
     const FString& MetadataJson, FString& OutError)
 {

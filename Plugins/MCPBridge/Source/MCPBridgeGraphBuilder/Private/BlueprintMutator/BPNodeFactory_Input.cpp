@@ -28,6 +28,7 @@
 // (their classes are MinimalAPI). We replicate the helper bodies in-factory by calling
 // UK2Node_CallFunction::SetFromFunction on AActor::Get{Input|InputAxis|...}Value.
 #include "GameFramework/Actor.h"
+#include "GameFramework/InputSettings.h"
 
 // =========================================================================================
 // Phase 4.5 Batch 2 — Input Action/Axis/Key/Touch + Getters (12 live factories).
@@ -69,6 +70,15 @@ UEdGraphNode* FBPNodeFactory::CreateInputAction(UEdGraph* Graph, FVector2D Pos, 
         UE_LOG(LogBlueprintMutator, Warning, TEXT("CreateInputAction: missing action_name"));
         return nullptr;
     }
+    TArray<FInputActionKeyMapping> ActionMappings;
+    GetDefault<UInputSettings>()->GetActionMappingByName(FName(*ActionName), ActionMappings);
+    if (ActionMappings.Num() == 0)
+    {
+        UE_LOG(LogBlueprintMutator, Warning,
+            TEXT("CreateInputAction: action mapping '%s' does not exist in project input settings"),
+            *ActionName);
+        return nullptr;
+    }
 
     FGraphNodeCreator<UK2Node_InputAction> Creator(*Graph);
     UK2Node_InputAction* Node = Creator.CreateNode();
@@ -99,6 +109,15 @@ UEdGraphNode* FBPNodeFactory::CreateInputAxisEvent(UEdGraph* Graph, FVector2D Po
     if (AxisName.IsEmpty())
     {
         UE_LOG(LogBlueprintMutator, Warning, TEXT("CreateInputAxisEvent: missing axis_name"));
+        return nullptr;
+    }
+    TArray<FInputAxisKeyMapping> AxisMappings;
+    GetDefault<UInputSettings>()->GetAxisMappingByName(FName(*AxisName), AxisMappings);
+    if (AxisMappings.Num() == 0)
+    {
+        UE_LOG(LogBlueprintMutator, Warning,
+            TEXT("CreateInputAxisEvent: axis mapping '%s' does not exist in project input settings"),
+            *AxisName);
         return nullptr;
     }
 

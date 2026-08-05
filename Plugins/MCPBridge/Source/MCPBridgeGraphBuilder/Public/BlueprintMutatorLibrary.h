@@ -142,6 +142,11 @@ public:
     UFUNCTION(BlueprintCallable, Category="BlueprintMutator")
     static bool RemoveVariable(UBlueprint* Blueprint, const FString& VarName);
 
+    static bool RenameVariable(UBlueprint* Blueprint, const FString& OldName, const FString& NewName);
+
+    static bool SetVariableMetadata(UBlueprint* Blueprint, const FString& VarName,
+        const FString& MetadataJson, FString& OutError);
+
     /** Update a member variable's default value (string form). */
     UFUNCTION(BlueprintCallable, Category="BlueprintMutator")
     static bool SetVariableDefault(UBlueprint* Blueprint, const FString& VarName, const FString& DefaultValueJson);
@@ -161,6 +166,8 @@ public:
     /** Rename an SCS (component) node. */
     UFUNCTION(BlueprintCallable, Category="BlueprintMutator")
     static bool RenameSCSNode(UBlueprint* Blueprint, const FString& OldName, const FString& NewName);
+
+    static bool ReparentSCSNode(UBlueprint* Blueprint, const FString& ComponentName, const FString& ParentName);
 
     // --- Tier 3: node authoring (Phase 3) ---
 
@@ -201,6 +208,8 @@ public:
     UFUNCTION(BlueprintCallable, Category="BlueprintMutator")
     static bool RemoveFunction(UBlueprint* Blueprint, const FString& FunctionName);
 
+    static bool RenameFunction(UBlueprint* Blueprint, const FString& OldName, const FString& NewName, FString& OutError);
+
     /**
      * Converge an existing function's declared metadata. MetadataJson understands
      * category, tooltip, pure, const and access; only the keys present are
@@ -238,4 +247,10 @@ public:
     /** Remove an event dispatcher by name. Returns true on success. */
     UFUNCTION(BlueprintCallable, Category="BlueprintMutator")
     static bool RemoveEventDispatcher(UBlueprint* Blueprint, const FString& DispatcherName);
+    static FString AddMacro(UBlueprint* Blueprint, const FString& MacroName,
+        const FString& InputsJson, const FString& OutputsJson, FString& OutError);
+    static bool RemoveMacro(UBlueprint* Blueprint, const FString& MacroName, FString& OutError);
+    static bool RenameMacro(UBlueprint* Blueprint, const FString& OldName, const FString& NewName, FString& OutError);
+    static bool SetMacroSignature(UBlueprint* Blueprint, const FString& MacroName,
+        const FString& InputsJson, const FString& OutputsJson, FString& OutError);
 };

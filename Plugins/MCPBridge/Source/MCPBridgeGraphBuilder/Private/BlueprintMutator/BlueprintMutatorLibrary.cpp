@@ -9,6 +9,7 @@
 #include "BPPinOps.h"
 #include "BPFunctionOps.h"
 #include "BPEventDispatcherOps.h"
+#include "BPMacroOps.h"
 #include "../BlueprintInspector/BPGraphReader.h"
 #include "BPGLogCategories.h"
 #include "Engine/Blueprint.h"
@@ -216,6 +217,14 @@ bool UBlueprintMutatorLibrary::RemoveVariable(UBlueprint* Blueprint, const FStri
 {
     return FBPVariableOps::RemoveVariable(Blueprint, VarName);
 }
+bool UBlueprintMutatorLibrary::RenameVariable(UBlueprint* Blueprint, const FString& OldName, const FString& NewName)
+{
+    return FBPVariableOps::RenameVariable(Blueprint, OldName, NewName);
+}
+bool UBlueprintMutatorLibrary::SetVariableMetadata(UBlueprint* Blueprint, const FString& VarName, const FString& MetadataJson, FString& OutError)
+{
+    return FBPVariableOps::SetVariableMetadata(Blueprint, VarName, MetadataJson, OutError);
+}
 bool UBlueprintMutatorLibrary::SetVariableDefault(UBlueprint* Blueprint, const FString& VarName, const FString& DefaultValueJson)
 {
     return FBPVariableOps::SetVariableDefault(Blueprint, VarName, DefaultValueJson);
@@ -237,6 +246,10 @@ bool UBlueprintMutatorLibrary::RenameSCSNode(UBlueprint* Blueprint, const FStrin
     return FBPSCSOps::RenameSCSNode(Blueprint, OldName, NewName);
 }
 
+bool UBlueprintMutatorLibrary::ReparentSCSNode(UBlueprint* Blueprint, const FString& ComponentName, const FString& ParentName)
+{
+    return FBPSCSOps::ReparentSCSNode(Blueprint, ComponentName, ParentName);
+}
 FString UBlueprintMutatorLibrary::AddNode(UBlueprint* Blueprint, const FString& GraphName, const FString& NodeType, FVector2D Position, const FString& ConfigJson)
 {
     return FBPNodeOps::AddNode(Blueprint, GraphName, NodeType, Position, ConfigJson);
@@ -270,6 +283,10 @@ bool UBlueprintMutatorLibrary::RemoveFunction(UBlueprint* Blueprint, const FStri
 {
     return FBPFunctionOps::RemoveFunction(Blueprint, FunctionName);
 }
+bool UBlueprintMutatorLibrary::RenameFunction(UBlueprint* Blueprint, const FString& OldName, const FString& NewName, FString& OutError)
+{
+    return FBPFunctionOps::RenameFunction(Blueprint, OldName, NewName, OutError);
+}
 bool UBlueprintMutatorLibrary::SetFunctionMetadata(UBlueprint* Blueprint, const FString& FunctionName,
     const FString& MetadataJson, FString& OutError)
 {
@@ -292,6 +309,23 @@ FString UBlueprintMutatorLibrary::AddEventDispatcher(UBlueprint* Blueprint, cons
 bool UBlueprintMutatorLibrary::RemoveEventDispatcher(UBlueprint* Blueprint, const FString& DispatcherName)
 {
     return FBPEventDispatcherOps::RemoveEventDispatcher(Blueprint, DispatcherName);
+}
+
+FString UBlueprintMutatorLibrary::AddMacro(UBlueprint* Blueprint, const FString& MacroName, const FString& InputsJson, const FString& OutputsJson, FString& OutError)
+{
+    return FBPMacroOps::AddMacro(Blueprint, MacroName, InputsJson, OutputsJson, OutError);
+}
+bool UBlueprintMutatorLibrary::RemoveMacro(UBlueprint* Blueprint, const FString& MacroName, FString& OutError)
+{
+    return FBPMacroOps::RemoveMacro(Blueprint, MacroName, OutError);
+}
+bool UBlueprintMutatorLibrary::RenameMacro(UBlueprint* Blueprint, const FString& OldName, const FString& NewName, FString& OutError)
+{
+    return FBPMacroOps::RenameMacro(Blueprint, OldName, NewName, OutError);
+}
+bool UBlueprintMutatorLibrary::SetMacroSignature(UBlueprint* Blueprint, const FString& MacroName, const FString& InputsJson, const FString& OutputsJson, FString& OutError)
+{
+    return FBPMacroOps::SetMacroSignature(Blueprint, MacroName, InputsJson, OutputsJson, OutError);
 }
 
 #undef LOCTEXT_NAMESPACE

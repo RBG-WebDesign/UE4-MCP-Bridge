@@ -18,6 +18,7 @@ public:
 
     /** Remove a named user function graph. Returns true on success. */
     static bool RemoveFunction(UBlueprint* Blueprint, const FString& FunctionName);
+    static bool RenameFunction(UBlueprint* Blueprint, const FString& OldName, const FString& NewName, FString& OutError);
 
     /**
      * Converge a function's declared metadata on MetadataJson.
