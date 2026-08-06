@@ -1,0 +1,11 @@
+{
+  "corpus_files": 28,
+  "schema_bytes": 136992,
+  "tokens_total": 41,
+  "tokens_in_schema": 41,
+  "tokens_reference_only": 0,
+  "tokens_undocumented": 0,
+  "first_call_sufficiency": 1,
+  "reference_only": [],
+  "undocumented": []
+}

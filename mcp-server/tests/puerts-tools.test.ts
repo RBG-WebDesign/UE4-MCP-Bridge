@@ -18,6 +18,25 @@ import {
   TEST_SESSION_NONCE,
 } from "./session-fixture.js";
 
+/** The reference file that carries the Blueprint node catalog, the pin names
+    and the member_patch operation grammar.
+
+    Those used to live in the tool descriptions, and several suites asserted
+    against the description to stop a node type or an op shipping undocumented.
+    A description is resident context that every session pays for, so the
+    catalogs moved here and the assertions followed. The invariant is unchanged:
+    the schema has to VALIDATE it and this file has to DOCUMENT it. Assert on
+    both, never on neither. */
+function readBlueprintReference(): Promise<string> {
+  return readFile(
+    join(
+      dirname(fileURLToPath(import.meta.url)),
+      "..", "..", "skills", "unreal-engine-4-27", "references", "blueprint-tools.md",
+    ),
+    "utf8",
+  );
+}
+
 /** The identity every mock reply stamps, kept in a module-level binding so each
     suite's server closure sees the session that suite advertised. */
 let RESPONSE_SESSION: Record<string, unknown> = {};
@@ -333,7 +352,9 @@ async function marshalingSuite(): Promise<void> {
     actually spawn. A client that is told "any node type" writes graphs the
     builder silently skips, which produces a Blueprint that compiles clean and
     does nothing. These assertions pin the advertised surface and the
-    validation that keeps a bad spec off the pipe. */
+    validation that keeps a bad spec off the pipe. The surface is now two
+    halves: the zod enum, which validates, and references/blueprint-tools.md,
+    which documents. Both are checked. */
 async function blueprintBuildSuite(): Promise<void> {
   const directory = await mkdtemp(join(tmpdir(), "ue4-puerts-bp-"));
   const tokenPath = join(directory, "token.txt");
@@ -374,6 +395,14 @@ async function blueprintBuildSuite(): Promise<void> {
       .find((entry) => entry.name === "puerts_blueprint_build");
     assert(tool !== undefined, "puerts_blueprint_build is missing");
 
+    // A node type has to be BOTH callable and documented. It used to be
+    // documented in the tool description; the node catalog now lives in the
+    // skill, because a description is resident context and a 36-entry list is
+    // not what a caller needs in order to make a valid call. The invariant is
+    // unchanged, so this reads the reference file rather than the description.
+    // Dropping the second half would let a node type ship that nothing tells a
+    // caller exists.
+    const nodeCatalog = await readBlueprintReference();
     const newlyNativeNodeTypes = [
       "InputAction", "InputAxisEvent", "MacroInstance", "AddDelegate", "RemoveDelegate",
       "CallDelegate", "ClearDelegate", "AssignDelegate", "CreateDelegate",
@@ -383,9 +412,11 @@ async function blueprintBuildSuite(): Promise<void> {
         asset_path: "/Game/MCPGenerated/BP_NodeVocabulary",
         graph: { nodes: [{ id: `node_${nodeType}`, type: nodeType }] },
       }).success === true, `blueprint_build schema is missing native node type ${nodeType}`);
-      assert(tool.description.includes(nodeType),
-        `blueprint_build description is missing native node type ${nodeType}`);
+      assert(nodeCatalog.includes(nodeType),
+        `references/blueprint-tools.md is missing native node type ${nodeType}`);
     }
+    assert(tool.description.includes("blueprint-tools.md"),
+      "blueprint_build description must point at the reference that holds the node catalog");
 
     const built = await tool.handler({
       asset_path: "/Game/MCPGenerated/BP_ProbeDoor",
@@ -1578,12 +1609,25 @@ async function nonActorParentSuite(): Promise<void> {
       "the AsResult cast pin role did not reach the pipe",
     );
 
+    // These three are unguessable, so they have to be written down: AsResult
+    // exists because a Cast's real pin name is "As" plus a display name a caller
+    // cannot compute, and scope "target" is the only way to reach a variable on
+    // another object. The parent-class rule stays in the schema, where someone
+    // choosing a parent is already reading. The other two are per-node pin
+    // detail and live in the reference the description points at.
+    const buildSchema = JSON.stringify(tool.inputSchema);
     assert(
-      tool.description.includes("SaveGame")
-        && tool.description.includes("non-Actor parent")
-        && tool.description.includes("AsResult")
-        && tool.description.includes("\"target\""),
-      "the tool no longer advertises non-Actor parents, AsResult, or target-scoped variables",
+      buildSchema.includes("non-Actor") && buildSchema.includes("Actor parent"),
+      "blueprint_build no longer advertises that non-Actor parents are allowed and gated",
+    );
+    assert(
+      tool.description.includes("blueprint-tools.md"),
+      "blueprint_build must point at the reference holding the node and pin catalogs",
+    );
+    const pinCatalog = await readBlueprintReference();
+    assert(
+      pinCatalog.includes("AsResult") && pinCatalog.includes("`\"target\"`"),
+      "references/blueprint-tools.md no longer documents AsResult or target-scoped variables",
     );
     console.log("  PASS  a non-Actor parent, target-scoped variables and the AsResult pin role");
   } finally {
@@ -2516,9 +2560,19 @@ async function jobApiSuite(): Promise<void> {
     ...validSetFunction,
     operations: [{ op: "set_function", name: "Compute", inputs: [{ name: "Base" }] }],
   }).success === false, "set_function parameters must require a type descriptor");
-  assert(memberPatch?.description.includes("set_function")
-      && memberPatch.description.includes("function_plans"),
-    "member_patch must describe set_function and its plan result");
+  // set_function stays named in the schema, because a caller has to know the op
+  // exists to write one. function_plans is what the response carries back, so it
+  // moved to the reference with the rest of the per-op detail. Both still have to
+  // be documented somewhere a caller is pointed at, which is what this pins.
+  const memberPatchReference = await readBlueprintReference();
+  assert(JSON.stringify(memberPatch?.inputSchema ?? {}).includes("set_function")
+      || memberPatch?.description.includes("set_function") === true,
+    "member_patch must name set_function where a caller writing one will see it");
+  assert(memberPatchReference.includes("function_plans")
+      && memberPatchReference.includes("set_function"),
+    "references/blueprint-tools.md must document set_function and its plan result");
+  assert(memberPatch?.description.includes("blueprint-tools.md") === true,
+    "member_patch description must point at the reference that holds the operation grammar");
 
   const memberOperationContracts = [
     { op: "rename_variable", from: "HeldObject", to: "GrabbedObject" },
@@ -2530,13 +2584,23 @@ async function jobApiSuite(): Promise<void> {
     { op: "set_macro", name: "TraceForTarget", outputs: [{ name: "Hit", type: { category: "bool" } }] },
     { op: "reparent_component", name: "HoldPoint", parent: "Camera" },
   ] as const;
+  // An op name has to be visible to a caller who never opens the reference,
+  // because you cannot look up the detail of an op you do not know exists. The
+  // description and the field .describe() strings are both resident, so either
+  // counts; the per-op field lists are what moved out.
+  const advertises = (tool: typeof memberPatch, text: string): boolean =>
+    tool?.description.includes(text) === true
+    || JSON.stringify(tool?.inputSchema ?? {}).includes(text);
+
   for (const operation of memberOperationContracts) {
     assert(memberPatch?.inputSchema.safeParse({
       asset_path: "/Game/MCPGenerated/BP_MemberContracts",
       operations: [operation],
     }).success === true, `member_patch schema rejected ${operation.op}`);
-    assert(memberPatch?.description.includes(operation.op),
-      `member_patch description is missing ${operation.op}`);
+    assert(advertises(memberPatch, operation.op),
+      `member_patch does not advertise ${operation.op} anywhere in its schema`);
+    assert(memberPatchReference.includes(operation.op),
+      `references/blueprint-tools.md does not document ${operation.op}`);
   }
 
   for (const operation of [
@@ -2619,8 +2683,16 @@ async function jobApiSuite(): Promise<void> {
   );  assert(render?.inputSchema.safeParse({
     asset_path: "/Game/C/LS_A", format: "avi",
   }).success === false, "sequence_render_start must refuse unavailable AVI output");
-  assert(render?.description.includes("four capture protocols"),
-    "sequence_render_start must describe the four installed-build-safe formats");
+  // The four formats are the zod enum, which is what actually refuses a fifth.
+  // What a caller needs told, and cannot infer from an enum, is WHY avi is
+  // absent: it is missing from this engine build, not from this tool's ambition.
+  const renderSchema = JSON.stringify(render?.inputSchema ?? {});
+  for (const format of ["png", "jpg", "bmp", "exr"]) {
+    assert(renderSchema.includes(format),
+      `sequence_render_start must advertise the ${format} capture protocol`);
+  }
+  assert(renderSchema.includes("AVI is unavailable"),
+    "sequence_render_start must say AVI is unavailable in the installed engine, not just refuse it");
   assert(
     render?.inputSchema.safeParse({ asset_path: "/Game/C/LS_A", format: "webp" }).success === false,
     "format must be limited to the capture protocols UE4.27 actually ships",

@@ -218,6 +218,12 @@ rather than a reason to reach for another transport.
 by `python Scripts/ue427.py catalog`. The acceptance suite fails when it drifts,
 so adding a tool means regenerating it.
 
+The per-domain files next to it (`blueprint-tools.md`, `widget-tools.md`,
+`material-tools.md`, `animation-tools.md`, `scene-tools.md`,
+`sequencer-tools.md`, `ai-input-audio-tools.md`, `inspectors.md`) are hand
+written and hold the detail deliberately kept out of the tool schemas. See
+"Where a tool's documentation goes" below.
+
 Do not confuse this with the scenario prompt templates that are flat `.md` files
 directly inside `skills/`; those feed the orchestrator and PromptBrush.
 
@@ -373,9 +379,93 @@ and fixed-camera tools and is **disabled**: `locomotion_debug` and
 4. Add the native tool name to the C++ allowlist and keep permissions narrow.
 5. Classify the prefixed MCP tool in `mcp-server/src/annotations.ts`.
 6. Update the PuerTS declarations stored in `puerts-runtime/typing/`.
-7. Run `npm run verify`, compile the isolated UE4.27 test project, then run `npm run smoke:editor`.
+7. Put the detail in the skill, not the schema. See below.
+8. Run `npm run verify`, compile the isolated UE4.27 test project, then run `npm run smoke:editor`.
 
 Do not prototype new editor operations through `python_proxy`. Do not add HTTP routes for native tools. The old Python route workflow is migration-only and must remain behind the explicit legacy opt-in.
+
+### Where a tool's documentation goes
+
+A tool description and its `inputSchema` are **resident context**. Every client
+that lists tools pays for every word on every session, whether or not the tool is
+ever called. That is the real running cost of this server, and it grows one
+reasonable-looking paragraph at a time: the catalog was 178 KB (~45k tokens)
+before the split, and the descriptions had become design documents.
+
+The schema keeps what a caller needs to make a **valid call without a lookup**:
+
+- what the tool does, in a sentence or two
+- required parameters and their shapes
+- hard constraints and preconditions (`/Game/MCPGenerated/` only, `confirm=true`,
+  must be saved and clean)
+- the refusal and rollback behaviour in a clause, not a section
+- a pointer: `Detail: references/<file>.md in the unreal-engine-4-27 skill.`
+
+`skills/unreal-engine-4-27/references/` keeps the rest: node catalogs, operation
+grammars, pin name tables, per-type property lists, convergence and identity
+semantics, worked examples, and the rationale for a design decision.
+
+Do not over-cut. Moving something a caller needs in order to spell a parameter
+correctly just trades a smaller catalog for extra lookup round trips, or for
+invalid arguments. An op NAME belongs in the schema, because you cannot look up
+an op you do not know exists; its per-op FIELDS belong in the reference.
+
+`npm run check:schema-budget` enforces this and runs inside `npm run verify`.
+It caps the whole catalog, each tool, and each description separately: the total
+catches tool-count sprawl, the per-description cap catches prose regrowth.
+`node Scripts/check-schema-budget.mjs --report` ranks every tool by size.
+
+### Prose is the bloat. Tokens are not.
+
+That distinction is measured, not asserted, and it was measured because the first
+attempt at this split got it wrong.
+
+`npm run bench:schema` (`Scripts/bench-schema-sufficiency.mjs`, editor-free, also
+in `npm run verify`) harvests every token a caller has to spell from the corpus
+this repository already proves correct: the seven vertical slices and the
+acceptance scripts, whose payloads ran against a real editor and passed. It then
+asks whether each token is discoverable from the schema, from a skill reference,
+or from neither.
+
+| | catalog | first-call sufficiency |
+|---|---|---|
+| before the split | 178,438 B | 87.5% |
+| prose **and** tokens moved out | 135,308 B | 33.3% |
+| prose out, tokens restored | 136,992 B | 100% |
+
+Moving the prose saved 43 KB and cost nothing. Moving the token lists with it
+saved a further 1.7 KB and stranded 26 tokens a real task needs: the Operator
+ops, the per-node routing keys, the literal pin roles. That is a lookup or a
+guess on a first call, and a guess is an invalid call. Byte reduction that buys
+extra round trips is the same cost in a different place.
+
+So the rule has two halves:
+
+- A **name** is vocabulary. It stays in the schema, as a bare comma-separated
+  list with no explanation. You cannot look up a token you cannot spell.
+- What a name **means**, which node takes which key, and why a design went the
+  way it did is documentation. It goes to the reference.
+
+`references/blueprint-tools.md` maps routing keys to node types; the schema
+carries the flat list of key names. That is the split working as intended.
+
+The benchmark exits non-zero on an **undocumented** token, one present in neither
+place: that is a defect regardless of which side of the split you prefer.
+Reference-only tokens are reported, not failed, because a few are a legitimate
+judgement call.
+
+What it does not measure: completion rate, total tool calls and repair calls.
+Those need a live agent driving a live editor, and the static score is a leading
+indicator for them, not a substitute. `docs/evidence/schema-sufficiency.json`
+holds the current run for comparison after a future change.
+
+A tool that is genuinely large because of schema STRUCTURE rather than prose gets
+a named entry in `STRUCTURAL_EXEMPTIONS` with the reason. Validation at a trust
+boundary is never the thing to cut.
+
+The drift tests in `mcp-server/tests/puerts-tools.test.ts` assert the invariant in
+both halves: the schema has to validate a node type or op, and the reference file
+has to document it. Assert on both, never on neither.
 
 ## API lookup: three systems, use the right one
 

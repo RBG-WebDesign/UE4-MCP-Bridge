@@ -176,6 +176,20 @@ playbook is part of finishing the work.
 
 ## References
 
+A tool's schema carries what a valid call needs: purpose, required parameters,
+hard constraints, refusal behaviour. The node catalogs, operation grammars,
+convergence semantics and rationale live here instead, because a tool
+description is resident context that every session pays for whether or not the
+tool is ever called. A tool description that ends in `Detail: references/X.md`
+means the rest is here.
+
+**Read the matching file before authoring anything non-trivial in that domain.**
+For a Blueprint graph, a widget tree, a material or a `member_patch` batch, the
+per-node routing keys and pin names are in the reference, not the schema, and
+guessing them wastes a round trip on a refusal that names the right answer.
+
+### General
+
 - `references/setup.md`: installing the skill and MCP config for each agent,
   the `ue427` commands, launching the editor.
 - `references/operations.md`: session model, transactions, batching, job
@@ -184,3 +198,23 @@ playbook is part of finishing the work.
 - `references/security.md`: what the bridge exposes and the boundaries.
 - `references/troubleshooting.md`: symptom table for the failures that
   actually happen.
+
+### Per-domain tool detail
+
+- `references/blueprint-tools.md`: the 36 graph node types with their routing
+  keys, the Operator ops, connection pin names, the `member_patch` operation
+  grammar, component and variable specs, CDO rules.
+- `references/widget-tools.md`: widget properties by type, slot rules, the
+  `<property>Delegate` binding rule.
+- `references/material-tools.md`: expression and parameter specs, connection
+  syntax, the material output names, texture generation.
+- `references/animation-tools.md`: the v1 Animation Blueprint spec limits,
+  create-versus-patch, the saved-and-clean precondition.
+- `references/scene-tools.md`: the `scene_batch` operation grammar, the
+  PlayerStart rule, lighting and navigation builds, the job model.
+- `references/sequencer-tools.md`: track types, key value shapes, display-rate
+  frames, render preconditions.
+- `references/ai-input-audio-tools.md`: Behavior Tree node types, blackboard
+  key rules, AI sense properties, input mapping reconciliation, Sound Cues.
+- `references/inspectors.md`: the contract every `*_inspect` tool shares,
+  the three identity kinds, and what each one returns.
