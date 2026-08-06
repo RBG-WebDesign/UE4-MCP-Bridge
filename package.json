@@ -18,6 +18,8 @@
     "check:puerts": "node Scripts/check-puerts-pin.mjs",
     "check:inventory": "node Scripts/generate-tool-inventory.mjs",
     "check:schema-budget": "node Scripts/check-schema-budget.mjs",
+    "git:hygiene": "node Scripts/check-git-hygiene.mjs",
+    "acceptance:graph-parity": "node Scripts/graph-parity-acceptance.mjs",
     "bench:schema": "node Scripts/bench-schema-sufficiency.mjs",
     "check:layout": "node Scripts/check-layout.mjs",
     "install:check": "node Scripts/bridge-install.mjs --check",

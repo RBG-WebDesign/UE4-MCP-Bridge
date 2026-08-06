@@ -130,6 +130,12 @@ jobs:
 # proves the bridge is well-formed, and nothing above proves it drives Unreal.
 #
 # Needs a live UE4.27 editor with the compiled plugin loaded:
+#   Scripts/graph-parity-acceptance.mjs      npm run acceptance:graph-parity
+#     Round-trips a graph through graph_inspect back into blueprint_build and
+#     compares structure_hash_sha1 across two different assets. The only check
+#     that is not a builder verifying itself with its own inspector, so it is
+#     the one that catches the two sharing a wrong assumption. Cannot be
+#     approximated statically: the normalization it exercises is behavioural.
 #   Scripts/editor-acceptance.mjs            npm run acceptance:editor
 #   Scripts/puerts-live-smoke.mjs            npm run smoke:puerts, smoke:physics
 #   Scripts/graph-inspect-acceptance.mjs     npm run smoke:inspect

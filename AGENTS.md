@@ -512,7 +512,31 @@ replaces is create-node, inspect, connect-pin, inspect, set-property, inspect.
 Every major builder needs an inspector with the same canonical data shape, so
 desired state can be compared against actual state without a human opening the
 editor. `blueprint_build` / `graph_inspect` and `behavior_tree_build` /
-`behavior_tree_inspect` are the pattern; `widget_build` has no inspector yet.
+`behavior_tree_inspect` are the pattern.
+
+That pattern has a hole in it worth naming: a builder verifying itself through
+its own inspector is circular. A builder and an inspector that share a wrong
+assumption agree with each other, pass read-back, and pass CI.
+`Scripts/graph-parity-acceptance.mjs` closes it for the `blueprint_build` /
+`graph_inspect` pair by round-tripping through the inspector into a second,
+different asset and comparing `structure_hash_sha1`:
+
+```
+build(spec) -> inspect -> normalize -> build(normalized) -> inspect
+                              |
+                assert both hashes equal
+```
+
+**The normalize step is the test.** If an inspection could be fed straight back
+to the builder it would be the identity function. Every adaptation it needs is a
+place the two vocabularies disagree, so each is declared in `ADAPTATIONS` with a
+reason and the count is asserted. Today it is exactly three, all deliberate. A
+fourth fails the script, because a new disagreement is drift that needs a
+decision rather than a longer list. Run it with
+`npm run acceptance:graph-parity` against a live editor.
+
+The other builder/inspector pairs have no equivalent yet, so the same circularity
+still applies to them.
 
 Failures must name the exact location and be recoverable in the same breath: an
 error code, the asset, graph, node and pin, the closest matching names, and the
@@ -655,6 +679,71 @@ telemetry, acceptance tests, and every `pie_agent_*` tool.
 - No em dashes in comments or documentation
 - No filler language (delve, explore, leverage, robust, utilize)
 - Write documentation for a programmer, not for a VP
+
+## Branch and worktree policy
+
+The steady state is deliberately boring. Anything outside it should be
+temporary, named, and reported.
+
+```
+main
+clean working tree
+1 worktree
+0 stale branches
+origin/main == main
+```
+
+Rules:
+
+- One primary branch: `main`.
+- Zero extra worktrees. An extra one must appear in `.worktrees.json` with a
+  purpose, branch, created date and expiry, and `git:hygiene` fails an expired
+  entry.
+- Zero merged feature branches. A temporary branch is deleted after merge.
+- A temporary branch only for a change large enough to want an isolated
+  checkpoint. Most work goes straight to `main`.
+- `checkpoint/*` branches need a reason and expire after 30 days unless they
+  still hold commits that are not on `main`.
+- Local branch count: 0-5 ok, 6-10 warn, more than 10 fails.
+
+`npm run git:hygiene` checks all of it. Start and end any large task with:
+
+```bash
+npm run doctor
+npm run git:hygiene
+git status --short
+git branch --show-current
+```
+
+### The divergence gate
+
+Before changing `main`, compare it against the remote:
+
+```bash
+git rev-list --left-right --count main...origin/main
+```
+
+**If both numbers are nonzero, stop.** Do not pull, merge, reset or rebase
+automatically. Classify the unique commits first, by patch-id and by content:
+
+```bash
+git cherry origin/main main    # '-' is already upstream, '+' is genuinely novel
+```
+
+On 2026-08-06 that comparison read 237 against 331, which looked like a large
+reconciliation and was not: 203 of the 237 were already upstream by patch-id
+because lanes were integrated by replaying commits rather than merging them, and
+the two that were genuinely novel turned out to be superseded. Ancestry alone
+would have called every one of those branches unique. The gate exists so that
+state gets classified once instead of becoming normal.
+
+### Reporting rule
+
+Group findings by cause, not by where they surface. Forty branches sharing one
+unmerged ancestor is one problem; reporting it forty times buries the branch that
+genuinely has something. `check-git-hygiene.mjs` groups unrepresented work by
+commit and names the branches carrying it, and its `SUPERSEDED` map takes a
+commit out of the report only with the evidence that made someone sure.
 
 ## Deleting a worktree: junctions point into the main checkout
 
