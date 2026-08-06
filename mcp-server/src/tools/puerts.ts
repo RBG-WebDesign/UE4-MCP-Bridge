@@ -52,6 +52,37 @@ const soundCueNode = z.object({
   ),
 }).strict();
 
+/**
+ * Optimistic concurrency for a planned scene write.
+ *
+ * The format is checked here rather than in Unreal so a mistyped hash is a
+ * schema error at the boundary, not a state_conflict from the editor: those two
+ * mean opposite things to a caller, and a client that cannot tell them apart
+ * will re-plan forever against a hash it is corrupting on every send.
+ *
+ * Only scene_structure_hash exists. Asset, Blueprint, material, sequence and
+ * package preconditions each need their own hash with a defined scope and a
+ * test that changes relevant and irrelevant state; declaring them here as empty
+ * placeholders would advertise guards that do not run.
+ */
+const sceneBatchPreconditions = z.object({
+  scene_structure_hash: z.string().regex(/^(sha1:)?[0-9a-f]{40}$/,
+    "scene_structure_hash must be 40 lowercase hex characters, optionally prefixed \"sha1:\"",
+  ).describe(
+    "The value structure_hash_sha1 (puerts_scene_inspect) or pre_structure_hash "
+    + "(puerts_scene_batch plan_only) returned when this batch was planned. The apply is refused with "
+    + "error_code state_conflict when the level no longer hashes to it, before any transaction opens. "
+    + "COVERS, per actor: object name, class path, label, folder, tags, world transform to three "
+    + "decimals, attach parent and socket, and every component's name, class path, attach parent and "
+    + "relative transform. DOES NOT COVER reflected property values or bounds, so a batch that only "
+    + "writes properties is not protected by this hash from another property write. "
+    + "Ignored when plan_only is true, because a plan is how a current hash is obtained.",
+  ),
+}).strict().optional().describe(
+  "State the batch was planned against. Omit for the existing behavior: apply against the level as "
+  + "it is now.",
+);
+
 /** One SimpleConstructionScript component of a generated Blueprint. */
 const blueprintComponent = z.object({
   class: z.string().describe(
@@ -1760,6 +1791,7 @@ const specs = [
         "Default true. Re-read every operation's own condition from the level after applying. "
         + "Turning this off removes the only check that distinguishes a change from a report of one.",
       ),
+      preconditions: sceneBatchPreconditions,
     }).strict()],
   ["puerts_lighting_build", "lighting_build",
     "Build lighting for the level the editor has open, so placed lights are baked rather than "
@@ -2470,7 +2502,7 @@ const structuredParameters: Readonly<Record<string, readonly string[]>> = {
   puerts_pie_agent_query: ["conditions"],
   puerts_pie_agent_control: ["location", "keys", "events", "class_filters", "log_categories", "script"],
   puerts_scene_inspect: ["actors", "include_properties"],
-  puerts_scene_batch: ["operations"],
+  puerts_scene_batch: ["operations", "preconditions"],
   puerts_material_instance_build: ["scalars", "vectors", "textures", "switches"],
   puerts_material_build: ["parameters", "expressions", "connections", "outputs"],
   puerts_texture_import: ["color", "color_b"],
@@ -2632,15 +2664,33 @@ export async function executeNativeCommand(
   spec: NativeToolSpec,
   params: Record<string, unknown>,
 ): Promise<Record<string, unknown>> {
+  // Durations from THIS process's monotonic clock, merged with the ones the
+  // editor reported from its own. Nothing here is compared against an editor
+  // timestamp: server_validation and server_total are wholly measured on this
+  // side, and the editor's numbers are carried through untouched. That is what
+  // makes the breakdown usable without the two clocks agreeing.
+  const startedAt = performance.now();
+  let validatedAt = startedAt;
   try {
     const parsed = spec.inputSchema.parse(
       decodeStructuredParams(spec.name, params),
     ) as Record<string, unknown>;
-    return await client.call(
+    validatedAt = performance.now();
+    const result = await client.call(
       spec.command,
       parsed,
       commandTimeouts[spec.name],
     ) as unknown as Record<string, unknown>;
+    const timings = (result.timings_ms ?? {}) as Record<string, unknown>;
+    result.timings_ms = {
+      ...timings,
+      server_validation: validatedAt - startedAt,
+      // Round trip as the server sees it: validation, pipe, editor, and the
+      // wait behind whatever the editor was already doing. server_total minus
+      // the editor's own runtime_total is the transport and scheduling cost.
+      server_total: performance.now() - startedAt,
+    };
+    return result;
   } catch (error: unknown) {
     const envelope = nativeFailureEnvelope([error instanceof Error ? error.message : String(error)]);
     // A refusal to address an editor is not the same kind of failure as a
@@ -2656,14 +2706,38 @@ export async function executeNativeCommand(
   }
 }
 
+/**
+ * Tools withheld from discovery, keyed by the puerts_* name.
+ *
+ * The DISCOVERY half of the quarantine. The runtime keeps the matching half in
+ * puerts-runtime/src/registry.ts (quarantinedTools, keyed by native command
+ * name) and refuses execution there, so removing a tool from tools/list is not
+ * load-bearing on its own: it only stops a current client from choosing one.
+ *
+ * The two lists live on opposite sides of a process boundary and cannot import
+ * each other - the runtime imports "ue", which exists only inside the editor.
+ * puerts-tools.test.ts parses the runtime file and asserts the two agree, which
+ * is the boundary test that replaces the generation that is not practical here.
+ *
+ * The specs stay in nativeToolSpecs: executeNativeCommand and the compatibility
+ * aliases both resolve through it, and dropping the entry would make a stale
+ * alias fail with a schema error instead of the quarantine reason.
+ */
+export const QUARANTINED_TOOLS: ReadonlySet<string> = new Set([
+  "puerts_level_load",
+  "puerts_level_create",
+]);
+
 export function createPuertsTools(client: PuerTSClient): ToolDefinition[] {
-  return nativeToolSpecs.map((spec) => ({
-    name: spec.name,
-    description: `[PRIMARY NATIVE IPC] ${spec.description}`,
-    inputSchema: spec.inputSchema,
-    handler: async (params: Record<string, unknown>) => {
-      const result = await executeNativeCommand(client, spec, params);
-      return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
-    },
-  }));
+  return nativeToolSpecs
+    .filter((spec) => !QUARANTINED_TOOLS.has(spec.name))
+    .map((spec) => ({
+      name: spec.name,
+      description: `[PRIMARY NATIVE IPC] ${spec.description}`,
+      inputSchema: spec.inputSchema,
+      handler: async (params: Record<string, unknown>) => {
+        const result = await executeNativeCommand(client, spec, params);
+        return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
+      },
+    }));
 }

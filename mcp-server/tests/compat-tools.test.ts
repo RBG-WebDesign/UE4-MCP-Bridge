@@ -20,7 +20,7 @@ import {
   createCompatTools,
   registerCompatAliases,
 } from "../src/tools/compat.js";
-import { createPuertsTools } from "../src/tools/puerts.js";
+import { createPuertsTools, QUARANTINED_TOOLS } from "../src/tools/puerts.js";
 import type { ToolDefinition } from "../src/types.js";
 
 let passed = 0;
@@ -136,14 +136,35 @@ async function main(): Promise<void> {
     // A literal on purpose: this is the canary that catches an alias silently
     // disappearing. Raise it deliberately when a wave adds legacy names.
     const ALIAS_COUNT = 63;
-    assert(compat.length === ALIAS_COUNT, `expected ${ALIAS_COUNT} compat aliases, got ${compat.length}`);
+    // compatAliasTargets keeps every alias, including those fronting a
+    // quarantined tool: the inventory generator records what the legacy name
+    // WAS replaced by, and dropping the row would report the alias as having no
+    // native successor rather than as paused.
     assert(
       Object.keys(compatAliasTargets).length === ALIAS_COUNT,
       `compatAliasTargets must name all ${ALIAS_COUNT} aliases for the inventory generator`,
     );
+    const quarantinedAliases = Object.entries(compatAliasTargets)
+      .filter(([, canonical]) => QUARANTINED_TOOLS.has(canonical))
+      .map(([alias]) => alias);
+    const DISCOVERABLE_ALIAS_COUNT = ALIAS_COUNT - quarantinedAliases.length;
+    assert(
+      compat.length === DISCOVERABLE_ALIAS_COUNT,
+      `expected ${DISCOVERABLE_ALIAS_COUNT} discoverable compat aliases `
+      + `(${ALIAS_COUNT} less ${quarantinedAliases.length} quarantined), got ${compat.length}`,
+    );
+    // An alias is a second public name, so it is a second door into a
+    // quarantined tool. level_new fronts puerts_level_create; if it stayed
+    // discoverable the editor crash would still be one legacy call away.
+    for (const alias of quarantinedAliases) {
+      assert(
+        !compat.some((tool) => tool.name === alias),
+        `${alias} fronts a quarantined tool and must not be discoverable`,
+      );
+    }
     const nativeNames = new Set(native.map((tool) => tool.name));
     const badTargets = Object.entries(compatAliasTargets)
-      .filter(([, canonical]) => !nativeNames.has(canonical))
+      .filter(([, canonical]) => !nativeNames.has(canonical) && !QUARANTINED_TOOLS.has(canonical))
       .map(([alias, canonical]) => `${alias} -> ${canonical}`);
     assert(badTargets.length === 0, `alias targets that are not native tools: ${badTargets.join(", ")}`);
     assert(
@@ -157,7 +178,7 @@ async function main(): Promise<void> {
     const wrongValue = registerCompatAliases([], client, { env: { MCP_COMPAT_ALIASES: "true" }, warn: () => {} });
     assert(wrongValue.length === 0, "only the exact value 1 enables aliases");
     const on = registerCompatAliases(native, client, { env: { MCP_COMPAT_ALIASES: "1" }, warn: () => {} });
-    assert(on.length === ALIAS_COUNT, `expected ${ALIAS_COUNT} aliases with the flag set, got ${on.length}`);
+    assert(on.length === DISCOVERABLE_ALIAS_COUNT, `expected ${DISCOVERABLE_ALIAS_COUNT} aliases with the flag set, got ${on.length}`);
 
     // --- a name a real tool already owns is skipped, not fatal ------------
     const warnings: string[] = [];
@@ -170,7 +191,7 @@ async function main(): Promise<void> {
       warn: (message) => warnings.push(message),
     });
     assert(
-      withCollision.length === ALIAS_COUNT - 1,
+      withCollision.length === DISCOVERABLE_ALIAS_COUNT - 1,
       `collision must skip exactly the colliding alias, got ${withCollision.length}`,
     );
     assert(
@@ -363,7 +384,17 @@ async function main(): Promise<void> {
         "blueprint_graph_patch",
         { asset_path: "/Game/MCPGenerated/BP_A", graph: "EventGraph", operations: [{ op: "connect_pins", from: { target: { node_guid: "a" }, pin: "then" }, to: { target: { node_guid: "b" }, pin: "execute" } }] }],
     ];
-    for (const [alias, input, command, expected] of routings) {
+    // A quarantined alias has no handler to route through, so its rows stay in
+    // the table and are skipped. Kept rather than deleted: they are the
+    // translation contract that has to still hold on the day the quarantine is
+    // lifted, and re-deriving them then is how a legacy parameter gets lost.
+    const routable = routings.filter(([alias]) =>
+      !QUARANTINED_TOOLS.has(compatAliasTargets[alias] ?? ""));
+    assert(
+      routable.length < routings.length,
+      "no routing row is quarantined; drop this filter if the quarantine is lifted",
+    );
+    for (const [alias, input, command, expected] of routable) {
       seen.length = 0;
       const payload = await call(toolNamed(compat, alias), input);
       assert(seen[0]?.command === command, `${alias} must route to ${command}, got ${seen[0]?.command}`);

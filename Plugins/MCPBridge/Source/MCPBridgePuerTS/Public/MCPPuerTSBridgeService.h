@@ -478,6 +478,35 @@ private:
     bool ValidateScriptConfiguration(FString& OutError) const;
     bool LoadOrCreateBearerToken(FString& OutError);
     bool IsToolMutating(const FString& ToolName) const;
+
+    /**
+     * Optimistic concurrency for a planned write: refuse when the state the
+     * caller planned against has moved.
+     *
+     * Called from AcceptCommand, which is the only point that is strictly
+     * BEFORE the transaction. AcceptCommand opens the FScopedTransaction for
+     * every mutating tool before the JavaScript registry runs at all, so a
+     * check inside the tool body - or inside the runtime - would already be
+     * inside a transaction, and "the transaction must not start when the
+     * precondition fails" would be untrue however carefully the tool then
+     * cancelled it.
+     *
+     * Returns false and fills OutConflict with a complete, already-normalized
+     * response when a precondition does not hold. That response leaves through
+     * the accepted:false path, which does NOT pass through CompleteCommand, so
+     * it must be whole here.
+     *
+     * Currently understands one precondition, scene_structure_hash, on one
+     * tool, scene_batch: the only tool that both computes that hash and returns
+     * it from a plan. Asset, Blueprint, material, sequence and package
+     * preconditions need their own hash definitions and are deliberately not
+     * stubbed here.
+     */
+    bool CheckPreconditions(
+        const FString& ToolName,
+        const TSharedPtr<FJsonObject>& Params,
+        TSharedPtr<FJsonObject>& OutConflict) const;
+
     void EndActiveCommand();
 
     /** Establish this editor's identity and write the first session manifest. */
@@ -522,6 +551,38 @@ private:
     FString ActiveCommandId;
     FString ActiveToolName;
     FString ActiveTransactionId;
+
+    /**
+     * Stable error code for the refusal currently being reported, or empty.
+     *
+     * Deliberately a member rather than a field on the ~627 `OutError = ...`
+     * out-parameters. Threading a struct through every one of those signatures
+     * would be a repository-wide edit whose only product is the ability to
+     * convert them, and most of them do not want a code: 512 of the 627 name a
+     * condition no client can branch on, and the contract already says a
+     * missing code means "read the message".
+     *
+     * Set by Fail(), read by CompleteCommand when the command failed and the
+     * script supplied no code of its own, cleared by EndActiveCommand. Call
+     * sites convert one at a time by swapping `OutError = X; return false;` for
+     * `return Fail(code, X);` - nothing else has to move.
+     */
+    mutable FString PendingErrorCode;
+
+    /**
+     * Record a refusal with a stable code and return false, for the common
+     * `OutError = ...; return false;` shape.
+     *
+     * Codes are added only where a client would do something different on
+     * seeing one. A refusal with no code is not a defect.
+     *
+     * Shadowing hazard: ten builder .cpp files declare a local
+     * `auto Fail = [&](const FString&)` rollback lambda, which hides this
+     * member inside those function bodies. Converting a call site in one of
+     * them is a compile error naming the wrong argument count, not a silent
+     * miss - rename the lambda, or call this as `this->Fail(...)`.
+     */
+    bool Fail(const TCHAR* Code, const FString& Message, FString& OutError) const;
     FString LastMCPTransactionId;
     FString ActiveUndoActorName;
     FString ActiveUndoPropertyName;

@@ -1,5 +1,9 @@
 #include "MCPPuerTSBridgeService.h"
 
+// CheckPreconditions compares the caller's expected scene hash against the
+// level, using the same StructureHash scene_inspect and scene_batch report.
+#include "MCPBridgeSceneSnapshot.h"
+
 #include "Editor.h"
 #include "AssetRegistryModule.h"
 #include "Builders/CubeBuilder.h"
@@ -170,6 +174,9 @@ bool ResolveProjectMapFilename(
 {
     if (!IsProjectPackagePath(PackagePath))
     {
+        // A free function, so the service's Fail() is not in scope and this
+        // refusal carries no code. Its callers are members and can classify it
+        // if a client ever needs to branch here.
         OutError = TEXT("Level paths must be valid package paths under /Game/.");
         return false;
     }
@@ -724,6 +731,23 @@ FString UMCPPuerTSBridgeService::AcceptCommand(const FString& RequestJson)
     {
         Request->SetObjectField(TEXT("params"), MakeShared<FJsonObject>());
     }
+    // Preconditions are checked HERE, and the position is the whole point: the
+    // next block opens the transaction. Nothing above this line has touched the
+    // editor, so a refusal leaves no transaction, no undo entry and no dirty
+    // package. Placed after the tool, auth and parameter checks above so that a
+    // conflict is reported only for a request that was otherwise going to run.
+    const TSharedPtr<FJsonObject>* ParamsForPreconditions = nullptr;
+    Request->TryGetObjectField(TEXT("params"), ParamsForPreconditions);
+    TSharedPtr<FJsonObject> Conflict;
+    if (!CheckPreconditions(ToolName,
+        ParamsForPreconditions != nullptr ? *ParamsForPreconditions : nullptr, Conflict))
+    {
+        TSharedPtr<FJsonObject> Refusal = MakeShared<FJsonObject>();
+        Refusal->SetBoolField(TEXT("accepted"), false);
+        Refusal->SetObjectField(TEXT("response"), Conflict);
+        return SerializeJson(Refusal);
+    }
+
     ActiveCommandId = CommandId;
     ActiveToolName = ToolName;
     ActiveLogMarker = LogCapture != nullptr ? LogCapture->Marker() : 0;
@@ -761,6 +785,27 @@ FString UMCPPuerTSBridgeService::CompleteCommand(const FString& CommandId, const
     FString Message;
     ScriptResponse->TryGetStringField(TEXT("message"), Message);
     TSharedPtr<FJsonObject> Final = BuildBaseResponse(bSuccess, Message);
+    // This function rebuilds the envelope from a field allowlist rather than
+    // forwarding the script's object, so a field the runtime sets and this list
+    // does not name is silently dropped. error_code was exactly that: the
+    // runtime refused a quarantined tool with one and the client received
+    // undefined, which the live acceptance caught and no unit test could,
+    // because the C++ normalizer is not in the mock path. Set only when the
+    // script supplied one, so a success envelope stays as it was.
+    FString ErrorCode;
+    if (ScriptResponse->TryGetStringField(TEXT("error_code"), ErrorCode) && !ErrorCode.IsEmpty())
+    {
+        Final->SetStringField(TEXT("error_code"), ErrorCode);
+    }
+    else if (!bSuccess && !PendingErrorCode.IsEmpty())
+    {
+        // A native refusal reaches here as a thrown JavaScript error carrying
+        // only the message text, so the code cannot travel with it through the
+        // runtime. It is picked up from the service instead. The script's own
+        // code wins when it set one: the runtime refused before the native call
+        // in that case, and it knows something C++ does not.
+        Final->SetStringField(TEXT("error_code"), PendingErrorCode);
+    }
     const TSharedPtr<FJsonValue> Data = ScriptResponse->TryGetField(TEXT("data"));
     if (Data.IsValid())
     {
@@ -782,8 +827,24 @@ FString UMCPPuerTSBridgeService::CompleteCommand(const FString& CommandId, const
     ScriptResponse->TryGetStringField(TEXT("transaction_id"), ScriptTransactionId);
     const FString ResultTransactionId = ActiveTransactionId.IsEmpty() ? ScriptTransactionId : ActiveTransactionId;
     Final->SetStringField(TEXT("transaction_id"), ResultTransactionId);
-    Final->SetNumberField(TEXT("native_duration_ms"),
-        ActiveCommandStartSeconds > 0.0 ? (FPlatformTime::Seconds() - ActiveCommandStartSeconds) * 1000.0 : 0.0);
+    const double NativeMs = ActiveCommandStartSeconds > 0.0
+        ? (FPlatformTime::Seconds() - ActiveCommandStartSeconds) * 1000.0 : 0.0;
+    Final->SetNumberField(TEXT("native_duration_ms"), NativeMs);
+
+    // Durations, never timestamps. The runtime measured its own queue wait with
+    // its own monotonic clock and this adds the editor-side execution time;
+    // the MCP server adds validation and round trip from a third clock. Nothing
+    // subtracts one process's reading from another's, so no clock has to agree
+    // with any other. Named explicitly because this function rebuilds the
+    // envelope from an allowlist and silently drops what it does not name.
+    TSharedPtr<FJsonObject> Timings = MakeShared<FJsonObject>();
+    const TSharedPtr<FJsonObject>* ScriptTimings = nullptr;
+    if (ScriptResponse->TryGetObjectField(TEXT("timings_ms"), ScriptTimings) && ScriptTimings != nullptr)
+    {
+        Timings = MakeShared<FJsonObject>(**ScriptTimings);
+    }
+    Timings->SetNumberField(TEXT("native_execution"), NativeMs);
+    Final->SetObjectField(TEXT("timings_ms"), Timings);
 
     if (!ActiveTransactionId.IsEmpty())
     {
@@ -947,8 +1008,7 @@ bool UMCPPuerTSBridgeService::FindAssetsJson(
 {
     if (!Path.StartsWith(TEXT("/Game")) && !Path.StartsWith(TEXT("/Engine")))
     {
-        OutError = TEXT("Asset search is limited to /Game and /Engine.");
-        return false;
+        return Fail(TEXT("path_not_allowed"), TEXT("Asset search is limited to /Game and /Engine."), OutError);
     }
 
     FAssetRegistryModule& AssetRegistryModule =
@@ -1001,8 +1061,7 @@ bool UMCPPuerTSBridgeService::DeleteAsset(
 {
     if (!bConfirm)
     {
-        OutError = TEXT("delete_asset requires confirm=true because asset deletion is permanent.");
-        return false;
+        return Fail(TEXT("confirmation_required"), TEXT("delete_asset requires confirm=true because asset deletion is permanent."), OutError);
     }
 
     const FString AssetPath = InAssetPath.TrimStartAndEnd();
@@ -1011,8 +1070,7 @@ bool UMCPPuerTSBridgeService::DeleteAsset(
         : AssetPath;
     if (!PackagePath.StartsWith(TEXT("/Game/")) || !FPackageName::IsValidLongPackageName(PackagePath))
     {
-        OutError = TEXT("Asset deletion is limited to a valid package under /Game/.");
-        return false;
+        return Fail(TEXT("path_not_allowed"), TEXT("Asset deletion is limited to a valid package under /Game/."), OutError);
     }
     const FString ObjectPath = AssetPath.Contains(TEXT("."))
         ? AssetPath
@@ -1479,8 +1537,7 @@ bool UMCPPuerTSBridgeService::DeleteLevelActor(
 {
     if (!bConfirmed)
     {
-        OutError = TEXT("Actor deletion requires confirm=true.");
-        return false;
+        return Fail(TEXT("confirmation_required"), TEXT("Actor deletion requires confirm=true."), OutError);
     }
     if (ActiveTransaction == nullptr)
     {
@@ -1508,8 +1565,7 @@ bool UMCPPuerTSBridgeService::SaveProjectAsset(const FString& AssetPath, FString
 {
     if (!AssetPath.StartsWith(TEXT("/Game/")))
     {
-        OutError = TEXT("Only project assets under /Game can be saved.");
-        return false;
+        return Fail(TEXT("path_not_allowed"), TEXT("Only project assets under /Game can be saved."), OutError);
     }
 
     FAssetRegistryModule& AssetRegistryModule =
@@ -1583,8 +1639,7 @@ bool UMCPPuerTSBridgeService::CreateLevelJson(
     }
     if (!IsProjectPackagePath(LevelPath))
     {
-        OutError = TEXT("level_path must be a valid package path under /Game/.");
-        return false;
+        return Fail(TEXT("path_not_allowed"), TEXT("level_path must be a valid package path under /Game/."), OutError);
     }
     if (FPackageName::DoesPackageExist(LevelPath))
     {
@@ -2000,6 +2055,103 @@ bool UMCPPuerTSBridgeService::LoadOrCreateBearerToken(FString& OutError)
     return true;
 }
 
+bool UMCPPuerTSBridgeService::CheckPreconditions(
+    const FString& ToolName,
+    const TSharedPtr<FJsonObject>& Params,
+    TSharedPtr<FJsonObject>& OutConflict) const
+{
+    if (!Params.IsValid()) { return true; }
+    const TSharedPtr<FJsonObject>* Preconditions = nullptr;
+    if (!Params->TryGetObjectField(TEXT("preconditions"), Preconditions) || Preconditions == nullptr)
+    {
+        // No preconditions is the compatibility path, and stays one: an absent
+        // field means the caller is not claiming to know the prior state, which
+        // is what every existing caller does.
+        return true;
+    }
+
+    FString Expected;
+    if (!(*Preconditions)->TryGetStringField(TEXT("scene_structure_hash"), Expected) || Expected.IsEmpty())
+    {
+        return true;
+    }
+    // scene_structure_hash is defined for the tools that compute it. Silently
+    // ignoring it on a tool that does not would be worse than refusing: the
+    // caller believes a guard is in place that never runs.
+    if (ToolName != TEXT("scene_batch"))
+    {
+        OutConflict = BuildBaseResponse(false,
+            FString::Printf(TEXT("%s does not support the scene_structure_hash precondition."), *ToolName));
+        OutConflict->SetStringField(TEXT("error_code"), TEXT("unsupported_operation"));
+        TSharedPtr<FJsonObject> Data = MakeShared<FJsonObject>();
+        Data->SetStringField(TEXT("precondition"), TEXT("scene_structure_hash"));
+        Data->SetStringField(TEXT("supported_by"), TEXT("scene_batch"));
+        OutConflict->SetObjectField(TEXT("data"), Data);
+        TArray<TSharedPtr<FJsonValue>> Errors;
+        Errors.Add(MakeShared<FJsonValueString>(TEXT(
+            "unsupported_operation: scene_structure_hash describes level actor structure, so it guards "
+            "scene_batch. Asset, Blueprint, material, sequence and package plans need their own "
+            "precondition types, which do not exist yet.")));
+        OutConflict->SetArrayField(TEXT("errors"), Errors);
+        return false;
+    }
+
+    // A plan is where a caller OBTAINS a current hash. Enforcing the
+    // precondition on plan_only would mean a caller whose plan just conflicted
+    // has to remember to strip the field before re-planning, and a plan opens
+    // no transaction, so there is nothing for the guard to protect.
+    if (Params->HasTypedField<EJson::Boolean>(TEXT("plan_only")) && Params->GetBoolField(TEXT("plan_only")))
+    {
+        return true;
+    }
+
+    UWorld* World = MCPBridgeScene::EditorWorld();
+    if (World == nullptr || World->GetCurrentLevel() == nullptr)
+    {
+        OutConflict = BuildBaseResponse(false,
+            TEXT("No editor world is loaded, so the scene_structure_hash precondition cannot be evaluated."));
+        OutConflict->SetStringField(TEXT("error_code"), TEXT("state_conflict"));
+        TSharedPtr<FJsonObject> Data = MakeShared<FJsonObject>();
+        Data->SetStringField(TEXT("precondition"), TEXT("scene_structure_hash"));
+        Data->SetStringField(TEXT("expected"), Expected);
+        Data->SetStringField(TEXT("observed"), FString());
+        OutConflict->SetObjectField(TEXT("data"), Data);
+        TArray<TSharedPtr<FJsonValue>> Errors;
+        Errors.Add(MakeShared<FJsonValueString>(TEXT(
+            "state_conflict: there is no loaded level to compare against.")));
+        OutConflict->SetArrayField(TEXT("errors"), Errors);
+        return false;
+    }
+
+    // The wire form of every hash this bridge returns is bare lowercase hex.
+    // The "sha1:" prefix is accepted because it names the algorithm and a
+    // caller may reasonably carry it, but both sides are compared, and
+    // reported, in the form structure_hash_sha1 actually has - so a value
+    // copied from an inspector or from a plan matches without editing.
+    FString Normalized = Expected;
+    Normalized.RemoveFromStart(TEXT("sha1:"));
+    Normalized.ToLowerInline();
+
+    const FString Observed = MCPBridgeScene::StructureHash(World);
+    if (Normalized == Observed) { return true; }
+
+    OutConflict = BuildBaseResponse(false, TEXT("The scene changed after the operation was planned."));
+    OutConflict->SetStringField(TEXT("error_code"), TEXT("state_conflict"));
+    TSharedPtr<FJsonObject> Data = MakeShared<FJsonObject>();
+    Data->SetStringField(TEXT("precondition"), TEXT("scene_structure_hash"));
+    Data->SetStringField(TEXT("expected"), Normalized);
+    Data->SetStringField(TEXT("observed"), Observed);
+    Data->SetStringField(TEXT("basis"), MCPBridgeScene::StructureHashBasis());
+    Data->SetBoolField(TEXT("transaction_opened"), false);
+    OutConflict->SetObjectField(TEXT("data"), Data);
+    TArray<TSharedPtr<FJsonValue>> Errors;
+    Errors.Add(MakeShared<FJsonValueString>(TEXT(
+        "state_conflict: Inspect the current scene and create a new plan. Nothing was changed and no "
+        "transaction was opened; this check runs before AcceptCommand opens one.")));
+    OutConflict->SetArrayField(TEXT("errors"), Errors);
+    return false;
+}
+
 bool UMCPPuerTSBridgeService::IsToolMutating(const FString& ToolName) const
 {
     return ToolName == TEXT("set_property")
@@ -2065,8 +2217,18 @@ bool UMCPPuerTSBridgeService::IsToolMutating(const FString& ToolName) const
         || ToolName == TEXT("scene_batch");
 }
 
+bool UMCPPuerTSBridgeService::Fail(const TCHAR* Code, const FString& Message, FString& OutError) const
+{
+    PendingErrorCode = Code;
+    OutError = Message;
+    return false;
+}
+
 void UMCPPuerTSBridgeService::EndActiveCommand()
 {
+    // Cleared with the rest of the per-command state: a code left behind would
+    // be stamped on the NEXT command's refusal, which is worse than no code.
+    PendingErrorCode.Reset();
     ActiveTransaction.Reset();
     ActiveCommandId.Reset();
     ActiveToolName.Reset();

@@ -23,10 +23,10 @@
     "native_live_partial": "live acceptance passed, but part of the evidence is the builder own report because no independent reader exists yet",
     "legacy_untested": "no live editor proof of any kind; a non-null test_file covers only the mock listener"
   },
-  "tool_count": 310,
+  "tool_count": 309,
   "by_backend": {
     "legacy_http": 170,
-    "native_pipe_alias": 63,
+    "native_pipe_alias": 62,
     "server_local": 4,
     "native_pipe": 73
   },
@@ -5723,48 +5723,6 @@
     },
     {
       "name": "level_new",
-      "module": "mcp-server/src/tools/compat.ts",
-      "backend": "native_pipe_alias",
-      "migration_state": "wrap",
-      "target_replacement": "puerts_level_create",
-      "description": "[COMPAT ALIAS -> puerts_level_create] Create, save and load a new level through the native map command. Refuses an existing target and unsaved packages before switching levels.",
-      "schema": {
-        "kind": "object",
-        "params": {
-          "path": "string",
-          "template": "string?"
-        }
-      },
-      "annotations": {
-        "readOnlyHint": false,
-        "destructiveHint": true,
-        "idempotentHint": false,
-        "openWorldHint": false
-      },
-      "module_listener_commands": [],
-      "test_file": "mcp-server/tests/compat-tools.test.ts",
-      "capability_category": "compat",
-      "canonical_capability": "level.create",
-      "owner": "compat alias router",
-      "lifecycle": "active",
-      "migration_action": "ALIAS",
-      "replacement_tool": "puerts_level_create",
-      "compatibility_alias": true,
-      "cpp_builder": null,
-      "cpp_entry_point": null,
-      "python_handler": null,
-      "live_evidence": [
-        "mcp-server/tests/compat-tools.test.ts",
-        "Scripts/puerts-live-smoke.mjs",
-        "docs/evidence/mock-promotion/2026-08-04/summary.json"
-      ],
-      "migration_risk": "low",
-      "capability_loss_risk": "low",
-      "notes": "Disabled legacy HTTP registration replaced by native target 'puerts_level_create'.",
-      "verification": "compat_verified"
-    },
-    {
-      "name": "level_new",
       "module": "mcp-server/src/tools/content.ts",
       "backend": "legacy_http",
       "migration_state": "hybrid_candidate",
@@ -10139,7 +10097,7 @@
       "name": "puerts_level_create",
       "module": "mcp-server/src/tools/puerts.ts",
       "backend": "native_pipe",
-      "migration_state": "native",
+      "migration_state": "quarantined",
       "target_replacement": null,
       "description": "[PRIMARY NATIVE IPC] Create, save and load a new project map. Refuses an existing target, a non-map template and any dirty map or content package before switching levels.",
       "schema": {
@@ -10174,14 +10132,14 @@
       ],
       "migration_risk": "low",
       "capability_loss_risk": "low",
-      "notes": "Verified over authenticated PuerTS named pipe connection on UE4.27.",
-      "verification": "live_verified"
+      "notes": "QUARANTINED 2026-08-05. Loads the map it creates, so it reaches the same PuerTS UObject binding fault as puerts_level_load; reproduced on a brand-new blank map. Withheld from discovery and refused by the runtime with capability_quarantined. Use puerts_save with level_path instead. docs/CAPABILITY_FINDINGS.md, section Unknown.",
+      "verification": "quarantined"
     },
     {
       "name": "puerts_level_load",
       "module": "mcp-server/src/tools/puerts.ts",
       "backend": "native_pipe",
-      "migration_state": "native",
+      "migration_state": "quarantined",
       "target_replacement": null,
       "description": "[PRIMARY NATIVE IPC] Load an existing project map. Refuses non-map packages and refuses to switch while any map or content package is dirty. Loading the already-current map is a read-only no-op.",
       "schema": {
@@ -10215,8 +10173,8 @@
       ],
       "migration_risk": "low",
       "capability_loss_risk": "low",
-      "notes": "Verified over authenticated PuerTS named pipe connection on UE4.27.",
-      "verification": "live_verified"
+      "notes": "QUARANTINED 2026-08-05. Bridge-driven level switching crashed the UE4.27 editor 3/3 (EXCEPTION_ACCESS_VIOLATION in LoadLevelJson UEditorLoadingAndSavingUtils::LoadMap, and asynchronously in FTickFunctionTask::DoTask). Withheld from discovery and refused by the runtime with capability_quarantined. The earlier live_verified note covered a smoke run that did not switch levels. Use puerts_save with level_path instead. docs/CAPABILITY_FINDINGS.md, section Unknown.",
+      "verification": "quarantined"
     },
     {
       "name": "puerts_level_save",
@@ -11057,7 +11015,8 @@
           "level_path": "string?",
           "operations": "array",
           "plan_only": "boolean?",
-          "verify": "boolean?"
+          "verify": "boolean?",
+          "preconditions": "object?"
         }
       },
       "annotations": {

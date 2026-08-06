@@ -48,9 +48,22 @@ const registry = new ToolRegistry(toolDefinitions);
 const status = createStatusRecorder(bridge.GetProjectRoot());
 let commandQueue: Promise<void> = Promise.resolve();
 
-async function executeLine(line: string, socket: net.Socket): Promise<void> {
+/** Milliseconds for measuring durations inside this process only. Never
+    reported as a timestamp and never compared against the server's clock.
+    Date.now rather than process.hrtime because PuerTS's Node typing exposes
+    only chdir and env on process; a wall clock can step under NTP, which at the
+    millisecond scale these commands run at is not worth a native binding. */
+function nowMs(): number {
+  return Date.now();
+}
+
+async function executeLine(line: string, socket: net.Socket, queuedAtMs: number): Promise<void> {
   let commandId = "";
   let commandTool = "";
+  // How long this request waited behind another command. Commands are
+  // serialized on the game thread on purpose, so this is the number that says
+  // whether a slow call was slow itself or was stuck behind one that was.
+  const runtimeQueueMs = nowMs() - queuedAtMs;
   try {
     const envelope = JSON.parse(bridge.AcceptCommand(line)) as NativeEnvelope;
     if (!envelope.accepted) {
@@ -68,6 +81,10 @@ async function executeLine(line: string, socket: net.Socket): Promise<void> {
     );
     status.end(commandId, commandTool, result.success === true);
     result.transaction_id = request.transaction_id;
+    result.timings_ms = {
+      runtime_queue: runtimeQueueMs,
+      runtime_total: nowMs() - queuedAtMs,
+    };
     socket.end(bridge.CompleteCommand(commandId, JSON.stringify(result)) + "\n");
   } catch (error: unknown) {
     if (commandId.length > 0) status.end(commandId, commandTool, false);
@@ -93,7 +110,10 @@ const server = net.createServer((socket: net.Socket) => {
     if (newline < 0) return;
     queued = true;
     const line = buffer.slice(0, newline).trim();
-    commandQueue = commandQueue.then(() => executeLine(line, socket)).catch((error: unknown) => {
+    // Stamped where the request ARRIVES, not where it runs, so the wait behind
+    // the serial queue is inside the measurement rather than invisible to it.
+    const queuedAtMs = nowMs();
+    commandQueue = commandQueue.then(() => executeLine(line, socket, queuedAtMs)).catch((error: unknown) => {
       socket.end(failureJson("Command queue failed.", error) + "\n");
     });
   });

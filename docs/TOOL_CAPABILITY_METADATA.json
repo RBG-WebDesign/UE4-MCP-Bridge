@@ -443,26 +443,26 @@
       "capability_category": "level",
       "cpp_builder": "MCPPuerTSBridgeService",
       "cpp_entry_point": "CreateLevelJson",
-      "verification": "live_verified",
+      "verification": "pending_live",
       "live_evidence": [
         "Scripts/puerts-live-smoke.mjs",
         "mcp-server/tests/puerts-tools.test.ts",
         "docs/evidence/mock-promotion/2026-08-04/summary.json"
       ],
-      "notes": "Verified over authenticated PuerTS named pipe connection on UE4.27."
+      "notes": "QUARANTINED 2026-08-05. Loads the map it creates, so it reaches the same PuerTS UObject binding fault as puerts_level_load; reproduced on a brand-new blank map. Withheld from discovery and refused by the runtime with capability_quarantined. Use puerts_save with level_path instead. docs/CAPABILITY_FINDINGS.md, section Unknown."
     },
     "puerts_level_load": {
       "canonical_capability": "level.load",
       "capability_category": "level",
       "cpp_builder": "MCPPuerTSBridgeService",
       "cpp_entry_point": "LoadLevelJson",
-      "verification": "live_verified",
+      "verification": "pending_live",
       "live_evidence": [
         "Scripts/puerts-live-smoke.mjs",
         "mcp-server/tests/puerts-tools.test.ts",
         "docs/evidence/mock-promotion/2026-08-04/summary.json"
       ],
-      "notes": "Verified over authenticated PuerTS named pipe connection on UE4.27."
+      "notes": "QUARANTINED 2026-08-05. Bridge-driven level switching crashed the UE4.27 editor 3/3 (EXCEPTION_ACCESS_VIOLATION in LoadLevelJson UEditorLoadingAndSavingUtils::LoadMap, and asynchronously in FTickFunctionTask::DoTask). Withheld from discovery and refused by the runtime with capability_quarantined. The earlier live_verified note covered a smoke run that did not switch levels. Use puerts_save with level_path instead. docs/CAPABILITY_FINDINGS.md, section Unknown."
     },
     "puerts_level_save": {
       "canonical_capability": "level.save",

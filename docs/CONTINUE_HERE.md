@@ -1,5 +1,241 @@
 # Continue here
 
+## Architecture baseline work, 2026-08-05
+
+Ordered items agreed against the reviewed baseline. Status is what is proven,
+not what is written.
+
+| # | Item | Status |
+|---|---|---|
+| 1 | Remove `level_load` / `level_create` from discovery | **Done.** Live 32/32, `npm run acceptance:quarantine` |
+| 2 | Block both in the runtime registry | **Done.** Same run, condition 5 |
+| 3a | `error_code` in the result contract | **Done.** Needed a C++ change too; see below |
+| 3b | `capability_quarantined` | **Done** |
+| 3c | Convert high-value refusals to stable codes | **Done for the codes a client can act on.** 37 runtime + 8 native sites; live `npm run acceptance:error-codes`. Uncoded refusals remain, by design |
+| 4 | `preconditions`, `scene_structure_hash` first | **Done, `scene_batch` only.** Live 23/23, `npm run acceptance:preconditions` |
+| 5 | Remove duplicate schema definitions | **Done by deletion, not generation.** 73 literals removed; `npm run verify` green, both live acceptances re-run green |
+| 6 | Queue and total timing fields | **Done.** `timings_ms` with five measurements from three clocks; live-verified |
+| 7 | Natural-language routing tests | **Done.** `routing-policy.ts` + 11 tests, chained into `npm test` |
+| 8 | Level-loading crash | **CLOSED for 1.0 as an accepted limitation.** Quarantined at three boundaries; not fixed. See the decision below |
+
+## Two 1.0 scope decisions, closed 2026-08-05
+
+**DECISION: the level-loading crash is an accepted 1.0 limitation, not a bug to
+fix before release.** `puerts_level_load` and `puerts_level_create` reproducibly
+kill the UE4.27 editor and are quarantined at three boundaries - discovery, the
+compatibility alias, and the runtime, which refuses with
+`capability_quarantined` before permissions or any native call. The release
+therefore ships without level switching as a capability rather than shipping it
+broken. `docs/TOOL_INVENTORY.json` records both as `migration_state:
+"quarantined"` instead of listing them as live, and the skill's tool catalog
+lists them under Quarantined with the reason. Nothing advertises them.
+`npm run acceptance:quarantine` is the standing proof, 32/32.
+
+Callers who need a different level: work in the level the editor already has
+open and use `puerts_save` with `level_path` to move it to a new package.
+The root cause is a PuerTS UObject/JS binding lifetime fault across `UWorld`
+teardown, inside the pinned vendored bundle; it is its own session, and
+`docs/CAPABILITY_FINDINGS.md` carries the crash sites.
+
+**DECISION: "natural-language routing tests" means routing-POLICY enforcement,
+and 1.0 ships without model-in-the-loop validation.** What exists proves two
+things and not a third:
+
+1. `checkRouting` detects unsafe tool SEQUENCES and accepts safe ones - both
+   directions, eleven fixtures.
+2. Every rule it enforces is STATED in the steering text a client receives.
+   That gap was real and is now closed: the server's `instructions` string
+   reaches every client, the skill is an optional install, and the
+   instructions previously said nothing about PIE approval,
+   inspect-before-mutate, or quarantined tools. Six tests keep the two in step.
+
+What is NOT proven: that a given model, given a real user prompt, emits a
+compliant sequence. That needs a live model, credentials and repeated sampling,
+which is nondeterministic, cannot run in the editor-free CI lane, and would make
+a release gate depend on an external service. Out of scope for 1.0 and recorded
+as such rather than silently implied by the test names.
+
+A model-in-the-loop harness plugs into `checkRouting` unchanged when it is
+wanted: record `{toolsListed, calls}` from a real session and pass it in. The
+assertion layer is the part that already exists.
+
+**Item 3a cost more than a TypeScript field.**
+`UMCPPuerTSBridgeService::CompleteCommand` rebuilds the response envelope from a
+field allowlist, so `error_code` existed everywhere except at the client until
+the C++ copied it too. The result contract is defined in C++. Items 4 and 6 both
+add top-level envelope fields and will hit the same wall; anything nested inside
+`data` is exempt because `data` is forwarded whole. Detail in
+docs/CAPABILITY_FINDINGS.md, section Unknown.
+
+**Item 4 landed on one tool, and the enforcement point was forced.**
+`scene_batch` is the only tool that both computes the scene hash and returns it
+from a plan, so it is the only one that got the field. The check lives in
+`UMCPPuerTSBridgeService::CheckPreconditions`, called from `AcceptCommand` -
+which is the ONLY point strictly before the transaction. `AcceptCommand` opens
+the `FScopedTransaction` for every mutating tool before the JavaScript registry
+runs, so a check in the tool body, or in `registry.ts`, would already be inside
+a transaction and "the transaction must not start when the precondition fails"
+could not be true however carefully the tool then cancelled it. The refusal
+leaves through the existing `accepted: false` path, which bypasses
+`CompleteCommand`, so `CheckPreconditions` builds the whole envelope itself.
+
+Hash semantics were confirmed before the name was reused. `scene_structure_hash`
+covers, per actor: object name, class path, label, folder, tags, world transform
+to three decimals, attach parent and socket, and every component's name, class
+path, attach parent and relative transform. It does **not** cover reflected
+property values or bounds - so a batch that only writes properties is not
+guarded by it against another property write. That limit is in the schema
+description, not just here.
+
+Two deliberate deviations from the specified shape, both to keep one contract
+rather than two:
+
+- `errors` stays an array of strings (`"state_conflict: Inspect the current
+  scene and create a new plan."`) rather than becoming `[{code, message}]`.
+  Every other response in the bridge uses strings, and a mixed-type array would
+  break existing consumers that join it. The structure lives in `data`, which
+  is where the instruction said to keep the conflict details.
+- `expected` and `observed` are reported as bare 40-hex, the form
+  `structure_hash_sha1` and `pre_structure_hash` actually have. A `sha1:` prefix
+  is accepted on input and normalized, so the documented request shape works
+  verbatim, but reporting back in a form no other field uses would make the two
+  hashes look different when they are not.
+
+`plan_only` deliberately ignores a precondition: a plan is how a current hash is
+obtained, and a plan opens no transaction, so enforcing it there would only mean
+a caller whose apply just conflicted has to remember to strip the field before
+re-planning.
+
+**Item 5: measured first, and the measurement inverted the plan.** The agreed
+first step was to keep `registry.ts` canonical and generate zod from it. Two
+measurements said no:
+
+- **0 of 73** tools had property-set drift between the two copies. (An earlier
+  reading of 2 was my own script missing the `...targetProperties` spread.)
+- **40 of 73** zod schemas carry enum, regex, min/max, union, literal or nested
+  constraints. **2 of 73** runtime schemas carry any refinement beyond type and
+  required. Generating zod from `registry.ts` would have deleted the enforced
+  constraints on 40 tools - the silent validation drift the plan set out to
+  avoid.
+
+Then the deciding fact: `inputSchema` and `outputSchema` were referenced in
+exactly one place in the runtime, `ToolRegistry.manifest()`, and **`.manifest()`
+has no callers anywhere in the repository** - not `bootstrap.ts`, not the C++
+service, not the MCP server. (`bridge_command_manifest` is a legacy HTTP tool
+that hits the Python listener; a different thing entirely.) `execute()` never
+validated against them.
+
+So they were not a second validator. They were a hand-maintained copy of the
+contract that nothing read, and it had already drifted: four tools declared
+`number` where the enforced contract is an integer. Deleted rather than
+generated - a generated copy of something nothing reads is still something to
+keep in step. Removed: 73 `inputSchema`/`outputSchema` pairs, the `schema()`
+helper, `targetProperties`, the shared `outputSchema` constant, the `JsonSchema`
+type, and `manifest()`. `ToolDefinition` keeps `permissions` and
+`executionTimeoutMs`, which `execute()` does use.
+
+The single source for a tool's input contract is now the zod schema in
+`mcp-server/src/tools/puerts.ts`: validated before anything is sent, published
+by `tools/list`, and re-checked value by value in native C++.
+`puerts-tools.test.ts` fails if either file declares a schema field again.
+
+That also retires the note that used to sit here about the test's source
+parsing being temporary pending item 5. It still parses `registry.ts` as text
+for the quarantine-list check, because the runtime imports `ue` and cannot be
+imported outside the editor. There is no longer a generation step planned that
+would replace it.
+
+**Item 3c: the codes belong where the refusal fires, which is mostly not C++.**
+The plan assumed ~250 free-text `OutError` sites in C++ were the target. Two
+measurements changed the shape:
+
+- There are **627** `OutError` assignments, not 250. Only **115** fall into a
+  category a client could branch on; **512** name a condition no client can act
+  on differently, and the contract already says a missing code means "read the
+  message". Converting all of them is churn.
+- The runtime throws **140** errors and duplicates the path and confirmation
+  gates that C++ also checks - and the runtime copy runs **first**. Coding only
+  the C++ side produced codes almost nobody receives: `puerts_save` with an
+  `/Engine` path was refused by the runtime, and the freshly coded native gate
+  behind it was never reached.
+
+So both sides got a mechanism, and the runtime got the conversions:
+
+- **Runtime**: `RefusedError` + `refuse(code, message)` in `runtime.ts`,
+  picked up by `commandFailure`. 37 sites converted (`path_not_allowed`,
+  `confirmation_required`).
+- **Native**: `UMCPPuerTSBridgeService::Fail(code, message, OutError)` writing a
+  `PendingErrorCode` member, injected by `CompleteCommand` when the command
+  failed and the script set no code, cleared by `EndActiveCommand`. A member
+  rather than a struct threaded through 627 out-parameters: call sites convert
+  one at a time by swapping two lines. 8 sites converted.
+
+Two traps found while doing it, both worth knowing before converting more:
+
+- Ten builder `.cpp` files declare a local `auto Fail = [&](const FString&)`
+  rollback lambda that **shadows** the member. Converting inside one is a
+  compile error about argument count, not a silent miss.
+- `Fail()` is a member, so it is not in scope in free functions.
+  `ResolveProjectMapFilename` was converted by script and failed to compile;
+  it is back to the plain form with a comment saying why.
+
+`acceptance:error-codes` also pins two things that are easy to regress: a
+success carries no `error_code`, and a code never leaks from one command into
+the next.
+
+**DECISION, accepted 2026-08-05: a refused mutating tool returns a real
+transaction id, and that is the intended behavior.** `AcceptCommand` opens the
+`FScopedTransaction` for every mutating tool before the runtime runs, so a
+refusal raised by a runtime gate carries the id of a transaction that recorded
+nothing. UE discards an empty transaction, so no undo entry is created and no
+package is dirtied. Moving the boundary to open the transaction lazily inside
+each tool would touch every mutating path and would remove the one place a
+precondition can be checked strictly before it - which is what item 4 depends
+on. The behavior is asserted rather than worked around:
+`acceptance:error-codes` checks that such a refusal reports empty
+`changed_assets` and `changed_actors` AND a non-empty `transaction_id`, so a
+future change to the boundary fails a test instead of silently altering what a
+transaction id means.
+
+Callers: a non-empty `transaction_id` means "a transaction was opened", not "a
+change was made". Read `changed_assets` and `changed_actors` to know whether
+anything happened, and `success` to know whether it was meant to.
+
+**A refusal of a mutating tool still opens a transaction.** The acceptance
+asserts this rather than the reverse, because it is what the architecture
+promises. `AcceptCommand` opens the `FScopedTransaction` for every mutating tool
+before the runtime runs, so `blueprint_build` and `delete_actor` refused by a
+runtime gate come back with a real `transaction_id` that recorded nothing. Only
+the checks inside `AcceptCommand` - quarantine and preconditions - refuse before
+it opens. My first version of the test demanded an empty id everywhere and was
+wrong about the codebase, not the other way round.
+
+**The flake was chased, and it is not what I first said.** Both of my
+hypotheses were measured and disproved: the hash is stable on a freshly started
+editor (6 reads, 1 distinct value) and stable after a spawn inside the nav
+bounds (+4s, and cleanup restores the exact prior hash). It is also not
+restart-related; a first run after a restart passed. What it actually is:
+`StructureHash(World)` returning two values for a level nobody mutated, in the
+window after a mutation. Promoted to a tracked Unknown in
+docs/CAPABILITY_FINDINGS.md with the measurements, the ruled-out causes, and
+the next diagnostic. It fails CLOSED - an unstable hash can only refuse a valid
+apply, never accept an invalid one - so it does not block the precondition
+feature, but item 4's "stable across two reads" claim holds only for a level
+nobody has just mutated.
+
+**Retracted 2026-08-05: the `test:package` "failure" was never one.** The
+`FAIL: ...\_stage\MCPBridge\Content\JavaScript\puerts does not match the pin`
+line is stderr from the subject under test. Section 2 of
+`Scripts/package-acceptance.mjs` deliberately deletes `Content/JavaScript` from
+a copied plugin and asserts packaging refuses it; the two PASS lines
+immediately after are the assertions on that refusal. It prints in a standalone
+`npm run test:package` too - the first report of an ordering dependency came
+from tailing past it. The `$LASTEXITCODE` guard is already present at
+`Scripts/package-mcp-bridge.ps1:156` and is exactly what makes that negative
+test pass. No fix needed and no regression test to add.
+
+---
+
 Updated 2026-08-03, end of the planning session.
 
 **READ docs/FINAL_IMPLEMENTATION_PLAN.md FIRST.** It supersedes the wave notes

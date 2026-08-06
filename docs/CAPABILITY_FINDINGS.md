@@ -81,6 +81,65 @@ maintains this file; Phase L consumes it.
 
 | Truthful Blueprint build reporting | Defect 0 closed for counting. `node_count` came from `RequestedNodeTypes.Num()` and `NodeMap.Add(NodeId, SpawnedNode)` ran **even when the factory returned null**, so a refused node stayed in the count: a build reported `node_count 2` while `graph_inspect` saw one node. Now the builder reports `OutCreatedNodes`/`OutFailedNodes`, skips null nodes and nodes created in a graph other than the one requested, and the command reports `requested_node_count` / `created_node_count` / `failed_node_count` / `failed_nodes` and the connection triple, on the success **and** failure payloads. A refused node now fails the whole build: partial graph creation is not a success mode. Live: `VariableGet` with `variable` instead of `varName` returns `success false` naming the refused node and its supplied parameters, `created_node_count` excludes it, and the gate `created_node_count == independently inspected node_count` holds on the valid graph (4), the rerun (4) and MultiGate (2). `Cast` with an unresolvable target class behaves the same. No failing case left a dirty package, a file change, a source-control entry or a save prompt. `Scripts/bp-truthful-report-acceptance.mjs`, 27 of 28 checks (2026-08-02) |
 
+## Unknown: the scene structure hash is not stable across consecutive reads after a mutation
+
+Found 2026-08-05 while accepting the `scene_structure_hash` precondition
+(item 4). Recorded here rather than left in a test log because AGENTS.md is
+explicit: a project-state query discrepancy is a tracked Unknown, and a tool
+that controls Unreal must be able to trust its own state queries.
+
+**What is observed.** `Scripts/precondition-acceptance.mjs` intermittently fails
+- roughly 3 runs in 10 - in one of two places, and both are the same symptom:
+
+```text
+FAIL  9. data carries the observed hash, and it matches an independent read
+      observed d69e971d9f3283506e6c162226244d45d4d27fa8,
+      inspect  00640089900a6a395e68809f63443505afd5a414
+FAIL  5. the level hashes the same before and after the refusal
+```
+
+The first is `scene_batch`'s own `observed` hash disagreeing with a
+`scene_inspect` taken immediately around it. The second is the level hashing
+differently before and after a refusal that changed nothing. Both mean
+`StructureHash(World)` returned two values for a level nobody mutated in
+between.
+
+**What has been ruled out, with measurements.**
+
+- *A settling editor.* Six `scene_inspect` reads at one-second intervals on a
+  freshly started editor: one distinct hash. Stable.
+- *An asynchronous navigation rebuild after a spawn.* Spawned a
+  StaticMeshActor at (700, -700, 300), inside `NavMeshBoundsVolume_Main`, then
+  hashed immediately and at +1s, +2s and +4s: one distinct hash throughout, and
+  deleting the probe returned the level to its exact pre-spawn hash.
+- *"It only fails on the first run after a restart."* Claimed, then disproved:
+  a first run after a fresh restart passed, and failures have occurred on later
+  runs.
+
+**What is still open.** Both ruled-out tests only ever spawned and deleted. The
+acceptance additionally MOVES an actor that sits inside the nav bounds, and no
+test has yet isolated a move. The next diagnostic is to move an actor inside the
+bounds, then hash repeatedly, and compare against the same loop with the actor
+moved outside them - which distinguishes a navigation-driven change from one in
+the moved actor's own structural key.
+
+**Safety impact: none, and the direction matters.** The precondition fails
+CLOSED. An unstable hash makes `scene_batch` occasionally REFUSE an apply that
+would have been valid; it cannot make it accept one that is not. A caller sees
+`state_conflict`, re-plans and proceeds. Nothing is written on the strength of a
+hash that moved.
+
+**Correctness impact on item 4's promise.** `structure_hash_sha1` is documented
+as stable across two reads of an unchanged level. That is true for a level
+nobody has mutated and NOT reliably true in the window after a mutation, so a
+plan-apply pair around a mutation can conflict spuriously. Retries are the
+workaround; a caller should not treat a single `state_conflict` as proof the
+level really moved.
+
+The acceptance now reads the hash immediately before the apply and prints it
+next to the planned one, so the next occurrence states whether the level
+actually changed rather than only that the apply was refused.
+
 ## Defects and limitations (Phase L queue)
 
 0j. **RESOLVED 2026-08-02, and every hypothesis about it was wrong.** The node
@@ -1135,6 +1194,92 @@ went through save-as, never load/create, after the second crash.
 `puerts_level_create` until this is root-caused. Do all work in the level the
 editor already has open, and use `puerts_save level_path=...` to move it to a
 new package path when needed.
+
+**QUARANTINED 2026-08-05, at three boundaries.** The workaround above was a
+sentence in a document, which is not a boundary: the tools stayed in
+`tools/list`, so the next session would pick one and crash the editor again.
+They are now withheld and refused:
+
+1. **Discovery.** `QUARANTINED_TOOLS` in `mcp-server/src/tools/puerts.ts`
+   filters both out of `createPuertsTools`. Their specs stay in
+   `nativeToolSpecs`, so schemas, annotations and the inventory row survive the
+   pause and unquarantining is the removal of one line.
+2. **The compatibility alias.** `level_new` fronted `puerts_level_create`, so
+   removing the canonical tool alone would have left the crash reachable under
+   its legacy name. `createCompatTools` filters any alias whose canonical target
+   is quarantined, from the same set.
+3. **The runtime.** `quarantinedTools` in `puerts-runtime/src/registry.ts`
+   refuses execution before the permission check and before any native call,
+   answering `error_code: "capability_quarantined"` with the reason. This is the
+   half that stops a stale client, a hand-written pipe request, or a future
+   alias, none of which read `tools/list`.
+
+`puerts_diagnostic` now reports `capabilities.available` and
+`capabilities.unavailable` derived from those same two structures, so the model
+learns a capability is paused by reading, not by calling and crashing the
+editor. The skill's `references/tool-catalog.md` lists them under Quarantined
+with the reason, generated from `docs/TOOL_INVENTORY.json`.
+
+The two lists sit on opposite sides of the process boundary and cannot import
+each other, because the runtime imports `ue`. `mcp-server/tests/puerts-tools.test.ts`
+parses the runtime file and fails when they name different tools; that is the
+boundary test standing in for generation that is not practical here.
+
+`docs/TOOL_CAPABILITY_METADATA.json` carried
+`"verification": "live_verified"` and "Verified over authenticated PuerTS named
+pipe connection on UE4.27" for both tools. That was true of a smoke run that
+never switched levels, and false as a statement about the tool. Both are now
+`pending_live` with the crash recorded; the scoreboard reads `live_verified: 71,
+quarantined: 2` instead of 73.
+
+Not enforced in the C++ allowlist as well. The allowlist is compiled into the
+editor, so a change there ships only on a rebuild, and the runtime check already
+runs strictly before any native call. Add it there if a quarantine ever has to
+survive a replaced runtime.
+
+**LIVE ACCEPTANCE PASSED 2026-08-05, 32/32.** `Scripts/quarantine-acceptance.mjs`
+(`npm run acceptance:quarantine`) against `BridgeInstallTest` session
+`d1682a90`, editor pid 73008, after a full stop / `install:sync` rebuild /
+relaunch cycle:
+
+| Condition | Evidence |
+|---|---|
+| 1. reported unavailable | `capabilities.unavailable` names `level_load` and `level_create` |
+| 2. stable reason | `reason_code: "capability_quarantined"` on both |
+| 3. absent from discovery | `tools/list` over real stdio, with aliases off and on |
+| 4. alias absent | `level_new` absent with `MCP_COMPAT_ALIASES=1`, in a run proven to register aliases |
+| 5. runtime refuses | direct pipe request answers `error_code: "capability_quarantined"`, no "Missing permission", no "Tool is not registered", empty `transaction_id`, no `changed_assets` or `changed_actors` |
+| 6. editor survived | same `session_id` and pid answered `puerts_diagnostic` before and after two deliberate calls to the crashing tools |
+| 7. counts agree | 71 available + 2 unavailable = 73 registry definitions |
+
+Condition 4 asserts the alias-enabled run registered more tools than the plain
+one before checking `level_new` is missing. Without that guard the check passes
+when the environment variable failed to reach the server, which is exactly what
+happened on the first manual attempt through `npm run inspect:list`: no aliases
+registered at all, and "level_new is absent" meant nothing.
+
+### The defect the live run caught, which no unit test could
+
+The first acceptance run failed conditions 5a and 5b only: the refusal arrived
+with `error_code: undefined` while its message and errors came through intact.
+
+`UMCPPuerTSBridgeService::CompleteCommand` does not forward the script's
+response object. It rebuilds the envelope field by field from an allowlist -
+`success`, `message`, `data`, `changed_assets`, `changed_actors`, `warnings`,
+`errors`, `log_output`, `transaction_id`, `native_duration_ms`. **A field the
+runtime sets and that list does not name is dropped silently.** `error_code`
+was one, so adding it to `CommandResponse` in TypeScript and setting it in the
+registry produced a field that existed everywhere except at the client.
+
+The unit suites could not see this: they mock the pipe, so the C++ normalizer
+is not in their path. `MCPPuerTSBridgeService.cpp` now copies `error_code` when
+the script supplied a non-empty one, leaving success envelopes unchanged.
+
+**The general rule this establishes: the result contract is defined in C++, not
+in TypeScript.** Any future top-level envelope field - `timings_ms` (item 6),
+anything a precondition failure adds beside `data` (item 4) - has to be added
+to that allowlist or it will not leave the editor, and only a live run will say
+so. Fields nested inside `data` are exempt: `data` is forwarded whole.
 
 ## Resolved Unknowns
 

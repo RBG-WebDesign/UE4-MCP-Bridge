@@ -85,6 +85,21 @@ async function main(): Promise<void> {
         "Never use HTTP, REST, local web servers, Python sockets, shell commands, or workaround scripts to communicate with Unreal.",
         "If a native tool fails, report its exact error. Do not attempt a fallback transport.",
         "engine_source_* tools are server-local source readers and do not communicate with the editor.",
+        // The sequencing rules, stated here because this string reaches EVERY
+        // client. The skill says all of this at length, but the skill is an
+        // optional install and a client without it previously received no
+        // sequencing guidance at all. Each rule below is one the routing policy
+        // checker enforces (mcp-server/src/routing-policy.ts), and a test
+        // asserts the two stay in step: a rule that is checked but never stated
+        // punishes a client for not guessing, and one that is stated but never
+        // checked is a paragraph nobody has to obey.
+        "Inspect before you mutate: read state with a *_inspect or find_* tool before changing it.",
+        "Preview a broad or destructive change with plan_only:true before applying it.",
+        "Destructive tools require confirm=true; that is a deliberate confirmation, not a formality.",
+        "NEVER start Play In Editor on your own. puerts_pie_start, puerts_pie_stop and the",
+        "puerts_pie_agent_* tools require the user to ask for them first.",
+        "A tool absent from tools/list is absent deliberately. Do not call it by name;",
+        "puerts_diagnostic reports what is unavailable and why under capabilities.unavailable.",
         "Before executing any structural engine or blueprint generation task",
         "(gameplay systems, blueprint/widget generation, editor C++, UI",
         "materials), read the contents of docs/playbooks/ in the project",

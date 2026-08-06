@@ -28,7 +28,7 @@ import { z } from "zod";
 import type { PuerTSClient } from "../puerts-client.js";
 import type { ToolDefinition } from "../types.js";
 import { compatAliasAnnotations, toolAnnotations } from "../annotations.js";
-import { executeNativeCommand, nativeFailureEnvelope, nativeToolSpec } from "./puerts.js";
+import { executeNativeCommand, nativeFailureEnvelope, nativeToolSpec, QUARANTINED_TOOLS } from "./puerts.js";
 
 const vector = z.object({
   x: z.number().describe("X coordinate"),
@@ -1725,7 +1725,12 @@ export const compatAliasTargets: Readonly<Record<string, string>> = Object.freez
 );
 
 export function createCompatTools(client: PuerTSClient): ToolDefinition[] {
-  return aliases.map((alias) => {
+  // An alias is a second public name for a native tool, so it is a second door
+  // into a quarantined one. level_new fronts puerts_level_create; advertising
+  // it while the canonical tool is withheld would leave the crash reachable
+  // under its legacy name, which is the stale-client case the quarantine exists
+  // for. Filtered from the same set, so a tool is quarantined once.
+  return aliases.filter((alias) => !QUARANTINED_TOOLS.has(alias.canonical)).map((alias) => {
     // Resolve now: a typo in a canonical name is a startup failure, not a
     // runtime surprise on the first call.
     const spec = nativeToolSpec(alias.canonical);

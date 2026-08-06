@@ -35,6 +35,7 @@ const { PuerTSClient } = await dist('puerts-client.js');
 const { OperationHistory } = await dist('history.js');
 const { toolAnnotations } = await dist('annotations.js');
 const { compatAliasTargets } = await dist('tools/compat.js');
+const { QUARANTINED_TOOLS, nativeToolSpecs } = await dist('tools/puerts.js');
 
 const legacyClient = new UnrealClient();
 const puertsClient = new PuerTSClient();
@@ -140,7 +141,18 @@ for (const [moduleFile, factoryName, backend, args] of MODULES) {
     console.error(`FAIL: ${moduleFile}.js does not export ${factoryName}`);
     process.exit(1);
   }
-  const definitions = factory(...args);
+  // The inventory records what the bridge implements, which is not the same
+  // question as what it advertises. A quarantined tool is withheld from
+  // discovery but still has a schema, an owner, a migration state and a legacy
+  // alias pointing at it; dropping it here would delete those facts and leave
+  // that alias looking like it names a tool that never existed.
+  const definitions = moduleFile === 'puerts'
+    ? nativeToolSpecs.map((spec) => ({
+      name: spec.name,
+      description: `[PRIMARY NATIVE IPC] ${spec.description}`,
+      inputSchema: spec.inputSchema,
+    }))
+    : factory(...args);
   const moduleCommands = listenerCommands(moduleFile);
   const testFile = testFileFor(moduleFile);
   for (const definition of definitions) {
@@ -148,8 +160,10 @@ for (const [moduleFile, factoryName, backend, args] of MODULES) {
     let target = null;
     if (backend === 'native_pipe') {
       // Placeholder; replaced below from the curated verification level, so
-      // the state and the evidence dimension cannot disagree.
-      state = 'native';
+      // the state and the evidence dimension cannot disagree. Quarantine is the
+      // one state that survives that replacement: it describes whether the tool
+      // may run at all, not how well it has been verified.
+      state = QUARANTINED_TOOLS.has(definition.name) ? 'quarantined' : 'native';
     } else if (backend === 'native_pipe_alias') {
       // The Wrap action from docs/TOOL_MIGRATION.md: old name, native execution.
       state = 'wrap';
@@ -263,13 +277,17 @@ for (const t of tools) {
     t.verification = override.verification ?? 'editor_free_verified';
   }
   // migration_state derives from verification for native tools so the two
-  // dimensions cannot disagree.
-  if (t.backend === 'native_pipe') {
+  // dimensions cannot disagree. Quarantine outranks both: a tool that is not
+  // allowed to run is not "live_verified" whatever its last good run said.
+  if (t.backend === 'native_pipe' && !QUARANTINED_TOOLS.has(t.name)) {
     t.migration_state = {
       live_verified: 'native',
       live_partial: 'native_live_partial',
       pending_live: 'native_pending_live',
     }[t.verification] ?? 'native_pending_live';
+  } else if (t.backend === 'native_pipe') {
+    t.migration_state = 'quarantined';
+    t.verification = 'quarantined';
   }
 
   if (isAlias) {

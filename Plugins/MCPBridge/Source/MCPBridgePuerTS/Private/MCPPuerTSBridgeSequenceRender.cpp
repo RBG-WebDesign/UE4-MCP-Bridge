@@ -107,10 +107,9 @@ bool UMCPPuerTSBridgeService::RenderLevelSequenceJson(
     }
     if (GEditor->PlayWorld != nullptr || GEditor->GetPlaySessionRequest().IsSet())
     {
-        OutError = TEXT("Play In Editor is running. The render loads the level from disk in a "
+        return Fail(TEXT("editor_busy"), TEXT("Play In Editor is running. The render loads the level from disk in a "
                         "second process; starting one while play is active competes for the same "
-                        "audio device and window focus. Stop play first.");
-        return false;
+                        "audio device and window focus. Stop play first."), OutError);
     }
     UWorld* World = GEditor->GetEditorWorldContext().World();
     if (World == nullptr)

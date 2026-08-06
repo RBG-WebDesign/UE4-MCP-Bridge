@@ -8,6 +8,8 @@ import {
   createPuertsTools,
   decodeStructuredParams,
   decodeStructuredValue,
+  nativeToolSpecs,
+  QUARANTINED_TOOLS,
 } from "../src/tools/puerts.js";
 
 import {
@@ -73,7 +75,7 @@ async function main(): Promise<void> {
     });
     const client = new PuerTSClient();
     const tools = createPuertsTools(client);
-    assert(tools.length === 73, "expected all 73 PuerTS tools");
+    assert(tools.length === 71, "expected all 71 discoverable PuerTS tools (73 specs less 2 quarantined)");
     assert(tools.some((tool) => tool.name === "puerts_project_settings_patch"), "generic project settings tool is missing");
     assert(tools.some((tool) => tool.name === "puerts_behavior_tree_build"), "native Behavior Tree builder tool is missing");
     assert(tools.some((tool) => tool.name === "puerts_behavior_tree_inspect"), "native Behavior Tree inspector tool is missing");
@@ -84,9 +86,71 @@ async function main(): Promise<void> {
     assert(tools.some((tool) => tool.name === "puerts_widget_inspect"), "native widget inspector tool is missing");
     assert(tools.some((tool) => tool.name === "puerts_widget_bind"), "native widget binder tool is missing");
     assert(tools.some((tool) => tool.name === "puerts_blueprint_member_patch"), "native Blueprint member patch tool is missing");
-    for (const name of ["puerts_level_create", "puerts_level_load", "puerts_level_save"]) {
-      assert(tools.some((tool) => tool.name === name), name + " is missing");
+    assert(tools.some((tool) => tool.name === "puerts_level_save"), "puerts_level_save is missing");
+    // Quarantine, both halves. The discovery half is checked here directly; the
+    // runtime half cannot be imported (registry.ts imports "ue", which exists
+    // only inside the editor), so it is checked by reading the file. That is
+    // deliberately a text assertion: what matters is that the two lists name the
+    // same tools, and a list that drifts is exactly the failure a stale client
+    // would hit.
+    for (const name of QUARANTINED_TOOLS) {
+      assert(!tools.some((tool) => tool.name === name), name + " is quarantined but still discoverable");
+      assert(
+        nativeToolSpecs.some((spec) => spec.name === name),
+        name + " was deleted rather than quarantined; the spec must stay so a stale alias "
+        + "gets the quarantine reason instead of a schema error",
+      );
     }
+    const runtimeRegistry = await readFile(
+      join(repoRoot, "puerts-runtime", "src", "registry.ts"), "utf8",
+    );
+    const quarantineBlock = runtimeRegistry.slice(
+      runtimeRegistry.indexOf("export const quarantinedTools"),
+      runtimeRegistry.indexOf("export const toolDefinitions"),
+    );
+    assert(quarantineBlock.length > 0, "the runtime has no quarantinedTools map");
+    for (const name of QUARANTINED_TOOLS) {
+      const command = name.replace(/^puerts_/, "");
+      assert(
+        new RegExp(`^\\s+${command}:`, "m").test(quarantineBlock),
+        `${name} is quarantined in the server but the runtime would still execute ${command}`,
+      );
+    }
+    const runtimeNames = [...quarantineBlock.matchAll(/^\s{2}([a-z0-9_]+):/gm)].map((m) => m[1]);
+    assert(
+      runtimeNames.length === QUARANTINED_TOOLS.size,
+      `the runtime quarantines ${runtimeNames.length} tool(s) (${runtimeNames.join(", ")}) but the `
+      + `server withholds ${QUARANTINED_TOOLS.size} from discovery; a tool quarantined on one side `
+      + "only is either advertised-and-dead or hidden-and-callable",
+    );
+    assert(
+      runtimeRegistry.includes('result.error_code = "capability_quarantined"'),
+      "the runtime quarantine does not return the capability_quarantined code",
+    );
+
+    // One schema per tool, and it is the zod one. The runtime used to carry a
+    // second, thinner copy per tool; it validated nothing (execute never read
+    // it, and its only consumer was a manifest() with no callers) and it had
+    // already drifted - four tools said "number" where the contract is an
+    // integer. Deleted rather than generated: a generated copy of something
+    // nothing reads is still something to keep in step.
+    // Declarations, not prose: the comments in both files explain why the
+    // schemas were removed and would otherwise match their own warning.
+    const declaresSchema = (source: string): boolean =>
+      /^\s*(readonly\s+)?(inputSchema|outputSchema)\s*[:,]/m.test(source)
+      || /interface JsonSchema/.test(source);
+    assert(
+      !declaresSchema(runtimeRegistry),
+      "the runtime registry declares schemas again; the zod schema in "
+      + "mcp-server/src/tools/puerts.ts is the single source for a tool's input contract",
+    );
+    const runtimeTypes = await readFile(
+      join(repoRoot, "puerts-runtime", "src", "types.ts"), "utf8",
+    );
+    assert(
+      !declaresSchema(runtimeTypes),
+      "ToolDefinition carries a schema field again; that is what let the two copies drift",
+    );
     for (const name of [
       "puerts_anim_blueprint_build",
       "puerts_anim_blueprint_inspect",
@@ -962,6 +1026,63 @@ async function sceneSuite(): Promise<void> {
       typeof sentBatch?.__timeout === "number" && (sentBatch.__timeout as number) >= 50000,
       "scene_batch did not get a batch-sized timeout budget",
     );
+
+    // --- preconditions: format is a boundary concern, not an editor concern --
+    // A mistyped hash and a moved scene mean opposite things. If a bad format
+    // reached Unreal it would come back as state_conflict, and a client would
+    // re-plan forever against a hash it corrupts on every send.
+    const okHash = "6428f5ad0d71a7e4bbfe28bdb85ec93f6a789519";
+    const batchOp = [{ op: "upsert_actor", select: { name: "Cube_1" }, location: { x: 1, y: 2, z: 3 } }];
+    const runBatch = async (args: Record<string, unknown>): Promise<Record<string, unknown>> =>
+      JSON.parse((await batch.handler(args)).content[0]?.text ?? "null") as Record<string, unknown>;
+
+    const beforePrecondition = received.length;
+    for (const bad of [
+      "sha1:not-a-hash",
+      "6428F5AD0D71A7E4BBFE28BDB85EC93F6A789519",       // upper case
+      okHash.slice(0, 39),                               // too short
+      `${okHash}a`,                                      // too long
+      `sha256:${okHash}`,                                // wrong algorithm prefix
+      "",
+    ]) {
+      const rejected = await runBatch({
+        operations: batchOp, preconditions: { scene_structure_hash: bad },
+      });
+      assert(rejected.success === false, `a malformed precondition hash was accepted: ${bad}`);
+    }
+    assert(
+      received.length === beforePrecondition,
+      "8. a malformed precondition hash reached the editor; it must fail schema validation first",
+    );
+
+    for (const accepted of [okHash, `sha1:${okHash}`]) {
+      await runBatch({ operations: batchOp, preconditions: { scene_structure_hash: accepted } });
+      const sent = received[received.length - 1];
+      const preconditions = sent?.preconditions as Record<string, unknown> | undefined;
+      // Sent verbatim. The "sha1:" prefix is normalized in C++, not here: a
+      // server that silently rewrites the caller's value makes a mismatch
+      // report name a string nobody typed.
+      assert(
+        preconditions?.scene_structure_hash === accepted,
+        `a valid precondition (${accepted}) did not reach the pipe unchanged`,
+      );
+    }
+
+    const unknownPrecondition = await runBatch({
+      operations: batchOp,
+      preconditions: { scene_structure_hash: okHash, asset_structure_hash: okHash },
+    });
+    assert(unknownPrecondition.success === false,
+      "an undefined precondition type was accepted; only scene_structure_hash exists");
+
+    // 7. compatibility: no preconditions is the existing behavior, unchanged.
+    const beforeCompat = received.length;
+    const noPreconditions = await runBatch({ operations: batchOp });
+    assert(received.length === beforeCompat + 1, "7. a batch without preconditions must still reach the editor");
+    assert(!("preconditions" in (received[received.length - 1] ?? {})),
+      "7. a batch without preconditions must not invent one");
+    assert(noPreconditions.success === true, "7. a batch without preconditions must still succeed");
+
     console.log("  PASS  scene inspect and batch contract");
   } finally {
     await new Promise<void>((resolve) => server.close(() => resolve()));
@@ -2564,10 +2685,18 @@ async function assetDeleteSuite(): Promise<void> {
 async function levelLifecycleSuite(): Promise<void> {
   const { toolAnnotations } = await import("../src/annotations.js");
   const tools = createPuertsTools(new PuerTSClient());
-  const create = tools.find((tool) => tool.name === "puerts_level_create");
-  const load = tools.find((tool) => tool.name === "puerts_level_load");
+  // create and load are quarantined, so they resolve from the spec table rather
+  // than from discovery. The contract below is still asserted in full: a
+  // quarantine is a pause, and the schemas and native contract have to survive
+  // it intact or unquarantining becomes a rewrite instead of deleting a line.
+  const create = nativeToolSpecs.find((spec) => spec.name === "puerts_level_create");
+  const load = nativeToolSpecs.find((spec) => spec.name === "puerts_level_load");
   const save = tools.find((tool) => tool.name === "puerts_level_save");
   assert(create !== undefined && load !== undefined && save !== undefined, "native level lifecycle tools are incomplete");
+  assert(
+    !tools.some((tool) => tool.name === "puerts_level_create" || tool.name === "puerts_level_load"),
+    "level_create and level_load crash the UE4.27 editor and must not be discoverable",
+  );
   assert(
     create.inputSchema.safeParse({
       level_path: "/Game/Maps/NewMap",
