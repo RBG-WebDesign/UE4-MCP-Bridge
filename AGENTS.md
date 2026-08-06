@@ -706,7 +706,16 @@ Rules:
   still hold commits that are not on `main`.
 - Local branch count: 0-5 ok, 6-10 warn, more than 10 fails.
 
-`npm run git:hygiene` checks all of it. Start and end any large task with:
+`npm run git:hygiene` checks all of it and runs inside `npm run verify`, so the
+cleanup is a permanent guard rather than another one-time repair. Its own
+acceptance is `npm run test:git-hygiene`, in `npm run test:editor-free`.
+
+It was deliberately kept out of `verify` until two things were true: the branch
+count was back to a healthy baseline, and the checker had tests. Wiring a gate
+that fails on day one either breaks the build or forces a threshold that defeats
+it.
+
+Start and end any large task with:
 
 ```bash
 npm run doctor

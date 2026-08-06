@@ -1,0 +1,203 @@
+{
+  "date": "2026-08-06",
+  "reason": "Redundant after PR #3 merge: zero commits novel to main by patch-id, superseded pair excluded.",
+  "main_tip": "56aa42b74675faa13f6fa9787598138824885dbb",
+  "kept": {
+    "main-local-2026-08-06": "safety ref for the local main reset",
+    "checkpoint/stabilized-2026-08-03": "checkpoint inside its 30-day window"
+  },
+  "deleted": [
+    {
+      "branch": "bridge/native-consolidation-2026-07-31",
+      "tip": "e3e8fc168a17200b2a1910d208820b10c197189d"
+    },
+    {
+      "branch": "claude/possessed-left-arm-retarget-w0ot20",
+      "tip": "f2267ebb02403a17efeb5fd7542f75b882365c14"
+    },
+    {
+      "branch": "lane/a-graph-patch",
+      "tip": "99bf4fbdac4e7ba9f83206b5c80b6d21d3ef820a"
+    },
+    {
+      "branch": "lane/ao2-orchestrator",
+      "tip": "d34514d581a224d2e07409f46ba94795279f8692"
+    },
+    {
+      "branch": "lane/b-project-intelligence",
+      "tip": "d9d852eaeb45753ae238d5b7f91bd83e90e75615"
+    },
+    {
+      "branch": "lane/b2-pie-agent-runtime",
+      "tip": "741becd4e8b47bffa4f0056fa7359af3b40c71e6"
+    },
+    {
+      "branch": "lane/b4-port-batch1",
+      "tip": "b28191b4872df6f559853dc0dc8ad20a16a9aec5"
+    },
+    {
+      "branch": "lane/c-cpp-authoring",
+      "tip": "ed71e2731d24a188b1db0661e2e3d34401f10c8a"
+    },
+    {
+      "branch": "lane/c-feature-library-7-12",
+      "tip": "b5c6c98e14b6857f23def47782d5b360861fcf76"
+    },
+    {
+      "branch": "lane/d-ci-release",
+      "tip": "e96dd668645893a827e3d6476f7f5e3263415d20"
+    },
+    {
+      "branch": "lane/d-perf-harness",
+      "tip": "dab2c784097f06a6f2adf5aae5e68bd4065517e2"
+    },
+    {
+      "branch": "lane/e-feature-library-13-18",
+      "tip": "bcfce312db8ba93893aa38c9890709c061f49bfa"
+    },
+    {
+      "branch": "lane/e-refront",
+      "tip": "e8dc9ee452afd3561973744a0eb1a40acfa742d6"
+    },
+    {
+      "branch": "lane/e2-feature-library-9-12",
+      "tip": "733fe27b93b4f390881a29237ba3fe6fb8cb7513"
+    },
+    {
+      "branch": "lane/e2-port-batch2",
+      "tip": "44710d71e6e2d926d4ad0b311600215dc8268ff6"
+    },
+    {
+      "branch": "lane/e2-port-batch3",
+      "tip": "eafa58f3873ee22ae016f0b75dd37fb39412efe1"
+    },
+    {
+      "branch": "lane/f-async-project-package",
+      "tip": "bc7c1bc9fc3d2b700056efc59303c8c50c564cdc"
+    },
+    {
+      "branch": "lane/f-port-batch4",
+      "tip": "76d523c71f94287787f59fc66511d6aa5d8e1139"
+    },
+    {
+      "branch": "lane/f-project-settings-refront",
+      "tip": "38e2b6aa6da87bf529048c0d3c51bc4f8bf11e4e"
+    },
+    {
+      "branch": "lane/f-release",
+      "tip": "754b10d76bbf6ec8fa7811c7ec562de317d5958a"
+    },
+    {
+      "branch": "lane/fp1-pie-query-allowlist",
+      "tip": "efe506262d5f1a12b31a812891b867a3b98abee7"
+    },
+    {
+      "branch": "lane/g-compat-reuse",
+      "tip": "74b8faff30988f17c15ec3560cff9bd3217460fe"
+    },
+    {
+      "branch": "lane/g-feature-harnesses",
+      "tip": "7367f8217d3303e366dc4b78c6f28883989f9703"
+    },
+    {
+      "branch": "lane/g-mutator-atomicity",
+      "tip": "e276d86f1acd4447b501d8b05f5df771f6cce65b"
+    },
+    {
+      "branch": "lane/g-native-contracts",
+      "tip": "6ad8ba0dba546e113dd426c1604ece7e78f9fbf1"
+    },
+    {
+      "branch": "lane/h-member-patch",
+      "tip": "f0893b027cf1f8896300e6dc6b5e5cc859e5def1"
+    },
+    {
+      "branch": "lane/h-montage-writer",
+      "tip": "4096d852dba393ae13a0baeed8fc9c5c12e2ecfa"
+    },
+    {
+      "branch": "lane/h-sequence-event",
+      "tip": "c4f360e4799f4fa64e990df81d3815e7ebbf5161"
+    },
+    {
+      "branch": "lane/i-material",
+      "tip": "9a5e590da1cc8124c3d6f2764b4952deb4bf8c30"
+    },
+    {
+      "branch": "lane/j-animation",
+      "tip": "9b7a84d26b72adf94925cb5cff16cc68fdb70bdb"
+    },
+    {
+      "branch": "lane/k-ai-gameplay",
+      "tip": "cb15ff41cbfcb3918f6013f510e68f82b6fa320e"
+    },
+    {
+      "branch": "lane/l-level-scene",
+      "tip": "83907770899c5c6d351393df3b210c9679f10379"
+    },
+    {
+      "branch": "lane/m-refront2",
+      "tip": "a6a55a959efa1be775433dadb4e2b092f0e6c252"
+    },
+    {
+      "branch": "lane/n-packaging",
+      "tip": "5d96972305ece8e87168175a1230037922a937d6"
+    },
+    {
+      "branch": "lane/o-perf-live",
+      "tip": "a8bd0be685edbbc7742dbb2c439f4481d29dd25d"
+    },
+    {
+      "branch": "lane/p-slices",
+      "tip": "fe60d416de4088f0b36fb7be60069d254e771b0e"
+    },
+    {
+      "branch": "lane/q-finding-0p",
+      "tip": "a1581e3d7bcf09908556fb4375002a57f296e311"
+    },
+    {
+      "branch": "lane/r-finding-0q",
+      "tip": "bd0f3cccb6bda2d388ca861e82fb3fdaf77d4217"
+    },
+    {
+      "branch": "lane/s-sequencer",
+      "tip": "70f2ae6dc06386c1ceffcb6a9608e420a3200cb8"
+    },
+    {
+      "branch": "lane/t-material-graph",
+      "tip": "187c2460c0ac9929e71259cdd29b86343120e03e"
+    },
+    {
+      "branch": "lane/u-level-lighting",
+      "tip": "072f93cb637c6f5f0ad444c490bc434aa33eb1c7"
+    },
+    {
+      "branch": "lane/v-widget-bind",
+      "tip": "f5dea3c556eb630d440007c19d808caf2d1937bd"
+    },
+    {
+      "branch": "lane/w-domain-gaps",
+      "tip": "f7d319a7a50269c521704bf533f8a03b1252a375"
+    },
+    {
+      "branch": "lane/x-slice-green",
+      "tip": "3316ca6977efe10bd23c8b0f875677f1b0aaa2ab"
+    },
+    {
+      "branch": "lane/y-animbp-snapshot",
+      "tip": "f14216e680af2dbeca04b40f43df4f2d3c8dc787"
+    },
+    {
+      "branch": "lane/z-async-jobs",
+      "tip": "9a4cfb628123b48350b6dbfaaf2ce99b6d6ca7f7"
+    },
+    {
+      "branch": "mcpbridge-unified-plugin",
+      "tip": "4a64804752c9632874769023774b7eff387468df"
+    },
+    {
+      "branch": "wip/blueprint-graph-patch-2026-08-02",
+      "tip": "c964ae6366f76c6bc522ae475b58181549d12961"
+    }
+  ]
+}

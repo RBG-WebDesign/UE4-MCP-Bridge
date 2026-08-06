@@ -22,7 +22,20 @@ import { existsSync, lstatSync, readFileSync, readdirSync, readlinkSync, realpat
 import { dirname, isAbsolute, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const repoRoot = join(dirname(fileURLToPath(import.meta.url)), '..');
+// The repository being CHECKED is the one the command runs in, not the one the
+// script lives in. Deriving it from import.meta.url made the checker audit
+// UE4_Bridge no matter where it was invoked, which is wrong for a worktree and
+// untestable against a fixture. Falls back to the script's own repo when the
+// working directory is not inside a git tree.
+const repoRoot = (() => {
+  try {
+    return execFileSync('git', ['rev-parse', '--show-toplevel'], {
+      cwd: process.cwd(), encoding: 'utf8',
+    }).trim();
+  } catch {
+    return join(dirname(fileURLToPath(import.meta.url)), '..');
+  }
+})();
 const asJson = process.argv.includes('--json');
 
 const git = (args, options = {}) => {
@@ -75,6 +88,11 @@ const SUPERSEDED = new Map([
   ['4d9be287e8a4a86c6e40ccd1fb02b43eb2581d78',
     'Read-only Blueprint graph inspection. Superseded: puerts_graph_inspect is '
     + 'live on main, verified 2026-08-06 by calling it against a running editor.'],
+  ['6de750ba5c96d893c2e0825d1a43518d6fad8a67',
+    'WIP FP-4 component convergence and FP-5 level commands. Superseded: every '
+    + 'file it touches is on main, remove_unlisted carries the components scope, '
+    + 'and the level commands shipped. Verified 2026-08-06 by file presence plus '
+    + 'schema inspection of main.'],
 ]);
 
 const findings = [];
@@ -179,14 +197,30 @@ for (const branch of branchRows) {
   }
 }
 
-// One error per distinct commit, naming every branch that carries it.
+// One finding per distinct commit, naming every branch that carries it.
+//
+// Severity depends on WHERE it lives. A commit held only by protected branches
+// is the declared intended state: that is what a checkpoint branch is for, and
+// erroring on it would leave a permanent failure with no honest resolution
+// short of falsely marking it superseded. A commit on an ordinary branch is
+// different: nothing is preserving it on purpose, so it is an error.
 for (const [sha, entry] of unrepresented) {
   const carriers = entry.branches.length;
-  error('unrepresented-commit',
-    `${sha.slice(0, 8)} "${entry.subject}" is on ${carriers} branch(es) and not on main`
-    + (carriers > 3 ? ` (${entry.branches.slice(0, 3).join(', ')}, ...)` : ` (${entry.branches.join(', ')})`),
-    'Merge it, or if its content is already on main under a different patch, add it to '
-    + 'SUPERSEDED with the evidence that made you sure.');
+  const shown = carriers > 3
+    ? `${entry.branches.slice(0, 3).join(', ')}, ...`
+    : entry.branches.join(', ');
+  const onlyProtected = entry.branches.every(isProtected);
+  const message = `${sha.slice(0, 8)} "${entry.subject}" is on ${carriers} branch(es) and not on main (${shown})`;
+
+  if (onlyProtected) {
+    warn('preserved-commit', `${message} - held only by protected branches, as intended`,
+      'Kept deliberately. Merge it or mark it SUPERSEDED when the branch retires.');
+  } else {
+    error('unrepresented-commit', message,
+      'Merge it, or if its content is already on main under a different patch, add it to '
+      + 'SUPERSEDED with the evidence that made you sure. If it should simply be preserved, '
+      + 'move it to a checkpoint/* branch and delete the ordinary one.');
+  }
 }
 
 // --------------------------------------- 7. remote-tracking refs gone upstream
