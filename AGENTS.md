@@ -656,6 +656,58 @@ telemetry, acceptance tests, and every `pie_agent_*` tool.
 - No filler language (delve, explore, leverage, robust, utilize)
 - Write documentation for a programmer, not for a VP
 
+## Deleting a worktree: junctions point into the main checkout
+
+**Hard rule. A worktree can contain Windows junctions into the main checkout.
+Before deleting a worktree directory, detect and remove reparse points without
+following them. Never use recursive deletion until this check passes.**
+
+This is not hypothetical. On 2026-08-06 an `rm -rf` over 27 orphaned worktree
+directories emptied the main checkout's `mcp-server/`, `Plugins/Puerts` and both
+workspace `node_modules`, because every worktree held a junction at
+`Plugins/Puerts` aimed at the main tree, created exactly as the prerequisites
+section above instructs. The follow-up `git checkout -- .` then reverted two
+files of unrelated uncommitted work, which was not recoverable.
+`docs/incidents/2026-08-06-worktree-junction-delete.md` has the full account.
+
+A junction hides from the checks that usually catch this. It is not a POSIX
+symlink, Explorer draws it as an ordinary folder, and `du` bills the
+destination's bytes to the link. The only reliable signal is lstat's reparse bit.
+
+Use the script, which is the rule in executable form:
+
+```bash
+node Scripts/worktree-cleanup.mjs audit  <dir>          # report, refuse, change nothing
+node Scripts/worktree-cleanup.mjs unlink <dir>          # remove links only
+node Scripts/worktree-cleanup.mjs delete <dir> --yes    # unlink, verify, then delete
+```
+
+It walks without descending through links, prints each destination, removes a
+junction with a link-only operation, re-scans to prove zero reparse points
+remain, and only then deletes. It refuses to delete the checkout it runs from.
+
+**Never `git checkout -- .` or `git restore .`.** Both revert every uncommitted
+change in the tree, including work the current task never touched. Name the
+paths, or use the scoped form, which refuses an unscoped pathspec and refuses to
+run against a dirty tree unless `--archive` stashes it first:
+
+```bash
+node Scripts/worktree-cleanup.mjs restore mcp-server --archive
+```
+
+Acceptance: `node Scripts/worktree-cleanup.test.mjs`, included in
+`npm run test:editor-free`. It builds a disposable worktree with a real junction
+to a destination outside it and asserts both halves: the worktree is deleted
+**and** the destination survives byte-identical. A cleanup that deleted both
+would pass a naive "the directory is gone" test.
+
+**An audit that skips links must say so.** The content audit that preceded the
+2026-08-06 delete hashed every file it walked and correctly never descended
+through a reparse point, so files reachable only through a link were absent from
+its inventory. It reported "nothing unique here", which was true of what it
+inventoried and false of what was on disk. When an audit declines to follow
+something, list what it declined.
+
 ## Safety
 
 - Before a destructive change, make a source control checkpoint.
