@@ -81,7 +81,97 @@ maintains this file; Phase L consumes it.
 
 | Truthful Blueprint build reporting | Defect 0 closed for counting. `node_count` came from `RequestedNodeTypes.Num()` and `NodeMap.Add(NodeId, SpawnedNode)` ran **even when the factory returned null**, so a refused node stayed in the count: a build reported `node_count 2` while `graph_inspect` saw one node. Now the builder reports `OutCreatedNodes`/`OutFailedNodes`, skips null nodes and nodes created in a graph other than the one requested, and the command reports `requested_node_count` / `created_node_count` / `failed_node_count` / `failed_nodes` and the connection triple, on the success **and** failure payloads. A refused node now fails the whole build: partial graph creation is not a success mode. Live: `VariableGet` with `variable` instead of `varName` returns `success false` naming the refused node and its supplied parameters, `created_node_count` excludes it, and the gate `created_node_count == independently inspected node_count` holds on the valid graph (4), the rerun (4) and MultiGate (2). `Cast` with an unresolvable target class behaves the same. No failing case left a dirty package, a file change, a source-control entry or a save prompt. `Scripts/bp-truthful-report-acceptance.mjs`, 27 of 28 checks (2026-08-02) |
 
-## Unknown: the scene structure hash is not stable across consecutive reads after a mutation
+## Issue A, 2026-08-05: the hash is a SYMPTOM. scene_inspect intermittently reports an empty world
+
+Investigated on `investigate/hash-determinism`. The nondeterministic hash and
+the item-4 precondition flake are **one bug**, and it is not a hashing bug.
+
+### What is established, reproducibly
+
+`puerts_scene_inspect` intermittently returns `success: true`, the correct
+`level_path`, a valid 40-hex hash, and **zero actors** for a level holding 18.
+Caught at read 21 of 80, and again at read 73 of 120 - roughly 1 in 30 to 1 in
+100, with no mutation, no PIE and no user activity:
+
+```text
+NORMAL  count=18  elapsed_ms=1.40  hash=efa8557c472de323450ec7c08e63a632f0b77aaf
+EMPTY   count=0   elapsed_ms=0.05  hash=00640089900a6a395e68809f63443505afd5a414
+```
+
+`00640089900a6a395e68809f63443505afd5a414` is the hash of an empty level. It is
+the same value that appeared in the item-4 precondition failure, which is what
+ties the two symptoms together: a plan or an apply that lands on an empty read
+compares a real hash against the hash of nothing and reports `state_conflict`.
+
+The 30x drop in `elapsed_ms` says the actor iteration reached the end
+immediately rather than doing work and finding nothing.
+
+### What has been disproved, with measurements
+
+A `world_diagnostics` block was added to `scene_inspect` (diagnostic only,
+nothing branches on it) and captured on both a normal and an empty read. The
+two are **identical**:
+
+```json
+{"world_object_path":"/Game/MCPGenerated/L_BridgeThirdPerson.L_BridgeThirdPerson",
+ "world_type":"2","world_initialized":true,"level_count":1,
+ "current_level_null":false,"current_level_actor_array":18,
+ "all_levels_actor_array":18,"play_world_active":false,
+ "world_context_count":1,"gc_pending":false,
+ "current_level_visible":true,"visible_level_count":1}
+```
+
+That disproves, for this failure:
+
+- **A null, wrong, or uninitialized world.** Same world object path, initialized.
+- **An empty or missing level.** One level, `Actors.Num()` is 18 at the instant
+  the iterator returns none.
+- **Garbage collection mid-read.** `gc_pending` false.
+- **A PIE world or a second world context.** Neither present.
+- **`EActorIteratorFlags::OnlyActiveLevels` skipping a level whose `bIsVisible`
+  flickered.** This was the leading hypothesis and it is wrong:
+  `current_level_visible` is true and `visible_level_count` is 1 on the empty
+  read.
+- **Float formatting, sort order, negative zero, tag order, label churn.** All
+  irrelevant: the input set is empty, not differently encoded. The probe also
+  found spawn, move, delete and tag phases individually STABLE across 12 reads.
+
+Also disproved along the way: an earlier version of the probe reported the hash
+unstable in 5 of 8 phases, but it did not check `success`, so a refused read
+became an `undefined` hash counted as a second value. Corrected; the probe now
+separates call failures from hash samples and reports them apart.
+
+### What is still open
+
+`TActorIterator<AActor>(World)` yields nothing while that world's only level is
+visible and holds 18 valid actors. The remaining candidates are inside the
+iteration itself, not around it:
+
+- the iterator's own suitability filter rejecting every actor for one call;
+- `SortedLevelActors`'s `IsValid`/`IsPendingKill` filter rejecting all 18;
+- an early-return path inside `InspectSceneJson` producing an empty result that
+  never reached the iterator at all.
+
+The next diagnostic separates those three and is small: count what the iterator
+visits, what each filter rejects, and which branch produced the result, and
+report all three next to `actor_count`. Until that runs, no cause is claimed.
+
+### Impact, unchanged by this investigation
+
+It still fails closed. An empty read can only make a precondition REFUSE a valid
+apply; it cannot make one accept an invalid apply, because the empty hash never
+matches a real expected hash. `scene_inspect` returning an empty level to a
+caller who believes it is real is the more serious half, and it is the reason
+this is filed as a state-query defect rather than a hashing one.
+
+### Artifacts
+
+`Scripts/hash-determinism-probe.mjs` runs the phase matrix and writes
+`hash-input-before/after/diff.<phase>.json` under
+`<project>/Saved/MCPPuerTSBridge/hash-probe/` on the first mismatch of each
+phase.
+
+## Superseded: the scene structure hash is not stable across consecutive reads after a mutation
 
 Found 2026-08-05 while accepting the `scene_structure_hash` precondition
 (item 4). Recorded here rather than left in a test log because AGENTS.md is

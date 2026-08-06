@@ -510,6 +510,7 @@ bool UMCPPuerTSBridgeService::InspectSceneJson(
     Result->SetArrayField(TEXT("player_starts"), Starts);
     Result->SetStringField(TEXT("structure_hash_sha1"), MCPBridgeScene::StructureHash(World));
     Result->SetStringField(TEXT("structure_hash_basis"), MCPBridgeScene::StructureHashBasis());
+    Result->SetObjectField(TEXT("world_diagnostics"), MCPBridgeScene::WorldDiagnosticsJson(World));
     Result->SetBoolField(TEXT("package_dirty_before"), bDirtyBefore);
     Result->SetBoolField(TEXT("package_dirty_after"), Package != nullptr && Package->IsDirty());
     Result->SetNumberField(TEXT("elapsed_ms"), (FPlatformTime::Seconds() - StartSeconds) * 1000.0);
