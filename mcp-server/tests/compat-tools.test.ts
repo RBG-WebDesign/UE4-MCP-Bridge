@@ -20,7 +20,7 @@ import {
   createCompatTools,
   registerCompatAliases,
 } from "../src/tools/compat.js";
-import { createPuertsTools } from "../src/tools/puerts.js";
+import { createPuertsTools, QUARANTINED_TOOLS } from "../src/tools/puerts.js";
 import type { ToolDefinition } from "../src/types.js";
 
 let passed = 0;
@@ -73,11 +73,47 @@ async function main(): Promise<void> {
   const server: Server = createServer((socket) => socket.once("data", (data: Buffer) => {
     const request = JSON.parse(data.toString("utf8")) as PipeRequest;
     seen.push(request);
+    const responseData = request.command === "pie_agent_control"
+      && ["move_to", "press", "replay"].includes(String(request.params?.op))
+      && request.params?.export !== true
+      ? { operation_id: 7, status: "running" }
+      : request.command === "pie_agent_query" && request.params?.op === "status"
+        ? seen.some((entry) => entry.command === "pie_agent_control" && entry.params?.actor === "CancelTarget")
+          ? { status: "cancelled", error: "cancelled by caller" }
+          : { status: "succeeded", result: { completed: true } }
+        : request.command === "data_table_build" ? {
+          object_path: "/Game/MCPGenerated/DT_Items.DT_Items",
+          row_struct: "/Script/GameplayTags.GameplayTagTableRow",
+          row_names: ["Row1"],
+          row_count: 1,
+          saved: true,
+        }
+        : request.command === "blueprint_build" ? {
+          asset_path: request.params?.asset_path,
+          compiled: true,
+          compile_status: "UpToDate",
+        }        : request.command === "graph_inspect" ? {
+          graphs: [{ name: "EventGraph" }],
+          functions: [{ name: "Use" }],
+          variables: [{ name: "Health" }],
+          interfaces: [{ path: "/Game/BPI_Use" }],
+          event_dispatchers: [{ name: "OnUsed" }],
+          components: [{ name: "Root" }],
+        }
+      : request.command === "scene_inspect"
+        ? { actors: [
+            { label: "A", transform: { location: { x: 0, y: 0, z: 0 } }, bounds: { extent: { x: 1, y: 0, z: 0 } } },
+            { label: "B", transform: { location: { x: 5, y: 0, z: 0 } }, bounds: { extent: { x: 1, y: 0, z: 0 } } },
+            { label: "Near", transform: { location: { x: 0.5, y: 0, z: 0 } }, bounds: { extent: { x: 0, y: 0, z: 0 } } },
+            { label: "Duplicate", transform: { location: { x: 0, y: 0, z: 0 } }, bounds: { extent: { x: 0, y: 0, z: 0 } } },
+            { label: "Duplicate", transform: { location: { x: 1, y: 0, z: 0 } }, bounds: { extent: { x: 0, y: 0, z: 0 } } },
+          ] }
+      : { echoed_command: request.command };
     socket.end(JSON.stringify({
       session: responseSession,
       success: true,
       message: "Native command executed.",
-      data: { echoed_command: request.command },
+      data: responseData,
       changed_assets: [],
       changed_actors: [],
       warnings: [],
@@ -99,15 +135,36 @@ async function main(): Promise<void> {
     // --- catalog shape ----------------------------------------------------
     // A literal on purpose: this is the canary that catches an alias silently
     // disappearing. Raise it deliberately when a wave adds legacy names.
-    const ALIAS_COUNT = 40;
-    assert(compat.length === ALIAS_COUNT, `expected ${ALIAS_COUNT} compat aliases, got ${compat.length}`);
+    const ALIAS_COUNT = 63;
+    // compatAliasTargets keeps every alias, including those fronting a
+    // quarantined tool: the inventory generator records what the legacy name
+    // WAS replaced by, and dropping the row would report the alias as having no
+    // native successor rather than as paused.
     assert(
       Object.keys(compatAliasTargets).length === ALIAS_COUNT,
       `compatAliasTargets must name all ${ALIAS_COUNT} aliases for the inventory generator`,
     );
+    const quarantinedAliases = Object.entries(compatAliasTargets)
+      .filter(([, canonical]) => QUARANTINED_TOOLS.has(canonical))
+      .map(([alias]) => alias);
+    const DISCOVERABLE_ALIAS_COUNT = ALIAS_COUNT - quarantinedAliases.length;
+    assert(
+      compat.length === DISCOVERABLE_ALIAS_COUNT,
+      `expected ${DISCOVERABLE_ALIAS_COUNT} discoverable compat aliases `
+      + `(${ALIAS_COUNT} less ${quarantinedAliases.length} quarantined), got ${compat.length}`,
+    );
+    // An alias is a second public name, so it is a second door into a
+    // quarantined tool. level_new fronts puerts_level_create; if it stayed
+    // discoverable the editor crash would still be one legacy call away.
+    for (const alias of quarantinedAliases) {
+      assert(
+        !compat.some((tool) => tool.name === alias),
+        `${alias} fronts a quarantined tool and must not be discoverable`,
+      );
+    }
     const nativeNames = new Set(native.map((tool) => tool.name));
     const badTargets = Object.entries(compatAliasTargets)
-      .filter(([, canonical]) => !nativeNames.has(canonical))
+      .filter(([, canonical]) => !nativeNames.has(canonical) && !QUARANTINED_TOOLS.has(canonical))
       .map(([alias, canonical]) => `${alias} -> ${canonical}`);
     assert(badTargets.length === 0, `alias targets that are not native tools: ${badTargets.join(", ")}`);
     assert(
@@ -121,7 +178,7 @@ async function main(): Promise<void> {
     const wrongValue = registerCompatAliases([], client, { env: { MCP_COMPAT_ALIASES: "true" }, warn: () => {} });
     assert(wrongValue.length === 0, "only the exact value 1 enables aliases");
     const on = registerCompatAliases(native, client, { env: { MCP_COMPAT_ALIASES: "1" }, warn: () => {} });
-    assert(on.length === ALIAS_COUNT, `expected ${ALIAS_COUNT} aliases with the flag set, got ${on.length}`);
+    assert(on.length === DISCOVERABLE_ALIAS_COUNT, `expected ${DISCOVERABLE_ALIAS_COUNT} aliases with the flag set, got ${on.length}`);
 
     // --- a name a real tool already owns is skipped, not fatal ------------
     const warnings: string[] = [];
@@ -134,7 +191,7 @@ async function main(): Promise<void> {
       warn: (message) => warnings.push(message),
     });
     assert(
-      withCollision.length === ALIAS_COUNT - 1,
+      withCollision.length === DISCOVERABLE_ALIAS_COUNT - 1,
       `collision must skip exactly the colliding alias, got ${withCollision.length}`,
     );
     assert(
@@ -178,6 +235,32 @@ async function main(): Promise<void> {
 
     // --- other translations reach the right command -----------------------
     const routings: Array<[string, Record<string, unknown>, string, Record<string, unknown>]> = [
+      ["blueprint_info", { blueprint_path: "/Game/MCPGenerated/BP_A" }, "graph_inspect", { asset_path: "/Game/MCPGenerated/BP_A" }],
+      ["placement_validate", { actors: ["A", "B", "Missing"], gap_threshold: 2, overlap_threshold: 1 },
+        "scene_inspect", { actors: ["A", "B", "Missing"], include_components: false }],
+      ["blueprint_inspect", { blueprint_path: "/Game/MCPGenerated/BP_A", action: "variables" },
+        "graph_inspect", { asset_path: "/Game/MCPGenerated/BP_A" }],
+      ["anim_blueprint_build_from_json", {
+        package_path: "/Game/MCPGenerated/Anim", asset_name: "ABP_Guard",
+        skeleton_path: "/Game/Characters/SK_Guard", json_spec: JSON.stringify({
+          anim_graph: { pipeline: [{ id: "sm", type: "StateMachine", name: "Locomotion" }] },
+          state_machine: { states: [{ id: "idle", name: "Idle", animation: "/Game/Anim/A_Idle", is_entry: true }], transitions: [] },
+        }),
+      }, "anim_blueprint_build", {
+        asset_path: "/Game/MCPGenerated/Anim/ABP_Guard", skeleton_path: "/Game/Characters/SK_Guard",
+        anim_graph: { pipeline: [{ id: "sm", type: "StateMachine", name: "Locomotion" }] },
+        state_machine: { states: [{ id: "idle", name: "Idle", animation: "/Game/Anim/A_Idle", is_entry: true }], transitions: [] },
+      }],
+      ["widget_build_from_json", { package_path: "/Game/MCPGenerated/UI/", asset_name: "WBP_HUD", widget_json: { type: "CanvasPanel", name: "Root" } },
+        "widget_build", { asset_path: "/Game/MCPGenerated/UI/WBP_HUD", tree: { root: { type: "CanvasPanel", name: "Root" } } }],
+      ["widget_build_from_json", { package_path: "/Game/MCPGenerated/UI", asset_name: "WBP_HUD", widget_json: { root: { type: "CanvasPanel", name: "Root" }, animations: [] } },
+        "widget_build", { asset_path: "/Game/MCPGenerated/UI/WBP_HUD", tree: { root: { type: "CanvasPanel", name: "Root" }, animations: [] } }],
+      ["behavior_tree_create", { path: "/Game/MCPGenerated/AI/", name: "BT_Guard", blackboard_path: "/Game/MCPGenerated/AI/BB_Guard", keys: [{ name: "Target", type: "Object", base_class: "/Script/Engine.Actor" }], tree: { id: "root", type: "Selector" } },
+        "behavior_tree_build", { asset_path: "/Game/MCPGenerated/AI/BT_Guard", blackboard_path: "/Game/MCPGenerated/AI/BB_Guard", keys: [{ name: "Target", type: "Object", base_class: "/Script/Engine.Actor" }], root: { id: "root", type: "Selector" } }],
+      ["blackboard_create", { path: "/Game/MCPGenerated/AI", name: "BB_Guard", keys: [{ name: "Alerted", type: "Bool" }] },
+        "blackboard_build", { asset_path: "/Game/MCPGenerated/AI/BB_Guard", keys: [{ name: "Alerted", type: "Bool" }] }],
+      ["viewport_fit", { actor_names: ["Door", "Frame"] }, "viewport_screenshot", { actors: ["Door", "Frame"] }],
+      ["viewport_focus", { actor_name: "Door" }, "viewport_screenshot", { actors: ["Door"] }],
       ["actor_delete", { actor_name: "Cube_1" }, "delete_actor", { actor: "Cube_1", confirm: true }],
       ["actor_modify", { actor_name: "Cube_1", visible: false }, "set_property", { actor: "Cube_1", property: "bHidden", value: true }],
       ["level_actors", { class_filter: "StaticMeshActor", name_filter: "Cube", limit: 5 }, "find_actors", { type: "StaticMeshActor", name: "Cube", include_transforms: true, limit: 5 }],
@@ -188,7 +271,11 @@ async function main(): Promise<void> {
       ["level_actors", { folder_filter: "Courtyard", include_transforms: false }, "find_actors", { folder_filter: "Courtyard", include_transforms: false }],
       ["actor_spawn", { asset_path: "/Script/Engine.StaticMeshActor", name: "Pillar_NE", folder: "Courtyard/Structure", scale: { x: 1, y: 1, z: 4 } },
         "spawn_actor", { class_path: "/Script/Engine.StaticMeshActor", name: "Pillar_NE", folder: "Courtyard/Structure", scale: { x: 1, y: 1, z: 4 } }],
-      ["level_save", {}, "save", {}],
+      ["level_save", {}, "level_save", { save_all: false }],
+      ["level_save", { save_all: true }, "level_save", { save_all: true }],
+      ["level_new", { path: "/Game/Maps/NewMap" }, "level_create", { level_path: "/Game/Maps/NewMap" }],
+      ["level_new", { path: "/Game/Maps/Copy", template: "/Game/Maps/Template" }, "level_create",
+        { level_path: "/Game/Maps/Copy", template_path: "/Game/Maps/Template" }],
       ["asset_save_many", { paths: "/Game/Maps/Test" }, "save", { assets: ["/Game/Maps/Test"] }],
       ["asset_list", { path: "/Game/Meshes", asset_type: "StaticMesh", name_pattern: "SM_" }, "find_assets", { path: "/Game/Meshes", type: "StaticMesh", name: "SM_" }],
       ["viewport_screenshot", { filename: "shot.png" }, "viewport_screenshot", { filename: "shot.png" }],
@@ -215,10 +302,41 @@ async function main(): Promise<void> {
       ["folder_hidden_list", {}, "folder_visibility", {}],
       ["camera_shake_play", { shake_class: "/Game/CS.CS_C", scale: 2 },
         "camera_shake", { shake_class: "/Game/CS.CS_C", scale: 2 }],
+      ["actor_organize", { actors: ["A", "B"], folder: "Lighting/Interior" }, "scene_batch", {
+        operations: [
+          { op: "upsert_actor", select: { label: "A" }, folder: "Lighting/Interior" },
+          { op: "upsert_actor", select: { label: "B" }, folder: "Lighting/Interior" },
+        ], verify: true,
+      }],
+      ["batch_spawn", { spawns: [{ asset_path: "/Script/Engine.StaticMeshActor", name: "Pillar", location: { x: 1, y: 2, z: 3 } }] }, "scene_batch", {
+        operations: [{ op: "upsert_actor", class: "/Script/Engine.StaticMeshActor", label: "Pillar", location: { x: 1, y: 2, z: 3 } }], verify: true,
+      }],
+      ["batch_operations", { operations: [{ command: "actor_delete", params: { actor_name: "OldPillar" } }] }, "scene_batch", {
+        operations: [{ op: "delete_actor", select: { label: "OldPillar" } }], verify: true,
+      }],
       ["pie_agent_observe", { radius: 800 }, "pie_agent_query", { op: "observe", radius: 800 }],
       ["pie_agent_status", { operation_id: 3 }, "pie_agent_query", { op: "status", operation_id: 3 }],
       ["pie_agent_expect", { conditions: ["actor_count:Cube:1"] },
         "pie_agent_query", { op: "expect", conditions: ["actor_count:Cube:1"] }],
+      ["project_settings_maps", { game_default_map: "/Game/Maps/Main.Main" },
+        "project_settings_maps", { game_default_map: "/Game/Maps/Main.Main" }],
+      ["data_table_create", {
+        path: "/Game/MCPGenerated", name: "DT_Items",
+        row_struct: "/Script/GameplayTags.GameplayTagTableRow", rows_json: [{ Name: "Row1", Tag: "Items.Key" }],
+      }, "data_table_build", {
+        asset_path: "/Game/MCPGenerated/DT_Items",
+        row_struct: "/Script/GameplayTags.GameplayTagTableRow", rows_json: [{ Name: "Row1", Tag: "Items.Key" }],
+      }],
+      ["data_table_fill_from_json", {
+        data_table: "/Game/MCPGenerated/DT_Items.DT_Items", rows_json: "[]",
+      }, "data_table_build", { asset_path: "/Game/MCPGenerated/DT_Items", rows_json: "[]" }],
+      ["pie_agent_look_at", { actor: "BP_Target" },
+        "pie_agent_control", { op: "look_at", actor: "BP_Target" }],
+      ["pie_agent_record_start", { events: ["spawn"], max_events: 64 },
+        "pie_agent_control", { op: "record_start", events: ["spawn"], max_events: 64 }],
+      ["pie_agent_record_stop", {}, "pie_agent_control", { op: "record_stop" }],
+      ["pie_agent_replay", { export: true },
+        "pie_agent_control", { op: "replay", export: true }],
 
       // Blueprint members: one legacy call is one operation of the batch
       // command. The four with renamed parameters are the ones pinned here.
@@ -266,7 +384,17 @@ async function main(): Promise<void> {
         "blueprint_graph_patch",
         { asset_path: "/Game/MCPGenerated/BP_A", graph: "EventGraph", operations: [{ op: "connect_pins", from: { target: { node_guid: "a" }, pin: "then" }, to: { target: { node_guid: "b" }, pin: "execute" } }] }],
     ];
-    for (const [alias, input, command, expected] of routings) {
+    // A quarantined alias has no handler to route through, so its rows stay in
+    // the table and are skipped. Kept rather than deleted: they are the
+    // translation contract that has to still hold on the day the quarantine is
+    // lifted, and re-deriving them then is how a legacy parameter gets lost.
+    const routable = routings.filter(([alias]) =>
+      !QUARANTINED_TOOLS.has(compatAliasTargets[alias] ?? ""));
+    assert(
+      routable.length < routings.length,
+      "no routing row is quarantined; drop this filter if the quarantine is lifted",
+    );
+    for (const [alias, input, command, expected] of routable) {
       seen.length = 0;
       const payload = await call(toolNamed(compat, alias), input);
       assert(seen[0]?.command === command, `${alias} must route to ${command}, got ${seen[0]?.command}`);
@@ -278,8 +406,110 @@ async function main(): Promise<void> {
       assert(payload.canonical_tool === compatAliasTargets[alias], `${alias} reported the wrong canonical_tool`);
     }
 
+    seen.length = 0;
+    const legacyBlueprintBuild = await call(toolNamed(compat, "blueprint_build_from_json"), {
+      blueprint_path: "/Game/MCPGenerated/BP_A.BP_A",
+      graph: {
+        nodes: [
+          { id: "begin", type: "BeginPlay" },
+          { id: "print", type: "CallFunction", function: "PrintString", params: { InString: "Hello" } },
+        ],
+        connections: [{ from: "begin.exec", to: "print.exec" }],
+      },
+      clear_existing: true,
+    });
+    assert(seen.length === 2, "blueprint_build_from_json must inspect once, then build once");
+    assert(seen[0]?.command === "graph_inspect", "blueprint_build_from_json must preserve the legacy existing-asset precondition");
+    assert(stable(seen[0]?.params) === stable({ asset_path: "/Game/MCPGenerated/BP_A" }),
+      "blueprint_build_from_json must normalize an object path before inspection");
+    assert(seen[1]?.command === "blueprint_build", "blueprint_build_from_json must use the native Blueprint builder");
+    assert(stable(seen[1]?.params) === stable({
+      asset_path: "/Game/MCPGenerated/BP_A",
+      graph: {
+        nodes: [
+          { id: "begin", type: "BeginPlay" },
+          { id: "print", type: "CallFunction", params: { class: "KismetSystemLibrary", function: "PrintString", InString: "Hello" } },
+        ],
+        connections: [{ from: "begin.exec", to: "print.exec" }],
+      },
+      clear_existing_graph: true,
+    }), `blueprint_build_from_json translated to ${JSON.stringify(seen[1]?.params)}`);
+    const legacyBuildData = legacyBlueprintBuild.data as Record<string, unknown>;
+    assert(legacyBuildData.path === "/Game/MCPGenerated/BP_A.BP_A", "legacy Blueprint path must survive the result adapter");
+    assert(legacyBuildData.compiled === true, "legacy Blueprint build must report the native compile verdict");
+    assert(legacyBuildData.compile_method === "MCPBridgeGraphBuilder", "legacy Blueprint build must identify the native compile path");
+    // These three legacy tools blocked until their native operation reached a
+    // terminal state. Preserve that envelope by polling the existing query op.
+    for (const [alias, input, expectedControl] of [
+      ["pie_agent_move_to", { actor: "BP_Target", timeout: 1 }, { op: "move_to", actor: "BP_Target", timeout: 1 }],
+      ["pie_agent_press", { action: "Interact", hold_seconds: 0 }, { op: "press", action: "Interact", hold_seconds: 0 }],
+      ["pie_agent_replay", { script: [], budget_seconds: 1 }, { op: "replay", script: [], budget_seconds: 1 }],
+    ] as const) {
+      seen.length = 0;
+      const payload = await call(toolNamed(compat, alias), input);
+      assert(seen.length === 2, `${alias} must make one control call and one status call`);
+      assert(seen[0]?.command === "pie_agent_control", `${alias} must start through pie_agent_control`);
+      assert(stable(seen[0]?.params) === stable(expectedControl), `${alias} control params changed shape`);
+      assert(seen[1]?.command === "pie_agent_query", `${alias} must poll through pie_agent_query`);
+      assert(stable(seen[1]?.params) === stable({ op: "status", operation_id: 7 }),
+        `${alias} status params changed shape`);
+      const terminal = payload.data as Record<string, unknown>;
+      assert(terminal.operation_id === 7 && terminal.completed === true,
+        `${alias} must restore the legacy terminal envelope`);
+    }
+
+    seen.length = 0;
+    const strictRefusal = await call(toolNamed(compat, "pie_agent_look_at"), {
+      actor: "BP_Target", unsupported: true,
+    });
+    assert(strictRefusal.success === false, "PIE aliases must reject unsupported parameters loudly");
+    assert(seen.length === 0, "a rejected PIE alias must make zero pipe calls");
+    const emptySettings = await call(toolNamed(compat, "project_settings_maps"), {});
+    assert(emptySettings.success === false, "project_settings_maps must require at least one setting");
+    assert(seen.length === 0, "rejected empty project settings must make zero pipe calls");
+
+    seen.length = 0;
+    const cancelled = await call(toolNamed(compat, "pie_agent_move_to"), {
+      actor: "CancelTarget", timeout: 1,
+    });
+    assert(seen.length === 2, "a cancelled PIE operation must stop after its terminal status");
+    assert(cancelled.success === false, "a cancelled PIE operation must preserve a failed legacy verdict");
+
+    const inspect = await call(toolNamed(compat, "blueprint_inspect"), {
+      blueprint_path: "/Game/MCPGenerated/BP_A",
+      action: "variables",
+    });
+    assert(
+      stable(inspect.data) === stable({ action: "variables", result: [{ name: "Health" }] }),
+      `blueprint_inspect must retain the legacy action/result shape, got ${JSON.stringify(inspect.data)}`,
+    );
+
+    const placement = await call(toolNamed(compat, "placement_validate"), {
+      actors: ["A", "B", "Missing"], gap_threshold: 2, overlap_threshold: 1,
+    });
+    assert(
+      stable(placement.data) === stable({
+        actors_checked: 2,
+        not_found: ["Missing"],
+        issues: [{ type: "gap", actors: ["A", "B"], gap: 3, threshold: 2 }],
+        issue_count: 1,
+      }),
+      `placement_validate must preserve legacy gap results, got ${JSON.stringify(placement.data)}`,
+    );
+    const duplicate = await call(toolNamed(compat, "placement_validate"), { actors: ["Duplicate", "A"] });
+    assert(duplicate.success === false, "placement_validate must refuse duplicate actor labels");
+    assert(
+      Array.isArray(duplicate.errors) && duplicate.errors.some((error) => String(error).includes("matched 2 actors")),
+      `placement_validate duplicate-label refusal must explain the ambiguity, got ${JSON.stringify(duplicate.errors)}`,
+    );
     // --- unmappable parameters fail loud, and never reach the editor ------
     const unmappable: Array<[string, Record<string, unknown>, string]> = [
+      ["behavior_tree_create", { path: "/Game/MCPGenerated/AI", name: "BT_Empty", blackboard_path: "/Game/MCPGenerated/AI/BB_Guard" }, "tree"],
+      ["viewport_fit", {}, "actor_names"],
+      ["blueprint_inspect", { blueprint_path: "/Game/MCPGenerated/BP_A", action: "node_detail", graph_name: "EventGraph", node_guid: "abc" }, "action"],
+      ["anim_blueprint_build_from_json", { package_path: "/Game/MCPGenerated/Anim", asset_name: "ABP_Bad", skeleton_path: "/Game/Skeletons/SK", json_spec: "[" }, "json_spec"],
+      ["viewport_fit", { actor_names: ["Door"], padding: 1.5 }, "padding"],
+      ["viewport_focus", { actor_name: "Door", distance: 500 }, "distance"],
       ["undo", { count: 1 }, "transaction_id"],
       ["undo", { count: 3, transaction_id: "tx-9" }, "count"],
       ["actor_spawn", { asset_path: "/Game/Meshes/SM_Cube", validate: false }, "validate"],
@@ -287,7 +517,7 @@ async function main(): Promise<void> {
       ["actor_delete", { actor_name: "Cube_*" }, "actor_name"],
       ["level_actors", { include_components: true }, "include_components"],
       ["level_actors", { name_filter: "Cube_*" }, "name_filter"],
-      ["level_save", { save_all: true }, "save_all"],
+
       ["viewport_screenshot", { resolution: { width: 640 } }, "resolution"],
       ["viewport_screenshot", { show_ui: true }, "show_ui"],
       ["gameplay_pie_start", { level_path: "/Game/Maps/Test" }, "level_path"],
@@ -301,6 +531,8 @@ async function main(): Promise<void> {
       ["blueprint_node_add",
         { blueprint_path: "/Game/MCPGenerated/BP_A", graph_name: "EventGraph", node_type: "InputAction" },
         "node_type"],
+      ["batch_operations", { operations: [{ command: "project_index_rebuild", params: {} }] }, "operations"],
+      ["batch_operations", { operations: [{ command: "actor_delete", params: { actor_name: "Old_*" } }] }, "operations"],
     ];
     for (const [alias, input, parameter] of unmappable) {
       seen.length = 0;

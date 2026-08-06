@@ -278,14 +278,20 @@ class BridgeRequestHandler(BaseHTTPRequestHandler):
         })
 
 
-def _process_command_queue(delta_time: float) -> None:
+def _process_command_queue(
+    delta_time: float,
+    route: Optional[Callable[[str, Dict[str, Any]], Dict[str, Any]]] = None,
+) -> None:
     """Tick callback that processes queued commands on the game thread.
     
     This function is registered with unreal.register_slate_post_tick_callback
     and runs every editor tick on the game thread, where unreal API calls are safe.
     """
-    from mcp_bridge.router import route_command
     global _last_event_timestamp, _last_event_command, _last_event_result, _last_event_duration_ms
+
+    if route is None:
+        from mcp_bridge.router import route_command
+        route = route_command
 
     # Process up to 10 commands per tick to avoid blocking the editor
     processed = 0
@@ -318,7 +324,7 @@ def _process_command_queue(delta_time: float) -> None:
         cmd_start = time.time()
 
         try:
-            result = route_command(command, params)
+            result = route(command, params)
         except Exception as e:
             result = {
                 "success": False,

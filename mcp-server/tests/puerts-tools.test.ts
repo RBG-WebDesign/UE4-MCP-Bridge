@@ -8,6 +8,8 @@ import {
   createPuertsTools,
   decodeStructuredParams,
   decodeStructuredValue,
+  nativeToolSpecs,
+  QUARANTINED_TOOLS,
 } from "../src/tools/puerts.js";
 
 import {
@@ -15,6 +17,25 @@ import {
   TEST_SESSION_ID,
   TEST_SESSION_NONCE,
 } from "./session-fixture.js";
+
+/** The reference file that carries the Blueprint node catalog, the pin names
+    and the member_patch operation grammar.
+
+    Those used to live in the tool descriptions, and several suites asserted
+    against the description to stop a node type or an op shipping undocumented.
+    A description is resident context that every session pays for, so the
+    catalogs moved here and the assertions followed. The invariant is unchanged:
+    the schema has to VALIDATE it and this file has to DOCUMENT it. Assert on
+    both, never on neither. */
+function readBlueprintReference(): Promise<string> {
+  return readFile(
+    join(
+      dirname(fileURLToPath(import.meta.url)),
+      "..", "..", "skills", "unreal-engine-4-27", "references", "blueprint-tools.md",
+    ),
+    "utf8",
+  );
+}
 
 /** The identity every mock reply stamps, kept in a module-level binding so each
     suite's server closure sees the session that suite advertised. */
@@ -73,7 +94,8 @@ async function main(): Promise<void> {
     });
     const client = new PuerTSClient();
     const tools = createPuertsTools(client);
-    assert(tools.length === 60, "expected all 60 PuerTS tools");
+    assert(tools.length === 71, "expected all 71 discoverable PuerTS tools (73 specs less 2 quarantined)");
+    assert(tools.some((tool) => tool.name === "puerts_project_settings_patch"), "generic project settings tool is missing");
     assert(tools.some((tool) => tool.name === "puerts_behavior_tree_build"), "native Behavior Tree builder tool is missing");
     assert(tools.some((tool) => tool.name === "puerts_behavior_tree_inspect"), "native Behavior Tree inspector tool is missing");
     assert(tools.some((tool) => tool.name === "puerts_sky_shader_create"), "native sky shader tool is missing");
@@ -83,10 +105,76 @@ async function main(): Promise<void> {
     assert(tools.some((tool) => tool.name === "puerts_widget_inspect"), "native widget inspector tool is missing");
     assert(tools.some((tool) => tool.name === "puerts_widget_bind"), "native widget binder tool is missing");
     assert(tools.some((tool) => tool.name === "puerts_blueprint_member_patch"), "native Blueprint member patch tool is missing");
+    assert(tools.some((tool) => tool.name === "puerts_level_save"), "puerts_level_save is missing");
+    // Quarantine, both halves. The discovery half is checked here directly; the
+    // runtime half cannot be imported (registry.ts imports "ue", which exists
+    // only inside the editor), so it is checked by reading the file. That is
+    // deliberately a text assertion: what matters is that the two lists name the
+    // same tools, and a list that drifts is exactly the failure a stale client
+    // would hit.
+    for (const name of QUARANTINED_TOOLS) {
+      assert(!tools.some((tool) => tool.name === name), name + " is quarantined but still discoverable");
+      assert(
+        nativeToolSpecs.some((spec) => spec.name === name),
+        name + " was deleted rather than quarantined; the spec must stay so a stale alias "
+        + "gets the quarantine reason instead of a schema error",
+      );
+    }
+    const runtimeRegistry = await readFile(
+      join(repoRoot, "puerts-runtime", "src", "registry.ts"), "utf8",
+    );
+    const quarantineBlock = runtimeRegistry.slice(
+      runtimeRegistry.indexOf("export const quarantinedTools"),
+      runtimeRegistry.indexOf("export const toolDefinitions"),
+    );
+    assert(quarantineBlock.length > 0, "the runtime has no quarantinedTools map");
+    for (const name of QUARANTINED_TOOLS) {
+      const command = name.replace(/^puerts_/, "");
+      assert(
+        new RegExp(`^\\s+${command}:`, "m").test(quarantineBlock),
+        `${name} is quarantined in the server but the runtime would still execute ${command}`,
+      );
+    }
+    const runtimeNames = [...quarantineBlock.matchAll(/^\s{2}([a-z0-9_]+):/gm)].map((m) => m[1]);
+    assert(
+      runtimeNames.length === QUARANTINED_TOOLS.size,
+      `the runtime quarantines ${runtimeNames.length} tool(s) (${runtimeNames.join(", ")}) but the `
+      + `server withholds ${QUARANTINED_TOOLS.size} from discovery; a tool quarantined on one side `
+      + "only is either advertised-and-dead or hidden-and-callable",
+    );
+    assert(
+      runtimeRegistry.includes('result.error_code = "capability_quarantined"'),
+      "the runtime quarantine does not return the capability_quarantined code",
+    );
+
+    // One schema per tool, and it is the zod one. The runtime used to carry a
+    // second, thinner copy per tool; it validated nothing (execute never read
+    // it, and its only consumer was a manifest() with no callers) and it had
+    // already drifted - four tools said "number" where the contract is an
+    // integer. Deleted rather than generated: a generated copy of something
+    // nothing reads is still something to keep in step.
+    // Declarations, not prose: the comments in both files explain why the
+    // schemas were removed and would otherwise match their own warning.
+    const declaresSchema = (source: string): boolean =>
+      /^\s*(readonly\s+)?(inputSchema|outputSchema)\s*[:,]/m.test(source)
+      || /interface JsonSchema/.test(source);
+    assert(
+      !declaresSchema(runtimeRegistry),
+      "the runtime registry declares schemas again; the zod schema in "
+      + "mcp-server/src/tools/puerts.ts is the single source for a tool's input contract",
+    );
+    const runtimeTypes = await readFile(
+      join(repoRoot, "puerts-runtime", "src", "types.ts"), "utf8",
+    );
+    assert(
+      !declaresSchema(runtimeTypes),
+      "ToolDefinition carries a schema field again; that is what let the two copies drift",
+    );
     for (const name of [
       "puerts_anim_blueprint_build",
       "puerts_anim_blueprint_inspect",
       "puerts_anim_montage_inspect",
+      "puerts_anim_montage_build",
       "puerts_anim_blend_space_inspect",
       "puerts_blackboard_build",
       "puerts_blackboard_inspect",
@@ -264,7 +352,9 @@ async function marshalingSuite(): Promise<void> {
     actually spawn. A client that is told "any node type" writes graphs the
     builder silently skips, which produces a Blueprint that compiles clean and
     does nothing. These assertions pin the advertised surface and the
-    validation that keeps a bad spec off the pipe. */
+    validation that keeps a bad spec off the pipe. The surface is now two
+    halves: the zod enum, which validates, and references/blueprint-tools.md,
+    which documents. Both are checked. */
 async function blueprintBuildSuite(): Promise<void> {
   const directory = await mkdtemp(join(tmpdir(), "ue4-puerts-bp-"));
   const tokenPath = join(directory, "token.txt");
@@ -304,6 +394,29 @@ async function blueprintBuildSuite(): Promise<void> {
     const tool = createPuertsTools(new PuerTSClient())
       .find((entry) => entry.name === "puerts_blueprint_build");
     assert(tool !== undefined, "puerts_blueprint_build is missing");
+
+    // A node type has to be BOTH callable and documented. It used to be
+    // documented in the tool description; the node catalog now lives in the
+    // skill, because a description is resident context and a 36-entry list is
+    // not what a caller needs in order to make a valid call. The invariant is
+    // unchanged, so this reads the reference file rather than the description.
+    // Dropping the second half would let a node type ship that nothing tells a
+    // caller exists.
+    const nodeCatalog = await readBlueprintReference();
+    const newlyNativeNodeTypes = [
+      "InputAction", "InputAxisEvent", "MacroInstance", "AddDelegate", "RemoveDelegate",
+      "CallDelegate", "ClearDelegate", "AssignDelegate", "CreateDelegate",
+    ] as const;
+    for (const nodeType of newlyNativeNodeTypes) {
+      assert(tool.inputSchema.safeParse({
+        asset_path: "/Game/MCPGenerated/BP_NodeVocabulary",
+        graph: { nodes: [{ id: `node_${nodeType}`, type: nodeType }] },
+      }).success === true, `blueprint_build schema is missing native node type ${nodeType}`);
+      assert(nodeCatalog.includes(nodeType),
+        `references/blueprint-tools.md is missing native node type ${nodeType}`);
+    }
+    assert(tool.description.includes("blueprint-tools.md"),
+      "blueprint_build description must point at the reference that holds the node catalog");
 
     const built = await tool.handler({
       asset_path: "/Game/MCPGenerated/BP_ProbeDoor",
@@ -406,6 +519,20 @@ async function blueprintBuildSuite(): Promise<void> {
       "nested component properties were not decoded before the pipe",
     );
 
+    const componentPrune = await tool.handler({
+      asset_path: "/Game/MCPGenerated/BP_ProbeDoor",
+      components: [],
+      remove_unlisted: { components: true },
+      plan_only: true,
+    });
+    assert(
+      JSON.parse(componentPrune.content[0]?.text ?? "null").success === true,
+      "component convergence scope was rejected by the MCP schema",
+    );
+    assert(
+      (received[4]?.remove_unlisted as { components?: boolean } | undefined)?.components === true,
+      "remove_unlisted.components did not reach the native builder",
+    );
     const badProperties = await tool.handler({
       asset_path: "/Game/MCPGenerated/BP_ProbeDoor",
       components: [{ class: "StaticMeshComponent", name: "DoorMesh", properties: ["StaticMesh"] }],
@@ -414,9 +541,25 @@ async function blueprintBuildSuite(): Promise<void> {
       JSON.parse(badProperties.content[0]?.text ?? "null").success === false,
       "properties as an array was accepted",
     );
-    assert(received.length === 4, "a malformed properties value still reached the editor");
+    assert(received.length === 5, "a malformed properties value still reached the editor");
     console.log("  PASS  Blueprint build schema, structured parameters, and rejected specs");
+    const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
+    const native = await readFile(join(
+      repoRoot, "Plugins", "MCPBridge", "Source", "MCPBridgePuerTS", "Private",
+      "MCPPuerTSBridgeBlueprint.cpp",
+    ), "utf8");
+    for (const contract of [
+      'SupportedScopes[] = { TEXT("variables"), TEXT("components") }',
+      "ManagedComponentMetaKey",
+      "FindAllBoundEventsForComponent",
+      "RemoveNodeAndPromoteChildren",
+      'SetArrayField(TEXT("removed_components")',
+      'SetBoolField(TEXT("components_converged")',
+    ]) {
+      assert(native.includes(contract), `native component-convergence contract is missing: ${contract}`);
+    }
     console.log("  PASS  component template properties reach the pipe in their own shapes");
+    console.log("  PASS  component downward convergence ownership, references and read-back contract");
   } finally {
     await new Promise<void>((resolve) => server.close(() => resolve()));
     await rm(directory, { recursive: true, force: true });
@@ -914,6 +1057,63 @@ async function sceneSuite(): Promise<void> {
       typeof sentBatch?.__timeout === "number" && (sentBatch.__timeout as number) >= 50000,
       "scene_batch did not get a batch-sized timeout budget",
     );
+
+    // --- preconditions: format is a boundary concern, not an editor concern --
+    // A mistyped hash and a moved scene mean opposite things. If a bad format
+    // reached Unreal it would come back as state_conflict, and a client would
+    // re-plan forever against a hash it corrupts on every send.
+    const okHash = "6428f5ad0d71a7e4bbfe28bdb85ec93f6a789519";
+    const batchOp = [{ op: "upsert_actor", select: { name: "Cube_1" }, location: { x: 1, y: 2, z: 3 } }];
+    const runBatch = async (args: Record<string, unknown>): Promise<Record<string, unknown>> =>
+      JSON.parse((await batch.handler(args)).content[0]?.text ?? "null") as Record<string, unknown>;
+
+    const beforePrecondition = received.length;
+    for (const bad of [
+      "sha1:not-a-hash",
+      "6428F5AD0D71A7E4BBFE28BDB85EC93F6A789519",       // upper case
+      okHash.slice(0, 39),                               // too short
+      `${okHash}a`,                                      // too long
+      `sha256:${okHash}`,                                // wrong algorithm prefix
+      "",
+    ]) {
+      const rejected = await runBatch({
+        operations: batchOp, preconditions: { scene_structure_hash: bad },
+      });
+      assert(rejected.success === false, `a malformed precondition hash was accepted: ${bad}`);
+    }
+    assert(
+      received.length === beforePrecondition,
+      "8. a malformed precondition hash reached the editor; it must fail schema validation first",
+    );
+
+    for (const accepted of [okHash, `sha1:${okHash}`]) {
+      await runBatch({ operations: batchOp, preconditions: { scene_structure_hash: accepted } });
+      const sent = received[received.length - 1];
+      const preconditions = sent?.preconditions as Record<string, unknown> | undefined;
+      // Sent verbatim. The "sha1:" prefix is normalized in C++, not here: a
+      // server that silently rewrites the caller's value makes a mismatch
+      // report name a string nobody typed.
+      assert(
+        preconditions?.scene_structure_hash === accepted,
+        `a valid precondition (${accepted}) did not reach the pipe unchanged`,
+      );
+    }
+
+    const unknownPrecondition = await runBatch({
+      operations: batchOp,
+      preconditions: { scene_structure_hash: okHash, asset_structure_hash: okHash },
+    });
+    assert(unknownPrecondition.success === false,
+      "an undefined precondition type was accepted; only scene_structure_hash exists");
+
+    // 7. compatibility: no preconditions is the existing behavior, unchanged.
+    const beforeCompat = received.length;
+    const noPreconditions = await runBatch({ operations: batchOp });
+    assert(received.length === beforeCompat + 1, "7. a batch without preconditions must still reach the editor");
+    assert(!("preconditions" in (received[received.length - 1] ?? {})),
+      "7. a batch without preconditions must not invent one");
+    assert(noPreconditions.success === true, "7. a batch without preconditions must still succeed");
+
     console.log("  PASS  scene inspect and batch contract");
   } finally {
     await new Promise<void>((resolve) => server.close(() => resolve()));
@@ -1409,12 +1609,25 @@ async function nonActorParentSuite(): Promise<void> {
       "the AsResult cast pin role did not reach the pipe",
     );
 
+    // These three are unguessable, so they have to be written down: AsResult
+    // exists because a Cast's real pin name is "As" plus a display name a caller
+    // cannot compute, and scope "target" is the only way to reach a variable on
+    // another object. The parent-class rule stays in the schema, where someone
+    // choosing a parent is already reading. The other two are per-node pin
+    // detail and live in the reference the description points at.
+    const buildSchema = JSON.stringify(tool.inputSchema);
     assert(
-      tool.description.includes("SaveGame")
-        && tool.description.includes("non-Actor parent")
-        && tool.description.includes("AsResult")
-        && tool.description.includes("\"target\""),
-      "the tool no longer advertises non-Actor parents, AsResult, or target-scoped variables",
+      buildSchema.includes("non-Actor") && buildSchema.includes("Actor parent"),
+      "blueprint_build no longer advertises that non-Actor parents are allowed and gated",
+    );
+    assert(
+      tool.description.includes("blueprint-tools.md"),
+      "blueprint_build must point at the reference holding the node and pin catalogs",
+    );
+    const pinCatalog = await readBlueprintReference();
+    assert(
+      pinCatalog.includes("AsResult") && pinCatalog.includes("`\"target\"`"),
+      "references/blueprint-tools.md no longer documents AsResult or target-scoped variables",
     );
     console.log("  PASS  a non-Actor parent, target-scoped variables and the AsResult pin role");
   } finally {
@@ -2113,6 +2326,25 @@ async function animationSuite(): Promise<void> {
     const tools = createPuertsTools(new PuerTSClient());
     const inspect = tools.find((entry) => entry.name === "puerts_anim_blueprint_inspect");
     const montage = tools.find((entry) => entry.name === "puerts_anim_montage_inspect");
+    const montageBuild = tools.find((entry) => entry.name === "puerts_anim_montage_build");
+    const sequenceEventBuild = tools.find((entry) => entry.name === "puerts_sequence_event_track_build");
+    const dataTableBuild = tools.find((entry) => entry.name === "puerts_data_table_build");
+    assert(montageBuild !== undefined && sequenceEventBuild !== undefined, "new animation and sequence writers are missing");
+    assert(dataTableBuild !== undefined, "native DataTable writer is missing");
+    assert(dataTableBuild.inputSchema.safeParse({ asset_path: "/Game/MCPGenerated/DT_Items", row_struct: "/Script/GameplayTags.GameplayTagTableRow", rows_json: [], plan_only: true }).success, "data_table_build rejected its smallest valid spec");
+    assert(montageBuild.inputSchema.safeParse({
+      asset_path: "/Game/MCPGenerated/AM_Attack",
+      skeleton: "/Game/Characters/Hero_Skeleton",
+      slots: [{ slot_name: "DefaultGroup", segments: [{ animation: "/Game/Anim/Idle" }] }],
+      sections: [{ name: "Default", start_time: 0 }],
+      plan_only: true,
+    }).success, "anim_montage_build rejected its smallest valid spec");
+    assert(sequenceEventBuild.inputSchema.safeParse({
+      asset_path: "/Game/MCPGenerated/LS_Intro",
+      endpoint_name: "OnBeat",
+      events: [{ frame: 0 }],
+      plan_only: true,
+    }).success, "sequence_event_track_build rejected its smallest valid spec");
     const build = tools.find((entry) => entry.name === "puerts_anim_blueprint_build");
     assert(inspect !== undefined && montage !== undefined && build !== undefined, "an animation tool is missing");
 
@@ -2189,6 +2421,21 @@ async function animationSuite(): Promise<void> {
       "the Blend Space runtime command name is wrong",
     );
 
+    const dataTableReadback = await dataTableBuild.handler({
+      asset_path: "/Game/MCPGenerated/DT_Items",
+      row_struct: "/Script/GameplayTags.GameplayTagTableRow",
+      rows_json: [{ Name: "Row1", Tag: "Items.Key" }],
+      plan_only: true,
+    });
+    assert(
+      JSON.parse(dataTableReadback.content[0]?.text ?? "null").success === true,
+      "a valid DataTable build request was rejected",
+    );
+    assert(
+      received[received.length - 1]?.__tool === "data_table_build",
+      "the DataTable front dispatched the wrong runtime command",
+    );
+
     const sentSoFar = received.length;
     const outsideRoot = await build.handler({
       asset_path: "/Game/Elsewhere/ABP_Hero",
@@ -2244,6 +2491,8 @@ async function jobApiSuite(): Promise<void> {
   for (const name of [
     "puerts_job_status", "puerts_job_result", "puerts_job_cancel",
     "puerts_sequence_render_start",
+    "puerts_project_settings_maps",
+    "puerts_project_package_start",
   ]) {
     assert(find(name) !== undefined, `${name} is missing`);
     assert(toolAnnotations[name] !== undefined, `${name} has no annotation`);
@@ -2274,6 +2523,9 @@ async function jobApiSuite(): Promise<void> {
     toolAnnotations.puerts_job_result?.idempotentHint === false,
     "job_result delivers a finished job's output ONCE; a second call refuses, so it is not "
     + "idempotent and must not be advertised as a safe retry",
+  );  assert(
+    toolAnnotations.puerts_job_result?.readOnlyHint === false,
+    "job_result consumes the result and must not be annotated read-only",
   );
   assert(
     toolAnnotations.puerts_job_cancel?.destructiveHint === true
@@ -2289,10 +2541,158 @@ async function jobApiSuite(): Promise<void> {
   );
 
   const render = find("puerts_sequence_render_start");
+  const settings = find("puerts_project_settings_maps");
+  const packageStart = find("puerts_project_package_start");
+  const graphPatch = find("puerts_blueprint_graph_patch");
+  const memberPatch = find("puerts_blueprint_member_patch");
+  const validSetFunction = {
+    asset_path: "/Game/MCPGenerated/BP_FunctionContract",
+    operations: [{
+      op: "set_function",
+      name: "Compute",
+      inputs: [{ name: "Base", type: { category: "float" }, default: "0" }],
+      metadata: { access: "public", pure: true },
+    }],
+  };
+  assert(memberPatch?.inputSchema.safeParse(validSetFunction).success === true,
+    "member_patch must publicly validate the native set_function contract");
+  assert(memberPatch?.inputSchema.safeParse({
+    ...validSetFunction,
+    operations: [{ op: "set_function", name: "Compute", inputs: [{ name: "Base" }] }],
+  }).success === false, "set_function parameters must require a type descriptor");
+  // set_function stays named in the schema, because a caller has to know the op
+  // exists to write one. function_plans is what the response carries back, so it
+  // moved to the reference with the rest of the per-op detail. Both still have to
+  // be documented somewhere a caller is pointed at, which is what this pins.
+  const memberPatchReference = await readBlueprintReference();
+  assert(JSON.stringify(memberPatch?.inputSchema ?? {}).includes("set_function")
+      || memberPatch?.description.includes("set_function") === true,
+    "member_patch must name set_function where a caller writing one will see it");
+  assert(memberPatchReference.includes("function_plans")
+      && memberPatchReference.includes("set_function"),
+    "references/blueprint-tools.md must document set_function and its plan result");
+  assert(memberPatch?.description.includes("blueprint-tools.md") === true,
+    "member_patch description must point at the reference that holds the operation grammar");
+
+  const memberOperationContracts = [
+    { op: "rename_variable", from: "HeldObject", to: "GrabbedObject" },
+    { op: "set_variable_metadata", name: "GrabbedObject", metadata: { category: "Interaction" } },
+    { op: "rename_function", from: "Grab", to: "TryGrab" },
+    { op: "add_macro", name: "TraceForTarget", inputs: [{ name: "Range", type: { category: "float" } }] },
+    { op: "remove_macro", name: "OldTrace" },
+    { op: "rename_macro", from: "TraceTarget", to: "TraceForTarget" },
+    { op: "set_macro", name: "TraceForTarget", outputs: [{ name: "Hit", type: { category: "bool" } }] },
+    { op: "reparent_component", name: "HoldPoint", parent: "Camera" },
+  ] as const;
+  // An op name has to be visible to a caller who never opens the reference,
+  // because you cannot look up the detail of an op you do not know exists. The
+  // description and the field .describe() strings are both resident, so either
+  // counts; the per-op field lists are what moved out.
+  const advertises = (tool: typeof memberPatch, text: string): boolean =>
+    tool?.description.includes(text) === true
+    || JSON.stringify(tool?.inputSchema ?? {}).includes(text);
+
+  for (const operation of memberOperationContracts) {
+    assert(memberPatch?.inputSchema.safeParse({
+      asset_path: "/Game/MCPGenerated/BP_MemberContracts",
+      operations: [operation],
+    }).success === true, `member_patch schema rejected ${operation.op}`);
+    assert(advertises(memberPatch, operation.op),
+      `member_patch does not advertise ${operation.op} anywhere in its schema`);
+    assert(memberPatchReference.includes(operation.op),
+      `references/blueprint-tools.md does not document ${operation.op}`);
+  }
+
+  for (const operation of [
+    { op: "set_node_enabled", target: { node_guid: "0123456789ABCDEF0123456789ABCDEF" }, enabled: false },
+    { op: "break_pin_links", target: { node_guid: "0123456789ABCDEF0123456789ABCDEF" }, pin: "execute" },
+  ]) {
+    assert(graphPatch?.inputSchema.safeParse({
+      asset_path: "/Game/MCPGenerated/BP_GraphContracts",
+      operations: [operation],
+    }).success === true, `graph_patch schema rejected ${operation.op}`);
+    assert(graphPatch?.description.includes(operation.op),
+      `graph_patch description is missing ${operation.op}`);
+  }
+
+  assert(settings?.inputSchema.safeParse({}).success === false,
+    "project_settings_maps must require at least one setting");
+  assert(settings?.inputSchema.safeParse({ game_default_map: "/Engine/Maps/Entry" }).success === false,
+    "project settings maps must be limited to /Game");
+  assert(settings?.inputSchema.safeParse({
+    game_default_map: "/Game/Maps/Demo",
+    global_default_game_mode: "/Script/Engine.GameModeBase",
+  }).success === true, "project_settings_maps must preserve the legacy request shape");
+  assert(packageStart?.inputSchema.safeParse({ maps: [] }).success === false,
+    "project_package_start must require at least one map");
+  assert(packageStart?.inputSchema.safeParse({
+    maps: ["/Game/Maps/Demo"], target: "Linux",
+  }).success === false, "project_package_start must refuse targets other than Win64");
+  assert(packageStart?.inputSchema.safeParse({
+    maps: ["/Game/Maps/Demo"], target: "Win64", configuration: "Shipping",
+  }).success === true, "project_package_start must accept its strict release allowlist");
+  assert(toolAnnotations.puerts_project_package_start?.destructiveHint === true
+      && toolAnnotations.puerts_project_package_start?.idempotentHint === false,
+    "project packaging starts a new process and may overwrite archive output");
+
+  const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
+  const graphBuilderSource = await readFile(join(repoRoot, "Plugins", "MCPBridge", "Source",
+    "MCPBridgeGraphBuilder", "Private", "BlueprintGraphBuilderLibrary.cpp"), "utf8");
+  for (const token of [
+    "InputAction", "InputAxisEvent", "MacroInstance", "AddDelegate", "RemoveDelegate",
+    "CallDelegate", "ClearDelegate", "AssignDelegate", "CreateDelegate",
+    "set_node_enabled", "break_pin_links",
+  ]) {
+    assert(graphBuilderSource.includes(`TEXT("${token}")`),
+      `native graph builder source is missing ${token}`);
+  }
+
+  const memberPatchSource = await readFile(join(repoRoot, "Plugins", "MCPBridge", "Source",
+    "MCPBridgePuerTS", "Private", "MCPPuerTSBridgeBlueprintMember.cpp"), "utf8");
+  for (const token of [
+    "rename_variable", "set_variable_metadata", "rename_function", "add_macro", "remove_macro",
+    "rename_macro", "set_macro", "reparent_component",
+  ]) {
+    assert(memberPatchSource.includes(`TEXT("${token}")`),
+      `native member patch source is missing ${token}`);
+  }
+
+  const settingsSource = await readFile(join(repoRoot, "Plugins", "MCPBridge", "Source",
+    "MCPBridgePuerTS", "Private", "MCPPuerTSBridgeProjectSettings.cpp"), "utf8");
+  for (const token of [
+    "UGameMapsSettings::SetGameDefaultMap", "UGameMapsSettings::SetGlobalDefaultGameMode",
+    "UpdateDefaultConfigFile", "TryLoadClass<AGameModeBase>", "PreviousGameMap",
+  ]) {
+    assert(settingsSource.includes(token), `project settings source is missing ${token}`);
+  }
+  assert(settingsSource.includes("/Game/") && settingsSource.includes("GetMapPackageExtension"),
+    "project settings must validate saved /Game maps before writing config");
+  const packageSource = await readFile(join(repoRoot, "Plugins", "MCPBridge", "Source",
+    "MCPBridgePuerTS", "Private", "MCPPuerTSBridgeProjectPackage.cpp"), "utf8");
+  for (const token of [
+    "BuildCookRun", "CreateProc", "RegisterJob", "GetDirtyWorldPackages",
+    "GetDirtyContentPackages", "ProjectSavedDir", "IsValidLongPackageName", "-package",
+  ]) {
+    assert(packageSource.includes(token), `project package source is missing ${token}`);
+  }
+  assert(!packageSource.includes("BuildPlugin"),
+    "project packaging must not use UE4.27's unsupported binary BuildPlugin path");
   assert(
     render?.inputSchema.safeParse({}).success === false,
     "sequence_render_start must require asset_path",
-  );
+  );  assert(render?.inputSchema.safeParse({
+    asset_path: "/Game/C/LS_A", format: "avi",
+  }).success === false, "sequence_render_start must refuse unavailable AVI output");
+  // The four formats are the zod enum, which is what actually refuses a fifth.
+  // What a caller needs told, and cannot infer from an enum, is WHY avi is
+  // absent: it is missing from this engine build, not from this tool's ambition.
+  const renderSchema = JSON.stringify(render?.inputSchema ?? {});
+  for (const format of ["png", "jpg", "bmp", "exr"]) {
+    assert(renderSchema.includes(format),
+      `sequence_render_start must advertise the ${format} capture protocol`);
+  }
+  assert(renderSchema.includes("AVI is unavailable"),
+    "sequence_render_start must say AVI is unavailable in the installed engine, not just refuse it");
   assert(
     render?.inputSchema.safeParse({ asset_path: "/Game/C/LS_A", format: "webp" }).success === false,
     "format must be limited to the capture protocols UE4.27 actually ships",
@@ -2301,7 +2701,221 @@ async function jobApiSuite(): Promise<void> {
     render?.inputSchema.safeParse({ asset_path: "/Game/C/LS_A", format: "exr" }).success === true,
     "exr is one of the five shipped capture protocols and must be accepted",
   );
-  console.log("  PASS  job API: three job verbs, honest cancel and result annotations, render schema");
+  console.log("  PASS  job API: verbs, render and project-package producers, settings schema");
+}
+
+async function assetDeleteSuite(): Promise<void> {
+  const { toolAnnotations } = await import("../src/annotations.js");
+  const tool = createPuertsTools(new PuerTSClient())
+    .find((candidate) => candidate.name === "puerts_delete_asset");
+  assert(tool !== undefined, "puerts_delete_asset is missing");
+  assert(
+    !tool.inputSchema.safeParse({ asset_path: "/Game/MCPGenerated/BP_Probe" }).success,
+    "delete_asset must require confirm=true",
+  );
+  assert(
+    !tool.inputSchema.safeParse({ asset_path: "/Game/MCPGenerated/BP_Probe", confirm: false }).success,
+    "delete_asset must reject confirm=false at the MCP boundary",
+  );
+  assert(
+    !tool.inputSchema.safeParse({ asset_path: "/Engine/BasicShapes/Cube", confirm: true }).success,
+    "delete_asset must reject /Engine assets",
+  );
+  assert(
+    tool.inputSchema.safeParse({
+      asset_path: "/Game/MCPGenerated/BP_Probe.BP_Probe", confirm: true, force: true,
+    }).success,
+    "delete_asset must accept one explicitly confirmed /Game object path",
+  );
+  assert(
+    toolAnnotations.puerts_delete_asset?.destructiveHint === true
+      && toolAnnotations.puerts_delete_asset?.idempotentHint === true,
+    "delete_asset must be destructive and convergent for an already absent asset",
+  );
+
+  const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
+  const native = await readFile(join(
+    repoRoot, "Plugins", "MCPBridge", "Source", "MCPBridgePuerTS", "Private",
+    "MCPPuerTSBridgeService.cpp",
+  ), "utf8");
+  for (const contract of [
+    "delete_asset requires confirm=true",
+    "Asset deletion is limited to a valid package under /Game/",
+    "GetReferencers",
+    "ObjectTools::DeleteAssets",
+    "ObjectTools::ForceDeleteObjects",
+    "already_absent",
+    "registry_absent",
+    "package_absent",
+    "The currently open level cannot be deleted",
+  ]) {
+    assert(native.includes(contract), `native asset-delete contract is missing: ${contract}`);
+  }
+  console.log("  PASS  asset delete: confirmation, containment, reference policy and independent absence checks");
+}
+
+async function levelLifecycleSuite(): Promise<void> {
+  const { toolAnnotations } = await import("../src/annotations.js");
+  const tools = createPuertsTools(new PuerTSClient());
+  // create and load are quarantined, so they resolve from the spec table rather
+  // than from discovery. The contract below is still asserted in full: a
+  // quarantine is a pause, and the schemas and native contract have to survive
+  // it intact or unquarantining becomes a rewrite instead of deleting a line.
+  const create = nativeToolSpecs.find((spec) => spec.name === "puerts_level_create");
+  const load = nativeToolSpecs.find((spec) => spec.name === "puerts_level_load");
+  const save = tools.find((tool) => tool.name === "puerts_level_save");
+  assert(create !== undefined && load !== undefined && save !== undefined, "native level lifecycle tools are incomplete");
+  assert(
+    !tools.some((tool) => tool.name === "puerts_level_create" || tool.name === "puerts_level_load"),
+    "level_create and level_load crash the UE4.27 editor and must not be discoverable",
+  );
+  assert(
+    create.inputSchema.safeParse({
+      level_path: "/Game/Maps/NewMap",
+      template_path: "/Game/Maps/Template",
+    }).success,
+    "level_create must preserve level_path and template_path",
+  );
+  assert(!create.inputSchema.safeParse({ path: "/Game/Maps/NewMap" }).success, "level_create must require level_path");
+  assert(load.inputSchema.safeParse({ level_path: "/Game/Maps/NewMap" }).success, "level_load must accept level_path");
+  assert(!load.inputSchema.safeParse({ level_path: "/Game/Maps/NewMap", force: true }).success, "level_load must reject undeclared parameters");
+  assert(save.inputSchema.safeParse({ save_all: true }).success, "level_save must preserve save_all");
+  assert(
+    toolAnnotations.puerts_level_create?.destructiveHint === true
+      && toolAnnotations.puerts_level_load?.readOnlyHint === false
+      && toolAnnotations.puerts_level_save?.destructiveHint === true,
+    "native level lifecycle annotations do not match their disk and editor-state effects",
+  );
+
+  const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
+  const native = await readFile(join(
+    repoRoot, "Plugins", "MCPBridge", "Source", "MCPBridgePuerTS", "Private",
+    "MCPPuerTSBridgeService.cpp",
+  ), "utf8");
+  for (const contract of [
+    "ResolveProjectMapFilename",
+    "FPackageName::GetMapPackageExtension",
+    "RefuseLevelSwitchWithDirtyPackages",
+    "UEditorLoadingAndSavingUtils::NewBlankMap",
+    "UEditorLoadingAndSavingUtils::NewMapFromTemplate",
+    "UEditorLoadingAndSavingUtils::SaveMap",
+    "UEditorLoadingAndSavingUtils::LoadMap",
+    "UEditorLoadingAndSavingUtils::SaveDirtyPackages",
+    "already_loaded",
+    "The current level has no saved /Game map package",
+  ]) {
+    assert(native.includes(contract), "native level lifecycle contract is missing: " + contract);
+  }
+  const mutatingStart = native.indexOf("bool UMCPPuerTSBridgeService::IsToolMutating");
+  const mutatingEnd = native.indexOf("void UMCPPuerTSBridgeService::EndActiveCommand", mutatingStart);
+  const transactionList = native.slice(mutatingStart, mutatingEnd);
+  for (const command of ["level_create", "level_load", "level_save"]) {
+    assert(!transactionList.includes(command), command + " must stay outside editor transactions");
+  }
+  console.log("  PASS  level lifecycle: parameter parity, map validation, dirty refusal and non-transactional saves");
+}
+
+async function audioBuildSuite(): Promise<void> {
+  const { toolAnnotations } = await import("../src/annotations.js");
+  const tool = createPuertsTools(new PuerTSClient()).find(
+    (entry) => entry.name === "puerts_audio_build",
+  );
+  assert(tool !== undefined, "puerts_audio_build is missing");
+  const valid = {
+    asset_path: "/Game/MCPGenerated/SC_Probe",
+    first_node: "root",
+    nodes: [
+      { id: "root", type: "modulator", children: ["wave"], properties: { PitchMin: 0.9 } },
+      { id: "wave", type: "wave_player", sound_wave: "/Engine/EditorSounds/Notifications/CompileSuccess.CompileSuccess" },
+    ],
+    plan_only: true,
+  };
+  assert(tool.inputSchema.safeParse(valid).success, "audio_build rejected a valid desired-state cue");
+  assert(!tool.inputSchema.safeParse({ ...valid, surprise: true }).success, "audio_build accepted an undeclared field");
+  assert(!tool.inputSchema.safeParse({ ...valid, nodes: [{ id: "x", type: "switch" }] }).success, "audio_build accepted an unsupported node type");
+  assert(!tool.inputSchema.safeParse({ asset_path: valid.asset_path, nodes: valid.nodes }).success, "audio_build did not require first_node");
+  assert(
+    toolAnnotations.puerts_audio_build?.readOnlyHint === false
+      && toolAnnotations.puerts_audio_build?.destructiveHint === true
+      && toolAnnotations.puerts_audio_build?.idempotentHint === true,
+    "audio_build must be destructive-idempotent because it replaces an existing cue graph",
+  );
+
+  const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
+  const native = await readFile(join(
+    repoRoot, "Plugins", "MCPBridge", "Source", "MCPBridgePuerTS", "Private",
+    "MCPPuerTSBridgeAudioBuild.cpp",
+  ), "utf8");
+  for (const contract of [
+    "FBridgeContentSnapshot", "FBridgeAssetRollback", "LinkGraphNodesFromSoundNodes",
+    "InspectAudioAssetJson", "Modify() returned false", "audio_build is limited to /Game/MCPGenerated/",
+    "Every sound node must be reachable", "The Sound Cue graph contains a cycle",
+  ]) {
+    assert(native.includes(contract), "native audio builder contract is missing: " + contract);
+  }
+  const saveIndex = native.indexOf("SaveProjectAsset(ObjectPath");
+  const inspectIndex = native.lastIndexOf("InspectAudioAssetJson", saveIndex);
+  assert(inspectIndex >= 0 && inspectIndex < saveIndex, "audio_build saves before independent read-back");
+  console.log("  PASS  audio build: desired-state schema, rollback boundaries and independent read-back");
+}
+
+async function pieAgentSuite(): Promise<void> {
+  const { toolAnnotations } = await import("../src/annotations.js");
+  const tools = createPuertsTools(new PuerTSClient());
+  const query = tools.find((tool) => tool.name === "puerts_pie_agent_query");
+  const control = tools.find((tool) => tool.name === "puerts_pie_agent_control");
+  assert(query !== undefined, "puerts_pie_agent_query is missing");
+  assert(control !== undefined, "puerts_pie_agent_control is missing");
+  assert(
+    query.inputSchema.safeParse({ op: "read_property", actor: "SliceBeacon", property: "IsLit" }).success,
+    "pie_agent_query must accept a runtime property read",
+  );
+  assert(
+    control.inputSchema.safeParse({ op: "move_to", location: [100, 200, 300] }).success,
+    "pie_agent_control must accept a move target",
+  );
+  assert(
+    !control.inputSchema.safeParse({ op: "axis_state", axis: "MoveForward", value: 2 }).success,
+    "pie_agent_control must reject an axis value outside the runtime range",
+  );
+  assert(
+    !control.inputSchema.safeParse({ op: "record_stop", unexpected: true }).success,
+    "pie_agent_control must reject undeclared parameters before sending a pipe command",
+  );
+  assert(
+    toolAnnotations.puerts_pie_agent_control?.readOnlyHint === false
+      && toolAnnotations.puerts_pie_agent_control?.destructiveHint === false
+      && toolAnnotations.puerts_pie_agent_control?.idempotentHint === false,
+    "pie_agent_control must be classified as an imperative runtime mutation",
+  );
+  const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
+  const service = await readFile(join(
+    repoRoot, "Plugins", "MCPBridge", "Source", "MCPBridgePuerTS", "Private",
+    "MCPPuerTSBridgeService.cpp",
+  ), "utf8");
+  const guardStart = service.indexOf("else if (GEditor != nullptr");
+  const guardEnd = service.indexOf("if (!Error.IsEmpty())", guardStart);
+  assert(guardStart >= 0 && guardEnd > guardStart, "native PIE command guard is missing");
+  const allowedDuringPIE = [...service.slice(guardStart, guardEnd)
+    .matchAll(/ToolName != TEXT\("([^"]+)"\)/g)]
+    .map((match) => match[1]);
+  assert(
+    JSON.stringify(allowedDuringPIE) === JSON.stringify([
+      "pie_stop", "get_logs", "physics_observe", "pie_agent_query",
+    ]),
+    `native PIE-safe command list drifted: ${allowedDuringPIE.join(", ")}`,
+  );
+  const native = await readFile(join(
+    repoRoot, "Plugins", "MCPBridge", "Source", "MCPBridgePuerTS", "Private",
+    "MCPPuerTSBridgeEditorState.cpp",
+  ), "utf8");
+  for (const call of [
+    "StartMoveTo", "LookAt", "StartPress", "SetKeyState", "SetAxisState",
+    "ClearAxisState", "RecordStart", "RecordStop", "StartReplay",
+  ]) {
+    assert(native.includes(`UPIEAgentLibrary::${call}`), `native PIE control is missing ${call}`);
+  }
+  console.log("  PASS  PIE agent: read schema and all nine runtime control operations");
 }
 
 main()
@@ -2318,6 +2932,10 @@ main()
   .then(levelCompletionSuite)
   .then(sequenceSuite)
   .then(jobApiSuite)
+  .then(assetDeleteSuite)
+  .then(levelLifecycleSuite)
+  .then(audioBuildSuite)
+  .then(pieAgentSuite)
   .then(connectionContractSuite)
   .then(nonActorParentSuite)
   .then(graphInspectSuite)

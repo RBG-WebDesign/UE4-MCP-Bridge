@@ -289,4 +289,58 @@ namespace MCPBridgeScene
     {
         return GEditor != nullptr ? GEditor->GetEditorWorldContext().World() : nullptr;
     }
+
+    /**
+     * Why a read saw the world it saw. Diagnostic only: nothing branches on
+     * this, and it is not part of the hash.
+     *
+     * It exists because scene_inspect was observed returning success, the
+     * correct level_path, a valid hash and ZERO actors for a level holding 19,
+     * roughly once in thirty reads, in 0.04 ms instead of 1.4 ms - the actor
+     * iterator reaching the end immediately. The world package was right, so
+     * the question is what TActorIterator was given, and no field in the
+     * response could answer it. These can: a world with no levels, an
+     * uninitialized world, or a different UWorld object at the same package
+     * path are three different faults with the same symptom.
+     */
+    inline TSharedPtr<FJsonObject> WorldDiagnosticsJson(UWorld* World)
+    {
+        TSharedPtr<FJsonObject> Out = MakeShared<FJsonObject>();
+        if (World == nullptr)
+        {
+            Out->SetBoolField(TEXT("world_null"), true);
+            return Out;
+        }
+        Out->SetStringField(TEXT("world_object_path"), World->GetPathName());
+        Out->SetStringField(TEXT("world_type"), FString::FromInt(static_cast<int32>(World->WorldType)));
+        Out->SetBoolField(TEXT("world_initialized"), World->bIsWorldInitialized);
+        Out->SetNumberField(TEXT("level_count"), World->GetLevels().Num());
+        const ULevel* Current = World->GetCurrentLevel();
+        Out->SetBoolField(TEXT("current_level_null"), Current == nullptr);
+        Out->SetNumberField(TEXT("current_level_actor_array"), Current != nullptr ? Current->Actors.Num() : -1);
+        int32 LevelActorTotal = 0;
+        for (const ULevel* Level : World->GetLevels())
+        {
+            if (Level != nullptr) { LevelActorTotal += Level->Actors.Num(); }
+        }
+        Out->SetNumberField(TEXT("all_levels_actor_array"), LevelActorTotal);
+        // The filter TActorIterator applies and this function does not.
+        // TActorIterator defaults to EActorIteratorFlags::OnlyActiveLevels,
+        // which skips any level whose bIsVisible is false - so a level that is
+        // momentarily not visible yields zero actors from the iterator while
+        // Level->Actors still holds every one of them. That is the difference
+        // between the two counts above and what the iterator reports.
+        Out->SetBoolField(TEXT("current_level_visible"), Current != nullptr && Current->bIsVisible);
+        int32 VisibleLevels = 0;
+        for (const ULevel* Level : World->GetLevels())
+        {
+            if (Level != nullptr && Level->bIsVisible) { VisibleLevels++; }
+        }
+        Out->SetNumberField(TEXT("visible_level_count"), VisibleLevels);
+        Out->SetBoolField(TEXT("play_world_active"), GEditor != nullptr && GEditor->PlayWorld != nullptr);
+        Out->SetNumberField(TEXT("world_context_count"),
+            GEditor != nullptr ? GEditor->GetWorldContexts().Num() : -1);
+        Out->SetBoolField(TEXT("gc_pending"), IsGarbageCollecting());
+        return Out;
+    }
 }

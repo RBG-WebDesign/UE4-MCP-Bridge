@@ -3,7 +3,7 @@
   "title": "a Blueprint actor with components, variables and a working event graph",
   "proves": "author, compile, read back independently, converge on rerun, place in the level, and observe it run",
   "phase": "warm",
-  "generated_at": "2026-08-03T19:22:56.215Z",
+  "generated_at": "2026-08-05T02:34:20.130Z",
   "verdict": "PASS",
   "editor": {
     "available": true,
@@ -14,7 +14,7 @@
     "project_root": "D:/Unreal Projects/BridgeInstallTest"
   },
   "catalog": {
-    "registered_tool_count": 63,
+    "registered_tool_count": 75,
     "legacy_http_enabled": false
   },
   "steps": [
@@ -146,7 +146,7 @@
       "n": 22,
       "label": "6. observe the graph actually running",
       "status": "NOT_ATTEMPTED_BY_POLICY",
-      "detail": "PIE is reserved for the user to request (AGENTS.md testing etiquette). puerts_pie_start exists but is live_partial, and there is no primitive that reads a variable off a running actor: puerts_read_property addresses editor objects. A gameplay slice therefore proves authoring, not behavior."
+      "detail": "PIE is reserved for the user to request. Re-run with --include-pie to start PIE, read SliceBeacon.IsLit through puerts_pie_agent_query, then stop PIE."
     },
     {
       "n": 23,
@@ -166,10 +166,10 @@
       "inspect_tool": "puerts_graph_inspect",
       "structure_hash": "f12e28cb8301a44352cb58038fdbba5035975eab",
       "node_count": null,
-      "file_sha256": "27af0dd16bfa3b0ac718319751ecaf402131ef04f7dcb0f31545b7c2a1e6d75d"
+      "file_sha256": "caa9571da24bee22a95aaaca294236058fc05710e6f346e490b204463df42f10"
     }
   ],
   "mcp_round_trips": 7,
-  "elapsed_ms": 2727,
+  "elapsed_ms": 4212,
   "blocks": []
 }

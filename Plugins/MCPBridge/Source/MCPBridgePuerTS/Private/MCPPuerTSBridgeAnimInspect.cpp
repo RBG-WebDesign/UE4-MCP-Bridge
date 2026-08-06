@@ -525,12 +525,18 @@ bool UMCPPuerTSBridgeService::InspectAnimBlueprintJson(
 
     // The anim graphs, found the same way the builder finds them: by schema
     // class name rather than by graph name, because the graph can be renamed.
-    // Kept as the inverse of ABPAnimGraphBuilder::Build so the two cannot drift.
+    // Intended as the inverse of ABPAnimGraphBuilder::Build so the two cannot
+    // drift, but the two copies did drift: Graph->Schema is already a
+    // TSubclassOf<UEdGraphSchema>, i.e. the schema UClass itself, so
+    // Graph->Schema->GetClass() returns UClass::StaticClass() ("Class") no
+    // matter what schema the graph has. This never matched anything, so
+    // AnimGraphs was always empty and every state machine below it invisible.
+    // The name of the class the graph actually obeys is Graph->Schema->GetName().
     TArray<UEdGraph*> AnimGraphs;
     for (UEdGraph* Graph : AnimBlueprint->FunctionGraphs)
     {
         if (Graph != nullptr && Graph->Schema != nullptr
-            && Graph->Schema->GetClass()->GetName().Contains(TEXT("AnimationGraphSchema")))
+            && Graph->Schema->GetName().Contains(TEXT("AnimationGraphSchema")))
         {
             AnimGraphs.Add(Graph);
         }
@@ -560,7 +566,7 @@ bool UMCPPuerTSBridgeService::InspectAnimBlueprintJson(
         TSharedPtr<FJsonObject> GraphEntry = MakeShared<FJsonObject>();
         GraphEntry->SetStringField(TEXT("id"), GraphId);
         GraphEntry->SetStringField(TEXT("name"), Graph->GetName());
-        GraphEntry->SetStringField(TEXT("schema_class"), Graph->Schema->GetClass()->GetPathName());
+        GraphEntry->SetStringField(TEXT("schema_class"), Graph->Schema->GetPathName());
         const TArray<TSharedPtr<FJsonValue>> Nodes = DescribeGraphNodes(Graph, GraphId, Context);
         GraphEntry->SetArrayField(TEXT("nodes"), Nodes);
         GraphEntry->SetNumberField(TEXT("node_count"), Nodes.Num());

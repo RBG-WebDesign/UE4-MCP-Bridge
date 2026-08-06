@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "production_flags": { "compile": true, "save": true, "verify": true },
+  "per_asset": [
+    "asset",
+    "compile",
+    "save",
+    "reload",
+    "read_back",
+    "idempotency",
+    "rollback"
+  ],
+  "runtime_capstone_checks": ["pickup", "hold", "release", "throw"]
+}

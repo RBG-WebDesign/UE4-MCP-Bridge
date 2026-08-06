@@ -280,13 +280,14 @@ function Copy-ManagedDirectory {
 
     if ($PSCmdlet.ShouldProcess($Destination, "copy $Name files")) {
         $sourceRoot = (Resolve-Path -LiteralPath $Source).Path.TrimEnd("\", "/")
-        $items = @(Get-ChildItem -LiteralPath $sourceRoot -Recurse -Force)
+        $relativePaths = @(Get-ChildItem -LiteralPath $sourceRoot -Recurse -Force -Name)
 
-        foreach ($item in $items) {
-            $relativePath = $item.FullName.Substring($sourceRoot.Length).TrimStart("\", "/")
+        foreach ($relativePath in $relativePaths) {
             if ([string]::IsNullOrWhiteSpace($relativePath)) {
                 continue
             }
+
+            $item = Get-Item -LiteralPath (Join-Path $sourceRoot $relativePath) -Force
 
             $pathParts = @($relativePath -split "[\\/]")
             $isExcluded = $false

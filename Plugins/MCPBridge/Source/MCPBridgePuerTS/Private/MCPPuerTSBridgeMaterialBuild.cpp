@@ -71,6 +71,7 @@
 #include "Materials/Material.h"
 #include "Materials/MaterialExpression.h"
 #include "Materials/MaterialExpressionScalarParameter.h"
+#include "Materials/MaterialExpressionParameter.h"
 #include "Materials/MaterialExpressionStaticBoolParameter.h"
 #include "Materials/MaterialExpressionStaticSwitchParameter.h"
 #include "Materials/MaterialExpressionTextureBase.h"
@@ -78,8 +79,11 @@
 #include "Materials/MaterialExpressionVectorParameter.h"
 #include "Misc/PackageName.h"
 #include "Modules/ModuleManager.h"
+#include "RenderingThread.h"
 #include "RHI.h"
 #include "ScopedTransaction.h"
+#include "ShaderCompiler.h"
+#include "ShaderCompiler.h"
 #include "UObject/Package.h"
 #include "UObject/UnrealType.h"
 
@@ -270,6 +274,59 @@ namespace MCPMaterialBuild
             return true;
         }
         return false;
+    }
+
+    /** State material_build can compare without trusting object names or GUIDs.
+        Arbitrary expression params take the normal rebuild path because the
+        inspector deliberately does not expose every editable node property. */
+    FString ConvergenceHash(UMaterial* Material)
+    {
+        TSharedPtr<FJsonObject> Snapshot = MCPBridgeMaterialSnapshot::BuildSnapshot(Material);
+        Snapshot->SetNumberField(TEXT("domain"), Material->MaterialDomain);
+        Snapshot->SetNumberField(TEXT("blend_mode"), Material->BlendMode);
+        Snapshot->SetNumberField(TEXT("shading_models"),
+            Material->GetShadingModels().GetShadingModelField());
+        Snapshot->SetBoolField(TEXT("two_sided"), Material->TwoSided);
+        Snapshot->SetArrayField(TEXT("parameter_values"),
+            MCPBridgeMaterialSnapshot::DescribeParameters(Material));
+
+        TArray<TSharedPtr<FJsonValue>> Layout;
+        for (UMaterialExpression* Expression : Material->Expressions)
+        {
+            if (Expression == nullptr) { continue; }
+            TSharedPtr<FJsonObject> Entry = MakeShared<FJsonObject>();
+            Entry->SetStringField(TEXT("class"), Expression->GetClass()->GetPathName());
+            Entry->SetStringField(TEXT("parameter"), Expression->HasAParameterName()
+                ? Expression->GetParameterName().ToString() : FString());
+            Entry->SetNumberField(TEXT("x"), Expression->MaterialExpressionEditorX);
+            Entry->SetNumberField(TEXT("y"), Expression->MaterialExpressionEditorY);
+            Entry->SetStringField(TEXT("description"), Expression->Desc);
+            if (UMaterialExpressionParameter* Parameter = Cast<UMaterialExpressionParameter>(Expression))
+            {
+                Entry->SetStringField(TEXT("group"), Parameter->Group.ToString());
+                Entry->SetNumberField(TEXT("sort_priority"), Parameter->SortPriority);
+            }
+            Layout.Add(MakeShared<FJsonValueObject>(Entry));
+        }
+        Layout.Sort([](const TSharedPtr<FJsonValue>& A, const TSharedPtr<FJsonValue>& B)
+        {
+            FString AText, BText;
+            const TSharedPtr<FJsonObject>* AObject = nullptr;
+            const TSharedPtr<FJsonObject>* BObject = nullptr;
+            if (A.IsValid() && A->TryGetObject(AObject))
+            {
+                TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&AText);
+                FJsonSerializer::Serialize((*AObject).ToSharedRef(), Writer);
+            }
+            if (B.IsValid() && B->TryGetObject(BObject))
+            {
+                TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&BText);
+                FJsonSerializer::Serialize((*BObject).ToSharedRef(), Writer);
+            }
+            return AText < BText;
+        });
+        Snapshot->SetArrayField(TEXT("layout"), Layout);
+        return MCPBridgeBlueprintMembers::StructureHash(Snapshot);
     }
 
     /** One node the spec asked for, resolved and validated before anything is
@@ -962,13 +1019,32 @@ bool UMCPPuerTSBridgeService::BuildMaterialJson(
     // that the nodes and links came back.
     const FString PreHash = bCreating
         ? FString() : MCPBridgeMaterialSnapshot::StructureHash(Material);
+    const FString PreConvergenceHash = bCreating
+        ? FString() : ConvergenceHash(Material);
+    bool bHasExpressionParams = false;
+    for (const FPlannedNode& Node : Nodes)
+    {
+        bHasExpressionParams = bHasExpressionParams
+            || (Node.Params.IsValid() && Node.Params->Values.Num() > 0);
+    }
 
     bool bRollbackSucceeded = false;
     auto FailWithRollback = [&](const FString& Error) -> bool
     {
-        // Cancel first: the transaction's undo records point at objects the
-        // rollback is about to destroy.
-        if (ActiveTransaction != nullptr) { ActiveTransaction->Cancel(); }
+        if (ActiveTransaction != nullptr)
+        {
+            if (bCreating)
+            {
+                ActiveTransaction->Cancel();
+            }
+            else
+            {
+                // UE4.27 Cancel discards transaction records without replaying
+                // them. End and undo before checking the restored graph hash.
+                ActiveTransaction.Reset();
+                if (GEditor != nullptr) { GEditor->UndoTransaction(); }
+            }
+        }
         if (!bCreating && Material != nullptr)
         {
             // Resync the parameter and expression caches the undo just rewound,
@@ -1293,13 +1369,47 @@ bool UMCPPuerTSBridgeService::BuildMaterialJson(
     FMaterialResource* Resource = Material->GetMaterialResource(GMaxRHIFeatureLevel);
     if (Resource != nullptr)
     {
+        // RecompileMaterial's PostEditChange leaves a compiling shader map
+        // registered with zero jobs submitted: BeginCompileShaderMap's dedupe
+        // (MaterialShared.cpp ~2090-2098) finds that map's own placeholder
+        // clone already non-null and returns early before PrecompileMode is
+        // ever consulted, so the "submit in Background/Synchronous mode"
+        // machinery is never reached at all. The engine's real submission path
+        // is FMaterialRenderProxy::GetMaterialWithFallback on the render
+        // thread, driven by a viewport drawing the material -- which never
+        // happens on this headless build path. SubmitCompileJobs is the same
+        // public call the renderer makes; it reads render-thread-mirrored
+        // state, so it must run as a render command, flushed here so it has
+        // definitely applied before the blocking wait below. Idempotent: the
+        // job scheduler dedupes by (compiling id, key) and only raises priority.
+        ENQUEUE_RENDER_COMMAND(MCPBridgeSubmitMaterialCompileJobs)(
+            [Resource](FRHICommandListImmediate&)
+            {
+                Resource->SubmitCompileJobs(EShaderCompileJobPriority::High);
+            });
+        FlushRenderingCommands();
+
         // Blocking on purpose: an asynchronous compile that has not finished
         // cannot tell a caller whether the material is valid, and answering
         // "requested" instead of "compiled" is the assumption this command
         // exists to remove.
         Resource->FinishCompilation();
+        if (GShaderCompilingManager != nullptr)
+        {
+            // FMaterial::FinishCompilation already calls FShaderCompilingManager
+            // ::FinishCompilation, which applies the finished shader map itself
+            // (ProcessCompiledShaderMaps). This second call is redundant but
+            // harmless, kept for safety against other in-flight compiles.
+            GShaderCompilingManager->FinishAllCompilation();
+        }
+        Resource = Material->GetMaterialResource(GMaxRHIFeatureLevel);
 
-        bCompileFinished = Resource->IsCompilationFinished();
+        // Whether the manager's global queue is empty says nothing about this
+        // specific resource: other materials can be mid-compile, or this one's
+        // jobs could have never been submitted at all (the bug this file's
+        // ForceRecompileForRendering call above fixes). IsCompilationFinished
+        // checks this resource's own GameThreadCompilingShaderMapId directly.
+        bCompileFinished = Resource != nullptr && Resource->IsCompilationFinished();
         for (const FString& Error : Resource->GetCompileErrors())
         {
             CompileErrors.Add(MakeShared<FJsonValueString>(Error));
@@ -1307,8 +1417,11 @@ bool UMCPPuerTSBridgeService::BuildMaterialJson(
     }
     Compile->SetBoolField(TEXT("resource_found"), Resource != nullptr);
     Compile->SetBoolField(TEXT("finished"), bCompileFinished);
+    Compile->SetBoolField(TEXT("shader_map_valid"),
+        Resource != nullptr && Resource->HasValidGameThreadShaderMap());
     Compile->SetBoolField(TEXT("succeeded"),
-        Resource != nullptr && bCompileFinished && CompileErrors.Num() == 0);
+        Resource != nullptr && bCompileFinished
+            && Resource->HasValidGameThreadShaderMap() && CompileErrors.Num() == 0);
     Compile->SetArrayField(TEXT("errors"), CompileErrors);
 
     if (CompileErrors.Num() > 0)
@@ -1318,6 +1431,40 @@ bool UMCPPuerTSBridgeService::BuildMaterialJson(
         return FailWithRollback(FString::Printf(
             TEXT("The material did not compile cleanly: %s"),
             *FString::Join(Resource->GetCompileErrors(), TEXT(" "))));
+    }
+
+    // An identical request is a no-op. The comparison is conservative: a spec
+    // with arbitrary expression params takes the rebuild path because those
+    // properties are not part of material_inspect's canonical read-back.
+    const FString PostConvergenceHash = ConvergenceHash(Material);
+    if (!bCreating && !bHasExpressionParams && PostConvergenceHash == PreConvergenceHash)
+    {
+        if (ActiveTransaction != nullptr) { ActiveTransaction->Cancel(); }
+        Material->PostEditChange();
+        Rollback.Rollback();
+        if (ConvergenceHash(Material) != PreConvergenceHash)
+        {
+            OutError = FString::Printf(
+                TEXT("The material matched the requested state, but restoring the no-op transaction changed '%s'."),
+                *AssetPath);
+            return false;
+        }
+
+        TSharedPtr<FJsonObject> Result = BuildBaseResult();
+        Result->SetBoolField(TEXT("created"), false);
+        Result->SetBoolField(TEXT("converged"), true);
+        Result->SetBoolField(TEXT("changed"), false);
+        Result->SetBoolField(TEXT("saved"), false);
+        Result->SetStringField(TEXT("object_path"), Material->GetPathName());
+        Result->SetObjectField(TEXT("compile"), Compile);
+        Result->SetStringField(TEXT("structure_hash_sha1"),
+            MCPBridgeMaterialSnapshot::StructureHash(Material));
+        Result->SetArrayField(TEXT("warnings"), Warnings);
+        Result->SetObjectField(TEXT("rollback"),
+            Rollback.BuildEvidence(DirtyBefore, SourceControlBefore));
+        Result->SetNumberField(TEXT("elapsed_ms"), (FPlatformTime::Seconds() - StartSeconds) * 1000.0);
+        OutResultJson = SerializeJson(Result);
+        return true;
     }
 
     // --- Save, only now. ---
@@ -1359,6 +1506,8 @@ bool UMCPPuerTSBridgeService::BuildMaterialJson(
 
     TSharedPtr<FJsonObject> Result = BuildBaseResult();
     Result->SetBoolField(TEXT("created"), bCreating);
+    Result->SetBoolField(TEXT("converged"), false);
+    Result->SetBoolField(TEXT("changed"), true);
     Result->SetStringField(TEXT("object_path"), Material->GetPathName());
     Result->SetStringField(TEXT("domain"), ChoiceName(DomainChoices(), Domain));
     Result->SetStringField(TEXT("blend_mode"), ChoiceName(BlendModeChoices(), BlendMode));

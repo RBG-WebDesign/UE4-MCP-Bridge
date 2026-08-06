@@ -238,6 +238,8 @@ try {
   const defaults = nativeSource.match(/TEXT\("Actor\.bHidden"\)[\s\S]*?\};/)?.[0] ?? "";
   assert("STATIC", defaults.includes("Actor.ActorLabel") && !/TEXT\("\*"\)/.test(defaults),
     "and the built-in default list is a small enumerated set, with no wildcard");
+  assert("STATIC", defaults.includes('TEXT("Pawn.AutoPossessPlayer")'),
+    "the built-in default list permits an authored Pawn to possess Player0");
   console.log("          Not executable here: the allowlist is matched against a live UClass");
   console.log("          hierarchy. Proving the running editor refuses needs an editor, and");
   console.log("          that case is listed as editor-required in .github/workflows/ci.yml.");

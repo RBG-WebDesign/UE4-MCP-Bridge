@@ -4,14 +4,12 @@
       "command": "node",
       "args": ["mcp-server/dist/index.js"],
       "cwd": ".",
-      "env": {
-        "UE_ENGINE_ROOT": "D:/UE/UE_4.27",
-        "MCP_UNREAL_PROJECT_ROOT": "D:/Unreal Projects/MASTER_PROJECT/SF_Repository/Sinfeld_240301/Tests/UE427PuerTSMCP"
-      }
+      "env": {}
     },
     "unreal-api": {
-      "command": "uvx",
-      "args": ["unreal-api-mcp"],
+      "command": "node",
+      "args": ["Scripts/start-unreal-api-mcp.mjs"],
+      "cwd": ".",
       "env": {
         "UNREAL_VERSION": "4.27"
       }

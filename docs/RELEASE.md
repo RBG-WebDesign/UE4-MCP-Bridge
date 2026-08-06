@@ -47,8 +47,8 @@ bundle was missing, which is how the incomplete tree reached a zip unnoticed. It
 now fails. `npm run build` passes `--allow-missing-bundle` so a server-only
 checkout still builds, and that checkout still cannot be packaged.
 
-Asserted by `npm run test:package`, which reaches both refusals with no bundle
-on disk. The cases that open the produced zip need one:
+`npm run test:package` always proves the missing-bundle refusal. The staged
+runtime refusal and cases that open the produced zip need a pinned bundle:
 
 ```bash
 node Scripts/package-acceptance.mjs --bundle <path to Plugins/Puerts>
@@ -131,17 +131,14 @@ LINK : fatal error LNK1181: cannot open input file
 `Scripts/bridge-install.mjs` already passed the flag; a recipient building by
 hand had nothing telling them to. Now in `README_INSTALL.txt`.
 
-**The default pipe name is shared.** A zip install has no
-`[MCPPuerTSBridge]` section, and every setting has a compiled-in default, so the
-bridge starts unconfigured on `\\.\pipe\UE427PuerTSMCP`
-(`MCPPuerTSBridgeService.h:390`) which is the same constant for every project.
-`Scripts/install-mcp-bridge.ps1` derives a per-project name; the packaged path
-had no equivalent. Two projects installed from a release zip on one machine
-contend for one pipe, and a client that connects reaches whichever editor won.
-`README_INSTALL.txt` and `Config/DefaultEngine.ini.example` now say to set it.
-The compiled default is still a shared constant and should probably become
-project-derived; that is a C++ change and was not made here.
-
+**The shared default pipe defect is closed in source.** When `[MCPPuerTSBridge]`
+does not provide `PipeName`, the native service derives a stable name from the
+uproject name and the canonical project path. An explicit ini value still wins.
+`npm run test:package` proves the packaged source contains that fallback, the
+shared header constant is gone, and the release instructions describe the same
+contract. UBT and final linking passed in BridgeInstallTest on 2026-08-03, and
+install:check is green. The two-project live session proof remains before RL-2
+can be marked live-verified.
 ### What would change the remaining NO
 
 The binary release needs a packager that builds in a host project with both
@@ -284,11 +281,10 @@ No bridge checkout is needed for the first three steps.
 # 2. Extract. The zip's roots are MCPBridge/ and Puerts/, so this lands both.
 Expand-Archive MCPBridge_UE4.27.0_v0.5.0.zip -DestinationPath "D:\MyGame\Plugins"
 
-# 3. Pipe name. Skipping this leaves the project on the shared compiled default.
-#    Add to D:\MyGame\Config\DefaultEngine.ini:
+# 3. Optional pipe override. The plugin now derives a project-specific default.
+#    To choose an explicit name, add to D:\MyGame\Config\DefaultEngine.ini:
 #      [MCPPuerTSBridge]
 #      PipeName=\\.\pipe\UE427PuerTSMCP_MyGame
-
 # 4. Build. -NoHotReload is required; without it JsEnv fails to link.
 & "D:\UE\UE_4.27\Engine\Build\BatchFiles\Build.bat" MyGameEditor Win64 `
     Development "D:\MyGame\MyGame.uproject" -WaitMutex -NoHotReload
@@ -303,10 +299,7 @@ node Scripts\check-puerts-pin.mjs --strict --bundle "D:\MyGame\Plugins\Puerts"
 Step 4 produced all five MCPBridge modules and all six Puerts modules in 125
 seconds, with `libnode.dll` staged out of the bundle's `ThirdParty/nodejs_16`.
 
-**Everything past here needs an editor and was not run.** Not because it is
-hard, but because a zip install has no pipe name of its own and starting one
-would have contended for `\\.\pipe\UE427PuerTSMCP` with an editor already open
-on this machine. Doing step 3 removes that hazard. For an integrator:
+**Everything past here needs an editor and was not run.** The source archive and fallback pipe contract are editor-free proven, but only a live editor can prove that the packaged plugin loads, advertises its derived pipe, and serves commands. For an integrator:
 
 ```powershell
 # 5. Open D:\MyGame in UE4.27. It should not prompt to rebuild; step 4 did it.
@@ -317,7 +310,7 @@ on this machine. Doing step 3 removes that hazard. For an integrator:
 
 # 6. The session manifest appears when the bridge is listening:
 Get-Content "D:\MyGame\Saved\MCPPuerTSBridge\session.json"
-#    It must carry the PipeName from step 3, this editor's PID, and a heartbeat.
+#    It must carry the derived pipe (or the optional override), this editor's PID, and a heartbeat.
 
 # 7. From a bridge checkout, against that editor:
 $env:MCP_UNREAL_PROJECT_ROOT = "D:\MyGame"

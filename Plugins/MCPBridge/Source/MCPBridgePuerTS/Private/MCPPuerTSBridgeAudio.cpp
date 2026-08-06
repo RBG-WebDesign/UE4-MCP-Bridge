@@ -26,6 +26,7 @@
 #include "Sound/SoundClass.h"
 #include "Sound/SoundCue.h"
 #include "Sound/SoundNode.h"
+#include "Sound/SoundNodeWavePlayer.h"
 #include "Sound/SoundWave.h"
 #include "UObject/Package.h"
 #include "UObject/UnrealType.h"
@@ -233,6 +234,13 @@ bool UMCPPuerTSBridgeService::InspectAudioAssetJson(
             Entry->SetArrayField(TEXT("children"), Children);
             Entry->SetObjectField(TEXT("properties"),
                 EditablePropertiesToJson(Node, Node->GetName(), Unsupported));
+            const USoundNodeWavePlayer* WavePlayer = Cast<USoundNodeWavePlayer>(Node);
+            if (WavePlayer != nullptr)
+            {
+                const USoundWave* Wave = WavePlayer->GetSoundWave();
+                Entry->SetStringField(TEXT("sound_wave"),
+                    Wave != nullptr ? Wave->GetPathName() : FString());
+            }
             NodeEntries.Add(MakeShared<FJsonValueObject>(Entry));
         }
 
@@ -285,17 +293,6 @@ bool UMCPPuerTSBridgeService::InspectAudioAssetJson(
     Result->SetBoolField(TEXT("is_sound_wave"), Cast<USoundWave>(Sound) != nullptr);
     Result->SetStringField(TEXT("structure_hash_sha1"),
         MCPBridgeBlueprintMembers::StructureHash(Snapshot));
-    Result->SetStringField(TEXT("build_unsupported_reason"),
-        TEXT("There is no audio_build yet, and unlike eqs_inspect that is scheduling rather than "
-             "an engine limit. USoundCue::FirstNode and USoundNode::ChildNodes are the source of "
-             "truth and USoundCue::LinkGraphNodesFromSoundNodes derives the editor graph from "
-             "them, so a builder could author nodes and then call it, which is what the engine's "
-             "own SoundCueFactoryNew does. What was missing was failure atomicity: replacing an "
-             "existing cue's node graph needs a content snapshot the rollback boundary can "
-             "restore. That gap is now closed generically - FBridgeContentSnapshot in this "
-             "module snapshots any saved asset by its file on disk and restores it with "
-             "UPackageTools::ReloadPackages, which is what unblocked anim_blueprint_patch - so "
-             "what remains here is scheduling rather than an engine limit."));
     Result->SetArrayField(TEXT("unsupported_fields"), Unsupported);
     Result->SetArrayField(TEXT("warnings"), Warnings);
 

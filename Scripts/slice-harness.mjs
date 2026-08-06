@@ -92,6 +92,21 @@ const EXIT_FOR_VERDICT = {
   UNPROVEN_NO_EDITOR: 3,
 };
 
+export function isExpectedRefusal(result) {
+  return result !== null && typeof result === "object" && result.success === false;
+}
+
+export function collectWidgetNames(root) {
+  if (!root) return [];
+  const names = [];
+  const pending = [root];
+  for (const node of pending) {
+    names.push(node.name);
+    pending.push(...(node.children ?? []));
+  }
+  return names;
+}
+
 function argPhase() {
   return process.argv.includes("--phase=cold") ? "cold" : "warm";
 }
@@ -353,7 +368,7 @@ export async function runSlice(spec, warmBody) {
       /** Call a registered tool. Returns null when the step could not run, so a
           slice reads `const r = await h.call(...); if (!r) return;` and the
           reason is already in the evidence. */
-      async call(tool, args, { label, why, request, legacy } = {}) {
+      async call(tool, args, { label, why, request, legacy, expectedFailure = false } = {}) {
         const name = label ?? tool;
         if (!h.need(tool, { why, request, legacy })) {
           record({ label: name, tool, status: STATUS.skipped, detail: "its primitive is missing" });
@@ -375,6 +390,22 @@ export async function runSlice(spec, warmBody) {
           raise("PRESENT_BUT_FAILING");
           return null;
         }
+        if (expectedFailure) {
+          if (isExpectedRefusal(parsed)) {
+            record({
+              label: name,
+              tool,
+              status: STATUS.pass,
+              detail: `refused as expected: ${JSON.stringify(parsed.errors ?? parsed.message ?? {}).slice(0, 400)}`,
+            });
+            evidence.checks.passed += 1;
+            return parsed;
+          }
+          record({ label: name, tool, status: STATUS.fail, detail: "expected a refusal, but the reader succeeded" });
+          evidence.checks.failed += 1;
+          raise("PRESENT_BUT_FAILING");
+          return null;
+        }
         if (parsed.success !== true) {
           record({
             label: name,
@@ -389,6 +420,31 @@ export async function runSlice(spec, warmBody) {
         record({ label: name, tool, status: STATUS.pass });
         evidence.checks.passed += 1;
         return parsed;
+      },
+
+      expectFailure(tool, args, options = {}) {
+        return h.call(tool, args, { ...options, expectedFailure: true });
+      },
+
+      /** Prove a generated fixture path is unused through both the asset index
+          and the independent reader that will verify it after construction. */
+      async assertFreshFixture(assetPath, inspectTool) {
+        const name = assetPath.split("/").pop();
+        const path = assetPath.slice(0, assetPath.lastIndexOf("/"));
+        const found = await h.call("puerts_find_assets", {
+          path,
+          name,
+          recursive: false,
+          limit: 2,
+        }, { label: `assert the fresh fixture is unused: ${name}` });
+        if (found === null) return false;
+        const unused = found?.success === true && (found.data?.assets ?? []).length === 0;
+        h.check(unused, `the fixture path ${assetPath} did not exist before the control`);
+        if (!unused) return false;
+        const refused = await h.expectFailure(inspectTool, { asset_path: assetPath }, {
+          label: `the independent reader refuses the unused path: ${name}`,
+        });
+        return refused !== null;
       },
 
       /** An assertion about a result that already came back. */

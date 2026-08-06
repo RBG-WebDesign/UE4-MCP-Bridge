@@ -107,8 +107,9 @@ python Scripts/ue427.py start gemini
 python Scripts/ue427.py start antigravity
 ```
 
-`start` verifies the project is 4.27, warns if no editor advertises a session,
-then launches the agent from the project directory.
+`start` verifies the project is 4.27, launches the editor through
+`Scripts/start-ue4-project.ps1` and waits for its bridge session if no editor
+advertises one yet, then launches the agent from the project directory.
 
 `start antigravity` opens **Antigravity IDE**, not `Antigravity.exe`, which is
 the agent manager. The IDE is the surface that reads a workspace's `AGENTS.md`,
@@ -121,7 +122,9 @@ the `ANTIGRAVITY_CLI_ALIAS` environment variable that Antigravity sets, so
 there is no preference to configure. That is also the way to use Gemini on
 this project through your Antigravity subscription rather than an API key.
 
-Open the editor first. Use the repository launcher, which refuses duplicate
+To open the editor on its own, or to pass options `start` doesn't expose
+(`-AllowAdditional` for a second editor, `-CloseExisting`, a non-default
+`-ReadyTimeoutSeconds`), run the launcher directly. It refuses duplicate
 editor processes unless you explicitly ask for them:
 
 ```powershell

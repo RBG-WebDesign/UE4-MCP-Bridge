@@ -68,9 +68,13 @@ export const destructiveIdempotent: ToolAnnotations = {
 };
 
 export const toolAnnotations: Record<string, ToolAnnotations> = {
+  blueprint_production_plan: readOnly,
   // --- PuerTS native named-pipe lane ---------------------------------------
   puerts_diagnostic: readOnly,
   puerts_find_assets: readOnly,
+  // Permanent package deletion. Idempotent because an already absent asset is
+  // a successful no-op; force=true may also null references in other packages.
+  puerts_delete_asset: destructiveIdempotent,
   puerts_find_actors: readOnly,
   puerts_read_property: readOnly,
   puerts_get_logs: readOnly,
@@ -90,14 +94,20 @@ export const toolAnnotations: Record<string, ToolAnnotations> = {
   // can verify rather than assert. Kept out of IsToolMutating on the native
   // side; reports the package dirty flag before and after the read.
   puerts_anim_blueprint_inspect: readOnly,
-  // Read-only with no write counterpart, and that is a finding rather than an
-  // omission: UE4.27 exposes no atomic way to rebuild a montage's section chain
-  // or re-link its notifies, so a montage writer could not be failure-atomic.
+  // Read-only inspector paired with the native montage writer. It remains
+  // independently callable so callers can verify canonical asset state.
   puerts_anim_montage_inspect: readOnly,
+  puerts_anim_montage_build: destructiveIdempotent,
   // Read-only for the same shape of reason as the montage reader: UE4.27
   // rebuilds a blend space's triangulation from its sample set, so there is no
   // atomic sample-set replacement a writer could be failure-atomic around.
   puerts_anim_blend_space_inspect: readOnly,
+  // Create-only, same reasoning as puerts_anim_blueprint_build: a rerun
+  // against an existing asset_path refuses rather than converges, so this is
+  // not destructiveIdempotent. On failure the creation is rolled back and an
+  // existing Blend Space is never touched at all - there is nothing for this
+  // command to destroy.
+  puerts_anim_blend_space_build: mutating,
   // Mutating, NOT idempotent, and not destructive. The distinction is the whole
   // shape of the command: it creates a new Animation Blueprint and REFUSES an
   // asset that already exists, because the UE4.27 builder's rebuild path clears
@@ -152,6 +162,7 @@ export const toolAnnotations: Record<string, ToolAnnotations> = {
   // out of IsToolMutating on the native side, reports the package dirty flag
   // before and after the read. See the tool description for why a cue builder
   // is feasible where an EQS builder is not, and what still blocks it.
+  puerts_audio_build: destructiveIdempotent,
   puerts_audio_inspect: readOnly,
   // The read half of MCPBridgeClothOptimizer, and the only half fronted. Its
   // three writers are not here on purpose: they do not cancel their transaction
@@ -245,13 +256,11 @@ export const toolAnnotations: Record<string, ToolAnnotations> = {
   // The job API. job_status changes nothing anywhere, so it is plainly
   // read-only.
   puerts_job_status: readOnly,
-  // Read-only about the EDITOR - it opens no transaction, dirties nothing and
-  // spawns nothing - but deliberately not idempotent: it delivers a finished
-  // job's output once and refuses the second call with job_result_consumed. A
-  // client that retries on a dropped connection must expect that refusal, so
-  // the hint says so rather than promising a safe retry.
+  // Collecting a result consumes it and changes whether the next call can
+  // succeed. It opens no transaction and destroys no authored state, but it is
+  // still a mutation and is deliberately not idempotent.
   puerts_job_result: {
-    readOnlyHint: true,
+    readOnlyHint: false,
     destructiveHint: false,
     idempotentHint: false,
     openWorldHint: false,
@@ -267,6 +276,13 @@ export const toolAnnotations: Record<string, ToolAnnotations> = {
   // output directory; a second call starts a second render rather than
   // converging. It touches no asset, so there is nothing for undo to cover.
   puerts_sequence_render_start: destructive,
+  puerts_project_settings_maps: mutatingIdempotent,
+  // Mutating and idempotent, NOT destructive: a value already equal to the
+  // request is reported unchanged and not rewritten, and a failed read-back
+  // restores both the CDO and the previous ini bytes. It edits project config
+  // rather than an asset, so editor undo does not cover it.
+  puerts_project_settings_patch: mutatingIdempotent,
+  puerts_project_package_start: destructive,
   // Mutating and idempotent, NOT destructive: it writes only the class defaults
   // it was given, a value already equal to the request is reported unchanged and
   // not rewritten, and nothing is ever cleared. Worth knowing rather than
@@ -282,8 +298,14 @@ export const toolAnnotations: Record<string, ToolAnnotations> = {
   // channel with a different value, which is what "converge on this spec" means
   // and is covered by the transaction.
   puerts_sequence_build: mutatingIdempotent,
+  puerts_sequence_event_track_build: destructiveIdempotent,
   puerts_delete_actor: destructiveIdempotent,
   puerts_save: destructive,
+  // Map switching and package writes are outside editor transactions. Creation
+  // refuses existing targets; load refuses dirty packages; save commits to disk.
+  puerts_level_create: destructive,
+  puerts_level_load: mutating,
+  puerts_level_save: destructive,
   puerts_undo: destructive,
   // The missing inspector for UMCPBridgeInputLibrary. Read-only in the same
   // sense the asset inspectors are: kept out of IsToolMutating on the native
@@ -305,6 +327,8 @@ export const toolAnnotations: Record<string, ToolAnnotations> = {
   // The read half of the PIE agent: observes a running world, edits nothing.
   // op=expect starts an in-engine condition check that only reads.
   puerts_pie_agent_query: readOnly,
+  // Runtime-only and imperative. It changes a PIE world but persists no asset.
+  puerts_pie_agent_control: mutating,
   // --- Performance analysis and optimization -------------------------------
   // Audits and catalogs are pure reads. Captures drive the viewport and write
   // screenshots or reports under Saved/, so they are mutating-but-convergent
@@ -439,6 +463,7 @@ export const toolAnnotations: Record<string, ToolAnnotations> = {
   cpp_class_create: mutating, // writes new source files, never overwrites existing ones
   data_table_create: mutating,
   data_table_fill_from_json: mutating,
+  puerts_data_table_build: destructiveIdempotent,
   game_template_create: mutating,
   gameplay_framework_create: mutating,
   input_mapping_add: mutating,
@@ -525,11 +550,22 @@ export const toolAnnotations: Record<string, ToolAnnotations> = {
  * whichever lane answers the name.
  */
 export const compatAliasAnnotations: Record<string, ToolAnnotations> = {
+  blueprint_build_from_json: destructiveIdempotent, // -> puerts_blueprint_build
+  blueprint_info: readOnly,                 // -> puerts_graph_inspect
+  blueprint_inspect: readOnly,              // -> puerts_graph_inspect
+  anim_blueprint_build_from_json: mutating, // -> puerts_anim_blueprint_build
+  widget_build_from_json: destructiveIdempotent, // -> puerts_widget_build
+  behavior_tree_create: mutatingIdempotent, // -> puerts_behavior_tree_build
+  blackboard_create: mutatingIdempotent,    // -> puerts_blackboard_build (no removals)
+  viewport_fit: mutatingIdempotent,         // -> puerts_viewport_screenshot
+  viewport_focus: mutatingIdempotent,       // -> puerts_viewport_screenshot
   actor_spawn: mutating,                  // -> puerts_spawn_actor
   actor_delete: destructiveIdempotent,    // -> puerts_delete_actor
   actor_modify: mutatingIdempotent,       // -> puerts_set_property
+  placement_validate: readOnly,           // -> puerts_scene_inspect
   level_actors: readOnly,                 // -> puerts_find_actors
-  level_save: destructive,                // -> puerts_save
+  level_save: destructive,                // -> puerts_level_save
+  level_new: destructive,                 // -> puerts_level_create
   asset_save_many: destructive,           // -> puerts_save
   asset_list: readOnly,                   // -> puerts_find_assets
   viewport_screenshot: mutatingIdempotent, // -> puerts_viewport_screenshot

@@ -11,7 +11,9 @@ import { spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { evaluateBuild, evaluateInspection, planFingerprint, stagesToRun } from "./bridge-orchestrator.mjs";
+import {
+  evaluateBuild, evaluateInspection, executeAO2Stage, planFingerprint, stagesToRun, validatePlan,
+} from "./bridge-orchestrator.mjs";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 let passed = 0;
@@ -28,6 +30,75 @@ const planC = { ...planA, blueprint: { ...planA.blueprint, parent_class: "Pawn" 
 assert.notEqual(planFingerprint(planA), planFingerprint(planC));
 ok("a changed parent class changes the fingerprint");
 
+
+const planD = { ...planA, member_patch: { asset_path: "/Game/MCPGenerated/BP_A", operations: [{ op: "add_variable", name: "Ready" }] } };
+assert.notEqual(planFingerprint(planA), planFingerprint(planD));
+ok("an AO-2 stage changes the resume fingerprint");
+
+assert.throws(() => validatePlan({ scene_batch: { operations: [] } }), /non-empty operations/);
+assert.throws(() => validatePlan({ material: { tool: "puerts_save", args: { asset_path: "/Game/X" } } }), /material\.tool/);
+assert.throws(() => validatePlan({ runtime_verify: { actor: "Pawn", property: "Health" } }), /equals/);
+validatePlan({ runtime_verify: { actor: "Pawn", property: "Health", equals: 100 } });
+ok("AO-2 validation refuses incomplete stages and accepts a complete runtime check");
+
+const scriptedCall = (answers) => {
+  const calls = [];
+  return {
+    calls,
+    call: async (tool, args) => {
+      calls.push({ tool, args });
+      return answers.shift();
+    },
+  };
+};
+
+const memberCalls = scriptedCall([
+  { success: true, data: { post_member_hash: "member-hash" } },
+  { success: true, data: { member_structure_hash_sha1: "member-hash" } },
+]);
+assert.equal((await executeAO2Stage("member_patch", {
+  asset_path: "/Game/MCPGenerated/BP_A", operations: [{ op: "set_variable_default", name: "Health", default: 100 }], verify: false,
+}, memberCalls.call)).ok, true);
+assert.equal(memberCalls.calls[0].args.verify, true, "the plan cannot disable the orchestrator's native verification");
+assert.deepEqual(memberCalls.calls.map((c) => c.tool), ["puerts_blueprint_member_patch", "puerts_graph_inspect"]);
+ok("member_patch dispatches the native writer and independent reader");
+
+const sceneCalls = scriptedCall([
+  { success: true, data: { post_structure_hash: "scene-hash" } },
+  { success: true, data: { structure_hash_sha1: "different" } },
+]);
+const sceneResult = await executeAO2Stage("scene_batch", {
+  operations: [{ op: "delete_actor", select: { label: "Old" } }],
+}, sceneCalls.call);
+assert.equal(sceneResult.ok, false);
+assert.match(sceneResult.errors[0], /did not match/);
+ok("scene_batch fails when its independent read-back disagrees");
+
+const materialCalls = scriptedCall([
+  { success: true, data: { structure_hash_sha1: "material-hash" } },
+  { success: true, data: { asset_kind: "material", structure_hash_sha1: "material-hash" } },
+]);
+assert.equal((await executeAO2Stage("material", {
+  tool: "puerts_material_build", args: { asset_path: "/Game/MCPGenerated/M_A", expressions: [] },
+}, materialCalls.call)).ok, true);
+assert.deepEqual(materialCalls.calls.map((c) => c.tool), ["puerts_material_build", "puerts_material_inspect"]);
+ok("material dispatch is allowlisted and independently inspected");
+
+const runtimeCalls = scriptedCall([{ success: true, data: { actor: { name: "Pawn_0" }, value: { health: 100 } } }]);
+assert.equal((await executeAO2Stage("runtime_verify", {
+  actor: "Pawn", property: "State", equals: { health: 100 },
+}, runtimeCalls.call)).ok, true);
+assert.equal(runtimeCalls.calls[0].tool, "puerts_pie_agent_query");
+ok("runtime_verify reads one PIE property and compares its value");
+
+const refusedCalls = scriptedCall([{ success: false, errors: ["native refusal"] }]);
+const refusedStage = await executeAO2Stage("member_patch", {
+  asset_path: "/Game/MCPGenerated/BP_A", operations: [{ op: "remove_variable", name: "Missing" }],
+}, refusedCalls.call);
+assert.equal(refusedStage.ok, false);
+assert.match(refusedStage.errors[0], /native refusal/);
+assert.equal(refusedCalls.calls.length, 1);
+ok("a failed writer stops before inspection and carries the refusal");
 // ----------------------------------------------------------------- build
 
 const goodBuild = {
@@ -142,7 +213,7 @@ ok("a graph the inspector could not read is named as such, not reported as an em
 
 // ------------------------------------------------------------------ resume
 
-const names = ["probe", "build", "inspect", "repair", "review", "pie"];
+const names = ["probe", "build", "member_patch", "inspect", "scene_batch", "material", "repair", "review", "runtime_verify", "pie"];
 const fingerprint = planFingerprint(planA);
 const state = {
   plan_fingerprint: fingerprint,
@@ -151,13 +222,19 @@ const state = {
 
 assert.deepEqual(
   stagesToRun(names, state, { resume: false, fingerprint }).map((s) => s.run),
-  [true, true, true, true, true, true],
+  names.map(() => true),
 );
 ok("without --resume every stage runs");
 
 const resumed = stagesToRun(names, state, { resume: true, fingerprint });
-assert.deepEqual(resumed.map((s) => s.run), [false, false, true, true, true, true]);
+assert.deepEqual(resumed.map((s) => s.run), [false, false, ...names.slice(2).map(() => true)]);
 ok("resume skips the ok stages and re-runs from the first that was not");
+const ao2Failure = stagesToRun(names, {
+  plan_fingerprint: fingerprint,
+  stages: [{ name: "probe", status: "ok" }, { name: "build", status: "ok" }, { name: "member_patch", status: "failed" }],
+}, { resume: true, fingerprint });
+assert.deepEqual(ao2Failure.map((stage) => stage.run), [false, false, ...names.slice(2).map(() => true)]);
+ok("resume re-runs a failed AO-2 stage and every dependent stage after it");
 
 // Everything after a failure re-runs even if the state file recorded it ok:
 // a later stage's result describes a state that was never reached.
@@ -167,16 +244,16 @@ const outOfOrder = {
 };
 assert.deepEqual(
   stagesToRun(names, outOfOrder, { resume: true, fingerprint }).map((s) => s.run),
-  [false, true, true, true, true, true],
+  [false, ...names.slice(1).map(() => true)],
 );
 ok("a stage after a failure re-runs even when the state file called it ok");
 
 const changed = stagesToRun(names, state, { resume: true, fingerprint: "different" });
-assert.deepEqual(changed.map((s) => s.run), [true, true, true, true, true, true]);
+assert.deepEqual(changed.map((s) => s.run), names.map(() => true));
 assert.ok(changed[0].reason.includes("the plan changed"), "the reason says why nothing was reused");
 ok("a resume against a changed plan reuses nothing and says so");
 
-assert.deepEqual(stagesToRun(names, null, { resume: true, fingerprint }).map((s) => s.run), [true, true, true, true, true, true]);
+assert.deepEqual(stagesToRun(names, null, { resume: true, fingerprint }).map((s) => s.run), names.map(() => true));
 ok("resume with no state file runs everything");
 
 // ------------------------------------------------------------- end to end
@@ -198,6 +275,12 @@ ok("Play In Editor is behind an explicit --pie flag and is off by default");
 // there is no editor here to answer with the real shape.
 const orchestratorSource = readFileSync(join(root, "Scripts", "bridge-orchestrator.mjs"), "utf8");
 assert.ok(orchestratorSource.includes("data.filepath"), "the screenshot path must be read as data.filepath");
+const runtimeStageSource = orchestratorSource.slice(
+  orchestratorSource.indexOf('runStage("runtime_verify"'),
+  orchestratorSource.indexOf("// 6. pie"),
+);
+assert.ok(runtimeStageSource.indexOf("if (!includePie)") < runtimeStageSource.indexOf('call("puerts_pie_start"'));
+ok("runtime verification checks explicit PIE approval before asking the editor to start play");
 assert.ok(!/shot\?\.data\?\.(path|filename)\b/.test(orchestratorSource),
   "data.path and data.filename are not fields viewport_screenshot returns");
 ok("the screenshot path is read from the field the capture actually writes");
@@ -223,5 +306,19 @@ assert.ok(examplePlan.expect.min_nodes <= examplePlan.blueprint.graph.nodes.leng
   "the example expects more nodes than it states");
 assert.equal(typeof planFingerprint(examplePlan), "string");
 ok("the committed example plan passes the orchestrator's own plan validation");
+
+const releasePlan = JSON.parse(readFileSync(
+  join(root, "docs", "evidence", "orchestrator-release-demo.json"), "utf8",
+));
+validatePlan(releasePlan);
+assert.match(releasePlan.blueprint.asset_path, /^\/Game\/MCPGenerated\/ReleaseDemo\//);
+assert.equal(releasePlan.member_patch.asset_path, releasePlan.blueprint.asset_path);
+assert.ok(releasePlan.scene_batch.operations.some((operation) => operation.op === "upsert_actor"));
+assert.equal(releasePlan.material.tool, "puerts_material_build");
+assert.deepEqual(releasePlan.runtime_verify,
+  { actor: "BridgeReleaseDemo", property: "PulseCount", equals: 1 });
+assert.ok(releasePlan.expect.variables.includes("DemoLabel"));
+assert.equal(typeof planFingerprint(releasePlan), "string");
+ok("the committed AO-3 release demo exercises every AO-2 stage and passes plan validation");
 
 console.log(`\norchestrator: ${passed} checks passed.`);

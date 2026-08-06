@@ -68,6 +68,8 @@
 #include "Engine/World.h"
 #include "HAL/FileManager.h"
 #include "Json.h"
+#include "Misc/App.h"
+#include "Misc/Paths.h"
 #include "NavigationSystem.h"
 
 namespace
@@ -85,6 +87,7 @@ namespace
         case EBridgeJobKind::LightingBuild:   return TEXT("lighting_build");
         case EBridgeJobKind::NavigationBuild: return TEXT("navigation_build");
         case EBridgeJobKind::SequenceRender:  return TEXT("sequence_render");
+        case EBridgeJobKind::ProjectPackage:  return TEXT("project_package");
         default:                              return TEXT("unknown");
         }
     }
@@ -92,6 +95,32 @@ namespace
     bool IsTerminal(const FBridgeJob& Job)
     {
         return Job.State != TEXT("running");
+    }
+    bool HasSequenceFrame(const FString& Directory)
+    {
+        TArray<FString> Files;
+        IFileManager::Get().FindFilesRecursive(Files, *Directory, TEXT("*"), true, false);
+        for (const FString& File : Files)
+        {
+            const FString Extension = FPaths::GetExtension(File, false).ToLower();
+            if (Extension == TEXT("png") || Extension == TEXT("jpg")
+                || Extension == TEXT("jpeg") || Extension == TEXT("bmp") || Extension == TEXT("exr"))
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    bool HasProjectPackageArtifacts(const FString& Directory)
+    {
+        TArray<FString> Files;
+        IFileManager::Get().FindFilesRecursive(Files, *Directory, TEXT("*"), true, false);
+        const FString ExpectedExecutable = FString(FApp::GetProjectName()) + TEXT(".exe");
+        return Files.Num() > 0 && Files.ContainsByPredicate([&ExpectedExecutable](const FString& File)
+        {
+            return FPaths::GetCleanFilename(File).Equals(ExpectedExecutable, ESearchCase::IgnoreCase);
+        });
     }
 
     /**
@@ -131,11 +160,12 @@ namespace
                 "recovery is another build.");
             return;
         case EBridgeJobKind::SequenceRender:
+        case EBridgeJobKind::ProjectPackage:
             bOutSupported = true;
             OutEffect = TEXT("immediate");
-            OutNote = TEXT("The render runs in a second process, so cancelling is "
-                "FPlatformProcess::TerminateProc. Frames already written to the output directory "
-                "stay written: this stops the render, it does not clean up after it.");
+            OutNote = TEXT("The work runs in a child process, so cancelling is "
+                "FPlatformProcess::TerminateProc. Files already written to the output directory "
+                "stay written: this stops the process, it does not clean up after it.");
             return;
         default:
             break;
@@ -184,6 +214,11 @@ void UMCPPuerTSBridgeService::ReapJobs()
         {
             FPlatformProcess::CloseProc(Job.ProcessHandle);
             Job.ProcessHandle.Reset();
+        }
+        if (IsTerminal(Job) && Job.ProcessReadPipe != nullptr)
+        {
+            FPlatformProcess::ClosePipe(Job.ProcessReadPipe, nullptr);
+            Job.ProcessReadPipe = nullptr;
         }
     }
     while (Jobs.Num() > MaxRetainedJobs)
@@ -244,14 +279,44 @@ void UMCPPuerTSBridgeService::PollJob(FBridgeJob& Job)
         return;
     }
     case EBridgeJobKind::SequenceRender:
+    case EBridgeJobKind::ProjectPackage:
     {
+        if (Job.ProcessReadPipe != nullptr)
+        {
+            Job.OutputTail += FPlatformProcess::ReadPipe(Job.ProcessReadPipe);
+            constexpr int32 TailLimit = 32768;
+            if (Job.OutputTail.Len() > TailLimit)
+            {
+                Job.OutputTail.RightInline(TailLimit, false);
+            }
+        }
         if (!Job.ProcessHandle.IsValid()) { Finish(TEXT("failed")); return; }
         if (FPlatformProcess::IsProcRunning(Job.ProcessHandle)) { return; }
         FPlatformProcess::GetProcReturnCode(Job.ProcessHandle, &Job.ReturnCode);
         // A cancelled render exits non-zero because it was killed, so the
         // cancel flag decides the state before the return code does.
-        Finish(Job.bCancelRequested ? TEXT("cancelled")
-            : Job.ReturnCode == 0 ? TEXT("succeeded") : TEXT("failed"));
+        if (Job.bCancelRequested)
+        {
+            Finish(TEXT("cancelled"));
+            return;
+        }
+        if (Job.ReturnCode != 0)
+        {
+            Finish(TEXT("failed"));
+            return;
+        }
+        const bool bArtifactsPresent = Job.Kind == EBridgeJobKind::SequenceRender
+            ? HasSequenceFrame(Job.OutputDirectory)
+            : HasProjectPackageArtifacts(Job.OutputDirectory);
+        if (!bArtifactsPresent)
+        {
+            Job.Detail += Job.Kind == EBridgeJobKind::SequenceRender
+                ? TEXT(" Child process exited successfully but wrote no supported image frame.")
+                : TEXT(" Child process exited successfully but the archive is empty or lacks the project executable.");
+            Finish(TEXT("failed"));
+            return;
+        }
+        Finish(TEXT("succeeded"));
         return;
     }
     default:
@@ -336,6 +401,7 @@ TSharedPtr<FJsonObject> UMCPPuerTSBridgeService::DescribeJob(const FBridgeJob& J
         return Out;
     }
     case EBridgeJobKind::SequenceRender:
+    case EBridgeJobKind::ProjectPackage:
     {
         Out->SetNumberField(TEXT("process_id"), static_cast<double>(Job.ProcessId));
         Out->SetBoolField(TEXT("process_running"),
@@ -352,14 +418,18 @@ TSharedPtr<FJsonObject> UMCPPuerTSBridgeService::DescribeJob(const FBridgeJob& J
         if (!Job.OutputDirectory.IsEmpty())
         {
             TArray<FString> Files;
-            IFileManager::Get().FindFiles(Files, *(Job.OutputDirectory / TEXT("*")), true, false);
+            IFileManager::Get().FindFilesRecursive(
+                Files, *Job.OutputDirectory, TEXT("*"), true, false);
             FileCount = Files.Num();
         }
         Out->SetNumberField(TEXT("output_file_count"), FileCount);
-        Out->SetStringField(TEXT("completion_note"),
-            TEXT("output_file_count is a count, not a fraction: the total frame count is known "
-                 "only inside the render process. A render that exits zero having written nothing "
-                 "did not render - check the output directory before believing the state."));
+        Out->SetStringField(TEXT("output_tail"), Job.OutputTail);
+        Out->SetStringField(TEXT("completion_note"), Job.Kind == EBridgeJobKind::ProjectPackage
+            ? TEXT("output_file_count recursively counts staged and archived files, not progress. "
+                   "A zero UAT exit code and a non-empty archive both need release verification.")
+            : TEXT("output_file_count is a count, not a fraction: the total frame count is known "
+                   "only inside the render process. A render that exits zero having written nothing "
+                   "did not render - check the output directory before believing the state."));
         return Out;
     }
     default:
@@ -509,6 +579,7 @@ bool UMCPPuerTSBridgeService::ControlJobJson(
             break;
         }
         case EBridgeJobKind::SequenceRender:
+        case EBridgeJobKind::ProjectPackage:
             if (Found->ProcessHandle.IsValid())
             {
                 // true kills the whole tree: the child is a UE editor process

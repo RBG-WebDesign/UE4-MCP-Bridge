@@ -27,7 +27,12 @@ UEdGraph* FAnimBPAnimGraphBuilder::FindAnimGraph(UAnimBlueprint* AnimBlueprint)
 	if (!AnimBlueprint) return nullptr;
 	for (UEdGraph* Graph : AnimBlueprint->FunctionGraphs)
 	{
-		if (Graph && Graph->Schema && Graph->Schema->GetClass()->GetName().Contains(TEXT("AnimationGraphSchema")))
+		// Graph->Schema is a TSubclassOf<UEdGraphSchema>, i.e. already the schema
+		// class itself. Graph->Schema->GetClass() calls UObject::GetClass() on
+		// that UClass, which always returns UClass::StaticClass() ("Class") no
+		// matter what schema the graph has, so this can never match. The name
+		// of the class the graph actually obeys is Graph->Schema->GetName().
+		if (Graph && Graph->Schema && Graph->Schema->GetName().Contains(TEXT("AnimationGraphSchema")))
 		{
 			return Graph;
 		}

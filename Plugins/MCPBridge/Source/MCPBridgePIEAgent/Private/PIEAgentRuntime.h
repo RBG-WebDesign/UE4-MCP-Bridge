@@ -63,6 +63,7 @@ public:
     FString SetAxisState(const FString& AxisKeyName, float Value);
     FString ClearAxisState();
     FString Observe(const FString& RequestJson, bool bAppendToScript = true);
+    FString ReadProperty(const FString& RequestJson, bool bAppendToScript = true);
     FString RecordStart(const FString& RequestJson, bool bAppendToScript = true);
     FString RecordStop(bool bAppendToScript = true);
     FString StartExpect(const FString& RequestJson, bool bAppendToScript = true);
@@ -86,6 +87,7 @@ private:
     APlayerController* GetPlayerController() const;
     APawn* GetPawn() const;
     AActor* FindActor(const FString& Query) const;
+    AActor* FindActorForRead(const FString& Query, FString& OutError) const;
     bool ParseTarget(const TSharedPtr<FJsonObject>& Request, FVector& OutLocation, FString& OutDescription) const;
 
     int32 BeginOperation(const FString& Command, double TimeoutSeconds);

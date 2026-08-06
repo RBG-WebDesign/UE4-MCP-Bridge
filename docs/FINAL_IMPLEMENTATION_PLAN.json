@@ -259,7 +259,7 @@
       "id": "FP-2",
       "category": 2,
       "domain": "input",
-      "gap": "input simulation in PIE",
+      "gap": "input simulation in PIE; native control front implemented, compile and user-authorized live proof pending",
       "files": [
         "MCPBridgePIEAgent press/move"
       ],
@@ -268,22 +268,23 @@
         "FP-1"
       ],
       "conflicts": "none",
-      "strategy": "re-front press/move/look, user-gated",
+      "strategy": "one pie_agent_control command re-fronts all nine UPIEAgentLibrary control operations, user-gated",
       "preserve": "gating",
-      "tests": "live PIE",
+      "tests": "editor-free schema, annotation and native dispatch coverage + live PIE",
       "acceptance": "scripted input drives a mechanic",
       "rollback": "n/a runtime",
       "inspector": "pie_agent_query",
       "evidence": "recorded run",
       "risk": "medium",
       "lane": "offline then live",
-      "merge_order": 8
+      "merge_order": 8,
+      "status": "IMPLEMENTED_UNVERIFIED; TypeScript, focused editor-free tests, UBT, final linking and install:check pass; user-authorized live behavior proof outstanding"
     },
     {
       "id": "FP-3",
       "category": 2,
       "domain": "assets",
-      "gap": "no delete-asset primitive (finding 0n)",
+      "gap": "delete-asset primitive implemented and linked; live create-delete-verify proof remains",
       "files": [
         "new native command"
       ],
@@ -292,14 +293,15 @@
       "conflicts": "none",
       "strategy": "refuse when referenced unless force; confirm=true required; destructive annotation",
       "preserve": "n/a new",
-      "tests": "live create+delete+verify-gone",
+      "tests": "editor-free schema and safety contract green; live create+delete+verify-gone pending",
       "acceptance": "fixture cleanup possible in-editor",
       "rollback": "none (destructive, confirmed)",
       "inspector": "find_assets absence",
       "evidence": "acceptance",
       "risk": "medium",
       "lane": "offline then live",
-      "merge_order": 9
+      "merge_order": 9,
+      "status": "IMPLEMENTED_UNVERIFIED; TypeScript, focused contract, UHT, UBT, final linking and install:check pass; destructive live acceptance requires explicit user authorization"
     },
     {
       "id": "FP-4",
@@ -314,14 +316,15 @@
       "conflicts": "none",
       "strategy": "extend scope with referencer check like variables",
       "preserve": "existing scopes",
-      "tests": "bp acceptance extension",
+      "tests": "editor-free schema/native contract green; warm+cold bp acceptance extension authored, live run pending",
       "acceptance": "downward convergence on components",
       "rollback": "existing boundary",
       "inspector": "member hash",
       "evidence": "acceptance",
       "risk": "low",
       "lane": "offline",
-      "merge_order": 10
+      "merge_order": 10,
+      "status": "IMPLEMENTED_UNVERIFIED; focused contract, UE4.27 compile, final link and install:check pass; warm and cold acceptance requires explicit editor authorization"
     },
     {
       "id": "FP-5",
@@ -336,14 +339,15 @@
       "conflicts": "none",
       "strategy": "native front, parameter parity per 0s lesson",
       "preserve": "legacy names as aliases",
-      "tests": "live",
+      "tests": "editor-free schema/native contract green; warm+cold level lifecycle acceptance authored, live run pending",
       "acceptance": "clean-project slice can make its own map",
       "rollback": "unsaved refusal",
       "inspector": "scene_inspect",
       "evidence": "acceptance",
       "risk": "low",
       "lane": "offline then live",
-      "merge_order": 11
+      "merge_order": 11,
+      "status": "IMPLEMENTED_UNVERIFIED; parameter parity, UE4.27 compile, final link and install:check pass; warm and cold acceptance requires explicit editor authorization"
     },
     {
       "id": "FP-6",
@@ -360,14 +364,15 @@
       "conflicts": "none",
       "strategy": "desired-state cue graph; LinkGraphNodesFromSoundNodes derives editor graph",
       "preserve": "audio_inspect",
-      "tests": "harness w/ control",
+      "tests": "editor-free schema/native contract green; warm+cold audio acceptance authored with a state-moving control, plan-only, convergence, refusal stability and independent hash read-back; live run pending",
       "acceptance": "cue plays in PIE demo",
       "rollback": "snapshot",
       "inspector": "audio_inspect hash",
       "evidence": "acceptance",
       "risk": "medium",
       "lane": "offline then live",
-      "merge_order": 12
+      "merge_order": 12,
+      "status": "IMPLEMENTED_UNVERIFIED; 66 native tools, focused contract, UHT, UE4.27 compile, library and DLL link, generated inventory and install:check pass; warm, cold and user-authorized PIE playback acceptance remain"
     },
     {
       "id": "DC-LIB",
@@ -542,7 +547,7 @@
       "id": "RL-2",
       "category": 7,
       "domain": "release",
-      "gap": "zip installs share one compiled pipe name",
+      "gap": "project-derived fallback implemented and linked; two-project live proof remains",
       "files": [
         "MCPPuerTSBridge config",
         "README_INSTALL"
@@ -559,7 +564,8 @@
       "evidence": "collision test",
       "risk": "medium (touches session discovery)",
       "lane": "offline then live",
-      "merge_order": 20
+      "merge_order": 20,
+      "status": "IMPLEMENTED_UNVERIFIED; npm run test:package, UBT, final linking and install:check pass; live collision proof is outstanding"
     },
     {
       "id": "RL-3",

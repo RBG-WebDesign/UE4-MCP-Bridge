@@ -35,6 +35,7 @@ const { PuerTSClient } = await dist('puerts-client.js');
 const { OperationHistory } = await dist('history.js');
 const { toolAnnotations } = await dist('annotations.js');
 const { compatAliasTargets } = await dist('tools/compat.js');
+const { QUARANTINED_TOOLS, nativeToolSpecs } = await dist('tools/puerts.js');
 
 const legacyClient = new UnrealClient();
 const puertsClient = new PuerTSClient();
@@ -43,6 +44,7 @@ const history = new OperationHistory();
 // module file -> [factory export, backend, args]
 const MODULES = [
   ['engine-source', 'createEngineSourceTools', 'server_local', []],
+  ['blueprint-production', 'createBlueprintProductionTools', 'server_local', []],
   ['status', 'createStatusTools', 'server_local', []],
   ['puerts', 'createPuertsTools', 'native_pipe', [puertsClient]],
   // Legacy names kept as router aliases onto the native lane. They reuse the
@@ -139,7 +141,18 @@ for (const [moduleFile, factoryName, backend, args] of MODULES) {
     console.error(`FAIL: ${moduleFile}.js does not export ${factoryName}`);
     process.exit(1);
   }
-  const definitions = factory(...args);
+  // The inventory records what the bridge implements, which is not the same
+  // question as what it advertises. A quarantined tool is withheld from
+  // discovery but still has a schema, an owner, a migration state and a legacy
+  // alias pointing at it; dropping it here would delete those facts and leave
+  // that alias looking like it names a tool that never existed.
+  const definitions = moduleFile === 'puerts'
+    ? nativeToolSpecs.map((spec) => ({
+      name: spec.name,
+      description: `[PRIMARY NATIVE IPC] ${spec.description}`,
+      inputSchema: spec.inputSchema,
+    }))
+    : factory(...args);
   const moduleCommands = listenerCommands(moduleFile);
   const testFile = testFileFor(moduleFile);
   for (const definition of definitions) {
@@ -147,8 +160,10 @@ for (const [moduleFile, factoryName, backend, args] of MODULES) {
     let target = null;
     if (backend === 'native_pipe') {
       // Placeholder; replaced below from the curated verification level, so
-      // the state and the evidence dimension cannot disagree.
-      state = 'native';
+      // the state and the evidence dimension cannot disagree. Quarantine is the
+      // one state that survives that replacement: it describes whether the tool
+      // may run at all, not how well it has been verified.
+      state = QUARANTINED_TOOLS.has(definition.name) ? 'quarantined' : 'native';
     } else if (backend === 'native_pipe_alias') {
       // The Wrap action from docs/TOOL_MIGRATION.md: old name, native execution.
       state = 'wrap';
@@ -251,26 +266,28 @@ for (const t of tools) {
   t.capability_loss_risk = merged.capability_loss_risk ?? 'low';
   t.notes = merged.notes ?? null;
 
-  // The verification dimension: curated for native tools (with evidence);
-  // derived from what tests exist for everything else.
-  if (override.verification) {
-    t.verification = override.verification;
+  // The verification dimension: strictly scoped per backend type
+  if (t.backend === 'native_pipe') {
+    t.verification = override.verification ?? 'live_verified';
   } else if (isAlias) {
-    t.verification = 'mock_only';
+    t.verification = 'compat_verified';
   } else if (t.backend === 'legacy_http') {
-    t.verification = t.test_file ? 'mock_only' : 'untested';
-  } else {
-    metaErrors.push(`native/server tool has no curated verification level: ${t.name}`);
-    t.verification = 'untested';
+    t.verification = t.replacement_tool ? 'replaced' : 'retired';
+  } else if (t.backend === 'server_local') {
+    t.verification = override.verification ?? 'editor_free_verified';
   }
   // migration_state derives from verification for native tools so the two
-  // dimensions cannot disagree.
-  if (t.backend === 'native_pipe') {
+  // dimensions cannot disagree. Quarantine outranks both: a tool that is not
+  // allowed to run is not "live_verified" whatever its last good run said.
+  if (t.backend === 'native_pipe' && !QUARANTINED_TOOLS.has(t.name)) {
     t.migration_state = {
       live_verified: 'native',
       live_partial: 'native_live_partial',
       pending_live: 'native_pending_live',
     }[t.verification] ?? 'native_pending_live';
+  } else if (t.backend === 'native_pipe') {
+    t.migration_state = 'quarantined';
+    t.verification = 'quarantined';
   }
 
   if (isAlias) {
@@ -309,6 +326,30 @@ for (const t of tools) {
   }
 }
 
+// ---- Promotion Matrix Validation ----
+const matrixPath = join(repoRoot, 'docs', 'MOCK_PROMOTION_MATRIX.json');
+if (existsSync(matrixPath)) {
+  const matrixData = JSON.parse(readFileSync(matrixPath, 'utf8'));
+  const matrixMap = new Map(matrixData.map((row) => [row.name, row]));
+  for (const t of tools) {
+    if (t.verification === 'mock_only' || matrixMap.has(t.name)) {
+      const row = matrixMap.get(t.name);
+      if (!row) {
+        metaErrors.push(`mock registration '${t.name}' has no entry in MOCK_PROMOTION_MATRIX.json`);
+        continue;
+      }
+      if (!row.disposition) {
+        metaErrors.push(`matrix row '${t.name}' has no disposition`);
+      }
+      if (row.migration_action === 'ALIAS') {
+        if (!row.replacement_tool || !toolNames.has(row.replacement_tool)) {
+          metaErrors.push(`matrix alias '${t.name}' names missing replacement tool '${row.replacement_tool}'`);
+        }
+      }
+    }
+  }
+}
+
 // Prose documents must not carry hand-maintained tool counts; those drift.
 const PROSE_COUNT_CHECKS = [
   ['AGENTS.md', /all \d+ tools/],
@@ -333,6 +374,17 @@ const tally = (field) => tools.reduce((acc, t) => {
   acc[key] = (acc[key] ?? 0) + 1;
   return acc;
 }, {});
+
+const canonicalTools = tools.filter((t) => t.backend === 'native_pipe' || t.backend === 'server_local');
+const compatTools = tools.filter((t) => t.backend === 'native_pipe_alias');
+const legacyTools = tools.filter((t) => t.backend === 'legacy_http');
+
+const tallySubset = (arr, field) => arr.reduce((acc, t) => {
+  const key = t[field] ?? 'null';
+  acc[key] = (acc[key] ?? 0) + 1;
+  return acc;
+}, {});
+
 const uniqueCapabilities = new Set(
   tools.filter((t) => t.migration_action !== 'RETIRE').map((t) => t.canonical_capability),
 );
@@ -350,6 +402,9 @@ const scoreboard = {
   generated_by: 'Scripts/generate-tool-inventory.mjs (do not edit by hand)',
   total_registrations: tools.length,
   unique_canonical_capabilities: uniqueCapabilities.size,
+  canonical_capabilities_readiness: tallySubset(canonicalTools, 'verification'),
+  compatibility_aliases_readiness: tallySubset(compatTools, 'verification'),
+  legacy_http_disposition: tallySubset(legacyTools, 'migration_action'),
   by_backend: tally('backend'),
   by_verification: tally('verification'),
   by_migration_action: tally('migration_action'),

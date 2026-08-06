@@ -9,16 +9,9 @@
 ; ---------------------------------------------------------------------------
 ;
 ; Every setting here has a default compiled into the plugin, so the bridge
-; starts without this section. PipeName is the one you should still set.
-;
-; The compiled default is the same constant for every project:
-;
-;     \\.\pipe\UE427PuerTSMCP
-;
-; Two projects installed from a release zip on one machine therefore ask for
-; the SAME pipe. Give each project its own name. The installer uses the
-; .uproject name with every character outside [A-Za-z0-9_] replaced by an
-; underscore; match that and a generated client config lines up with it.
+; starts without this section. When PipeName is absent, the plugin derives a
+; stable project-specific name from the .uproject name and canonical project
+; path. Set PipeName only when you need an explicit override.
 
 [MCPPuerTSBridge]
 PipeName=\\.\pipe\UE427PuerTSMCP_<YourProjectName>

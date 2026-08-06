@@ -114,9 +114,36 @@ through `tsx` with a custom assert helper. Unit tests use a mock HTTP server
 - UE4.27 with the Python Editor Script Plugin enabled
 - Node.js 18+
 - `UE_ENGINE_ROOT` pointing at the engine root (the directory containing
-  `Engine/Source`). Currently `D:/UE/UE_4.27`. Without it the `engine_source_*`
-  tools cannot find the engine: their fallback reads `EngineAssociation` from a
-  `.uproject`, and a bridge-only clone has none.
+  `Engine/Source`). Without it the `engine_source_*` tools cannot find the
+  engine: their fallback reads `EngineAssociation` from a `.uproject`, and a
+  bridge-only clone has none.
+- `MCP_UNREAL_PROJECT_ROOT` selecting which editor the bridge addresses.
+
+  Both are absolute and differ per machine, so they do **not** live in the
+  committed `.mcp.json`. They come from `bridge.local.json` at the repository
+  root, which is gitignored; `bridge.local.example.json` is the template. The
+  server seeds them into its own environment at startup
+  (`mcp-server/src/local-config.ts`), so every client gets them, not just Claude
+  Code, and no client config needs a project path edited into it. An explicit
+  environment variable always wins over the file.
+
+  One command per project writes that file, installs the plugin, builds the
+  target editor, and validates the result:
+
+  ```powershell
+  .\Scripts\setup-unreal-project.ps1 -Project "D:\Unreal Projects\MyGame\MyGame.uproject"
+  ```
+
+  The engine root is discovered automatically from the project's
+  `EngineAssociation` through the registry, using the same resolver
+  `engine_source_search` uses (`resolveEngineRoot` in
+  `mcp-server/src/tools/engine-source.ts`, reached by
+  `Scripts/resolve-engine-root.mjs`). `-EngineRoot` overrides it for a source
+  build the registry does not know about. Restart the MCP client when the script
+  finishes, because servers register at startup.
+  `unreal-api` needs its own pinned environment once per machine
+  (`Scripts/setup-unreal-api-mcp.ps1`, called automatically by the above): the
+  package imports `mcp.server.fastmcp`, which `mcp` 2.0.0 removed.
 - `Plugins/Puerts`, the pinned vendored bundle. It is gitignored, so a fresh
   **git worktree does not have it** and `npm run build` warns, stages an
   incomplete `Content/JavaScript`, and leaves `install:check` reporting 22 extra
@@ -191,6 +218,12 @@ rather than a reason to reach for another transport.
 by `python Scripts/ue427.py catalog`. The acceptance suite fails when it drifts,
 so adding a tool means regenerating it.
 
+The per-domain files next to it (`blueprint-tools.md`, `widget-tools.md`,
+`material-tools.md`, `animation-tools.md`, `scene-tools.md`,
+`sequencer-tools.md`, `ai-input-audio-tools.md`, `inspectors.md`) are hand
+written and hold the detail deliberately kept out of the tool schemas. See
+"Where a tool's documentation goes" below.
+
 Do not confuse this with the scenario prompt templates that are flat `.md` files
 directly inside `skills/`; those feed the orchestrator and PromptBrush.
 
@@ -208,10 +241,10 @@ directly inside `skills/`; those feed the orchestrator and PromptBrush.
   every registered tool. Reviewable in one file on purpose.
 - `history.ts` - undo/redo/checkpoint tracking
 - `validation.ts` - shared validation helpers
-- `tools/` - 25 modules, each exporting a `create*Tools(client)` factory that
+- `tools/` - 26 modules, each exporting a `create*Tools(client)` factory that
   returns `ToolDefinition[]`
 
-The 25 tool modules: `actors`, `animation`, `blueprint-graph`, `blueprints`,
+The 26 tool modules: `actors`, `animation`, `blueprint-graph`, `blueprint-production`, `blueprints`,
 `cloth`, `compat`, `content`, `cpp`, `effects`, `engine-source`, `gamedev`,
 `gameplay`, `intelligence`, `level`, `materials`, `operations`, `optimization`,
 `pie-agent`, `project`, `promptbrush`, `puerts`, `status`, `system`, `titles`,
@@ -289,7 +322,11 @@ Builder subsystems inside `MCPBridgeGraphBuilder`:
 
 - **Blueprint Graph Builder** (11 passes complete) - `UBlueprintGraphBuilderLibrary::BuildBlueprintFromJSON`
 - **Behavior Tree Builder** (complete, 26 node types) - `UBehaviorTreeBuilderLibrary::BuildBehaviorTreeFromJSON`
-- **Animation Blueprint Builder** (v1 complete) - `UAnimBlueprintBuilderLibrary::BuildAnimBlueprintFromJSON`
+- **Animation Blueprint Builder** (v1 complete, two bugs found and fixed in live testing 2026-08-05: both
+  `FAnimBPAnimGraphBuilder::FindAnimGraph` and the `puerts_anim_blueprint_inspect` read-back path compared
+  `Graph->Schema->GetClass()->GetName()` instead of `Graph->Schema->GetName()`, always yielding "Class" since
+  `Schema` is already a `TSubclassOf<UEdGraphSchema>`; build, inspect, patch and pawn-attach re-verified live,
+  14/14) - `UAnimBlueprintBuilderLibrary::BuildAnimBlueprintFromJSON`
 - **Widget Blueprint Builder** (design complete, implementation not started) - `UWidgetBlueprintBuilderLibrary`
 
 Specs live in `docs/superpowers/specs/`.
@@ -342,9 +379,93 @@ and fixed-camera tools and is **disabled**: `locomotion_debug` and
 4. Add the native tool name to the C++ allowlist and keep permissions narrow.
 5. Classify the prefixed MCP tool in `mcp-server/src/annotations.ts`.
 6. Update the PuerTS declarations stored in `puerts-runtime/typing/`.
-7. Run `npm run verify`, compile the isolated UE4.27 test project, then run `npm run smoke:editor`.
+7. Put the detail in the skill, not the schema. See below.
+8. Run `npm run verify`, compile the isolated UE4.27 test project, then run `npm run smoke:editor`.
 
 Do not prototype new editor operations through `python_proxy`. Do not add HTTP routes for native tools. The old Python route workflow is migration-only and must remain behind the explicit legacy opt-in.
+
+### Where a tool's documentation goes
+
+A tool description and its `inputSchema` are **resident context**. Every client
+that lists tools pays for every word on every session, whether or not the tool is
+ever called. That is the real running cost of this server, and it grows one
+reasonable-looking paragraph at a time: the catalog was 178 KB (~45k tokens)
+before the split, and the descriptions had become design documents.
+
+The schema keeps what a caller needs to make a **valid call without a lookup**:
+
+- what the tool does, in a sentence or two
+- required parameters and their shapes
+- hard constraints and preconditions (`/Game/MCPGenerated/` only, `confirm=true`,
+  must be saved and clean)
+- the refusal and rollback behaviour in a clause, not a section
+- a pointer: `Detail: references/<file>.md in the unreal-engine-4-27 skill.`
+
+`skills/unreal-engine-4-27/references/` keeps the rest: node catalogs, operation
+grammars, pin name tables, per-type property lists, convergence and identity
+semantics, worked examples, and the rationale for a design decision.
+
+Do not over-cut. Moving something a caller needs in order to spell a parameter
+correctly just trades a smaller catalog for extra lookup round trips, or for
+invalid arguments. An op NAME belongs in the schema, because you cannot look up
+an op you do not know exists; its per-op FIELDS belong in the reference.
+
+`npm run check:schema-budget` enforces this and runs inside `npm run verify`.
+It caps the whole catalog, each tool, and each description separately: the total
+catches tool-count sprawl, the per-description cap catches prose regrowth.
+`node Scripts/check-schema-budget.mjs --report` ranks every tool by size.
+
+### Prose is the bloat. Tokens are not.
+
+That distinction is measured, not asserted, and it was measured because the first
+attempt at this split got it wrong.
+
+`npm run bench:schema` (`Scripts/bench-schema-sufficiency.mjs`, editor-free, also
+in `npm run verify`) harvests every token a caller has to spell from the corpus
+this repository already proves correct: the seven vertical slices and the
+acceptance scripts, whose payloads ran against a real editor and passed. It then
+asks whether each token is discoverable from the schema, from a skill reference,
+or from neither.
+
+| | catalog | first-call sufficiency |
+|---|---|---|
+| before the split | 178,438 B | 87.5% |
+| prose **and** tokens moved out | 135,308 B | 33.3% |
+| prose out, tokens restored | 136,992 B | 100% |
+
+Moving the prose saved 43 KB and cost nothing. Moving the token lists with it
+saved a further 1.7 KB and stranded 26 tokens a real task needs: the Operator
+ops, the per-node routing keys, the literal pin roles. That is a lookup or a
+guess on a first call, and a guess is an invalid call. Byte reduction that buys
+extra round trips is the same cost in a different place.
+
+So the rule has two halves:
+
+- A **name** is vocabulary. It stays in the schema, as a bare comma-separated
+  list with no explanation. You cannot look up a token you cannot spell.
+- What a name **means**, which node takes which key, and why a design went the
+  way it did is documentation. It goes to the reference.
+
+`references/blueprint-tools.md` maps routing keys to node types; the schema
+carries the flat list of key names. That is the split working as intended.
+
+The benchmark exits non-zero on an **undocumented** token, one present in neither
+place: that is a defect regardless of which side of the split you prefer.
+Reference-only tokens are reported, not failed, because a few are a legitimate
+judgement call.
+
+What it does not measure: completion rate, total tool calls and repair calls.
+Those need a live agent driving a live editor, and the static score is a leading
+indicator for them, not a substitute. `docs/evidence/schema-sufficiency.json`
+holds the current run for comparison after a future change.
+
+A tool that is genuinely large because of schema STRUCTURE rather than prose gets
+a named entry in `STRUCTURAL_EXEMPTIONS` with the reason. Validation at a trust
+boundary is never the thing to cut.
+
+The drift tests in `mcp-server/tests/puerts-tools.test.ts` assert the invariant in
+both halves: the schema has to validate a node type or op, and the reference file
+has to document it. Assert on both, never on neither.
 
 ## API lookup: three systems, use the right one
 
@@ -534,6 +655,58 @@ telemetry, acceptance tests, and every `pie_agent_*` tool.
 - No em dashes in comments or documentation
 - No filler language (delve, explore, leverage, robust, utilize)
 - Write documentation for a programmer, not for a VP
+
+## Deleting a worktree: junctions point into the main checkout
+
+**Hard rule. A worktree can contain Windows junctions into the main checkout.
+Before deleting a worktree directory, detect and remove reparse points without
+following them. Never use recursive deletion until this check passes.**
+
+This is not hypothetical. On 2026-08-06 an `rm -rf` over 27 orphaned worktree
+directories emptied the main checkout's `mcp-server/`, `Plugins/Puerts` and both
+workspace `node_modules`, because every worktree held a junction at
+`Plugins/Puerts` aimed at the main tree, created exactly as the prerequisites
+section above instructs. The follow-up `git checkout -- .` then reverted two
+files of unrelated uncommitted work, which was not recoverable.
+`docs/incidents/2026-08-06-worktree-junction-delete.md` has the full account.
+
+A junction hides from the checks that usually catch this. It is not a POSIX
+symlink, Explorer draws it as an ordinary folder, and `du` bills the
+destination's bytes to the link. The only reliable signal is lstat's reparse bit.
+
+Use the script, which is the rule in executable form:
+
+```bash
+node Scripts/worktree-cleanup.mjs audit  <dir>          # report, refuse, change nothing
+node Scripts/worktree-cleanup.mjs unlink <dir>          # remove links only
+node Scripts/worktree-cleanup.mjs delete <dir> --yes    # unlink, verify, then delete
+```
+
+It walks without descending through links, prints each destination, removes a
+junction with a link-only operation, re-scans to prove zero reparse points
+remain, and only then deletes. It refuses to delete the checkout it runs from.
+
+**Never `git checkout -- .` or `git restore .`.** Both revert every uncommitted
+change in the tree, including work the current task never touched. Name the
+paths, or use the scoped form, which refuses an unscoped pathspec and refuses to
+run against a dirty tree unless `--archive` stashes it first:
+
+```bash
+node Scripts/worktree-cleanup.mjs restore mcp-server --archive
+```
+
+Acceptance: `node Scripts/worktree-cleanup.test.mjs`, included in
+`npm run test:editor-free`. It builds a disposable worktree with a real junction
+to a destination outside it and asserts both halves: the worktree is deleted
+**and** the destination survives byte-identical. A cleanup that deleted both
+would pass a naive "the directory is gone" test.
+
+**An audit that skips links must say so.** The content audit that preceded the
+2026-08-06 delete hashed every file it walked and correctly never descended
+through a reparse point, so files reachable only through a link were absent from
+its inventory. It reported "nothing unique here", which was true of what it
+inventoried and false of what was on disk. When an audit declines to follow
+something, list what it declined.
 
 ## Safety
 

@@ -27,8 +27,8 @@
 import { z } from "zod";
 import type { PuerTSClient } from "../puerts-client.js";
 import type { ToolDefinition } from "../types.js";
-import { compatAliasAnnotations } from "../annotations.js";
-import { executeNativeCommand, nativeFailureEnvelope, nativeToolSpec } from "./puerts.js";
+import { compatAliasAnnotations, toolAnnotations } from "../annotations.js";
+import { executeNativeCommand, nativeFailureEnvelope, nativeToolSpec, QUARANTINED_TOOLS } from "./puerts.js";
 
 const vector = z.object({
   x: z.number().describe("X coordinate"),
@@ -183,9 +183,562 @@ interface CompatAlias {
   readonly description: string;
   readonly inputSchema: z.ZodType;
   readonly translate: (params: Params) => Translation;
+  /** Optional result adapter when the native superset needs the legacy envelope. */
+  readonly adaptResult?: (payload: Params, params: Params) => Params;
+  /** Optional workflow for aliases that must preserve legacy blocking behavior. */
+  readonly execute?: (client: PuerTSClient, params: Params, translated: Params) => Promise<Params>;
+}
+
+async function executeCompatNative(client: PuerTSClient, canonical: string, params: Params): Promise<Params> {
+  payloadShapeGuard(params);
+  return executeNativeCommand(client, nativeToolSpec(canonical), params);
+}
+
+async function executePieControl(
+  client: PuerTSClient,
+  params: Params,
+  translated: Params,
+  budgetSeconds?: number,
+): Promise<Params> {
+  const started = await executeCompatNative(client, "puerts_pie_agent_control", translated);
+  if (started.success !== true || budgetSeconds === undefined || params.export === true) return started;
+  const startedData = started.data as Params | undefined;
+  const operationId = Number(startedData?.operation_id ?? 0);
+  if (!Number.isInteger(operationId) || operationId <= 0) {
+    return nativeFailureEnvelope(
+      ["Native PIE control did not return a positive operation_id."],
+      "PIE operation could not be polled.",
+    );
+  }
+  const deadline = Date.now() + budgetSeconds * 1000;
+  for (;;) {
+    if (Date.now() > deadline) {
+      return nativeFailureEnvelope(
+        [`PIE operation ${operationId} did not reach a terminal state within ${budgetSeconds}s.`],
+        "PIE operation timed out and may still be running.",
+      );
+    }
+    const status = await executeCompatNative(client, "puerts_pie_agent_query", {
+      op: "status", operation_id: operationId,
+    });
+    if (status.success !== true) return status;
+    const statusData = status.data as Params | undefined;
+    const state = String(statusData?.status ?? "");
+    if (state === "succeeded" || state === "failed" || state === "cancelled") {
+      const result = statusData?.result;
+      const resultData = result !== null && typeof result === "object" && !Array.isArray(result)
+        ? result as Params : {};
+      return {
+        ...status,
+        success: state === "succeeded",
+        data: { operation_id: operationId, ...resultData },
+        error: statusData?.error ?? null,
+      };
+    }
+    await new Promise<void>((resolve) => setTimeout(resolve, 10));
+  }
+}
+
+function pieControlAlias(
+  name: string,
+  op: string,
+  description: string,
+  inputSchema: z.ZodType,
+  budget: (params: Params) => number | undefined = () => undefined,
+): CompatAlias {
+  return {
+    name, canonical: "puerts_pie_agent_control", description, inputSchema,
+    translate: (params) => routed({ op, ...params }),
+    execute: async (client, params, translated) => executePieControl(client, params, translated, budget(params)),
+  };
 }
 
 const aliases: readonly CompatAlias[] = [
+  {
+    name: "actor_organize",
+    canonical: "puerts_scene_batch",
+    description: "Move actors into World Outliner folders through one native scene transaction.",
+    inputSchema: z.object({
+      actors: z.array(z.string()).min(1),
+      folder: z.string(),
+    }).strict(),
+    translate: (params) => routed({
+      operations: (params.actors as string[]).map((actor) => ({
+        op: "upsert_actor",
+        select: { label: actor },
+        folder: params.folder,
+      })),
+      verify: true,
+    }),
+  },
+  {
+    name: "batch_spawn",
+    canonical: "puerts_scene_batch",
+    description: "Spawn actors in one native scene transaction while preserving actor_spawn fields.",
+    inputSchema: z.object({
+      spawns: z.array(z.object({
+        asset_path: z.string(),
+        location: vector.optional(),
+        rotation: rotation.optional(),
+        scale: vector.optional(),
+        name: z.string().optional(),
+        folder: z.string().optional(),
+        validate: z.boolean().optional(),
+      }).strict()).min(1),
+    }).strict(),
+    translate: (params) => routed({
+      operations: (params.spawns as Params[]).map((spawn) => {
+        const operation: Params = { op: "upsert_actor" };
+        if (spawn.asset_path !== undefined) operation.class = spawn.asset_path;
+        if (spawn.name !== undefined) operation.label = spawn.name;
+        carry(spawn, ["location", "rotation", "scale", "folder"], operation);
+        return operation;
+      }),
+      verify: (params.spawns as Params[]).every((spawn) => spawn.validate !== false),
+    }),
+  },
+  {
+    name: "batch_operations",
+    canonical: "puerts_scene_batch",
+    description:
+      "Merge actor-only batch operations onto puerts_scene_batch. Cross-domain commands are refused " +
+      "instead of claiming one transaction across unrelated native domains.",
+    inputSchema: z.object({
+      operations: z.array(z.object({
+        command: z.string(),
+        params: z.record(z.unknown()).optional(),
+      }).strict()).min(1),
+    }).strict(),
+    translate: (params) => {
+      const nativeOperations: Params[] = [];
+      for (const entry of params.operations as Params[]) {
+        const command = String(entry.command);
+        const opParams = entry.params !== null && typeof entry.params === "object"
+          ? entry.params as Params
+          : {};
+        if (command === "actor_spawn") {
+          if (typeof opParams.asset_path !== "string" || opParams.asset_path.length === 0) {
+            return unmappable(["operations"], ["actor_spawn requires asset_path."]);
+          }
+          const operation: Params = { op: "upsert_actor", class: opParams.asset_path };
+          carry(opParams, ["location", "rotation", "scale", "folder"], operation);
+          if (opParams.name !== undefined) operation.label = opParams.name;
+          nativeOperations.push(operation);
+          continue;
+        }
+        if (command === "actor_modify") {
+          if (typeof opParams.actor_name !== "string" || opParams.actor_name.length === 0) {
+            return unmappable(["operations"], ["actor_modify requires actor_name."]);
+          }
+          if (opParams.mesh !== undefined) {
+            return unmappable(["operations"], ["actor_modify.mesh has no scene-batch property equivalent."]);
+          }
+          const operation: Params = { op: "upsert_actor", select: { label: opParams.actor_name } };
+          carry(opParams, ["location", "rotation", "scale"], operation);
+          if (opParams.visible !== undefined) operation.properties = { bHidden: !Boolean(opParams.visible) };
+          nativeOperations.push(operation);
+          continue;
+        }
+        if (command === "actor_delete") {
+          if (typeof opParams.actor_name !== "string" || opParams.actor_name.length === 0) {
+            return unmappable(["operations"], ["actor_delete requires actor_name."]);
+          }
+          if (WILDCARD.test(opParams.actor_name)) {
+            return unmappable(["operations"], ["actor_delete wildcard actor_name cannot be expressed by one native selector."]);
+          }
+          nativeOperations.push({ op: "delete_actor", select: { label: opParams.actor_name } });
+          continue;
+        }
+        if (command === "actor_organize") {
+          if (!Array.isArray(opParams.actors) || typeof opParams.folder !== "string") {
+            return unmappable(["operations"], ["actor_organize requires actors and folder."]);
+          }
+          for (const actor of opParams.actors) {
+            if (typeof actor !== "string") return unmappable(["operations"], ["actor_organize actors must be strings."]);
+            nativeOperations.push({ op: "upsert_actor", select: { label: actor }, folder: opParams.folder });
+          }
+          continue;
+        }
+        return unmappable(["operations"], [`${command} is outside the actor-only scene-batch adapter.`]);
+      }
+      return routed({ operations: nativeOperations, verify: true });
+    },
+  },
+  {
+    name: "project_settings_maps",
+    canonical: "puerts_project_settings_maps",
+    description: "Set default maps and game mode through the native UE4.27 project config writer.",
+    inputSchema: z.object({
+      game_default_map: z.string().optional(),
+      editor_startup_map: z.string().optional(),
+      global_default_game_mode: z.string().optional(),
+    }).strict().refine(
+      (value) => value.game_default_map !== undefined
+        || value.editor_startup_map !== undefined
+        || value.global_default_game_mode !== undefined,
+      { message: "At least one project setting is required." },
+    ),
+    translate: (params) => routed(params),
+  },
+  pieControlAlias(
+    "pie_agent_move_to",
+    "move_to",
+    "Move the PIE pawn to a location or actor and return the legacy terminal verdict.",
+    z.object({
+      location: z.array(z.number()).length(3).optional(),
+      actor: z.string().optional(),
+      acceptance_radius: z.number().positive().optional(),
+      timeout: z.number().positive().optional(),
+    }).strict(),
+    (params) => Number(params.timeout ?? 20) + 5,
+  ),
+  pieControlAlias(
+    "pie_agent_look_at",
+    "look_at",
+    "Point the PIE player camera at a location or named actor.",
+    z.object({
+      location: z.array(z.number()).length(3).optional(),
+      actor: z.string().optional(),
+    }).strict(),
+  ),
+  pieControlAlias(
+    "pie_agent_press",
+    "press",
+    "Press and release an action mapping or raw key and return the legacy terminal verdict.",
+    z.object({
+      action: z.string().optional(),
+      key: z.string().optional(),
+      hold_seconds: z.number().min(0).optional(),
+    }).strict(),
+    (params) => Number(params.hold_seconds ?? 0.1) + 8,
+  ),
+  pieControlAlias(
+    "pie_agent_record_start",
+    "record_start",
+    "Start PIE spawn, destroy and overlap event recording.",
+    z.object({
+      events: z.array(z.enum(["spawn", "destroy", "overlap"])).optional(),
+      class_filters: z.array(z.string()).optional(),
+      log_categories: z.array(z.string()).optional(),
+      max_events: z.number().int().positive().optional(),
+    }).strict(),
+  ),
+  pieControlAlias(
+    "pie_agent_record_stop",
+    "record_stop",
+    "Stop PIE event recording and return the timestamped event list.",
+    z.object({}).strict(),
+  ),
+  pieControlAlias(
+    "pie_agent_replay",
+    "replay",
+    "Replay a PIE agent script or export the current session script.",
+    z.object({
+      script: z.array(z.object({ command: z.string(), params: z.record(z.unknown()) })).optional(),
+      seed: z.number().int().optional(),
+      export: z.boolean().optional(),
+      budget_seconds: z.number().positive().optional(),
+    }).strict(),
+    (params) => params.export === true ? undefined : Number(params.budget_seconds ?? 120),
+  ),
+  {
+    name: "blueprint_build_from_json",
+    canonical: "puerts_blueprint_build",
+    description:
+      "Populate an existing generated Blueprint through the native desired-state builder. "
+      + "The alias first inspects the asset so the legacy not-found precondition is preserved. "
+      + "Legacy CallFunction nodes are pinned to KismetSystemLibrary, as before. Paths outside "
+      + "/Game/MCPGenerated are refused by the canonical command.",
+    inputSchema: z.object({
+      blueprint_path: legacyBlueprintPath,
+      graph: z.object({
+        nodes: z.array(z.object({
+          id: z.string().min(1),
+          type: z.string().min(1),
+          function: z.string().min(1).optional(),
+          params: z.record(z.union([z.string(), z.number(), z.boolean()])).optional(),
+        }).strict()),
+        connections: z.array(z.object({
+          from: z.string().min(1),
+          to: z.string().min(1),
+        }).strict()),
+      }).strict(),
+      clear_existing: z.boolean().default(true),
+    }).strict(),
+    translate: (params) => {
+      const requested = String(params.blueprint_path);
+      const slash = requested.lastIndexOf("/");
+      const dot = requested.lastIndexOf(".");
+      const graph = params.graph as { nodes: Params[]; connections: Params[] };
+      const nodes: Params[] = [];
+      for (const node of graph.nodes) {
+        const type = String(node.type);
+        if (node.function !== undefined && type !== "CallFunction") {
+          return unmappable(
+            ["graph.nodes.function"],
+            [`graph.nodes.function: only a CallFunction node accepts the legacy function field, not ${type}.`],
+          );
+        }
+        const nodeParams: Params = { ...((node.params ?? {}) as Params) };
+        if (type === "CallFunction") {
+          if (node.function === undefined) {
+            return unmappable(
+              ["graph.nodes.function"],
+              ["graph.nodes.function: every legacy CallFunction requires a function name."],
+            );
+          }
+          nodeParams.class = "KismetSystemLibrary";
+          nodeParams.function = node.function;
+        }
+        nodes.push({
+          id: node.id,
+          type,
+          ...(Object.keys(nodeParams).length > 0 ? { params: nodeParams } : {}),
+        });
+      }
+      return routed({
+        asset_path: dot > slash ? requested.slice(0, dot) : requested,
+        graph: { nodes, connections: graph.connections },
+        clear_existing_graph: params.clear_existing,
+      });
+    },
+    execute: async (client, _params, translated) => {
+      const inspected = await executeCompatNative(client, "puerts_graph_inspect", {
+        asset_path: translated.asset_path,
+      });
+      if (inspected.success !== true) return inspected;
+      return executeCompatNative(client, "puerts_blueprint_build", translated);
+    },
+    adaptResult: (payload, params) => {
+      if (payload.success !== true || payload.data === null
+          || typeof payload.data !== "object" || Array.isArray(payload.data)) return payload;
+      const data = payload.data as Params;
+      return { ...payload, data: {
+        ...data,
+        path: params.blueprint_path,
+        compiled: data.compiled === true,
+        compile_method: "MCPBridgeGraphBuilder",
+      } };
+    },
+  },  {
+    name: "blueprint_info",
+    canonical: "puerts_graph_inspect",
+    description:
+      "Inspect an existing Blueprint through the native graph and member reader. The native result "
+      + "includes parent class, components, variables, functions, graphs and compile status.",
+    inputSchema: z.object({ blueprint_path: legacyBlueprintPath }),
+    translate: (params) => routed({ asset_path: params.blueprint_path }),
+  },
+  {
+    name: "blueprint_inspect",
+    canonical: "puerts_graph_inspect",
+    description:
+      "Read Blueprint graphs or members through the native inspector and retain the legacy "
+      + "{action, result} response shape. macros, nodes, node_detail and find_nodes are refused: "
+      + "the canonical reader does not expose equivalent filtered results for those actions.",
+    inputSchema: z.object({
+      blueprint_path: legacyBlueprintPath,
+      action: z.enum([
+        "graphs", "functions", "variables", "macros", "interfaces",
+        "event_dispatchers", "components", "nodes", "node_detail", "find_nodes",
+      ]),
+      graph_name: z.string().optional(),
+      node_guid: z.string().optional(),
+      query: z.record(z.unknown()).optional(),
+    }),
+    translate: (params) => {
+      const action = String(params.action);
+      if (["macros", "nodes", "node_detail", "find_nodes"].includes(action)) {
+        return unmappable(
+          ["action"],
+          [`action: ${action} has no result-shape-equivalent filtered view in puerts_graph_inspect. Call the canonical reader and inspect its graphs or graph object directly.`],
+        );
+      }
+      const rejected = rejectSupplied(params, [
+        ["graph_name", "only the legacy nodes and node_detail actions use graph_name, and those actions are not shape-compatible with the canonical reader."],
+        ["node_guid", "only the legacy node_detail action uses node_guid, and that action is not shape-compatible with the canonical reader."],
+        ["query", "only the legacy find_nodes action uses query, and that action is not shape-compatible with the canonical reader."],
+      ]);
+      if (rejected.parameters.length > 0) return unmappable(rejected.parameters, rejected.reasons);
+      return routed({ asset_path: params.blueprint_path });
+    },
+    adaptResult: (payload, params) => {
+      if (payload.success !== true) return payload;
+      const data = payload.data;
+      if (data === null || typeof data !== "object" || Array.isArray(data)) {
+        return nativeFailureEnvelope(["puerts_graph_inspect returned no data object."]);
+      }
+      const record = data as Params;
+      const action = String(params.action);
+      const result = record[action];
+      if (!Array.isArray(result)) {
+        return nativeFailureEnvelope([`puerts_graph_inspect did not return the ${action} collection.`]);
+      }
+      return { ...payload, data: { action, result } };
+    },
+  },
+  {
+    name: "anim_blueprint_build_from_json",
+    canonical: "puerts_anim_blueprint_build",
+    description:
+      "Create a new Animation Blueprint through the same native AnimBlueprintBuilderLibrary. "
+      + "package_path and asset_name become asset_path, and json_spec is parsed into the native "
+      + "v1 spec. The native path is limited to /Game/MCPGenerated/ and refuses an existing asset.",
+    inputSchema: z.object({
+      package_path: z.string().startsWith("/"),
+      asset_name: z.string().min(1),
+      skeleton_path: z.string().startsWith("/"),
+      json_spec: z.string().min(1),
+    }),
+    translate: (params) => {
+      let spec: unknown;
+      try {
+        spec = JSON.parse(String(params.json_spec));
+      } catch (error: unknown) {
+        return unmappable(
+          ["json_spec"],
+          [`json_spec: invalid JSON: ${error instanceof Error ? error.message : String(error)}`],
+        );
+      }
+      if (spec === null || typeof spec !== "object" || Array.isArray(spec)) {
+        return unmappable(["json_spec"], ["json_spec: the Anim Blueprint v1 spec must be a JSON object."]);
+      }
+      return routed({
+        ...(spec as Params),
+        asset_path: `${String(params.package_path).replace(/\/+$/, "")}/${params.asset_name}`,
+        skeleton_path: params.skeleton_path,
+      });
+    },
+    adaptResult: (payload, params) => {
+      if (payload.success !== true) return payload;
+      const data = payload.data;
+      if (data === null || typeof data !== "object" || Array.isArray(data)) return payload;
+      return {
+        ...payload,
+        data: {
+          ...(data as Params),
+          path: `${String(params.package_path).replace(/\/+$/, "")}/${params.asset_name}`,
+        },
+      };
+    },
+  },
+  {
+    name: "widget_build_from_json",
+    canonical: "puerts_widget_build",
+    description:
+      "Create or replace a Widget Blueprint through the native desired-state builder. package_path "
+      + "and asset_name become one asset_path. A legacy widget_json without a root key is wrapped "
+      + "as {root: widget_json}, exactly as the legacy handler did. The native builder is limited "
+      + "to /Game/MCPGenerated/ and refuses any other path.",
+    inputSchema: z.object({
+      package_path: z.string().startsWith("/"),
+      asset_name: z.string().min(1),
+      widget_json: z.record(z.unknown()),
+    }),
+    translate: (params) => {
+      const widget = params.widget_json as Params;
+      return routed({
+        asset_path: `${String(params.package_path).replace(/\/+$/, "")}/${params.asset_name}`,
+        tree: Object.prototype.hasOwnProperty.call(widget, "root") ? widget : { root: widget },
+      });
+    },
+  },
+  {
+    name: "behavior_tree_create",
+    canonical: "puerts_behavior_tree_build",
+    description:
+      "Create or update a Behavior Tree through the native desired-state builder. path and name "
+      + "become one asset_path; blackboard_path, keys and tree retain their legacy shapes. The "
+      + "legacy empty-tree form is refused because puerts_behavior_tree_build requires a root, "
+      + "and the native builder is limited to /Game/MCPGenerated/.",
+    inputSchema: z.object({
+      path: z.string(),
+      name: z.string().min(1),
+      blackboard_path: z.string(),
+      keys: z.array(z.object({
+        name: z.string(),
+        type: z.string(),
+        base_class: z.string().optional(),
+      })).optional(),
+      tree: z.record(z.unknown()).optional(),
+    }),
+    translate: (params) => {
+      if (params.tree === undefined) {
+        return unmappable(
+          ["tree"],
+          ["tree: puerts_behavior_tree_build requires a root; it cannot create the legacy empty Behavior Tree."],
+        );
+      }
+      return routed(carry(params, ["blackboard_path", "keys"], {
+        asset_path: `${String(params.path).replace(/\/+$/, "")}/${params.name}`,
+        root: params.tree,
+      }));
+    },
+  },
+  {
+    name: "blackboard_create",
+    canonical: "puerts_blackboard_build",
+    description:
+      "Create or converge a Blackboard through the native desired-state builder. path and name "
+      + "become one asset_path and keys pass through unchanged. The alias never enables "
+      + "remove_unlisted, so existing keys the call did not name are preserved. The native builder "
+      + "is limited to /Game/MCPGenerated/.",
+    inputSchema: z.object({
+      path: z.string(),
+      name: z.string().min(1),
+      keys: z.array(z.object({
+        name: z.string(),
+        type: z.string(),
+        base_class: z.string().optional(),
+      })).optional(),
+    }),
+    translate: (params) => routed(carry(params, ["keys"], {
+      asset_path: `${String(params.path).replace(/\/+$/, "")}/${params.name}`,
+    })),
+  },
+  {
+    name: "viewport_fit",
+    canonical: "puerts_viewport_screenshot",
+    description:
+      "Frame named actors and capture the active viewport. The native command has no padding control, "
+      + "so padding is refused rather than ignored. actor_names is required because an omitted list "
+      + "meant fit every actor to the legacy tool but means capture the current view natively.",
+    inputSchema: z.object({
+      actor_names: z.array(z.string()).optional(),
+      padding: z.number().optional().describe("Not supported natively; supplying it fails the call"),
+    }),
+    translate: (params) => {
+      const rejected = rejectSupplied(params, [
+        ["padding", "puerts_viewport_screenshot uses the editor's native actor framing and exposes no padding control."],
+      ]);
+      if (rejected.parameters.length > 0) return unmappable(rejected.parameters, rejected.reasons);
+      if (!Array.isArray(params.actor_names) || params.actor_names.length === 0) {
+        return unmappable(
+          ["actor_names"],
+          ["actor_names: legacy viewport_fit framed every level actor when omitted, while puerts_viewport_screenshot captures the current view. Name the actors to preserve fit semantics."],
+        );
+      }
+      return routed({ actors: params.actor_names });
+    },
+  },
+  {
+    name: "viewport_focus",
+    canonical: "puerts_viewport_screenshot",
+    description:
+      "Frame one named actor and capture the active viewport. The native command has no distance "
+      + "control, so distance is refused rather than ignored.",
+    inputSchema: z.object({
+      actor_name: z.string(),
+      distance: z.number().optional().describe("Not supported natively; supplying it fails the call"),
+    }),
+    translate: (params) => {
+      const rejected = rejectSupplied(params, [
+        ["distance", "puerts_viewport_screenshot uses the editor's native actor framing and exposes no camera-distance control."],
+      ]);
+      if (rejected.parameters.length > 0) return unmappable(rejected.parameters, rejected.reasons);
+      return routed({ actors: [params.actor_name] });
+    },
+  },
   {
     name: "actor_spawn",
     canonical: "puerts_spawn_actor",
@@ -287,6 +840,127 @@ const aliases: readonly CompatAlias[] = [
     },
   },
   {
+    name: "placement_validate",
+    canonical: "puerts_scene_inspect",
+    description:
+      "Check exact actor labels for the same pairwise origin overlaps and bounds-extent gaps as " +
+      "the legacy tool, using one native scene snapshot. Duplicate labels are refused because " +
+      "the legacy first-match actor depends on unstable level iteration order.",
+    inputSchema: z.object({
+      actors: z.array(z.string()).min(1).describe("Exact actor labels to validate"),
+      check_gaps: z.boolean().optional().describe("Check for gaps. Default true."),
+      check_overlaps: z.boolean().optional().describe("Check for overlaps. Default true."),
+      gap_threshold: z.number().optional().describe("Max acceptable gap in units. Default 1.0."),
+      overlap_threshold: z.number().optional().describe("Min origin distance for overlap. Default 1.0."),
+    }),
+    translate: (params) => {
+      const actors = params.actors as string[];
+      if (actors.length > 500) {
+        return unmappable(
+          ["actors"],
+          ["actors: puerts_scene_inspect accepts at most 500 actor selectors in one snapshot."],
+        );
+      }
+      return routed({ actors: [...new Set(actors)], include_components: false });
+    },
+    adaptResult: (payload, params) => {
+      if (payload.success !== true) return payload;
+      const data = payload.data;
+      if (data === null || typeof data !== "object" || Array.isArray(data)) {
+        return nativeFailureEnvelope(["puerts_scene_inspect returned no data object."]);
+      }
+      const reported = (data as Params).actors;
+      if (!Array.isArray(reported)) {
+        return nativeFailureEnvelope(["puerts_scene_inspect returned no actors collection."]);
+      }
+      const readVector = (value: unknown): readonly [number, number, number] | undefined => {
+        if (value === null || typeof value !== "object" || Array.isArray(value)) return undefined;
+        const record = value as Params;
+        return typeof record.x === "number" && typeof record.y === "number" && typeof record.z === "number"
+          ? [record.x, record.y, record.z]
+          : undefined;
+      };
+      const requested = params.actors as string[];
+      const selected: Array<{
+        readonly label: string;
+        readonly location: readonly [number, number, number];
+        readonly extent: readonly [number, number, number];
+      }> = [];
+      const notFound: string[] = [];
+      for (const label of requested) {
+        const matches = reported.filter((candidate) =>
+          candidate !== null
+          && typeof candidate === "object"
+          && !Array.isArray(candidate)
+          && (candidate as Params).label === label);
+        if (matches.length === 0) {
+          notFound.push(label);
+          continue;
+        }
+        if (matches.length > 1) {
+          return nativeFailureEnvelope(
+            [`Actor label '${label}' matched ${matches.length} actors. Use unique labels before placement validation.`],
+            "placement_validate refused an ambiguous actor label.",
+          );
+        }
+        const actor = matches[0] as Params;
+        const transform = actor.transform;
+        const bounds = actor.bounds;
+        const location = transform !== null && typeof transform === "object" && !Array.isArray(transform)
+          ? readVector((transform as Params).location)
+          : undefined;
+        const extent = bounds !== null && typeof bounds === "object" && !Array.isArray(bounds)
+          ? readVector((bounds as Params).extent)
+          : undefined;
+        if (location === undefined || extent === undefined) {
+          return nativeFailureEnvelope([
+            `puerts_scene_inspect omitted world location or bounds extent for actor label '${label}'.`,
+          ]);
+        }
+        selected.push({ label, location, extent });
+      }
+
+      const issues: Params[] = [];
+      const checkGaps = params.check_gaps !== false;
+      const checkOverlaps = params.check_overlaps !== false;
+      const gapThreshold = typeof params.gap_threshold === "number" ? params.gap_threshold : 1;
+      const overlapThreshold = typeof params.overlap_threshold === "number" ? params.overlap_threshold : 1;
+      for (let left = 0; left < selected.length; left += 1) {
+        for (let right = left + 1; right < selected.length; right += 1) {
+          const a = selected[left]!;
+          const b = selected[right]!;
+          const distance = Math.hypot(
+            a.location[0] - b.location[0],
+            a.location[1] - b.location[1],
+            a.location[2] - b.location[2],
+          );
+          if (checkOverlaps && distance < overlapThreshold) {
+            issues.push({ type: "overlap", actors: [a.label, b.label], distance: Number(distance.toFixed(3)) });
+          }
+          const edgeGap = distance
+            - Math.hypot(a.extent[0], a.extent[1], a.extent[2])
+            - Math.hypot(b.extent[0], b.extent[1], b.extent[2]);
+          if (checkGaps && edgeGap > gapThreshold) {
+            issues.push({
+              type: "gap",
+              actors: [a.label, b.label],
+              gap: Number(edgeGap.toFixed(3)),
+              threshold: gapThreshold,
+            });
+          }
+        }
+      }
+      const result: Params = {
+        actors_checked: selected.length,
+        not_found: notFound,
+        issues,
+        issue_count: issues.length,
+      };
+      if (selected.length < 2) result.message = "Need at least 2 actors for pairwise checks";
+      return { ...payload, data: result };
+    },
+  },
+  {
     name: "level_actors",
     canonical: "puerts_find_actors",
     description:
@@ -333,23 +1007,93 @@ const aliases: readonly CompatAlias[] = [
   },
   {
     name: "level_save",
-    canonical: "puerts_save",
+    canonical: "puerts_level_save",
     description:
-      "Save the current level through the native save command. save_all has no native equivalent: " +
-      "puerts_save takes an explicit asset list instead.",
+      "Save the current level and, when requested, every dirty project package through the native "
+      + "level save command.",
     inputSchema: z.object({
-      save_all: z.boolean().optional().describe("Not supported natively; supplying true fails the call"),
+      save_all: z.boolean().optional().describe("Also save all dirty project packages. Default false."),
     }),
+    translate: (params) => routed({ save_all: params.save_all === true }),
+  },
+  {
+    name: "data_table_create",
+    canonical: "puerts_data_table_build",
+    description:
+      "Create or reconcile a DataTable through the native desired-state writer. The native lane is limited to /Game/MCPGenerated and returns actual export read-back.",
+    inputSchema: z.object({
+      path: z.string().startsWith("/"),
+      name: z.string().min(1).regex(/^[A-Za-z0-9_]+$/),
+      row_struct: z.string().startsWith("/"),
+      rows_json: z.union([z.string().min(1), z.array(z.record(z.unknown()))]).optional(),
+    }).strict(),
     translate: (params) => {
-      if (params.save_all === true) {
-        return unmappable(
-          ["save_all"],
-          ["save_all: puerts_save never saves every dirty asset. Pass the explicit asset paths to puerts_save (assets) or use the asset_save_many alias."],
-        );
-      }
-      // No assets and no level_path means "save the current level" natively.
-      return routed({});
+      const translated: Params = {
+        asset_path: `${String(params.path).replace(/\/+$/, "")}/${params.name}`,
+        row_struct: params.row_struct,
+      };
+      if (params.rows_json !== undefined) translated.rows_json = params.rows_json;
+      return routed(translated);
     },
+    adaptResult: (payload, params) => {
+      if (payload.success !== true || payload.data === null
+          || typeof payload.data !== "object" || Array.isArray(payload.data)) return payload;
+      const data = payload.data as Params;
+      const rows = Array.isArray(data.row_names) ? data.row_names : [];
+      return { ...payload, data: {
+        data_table: `${String(params.path).replace(/\/+$/, "")}/${params.name}`,
+        row_struct: data.row_struct ?? params.row_struct,
+        rows,
+        row_count: typeof data.row_count === "number" ? data.row_count : rows.length,
+        saved: data.saved === true,
+      } };
+    },
+  },
+  {
+    name: "data_table_fill_from_json",
+    canonical: "puerts_data_table_build",
+    description:
+      "Replace all rows in an existing DataTable through the native desired-state writer. Object paths are normalized to package paths. The native lane is limited to /Game/MCPGenerated.",
+    inputSchema: z.object({
+      data_table: z.string().startsWith("/"),
+      rows_json: z.union([z.string().min(1), z.array(z.record(z.unknown()))]),
+    }).strict(),
+    translate: (params) => {
+      const requested = String(params.data_table);
+      const slash = requested.lastIndexOf("/");
+      const dot = requested.lastIndexOf(".");
+      return routed({
+        asset_path: dot > slash ? requested.slice(0, dot) : requested,
+        rows_json: params.rows_json,
+      });
+    },
+    adaptResult: (payload, params) => {
+      if (payload.success !== true || payload.data === null
+          || typeof payload.data !== "object" || Array.isArray(payload.data)) return payload;
+      const data = payload.data as Params;
+      const rows = Array.isArray(data.row_names) ? data.row_names : [];
+      return { ...payload, data: {
+        data_table: params.data_table,
+        rows,
+        row_count: typeof data.row_count === "number" ? data.row_count : rows.length,
+        saved: data.saved === true,
+      } };
+    },
+  },
+  {
+    name: "level_new",
+    canonical: "puerts_level_create",
+    description:
+      "Create, save and load a new level through the native map command. Refuses an existing target "
+      + "and unsaved packages before switching levels.",
+    inputSchema: z.object({
+      path: z.string().min(1).describe("New map package path, for example /Game/Maps/MyMap."),
+      template: z.string().min(1).optional().describe("Existing map package path to copy from."),
+    }),
+    translate: (params) => routed({
+      level_path: params.path,
+      ...(params.template === undefined ? {} : { template_path: params.template }),
+    }),
   },
   {
     name: "asset_save_many",
@@ -981,7 +1725,12 @@ export const compatAliasTargets: Readonly<Record<string, string>> = Object.freez
 );
 
 export function createCompatTools(client: PuerTSClient): ToolDefinition[] {
-  return aliases.map((alias) => {
+  // An alias is a second public name for a native tool, so it is a second door
+  // into a quarantined one. level_new fronts puerts_level_create; advertising
+  // it while the canonical tool is withheld would leave the crash reachable
+  // under its legacy name, which is the stale-client case the quarantine exists
+  // for. Filtered from the same set, so a tool is quarantined once.
+  return aliases.filter((alias) => !QUARANTINED_TOOLS.has(alias.canonical)).map((alias) => {
     // Resolve now: a typo in a canonical name is a startup failure, not a
     // runtime surprise on the first call.
     const spec = nativeToolSpec(alias.canonical);
@@ -1002,7 +1751,7 @@ export function createCompatTools(client: PuerTSClient): ToolDefinition[] {
       name: alias.name,
       description: `[COMPAT ALIAS -> ${alias.canonical}] ${alias.description}`,
       inputSchema: alias.inputSchema,
-      annotations: compatAliasAnnotations[alias.name],
+      annotations: compatAliasAnnotations[alias.name] ?? toolAnnotations[alias.canonical],
       handler: async (params: Record<string, unknown>) => {
         let parsed: Params;
         try {
@@ -1024,7 +1773,10 @@ export function createCompatTools(client: PuerTSClient): ToolDefinition[] {
           return stamp(payload);
         }
         payloadShapeGuard(translation.params);
-        return stamp(await executeNativeCommand(client, spec, translation.params));
+        const payload = alias.execute === undefined
+          ? await executeNativeCommand(client, spec, translation.params)
+          : await alias.execute(client, parsed, translation.params);
+        return stamp(alias.adaptResult?.(payload, parsed) ?? payload);
       },
     };
   });

@@ -141,6 +141,15 @@ namespace
             // compiles and never fires. Pins are Pressed, Released and Key
             // (K2Node_InputKey.cpp:56-59).
             TEXT("InputKey"),
+            TEXT("InputAction"),
+            TEXT("InputAxisEvent"),
+            TEXT("MacroInstance"),
+            TEXT("AddDelegate"),
+            TEXT("RemoveDelegate"),
+            TEXT("CallDelegate"),
+            TEXT("ClearDelegate"),
+            TEXT("AssignDelegate"),
+            TEXT("CreateDelegate"),
         };
         return Types;
     }
@@ -1414,7 +1423,7 @@ static UEdGraphNode* SpawnNodeFromSpec(
             TEXT("is_random"), TEXT("loop"), TEXT("start_index_from_zero"),
             TEXT("text"), TEXT("width"), TEXT("height"), TEXT("color"),
             TEXT("fkey_name"), TEXT("consume_input"), TEXT("execute_when_paused"),
-            TEXT("override_parent"),
+            TEXT("override_parent"), TEXT("axis_name"),
         });
         // A variable set node names its value pin after the variable, which
         // a caller writing a spec should not have to repeat.
@@ -2938,6 +2947,10 @@ bool UBlueprintGraphBuilderLibrary::PatchBlueprintGraphFromJSON(
         {
             if (Candidate != nullptr && Candidate->GetName() == GraphName) { Graph = Candidate; }
         }
+        for (UEdGraph* Candidate : Blueprint->MacroGraphs)
+        {
+            if (Candidate != nullptr && Candidate->GetName() == GraphName) { Graph = Candidate; }
+        }
     }
     if (Graph == nullptr)
     {
@@ -2955,6 +2968,7 @@ bool UBlueprintGraphBuilderLibrary::PatchBlueprintGraphFromJSON(
     static const TSet<FString> SupportedOps = {
         TEXT("add_node"), TEXT("update_node"), TEXT("remove_node"), TEXT("set_pin_default"),
         TEXT("connect_pins"), TEXT("disconnect_pins"), TEXT("move_node"),
+        TEXT("set_node_enabled"), TEXT("break_pin_links"),
     };
 
     // --- Pass 1: resolve and validate the whole batch, mutating nothing ---
@@ -3239,6 +3253,50 @@ bool UBlueprintGraphBuilderLibrary::PatchBlueprintGraphFromJSON(
                     }
                 }
             }
+            else if (Op == TEXT("set_node_enabled"))
+            {
+                bool bEnabled = true;
+                if (!(*OpObj)->TryGetBoolField(TEXT("enabled"), bEnabled))
+                {
+                    return Fail(FString::Printf(
+                        TEXT("operation %d (set_node_enabled) needs boolean enabled."), OpIndex));
+                }
+                const ENodeEnabledState Wanted = bEnabled
+                    ? ENodeEnabledState::Enabled : ENodeEnabledState::Disabled;
+                if (R.Target->GetDesiredEnabledState() == Wanted)
+                {
+                    R.bUnchanged = true;
+                    R.UnchangedReason = bEnabled ? TEXT("node already enabled") : TEXT("node already disabled");
+                }
+                else
+                {
+                    NodesToUpdate.Add(MakeShared<FJsonValueString>(FString::Printf(
+                        TEXT("set %s %s"), *DescribeNodeForSelector(R.Target),
+                        bEnabled ? TEXT("enabled") : TEXT("disabled"))));
+                }
+            }
+            else if (Op == TEXT("break_pin_links"))
+            {
+                FString PinName;
+                (*OpObj)->TryGetStringField(TEXT("pin"), PinName);
+                R.TargetPin = R.Target->FindPin(FName(*PinName));
+                if (PinName.IsEmpty() || R.TargetPin == nullptr)
+                {
+                    UnmatchedSelectors.Add(MakeShared<FJsonValueString>(FString::Printf(
+                        TEXT("operation %d (break_pin_links): no pin '%s' on %s"),
+                        OpIndex, *PinName, *DescribeNodeForSelector(R.Target))));
+                }
+                else if (R.TargetPin->LinkedTo.Num() == 0)
+                {
+                    R.bUnchanged = true;
+                    R.UnchangedReason = TEXT("pin already has no links");
+                }
+                else
+                {
+                    LinksToRemove.Add(MakeShared<FJsonValueString>(FString::Printf(
+                        TEXT("all links on %s.%s"), *DescribeNodeForSelector(R.Target), *PinName)));
+                }
+            }
             else if (Op == TEXT("update_node"))
             {
                 NodesToUpdate.Add(MakeShared<FJsonValueString>(FString::Printf(
@@ -3406,6 +3464,27 @@ bool UBlueprintGraphBuilderLibrary::PatchBlueprintGraphFromJSON(
             ChangedPinDefaults.Add(MakeShared<FJsonValueString>(FString::Printf(
                 TEXT("%s.%s = '%s'"), *DescribeNodeForSelector(R.Target), *PinRole,
                 *R.TargetPin->DefaultValue)));
+            Applied++;
+        }
+        else if (R.Op == TEXT("set_node_enabled"))
+        {
+            bool bEnabled = true;
+            (*R.Spec)->TryGetBoolField(TEXT("enabled"), bEnabled);
+            R.Target->Modify();
+            R.Target->SetEnabledState(
+                bEnabled ? ENodeEnabledState::Enabled : ENodeEnabledState::Disabled,
+                /*bUserAction=*/true);
+            UpdatedNodes.Add(MakeShared<FJsonValueString>(DescribeNodeForSelector(R.Target)));
+            Applied++;
+        }
+        else if (R.Op == TEXT("break_pin_links"))
+        {
+            FString PinName;
+            (*R.Spec)->TryGetStringField(TEXT("pin"), PinName);
+            R.Target->Modify();
+            R.TargetPin->BreakAllPinLinks(/*bNotifyNodes=*/true);
+            RemovedLinks.Add(MakeShared<FJsonValueString>(FString::Printf(
+                TEXT("all links on %s.%s"), *DescribeNodeForSelector(R.Target), *PinName)));
             Applied++;
         }
         else if (R.Op == TEXT("update_node"))

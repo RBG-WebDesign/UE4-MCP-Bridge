@@ -54,7 +54,7 @@ export function createActorTools(client: UnrealClient): ToolDefinition[] {
         offset: VectorSchema.optional().describe("Offset from original position"),
         new_name: z.string().optional().describe("Label for the duplicate"),
         validate: z.boolean().optional().describe("Validate resulting transform (default true)"),
-      }),
+      }).strict(),
       handler: async (params) => {
         const result = await client.sendCommand("actor_duplicate", params);
         return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
@@ -94,7 +94,7 @@ export function createActorTools(client: UnrealClient): ToolDefinition[] {
       inputSchema: z.object({
         actors: z.array(z.string()).describe("Actor labels to move"),
         folder: z.string().describe("Target folder path"),
-      }),
+      }).strict(),
       handler: async (params) => {
         const result = await client.sendCommand("actor_organize", params);
         return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
@@ -107,7 +107,7 @@ export function createActorTools(client: UnrealClient): ToolDefinition[] {
         actor_name: z.string().describe("Actor to move"),
         target_actor: z.string().describe("Actor with the socket"),
         socket_name: z.string().describe("Socket name"),
-      }),
+      }).strict(),
       handler: async (params) => {
         const result = await client.sendCommand("actor_snap_to_socket", params);
         return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
@@ -125,8 +125,8 @@ export function createActorTools(client: UnrealClient): ToolDefinition[] {
           name: z.string().optional(),
           folder: z.string().optional(),
           validate: z.boolean().optional(),
-        })).describe("Array of spawn definitions"),
-      }),
+        }).strict()).describe("Array of spawn definitions"),
+      }).strict(),
       handler: async (params) => {
         const result = await client.sendCommand("batch_spawn", params);
         return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };

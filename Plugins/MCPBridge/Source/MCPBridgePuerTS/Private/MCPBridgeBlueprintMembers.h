@@ -74,7 +74,7 @@ namespace MCPBridgeBlueprintMembers
         return Value;
     }
 
-    /** The five member collections a Blueprint carries outside its graphs,
+    /** The six member collections a Blueprint carries outside its graphs,
         canonically ordered: components, variables, interfaces, functions and
         event dispatchers. Read only; nothing here calls Modify or a compile. */
     inline TSharedPtr<FJsonObject> BuildSnapshot(UBlueprint* Blueprint)
@@ -88,6 +88,8 @@ namespace MCPBridgeBlueprintMembers
             SortedReaderArray(UBlueprintInspectorLibrary::ListInterfaces(Blueprint), TEXT("path")));
         Out->SetField(TEXT("functions"),
             SortedReaderArray(UBlueprintInspectorLibrary::ListFunctions(Blueprint), TEXT("name")));
+        Out->SetField(TEXT("macros"),
+            SortedReaderArray(UBlueprintInspectorLibrary::ListMacros(Blueprint), TEXT("name")));
         Out->SetField(TEXT("event_dispatchers"),
             SortedReaderArray(UBlueprintInspectorLibrary::ListEventDispatchers(Blueprint), TEXT("name")));
         return Out;

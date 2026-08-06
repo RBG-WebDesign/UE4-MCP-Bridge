@@ -117,6 +117,14 @@ void FBTValidator::ValidateNode(
 		OutErrors.Add(FString::Printf(TEXT("[BTValidator] unknown type '%s' at %s"), *Node.Type, *NodePath));
 		return;  // cannot validate children/params of unknown type
 	}
+	for (const auto& Pair : Node.Params)
+	{
+		if (!Registry.IsParamAllowed(Node.Type, Pair.Key))
+		{
+			OutErrors.Add(FString::Printf(TEXT("[BTValidator] unknown param '%s' for type '%s' at %s"),
+				*Pair.Key, *Node.Type, *NodePath));
+		}
+	}
 
 	// Rule 2: Composites must have at least one child
 	if (Registry.IsComposite(Node.Type) && Node.Children.Num() == 0)

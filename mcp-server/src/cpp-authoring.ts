@@ -89,6 +89,13 @@ export interface FunctionSpec {
   comment?: string;
 }
 
+export interface DelegateSpec {
+  name: string;
+  params?: Array<{ name: string; type: string }>;
+  specifiers?: string;
+  comment?: string;
+}
+
 export interface ClassSpec {
   /** Class name WITHOUT the A/U prefix. */
   name: string;
@@ -104,6 +111,7 @@ export interface ClassSpec {
   includes?: string[];
   properties?: PropertySpec[];
   functions?: FunctionSpec[];
+  delegates?: DelegateSpec[];
   /** Path under Public/ and Private/ (or the module root on a flat module). */
   subdir?: string;
 }
@@ -270,6 +278,14 @@ export function validateClassSpec(spec: ClassSpec): ValidationIssue[] {
     if (fn.specifiers) checkFragment(fn.specifiers, `${field}.specifiers`, issues);
   }
 
+  for (const [index, del] of (spec.delegates ?? []).entries()) {
+    const field = `delegates[${index}]`;
+    checkIdentifier(del.name ?? "", `${field}.name`, issues);
+    if (seen.has(del.name)) issues.push({ field: `${field}.name`, message: `duplicate member "${del.name}"` });
+    seen.add(del.name);
+    if (del.specifiers) checkFragment(del.specifiers, `${field}.specifiers`, issues);
+  }
+
   for (const [index, inc] of (spec.includes ?? []).entries()) {
     checkFragment(inc, `includes[${index}]`, issues);
     if (inc.endsWith(".generated.h")) {
@@ -325,6 +341,17 @@ export function renderClass(spec: ClassSpec): RenderedClass {
   // Always last. UHT reads the include list positionally and rejects anything
   // after the generated header.
   headerLines.push(`#include "${spec.name}.generated.h"`, "");
+
+  for (const del of spec.delegates ?? []) {
+    if (del.comment) headerLines.push(`/** ${del.comment} */`);
+    if (del.specifiers) headerLines.push(`UDELEGATE(${del.specifiers})`);
+    const count = del.params?.length ?? 0;
+    const suffixMap: Record<number, string> = { 0: "", 1: "_OneParam", 2: "_TwoParams", 3: "_ThreeParams", 4: "_FourParams" };
+    const suffix = suffixMap[count] ?? `_${count}Params`;
+    const paramsList = (del.params ?? []).map((p) => `${p.type}, ${p.name}`).join(", ");
+    const macroBody = paramsList ? `${del.name}, ${paramsList}` : del.name;
+    headerLines.push(`DECLARE_DYNAMIC_MULTICAST_DELEGATE${suffix}(${macroBody});`, "");
+  }
 
   headerLines.push(`UCLASS(${(spec.class_specifiers ?? "").trim()})`);
   headerLines.push(`class ${api} ${className} : public ${base}`);

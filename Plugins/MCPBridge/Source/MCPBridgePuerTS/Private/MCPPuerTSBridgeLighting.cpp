@@ -122,9 +122,8 @@ bool UMCPPuerTSBridgeService::BuildLightingJson(
     // a build started here would gather the wrong scene.
     if (GEditor->PlayWorld != nullptr || GEditor->GetPlaySessionRequest().IsSet())
     {
-        OutError = TEXT("Play In Editor is running. A lighting build reads the editor world through "
-                        "GWorld, which is the PIE world while play is active. Stop play first.");
-        return false;
+        return Fail(TEXT("editor_busy"), TEXT("Play In Editor is running. A lighting build reads the editor world through "
+                        "GWorld, which is the PIE world while play is active. Stop play first."), OutError);
     }
     UWorld* World = GEditor->GetEditorWorldContext().World();
     if (World == nullptr)

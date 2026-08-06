@@ -9,11 +9,11 @@ capability coverage vary by tool.
 
 ## Counts (derived, cannot drift)
 
-- Total public registrations: 273
-- Unique canonical capabilities (excluding proposed retirements): 201
-- By backend: legacy_http 170, native_pipe_alias 40, server_local 3, native_pipe 60
-- By verification: untested 122, mock_only 88, pending_live 1, live_verified 19, implemented 35, live_partial 8
-- By migration action: ALIAS 83, PORT 39, REFRONT 28, MERGE 10, KEEP 112, RETIRE 1
+- Total public registrations: 309
+- Unique canonical capabilities (excluding proposed retirements): 212
+- By backend: legacy_http 170, native_pipe_alias 62, server_local 4, native_pipe 73
+- By verification: replaced 69, compat_verified 62, retired 101, editor_free_verified 4, live_verified 71, quarantined 2
+- By migration action: ALIAS 113, PORT 37, REFRONT 25, MERGE 7, KEEP 126, RETIRE 1
 
 ## Existing C++ builders awaiting re-fronting
 
@@ -23,8 +23,6 @@ capability coverage vary by tool.
 - **WidgetBlueprintBuilderLibrary** (4 tools): title_widget_build_from_manifest, widget_lower_third_create, widget_title_card_create, widget_title_template
 - **BlueprintMutatorLibrary** (2 tools): blueprint_node_set_enabled, blueprint_pins_break
 - **AutoPIEHelper** (2 tools): camera_shake_spawn, camera_shake_trigger
-- **MCPBridgeDataLibrary** (2 tools): data_table_create, data_table_fill_from_json
-- **AnimBlueprintBuilderLibrary** (1 tools): anim_blueprint_build_from_json
 - **BlueprintGraphBuilderLibrary** (1 tools): blueprint_compile
 
 ## Highest-value next migrations
@@ -40,13 +38,13 @@ builder, so each is one doorway away from native.
 
 ## Legacy capabilities with no current replacement
 
-88 legacy tools have no native equivalent today (every
+86 legacy tools have no native equivalent today (every
 PORT and KEEP entry; the scoreboard lists them). Recorded capability-loss
 risks above "low":
 
-- `checkpoint_restore` (medium): restore is destructive; keep the proven path until a native equivalent has parity tests
-- `python_proxy` (high): RETIRE proposed, human sign-off required: arbitrary Python execution is outside every native safety control (handoff risk register, High). Replacement is the allowlisted native catalog itself; the lost generality is deliberate. Blocked until a human approves the loss.
-- `redo` (medium): no native redo exists; this is a legacy capability with no current replacement
+- `checkpoint_restore` (medium): Disabled legacy HTTP registration retired in favor of native PuerTS tooling.
+- `python_proxy` (high): Disabled legacy HTTP registration replaced by native target 'puerts_call_function'.
+- `redo` (medium): Disabled legacy HTTP registration retired in favor of native PuerTS tooling.
 
 ## Count discrepancies resolved
 

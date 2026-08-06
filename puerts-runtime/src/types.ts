@@ -21,6 +21,7 @@ export interface JsonObject {
 export const allPermissions = [
   "assets.read",
   "assets.write",
+  "assets.delete",
   "actors.read",
   "actors.spawn",
   "actors.delete",
@@ -53,12 +54,6 @@ export const allPermissions = [
 
 export type Permission = typeof allPermissions[number];
 
-export interface JsonSchema {
-  readonly type: "object";
-  readonly properties?: Readonly<Record<string, Readonly<Record<string, JsonValue>>>>;
-  readonly required?: readonly string[];
-  readonly additionalProperties: boolean;
-}
 
 export interface CommandRequest {
   readonly id: string;
@@ -71,6 +66,18 @@ export interface CommandRequest {
 export interface CommandResponse {
   success: boolean;
   message: string;
+  /** Stable, branchable reason for a refusal. Absent on success and on the
+      failures that have not been given a code yet: a client must treat a
+      missing code as "read the message", never as "no error". The full code
+      list and the migration of the ~250 free-text native refusals is the
+      separate step; this field exists so quarantine can ship with one. */
+  error_code?: string;
+  /** Durations this process measured, in milliseconds. Never timestamps: the
+      server and the editor are separate processes and their clocks are not
+      comparable, so each layer reports how long IT took and the server adds its
+      own. Merged into the envelope by CompleteCommand, which has to name the
+      field explicitly or it is dropped. */
+  timings_ms?: JsonObject;
   data: JsonValue;
   changed_assets: string[];
   changed_actors: string[];
@@ -85,10 +92,25 @@ export interface ToolContext {
   readonly transactionId: string;
 }
 
+/**
+ * A tool the runtime will execute.
+ *
+ * There is deliberately no schema here. This registry used to carry an
+ * inputSchema and an outputSchema per tool, and they were a second, thinner,
+ * hand-maintained copy of the zod schemas in mcp-server/src/tools/puerts.ts.
+ * They validated nothing: ToolRegistry.execute never read them, and their only
+ * consumer was a manifest() method with no callers anywhere in the repository.
+ * What they did do was drift - four tools declared `number` where the enforced
+ * contract is an integer - so they were documentation that could be wrong about
+ * the contract while looking authoritative next to the code that runs it.
+ *
+ * The single source for a tool's input contract is the zod schema at the MCP
+ * boundary. It is validated before anything is sent, it is what tools/list
+ * publishes, and the native C++ re-checks every value it acts on. Permissions
+ * and the timeout stay here because execute() actually uses them.
+ */
 export interface ToolDefinition {
   readonly name: string;
-  readonly inputSchema: JsonSchema;
-  readonly outputSchema: JsonSchema;
   readonly permissions: readonly Permission[];
   readonly executionTimeoutMs: number;
   execute(context: ToolContext, input: JsonObject): Promise<CommandResponse>;

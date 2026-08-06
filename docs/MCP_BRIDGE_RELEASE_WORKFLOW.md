@@ -72,12 +72,12 @@ The packager refuses, rather than producing a zip, when either holds:
    links its `JsEnv` module, so a zip without it is a plugin the editor refuses
    to load.
 
-Both refusals are asserted by `npm run test:package`, which needs no bundle to
-reach them. The cases that open the produced zip need one:
+`npm run test:package` always proves the missing-bundle refusal. The staged
+runtime gate and cases that open the produced zip need a pinned bundle:
 
 ```bash
-npm run test:package                                    # refusals only
-node Scripts/package-acceptance.mjs --bundle <path>     # plus the artefact
+npm run test:package                                # missing-bundle refusal
+node Scripts/package-acceptance.mjs --bundle <path> # both gates + artefact
 ```
 
 Verify a bundle anywhere, including one a recipient extracted:

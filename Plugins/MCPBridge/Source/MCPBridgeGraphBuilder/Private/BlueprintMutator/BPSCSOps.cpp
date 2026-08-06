@@ -7,6 +7,7 @@
 #include "Engine/SimpleConstructionScript.h"
 #include "Engine/SCS_Node.h"
 #include "Kismet2/BlueprintEditorUtils.h"
+#include "Components/SceneComponent.h"
 
 #define LOCTEXT_NAMESPACE "BPSCSOps"
 
@@ -124,6 +125,55 @@ bool FBPSCSOps::RenameSCSNode(UBlueprint* Blueprint, const FString& OldName, con
             // VariableName on the SCS_Node AND rewrites all VariableGet/Set refs.
             FBlueprintEditorUtils::RenameComponentMemberVariable(Blueprint, Target, NewF);
             return true;
+        });
+}
+
+bool FBPSCSOps::ReparentSCSNode(UBlueprint* Blueprint, const FString& ComponentName,
+    const FString& ParentName)
+{
+    if (!Blueprint || !Blueprint->SimpleConstructionScript || ComponentName.IsEmpty()) return false;
+    USimpleConstructionScript* SCS = Blueprint->SimpleConstructionScript;
+    USCS_Node* Target = FindSCSNodeByName(SCS, ComponentName);
+    USCS_Node* NewParent = ParentName.IsEmpty() ? nullptr : FindSCSNodeByName(SCS, ParentName);
+    if (!Target || (!ParentName.IsEmpty() && !NewParent) || Target == NewParent) return false;
+    if (NewParent && (!Target->ComponentTemplate || !NewParent->ComponentTemplate
+        || !Target->ComponentTemplate->IsA<USceneComponent>()
+        || !NewParent->ComponentTemplate->IsA<USceneComponent>())) return false;
+
+    TArray<USCS_Node*> Stack = Target->GetChildNodes();
+    while (Stack.Num() > 0)
+    {
+        USCS_Node* Descendant = Stack.Pop();
+        if (Descendant == NewParent) return false;
+        if (Descendant) Stack.Append(Descendant->GetChildNodes());
+    }
+    USCS_Node* OldParent = FindParentOf(SCS, Target);
+    if (OldParent == NewParent) return true;
+
+    return FBPMutatorHelpers::RunMutation(Blueprint,
+        LOCTEXT("ReparentSCSNode", "MCP Bridge: Reparent Component"), [&]()
+        {
+            Target->Modify();
+            SCS->Modify();
+            if (OldParent)
+            {
+                OldParent->Modify();
+                OldParent->RemoveChildNode(Target, /*bRemoveFromAllNodes=*/true);
+            }
+            else
+            {
+                SCS->RemoveNode(Target, /*bValidateSceneRootNodes=*/false);
+            }
+            if (NewParent)
+            {
+                NewParent->Modify();
+                NewParent->AddChildNode(Target, /*bAddToAllNodes=*/true);
+            }
+            else
+            {
+                SCS->AddNode(Target);
+            }
+            return FindParentOf(SCS, Target) == NewParent;
         });
 }
 

@@ -1,0 +1,80 @@
+{
+  "timestamp": "2026-08-04T21:06:10.943Z",
+  "session": {
+    "schema_version": 1,
+    "session_id": "c7b1fb4c-492e-1fbc-2fc6-9088a4ebd136",
+    "session_nonce": "49a193fd4c6e1a554dfe77861b6cec2e6786d187440cab5ae0d6b0a909da930d",
+    "editor_pid": 60560,
+    "process_start_time": "0426-08-04T21:02:01.926Z",
+    "project_path": "D:/Unreal Projects/BridgeInstallTest",
+    "uproject_path": "D:/Unreal Projects/BridgeInstallTest/BridgeInstallTest.uproject",
+    "pipe_name": "\\\\.\\pipe\\UE427PuerTSMCP_BridgeInstallTest_eb10ef4f",
+    "bridge_commit": "7fa6c583b11ccc201a6a5e4a652d70b5de4b9f57",
+    "installed_manifest_hash": "e8b42a7d7ffd54c4ea3b070c673925b7c78911db",
+    "created_at": "2026-08-04T21:02:10.047Z",
+    "last_heartbeat_at": "2026-08-04T21:06:02.484Z",
+    "shutdown_state": "running"
+  },
+  "level_path": "/Game/MCPGenerated/TelekineticDemo/Maps/L_TelekineticDemo",
+  "project_settings": {
+    "editor_startup_map": "/Game/MCPGenerated/TelekineticDemo/Maps/L_TelekineticDemo",
+    "game_default_map": "/Game/MCPGenerated/TelekineticDemo/Maps/L_TelekineticDemo",
+    "default_gamemode": "/Game/MCPGenerated/TelekineticDemo/Blueprints/BP_TelekineticGameMode"
+  },
+  "cpp_classes": [
+    {
+      "name": "UTelekineticComponent",
+      "path": "/Script/BridgeInstallTest.TelekineticComponent"
+    },
+    {
+      "name": "UHealthComponent",
+      "path": "/Script/BridgeInstallTest.HealthComponent"
+    }
+  ],
+  "blueprints": [
+    {
+      "path": "/Game/MCPGenerated/TelekineticDemo/Blueprints/BP_TelekineticCharacter",
+      "success": true
+    },
+    {
+      "path": "/Game/MCPGenerated/TelekineticDemo/Blueprints/BP_TelekineticPlayerController",
+      "success": true
+    },
+    {
+      "path": "/Game/MCPGenerated/TelekineticDemo/Blueprints/BP_TelekineticGameMode",
+      "success": true
+    }
+  ],
+  "ui_widgets": [
+    {
+      "path": "/Game/MCPGenerated/TelekineticDemo/UI/WBP_GameHUD",
+      "success": true
+    },
+    {
+      "path": "/Game/MCPGenerated/TelekineticDemo/UI/WBP_MainMenu",
+      "success": true
+    },
+    {
+      "path": "/Game/MCPGenerated/TelekineticDemo/UI/WBP_PauseMenu",
+      "success": true
+    },
+    {
+      "path": "/Game/MCPGenerated/TelekineticDemo/UI/WBP_GameOver",
+      "success": true
+    }
+  ],
+  "level_create": false,
+  "scene_batch_spawn": false,
+  "level_save": false,
+  "scene_inspect": {
+    "success": false,
+    "actor_count": 0,
+    "player_starts": 0,
+    "structure_hash": ""
+  },
+  "pie_verification": {
+    "pie_start": true,
+    "pie_stop": true
+  },
+  "cold_persistence_proven": true
+}

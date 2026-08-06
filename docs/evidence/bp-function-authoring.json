@@ -1,0 +1,143 @@
+{
+  "phase": "record",
+  "run_id": "msecy005",
+  "asset_path": "/Game/MCPGenerated/BP_FunctionAuthoringFixture_msecy005",
+  "function": "ComputeDamage",
+  "steps": {
+    "fixture": {
+      "member_hash": "93d749dae1fc4c83301dd2c1aae61da63aaaad40",
+      "file_sha256": "1fd05b23c821c6a4de6c6550933bdeea0d3e40f70f5123536d3dbed8c4922e20",
+      "variables": [
+        "Armor",
+        "Health",
+        "Tag"
+      ],
+      "components": [
+        "Body",
+        "Root"
+      ],
+      "functions": [
+        "UnrelatedHelper",
+        "UserConstructionScript"
+      ],
+      "event_graph_node_guids": [
+        "10B36F8F494906FD4992A08931484D25",
+        "847A32A64132288EC49B7B92D484C33F",
+        "A29C92354ADEF17A320F8CAE5CDAB7D3"
+      ]
+    },
+    "plan": {
+      "asset_path": "/Game/MCPGenerated/BP_FunctionAuthoringFixture_msecy005",
+      "requested_operation_count": 1,
+      "operations_to_apply": [
+        "set_function ComputeDamage"
+      ],
+      "unchanged_operations": [],
+      "expected_change_count": 1,
+      "function_plans": [
+        {
+          "function": "ComputeDamage",
+          "function_exists": false,
+          "signature_changes": [
+            "add inputs BaseDamage",
+            "add inputs Multiplier",
+            "add outputs Damage"
+          ],
+          "metadata_changes": [
+            "category",
+            "tooltip",
+            "is_pure"
+          ],
+          "locals_to_add": [],
+          "locals_to_update": [],
+          "call_sites_affected": []
+        }
+      ],
+      "pre_member_hash": "93d749dae1fc4c83301dd2c1aae61da63aaaad40",
+      "plan_only": true,
+      "prediction_unavailable_reason": "the batch changes the Blueprint's members, and a created graph or variable carries engine-generated detail that only exists once it is made. A predicted hash is offered only for a no-op batch, where it is the current hash by definition.",
+      "elapsed_ms": 1.200400001835078
+    },
+    "body_node_count": 4,
+    "rename": {
+      "inputs": [
+        "BaseDamage",
+        "Scale"
+      ],
+      "call_site_survived": true,
+      "entry_guid_stable": true
+    },
+    "converged": {
+      "applied": 0,
+      "compile_status": "Skipped",
+      "saved": false,
+      "file_sha256": "c3e6d95153c5da354f39b1a5ebf5ff647fec69ab95e200a60ae0152ab6ef282b"
+    }
+  },
+  "final_function": {
+    "name": "ComputeDamage",
+    "category": "Combat|Damage",
+    "is_pure": true,
+    "is_override": false,
+    "is_const": false,
+    "tooltip": "Final damage after the multiplier",
+    "access": "public",
+    "inputs": [
+      {
+        "name": "BaseDamage",
+        "type": {
+          "category": "float",
+          "sub_category": "None",
+          "sub_category_object": "",
+          "container_type": "None",
+          "is_reference": false,
+          "value_type": null
+        },
+        "default": ""
+      },
+      {
+        "name": "Scale",
+        "type": {
+          "category": "float",
+          "sub_category": "None",
+          "sub_category_object": "",
+          "container_type": "None",
+          "is_reference": false,
+          "value_type": null
+        },
+        "default": ""
+      }
+    ],
+    "outputs": [
+      {
+        "name": "Damage",
+        "type": {
+          "category": "float",
+          "sub_category": "None",
+          "sub_category_object": "",
+          "container_type": "None",
+          "is_reference": false,
+          "value_type": null
+        },
+        "default": "0.0"
+      }
+    ],
+    "locals": [
+      {
+        "name": "Working",
+        "type": {
+          "category": "float",
+          "sub_category": "None",
+          "sub_category_object": "",
+          "container_type": "None",
+          "is_reference": false,
+          "value_type": null
+        },
+        "default": "0.000000"
+      }
+    ]
+  },
+  "final_member_hash": "8434e68d0c5eb375fb50ffe060a1d99b1752ef07",
+  "final_file_sha256": "c3e6d95153c5da354f39b1a5ebf5ff647fec69ab95e200a60ae0152ab6ef282b",
+  "final_body_node_count": 4
+}

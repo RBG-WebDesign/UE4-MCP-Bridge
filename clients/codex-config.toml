@@ -14,19 +14,23 @@ args = ["D:/Unreal Projects/UE4_Bridge/mcp-server/dist/index.js"]
 cwd = "D:/Unreal Projects/UE4_Bridge"
 
   [mcp_servers.unreal-bridge.env]
-  # Lets engine_source_search / engine_source_read read the installed engine.
-  # Without this the tools fail: a bridge-only clone has no .uproject to read an
-  # EngineAssociation from.
-  UE_ENGINE_ROOT = "D:/UE/UE_4.27"
-  # Required for the native bearer-token file. Replace this project path.
-  MCP_UNREAL_PROJECT_ROOT = "D:/Path/To/Your/UE427Project"
+  # UE_ENGINE_ROOT and MCP_UNREAL_PROJECT_ROOT are deliberately absent. The
+  # server reads them from bridge.local.json in the repository root, which is
+  # gitignored and written by:
+  #   .\Scripts\setup-unreal-project.ps1 -Project <path to .uproject>
+  # Setting either here still works and takes priority, which is what you want
+  # for pointing one client at a different project than the rest.
+  #
   # Legacy HTTP tools stay hidden unless you explicitly set this to "1".
   # MCP_ENABLE_LEGACY_HTTP = "1"
 
 # UE4.27 C++ API lookup (reflected types). Optional but recommended.
+# Runs through the launcher so it uses the pinned virtual environment created by
+# Scripts/setup-unreal-api-mcp.ps1. Launching "uvx unreal-api-mcp" directly
+# resolves mcp 2.0.0, where fastmcp was removed, and crashes on import.
 [mcp_servers.unreal-api]
-command = "uvx"
-args = ["unreal-api-mcp"]
+command = "node"
+args = ["D:/Unreal Projects/UE4_Bridge/Scripts/start-unreal-api-mcp.mjs"]
 
   [mcp_servers.unreal-api.env]
   UNREAL_VERSION = "4.27"

@@ -46,6 +46,11 @@ FString UPIEAgentLibrary::Observe(const FString& RequestJson)
     return GetPIEAgentRuntime() ? GetPIEAgentRuntime()->Observe(RequestJson) : RuntimeUnavailable();
 }
 
+FString UPIEAgentLibrary::ReadProperty(const FString& RequestJson)
+{
+    return GetPIEAgentRuntime() ? GetPIEAgentRuntime()->ReadProperty(RequestJson) : RuntimeUnavailable();
+}
+
 FString UPIEAgentLibrary::RecordStart(const FString& RequestJson)
 {
     return GetPIEAgentRuntime() ? GetPIEAgentRuntime()->RecordStart(RequestJson) : RuntimeUnavailable();

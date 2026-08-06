@@ -995,7 +995,7 @@ bool UMCPPuerTSBridgeService::QueryPIEAgentJson(
     FString Op;
     if (!Request->TryGetStringField(TEXT("op"), Op) || Op.IsEmpty())
     {
-        OutError = TEXT("pie_agent_query needs 'op': observe, status or expect.");
+        OutError = TEXT("pie_agent_query needs 'op': observe, read_property, status or expect.");
         return false;
     }
 
@@ -1016,6 +1016,11 @@ bool UMCPPuerTSBridgeService::QueryPIEAgentJson(
         OutResultJson = UPIEAgentLibrary::StartExpect(ForwardJson);
         return true;
     }
+    if (Op == TEXT("read_property"))
+    {
+        OutResultJson = UPIEAgentLibrary::ReadProperty(ForwardJson);
+        return true;
+    }
     if (Op == TEXT("status"))
     {
         double OperationId = 0.0;
@@ -1029,9 +1034,74 @@ bool UMCPPuerTSBridgeService::QueryPIEAgentJson(
 
     OutError = FString::Printf(
         TEXT("Unknown pie_agent_query op '%s'. This command carries the READ-ONLY half of the PIE ")
-        TEXT("agent: observe, status, expect. The write half (move_to, look_at, press, ")
+        TEXT("agent: observe, read_property, status, expect. The write half (move_to, look_at, press, ")
         TEXT("record_start, record_stop, replay) is not exposed natively yet and is user-gated ")
         TEXT("by AGENTS.md in any case."),
+        *Op);
+    return false;
+}
+
+bool UMCPPuerTSBridgeService::ControlPIEAgentJson(
+    const FString& RequestJson,
+    FString& OutResultJson,
+    FString& OutError) const
+{
+    const TSharedPtr<FJsonObject> Request = ParseRequest(RequestJson);
+    if (!Request.IsValid())
+    {
+        OutError = TEXT("pie_agent_control request is not a JSON object.");
+        return false;
+    }
+    FString Op;
+    if (!Request->TryGetStringField(TEXT("op"), Op) || Op.IsEmpty())
+    {
+        OutError = TEXT(
+            "pie_agent_control needs 'op': move_to, look_at, press, key_state, axis_state, "
+            "clear_axes, record_start, record_stop or replay.");
+        return false;
+    }
+
+    TSharedPtr<FJsonObject> Forward = MakeShared<FJsonObject>(*Request);
+    Forward->RemoveField(TEXT("op"));
+    const FString ForwardJson = SerializeObject(Forward);
+
+    if (Op == TEXT("move_to")) { OutResultJson = UPIEAgentLibrary::StartMoveTo(ForwardJson); return true; }
+    if (Op == TEXT("look_at")) { OutResultJson = UPIEAgentLibrary::LookAt(ForwardJson); return true; }
+    if (Op == TEXT("press")) { OutResultJson = UPIEAgentLibrary::StartPress(ForwardJson); return true; }
+    if (Op == TEXT("record_start")) { OutResultJson = UPIEAgentLibrary::RecordStart(ForwardJson); return true; }
+    if (Op == TEXT("record_stop")) { OutResultJson = UPIEAgentLibrary::RecordStop(); return true; }
+    if (Op == TEXT("replay")) { OutResultJson = UPIEAgentLibrary::StartReplay(ForwardJson); return true; }
+    if (Op == TEXT("clear_axes")) { OutResultJson = UPIEAgentLibrary::ClearAxisState(); return true; }
+    if (Op == TEXT("key_state"))
+    {
+        FString Key;
+        bool bPressed = false;
+        if (!Request->TryGetStringField(TEXT("key"), Key) || Key.IsEmpty()
+            || !Request->TryGetBoolField(TEXT("pressed"), bPressed))
+        {
+            OutError = TEXT("pie_agent_control op=key_state needs non-empty key and boolean pressed.");
+            return false;
+        }
+        OutResultJson = UPIEAgentLibrary::SetKeyState(Key, bPressed);
+        return true;
+    }
+    if (Op == TEXT("axis_state"))
+    {
+        FString Axis;
+        double Value = 0.0;
+        if (!Request->TryGetStringField(TEXT("axis"), Axis) || Axis.IsEmpty()
+            || !Request->TryGetNumberField(TEXT("value"), Value))
+        {
+            OutError = TEXT("pie_agent_control op=axis_state needs non-empty axis and numeric value.");
+            return false;
+        }
+        OutResultJson = UPIEAgentLibrary::SetAxisState(Axis, static_cast<float>(Value));
+        return true;
+    }
+
+    OutError = FString::Printf(
+        TEXT("Unknown pie_agent_control op '%s'. Expected move_to, look_at, press, key_state, ")
+        TEXT("axis_state, clear_axes, record_start, record_stop or replay."),
         *Op);
     return false;
 }

@@ -7,6 +7,11 @@
  * Uses authenticated local named-pipe IPC to the in-process UE4.27 PuerTS runtime.
  */
 
+// First, so UE_ENGINE_ROOT and MCP_UNREAL_PROJECT_ROOT are in the environment
+// before any consumer reads them. The environment still wins over the file.
+import { loadLocalConfig } from "./local-config.js";
+const localConfig = loadLocalConfig();
+
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import {
@@ -59,6 +64,7 @@ import { createOptimizationTools } from "./tools/optimization.js";
 import { createEngineSourceTools } from "./tools/engine-source.js";
 import { createPuertsTools } from "./tools/puerts.js";
 import { createStatusTools } from "./tools/status.js";
+import { createBlueprintProductionTools } from "./tools/blueprint-production.js";
 import { registerCompatAliases } from "./tools/compat.js";
 import { toolAnnotations } from "./annotations.js";
 import { loadExtensions } from "./extensions.js";
@@ -79,6 +85,21 @@ async function main(): Promise<void> {
         "Never use HTTP, REST, local web servers, Python sockets, shell commands, or workaround scripts to communicate with Unreal.",
         "If a native tool fails, report its exact error. Do not attempt a fallback transport.",
         "engine_source_* tools are server-local source readers and do not communicate with the editor.",
+        // The sequencing rules, stated here because this string reaches EVERY
+        // client. The skill says all of this at length, but the skill is an
+        // optional install and a client without it previously received no
+        // sequencing guidance at all. Each rule below is one the routing policy
+        // checker enforces (mcp-server/src/routing-policy.ts), and a test
+        // asserts the two stay in step: a rule that is checked but never stated
+        // punishes a client for not guessing, and one that is stated but never
+        // checked is a paragraph nobody has to obey.
+        "Inspect before you mutate: read state with a *_inspect or find_* tool before changing it.",
+        "Preview a broad or destructive change with plan_only:true before applying it.",
+        "Destructive tools require confirm=true; that is a deliberate confirmation, not a formality.",
+        "NEVER start Play In Editor on your own. puerts_pie_start, puerts_pie_stop and the",
+        "puerts_pie_agent_* tools require the user to ask for them first.",
+        "A tool absent from tools/list is absent deliberately. Do not call it by name;",
+        "puerts_diagnostic reports what is unavailable and why under capabilities.unavailable.",
         "Before executing any structural engine or blueprint generation task",
         "(gameplay systems, blueprint/widget generation, editor C++, UI",
         "materials), read the contents of docs/playbooks/ in the project",
@@ -97,6 +118,7 @@ async function main(): Promise<void> {
     ...createEngineSourceTools(),
     ...createStatusTools(),
     ...createPuertsTools(puertsClient),
+    ...createBlueprintProductionTools(),
   ];
 
   // The old HTTP/Python catalog is migration-only and invisible unless a human
@@ -261,6 +283,22 @@ async function main(): Promise<void> {
   await server.connect(transport);
 
   console.error(`[Unreal MCP Bridge] Server started with ${allTools.length} tools`);
+  // Say where the machine-local paths came from. A wrong project root surfaces
+  // only as session_missing later, so naming the source here is what turns that
+  // into a one-line diagnosis instead of a hunt.
+  if (localConfig.error !== undefined) {
+    console.error(`[Unreal MCP Bridge] WARNING: ${localConfig.path}: ${localConfig.error}`);
+  } else if (localConfig.found) {
+    const parts = [`applied ${localConfig.applied.join(", ") || "nothing"}`];
+    if (localConfig.skipped.length > 0) parts.push(`environment already set ${localConfig.skipped.join(", ")}`);
+    if (localConfig.unknown.length > 0) parts.push(`IGNORED unknown ${localConfig.unknown.join(", ")}`);
+    console.error(`[Unreal MCP Bridge] bridge.local.json: ${parts.join("; ")}`);
+  } else if (process.env.MCP_UNREAL_PROJECT_ROOT === undefined) {
+    console.error(
+      `[Unreal MCP Bridge] No bridge.local.json and no MCP_UNREAL_PROJECT_ROOT. The bridge will look for an `
+      + `editor session under the current directory. Run Scripts/setup-unreal-project.ps1 -Project <path.uproject>.`
+    );
+  }
   console.error(`[Unreal MCP Bridge] Native IPC mode: ${legacyHttpEnabled ? "PuerTS plus explicit legacy HTTP" : "PuerTS only"}`);
   if (legacyClient !== undefined) {
     console.error(`[Unreal MCP Bridge] Legacy listener endpoint: ${legacyClient.endpoint}`);

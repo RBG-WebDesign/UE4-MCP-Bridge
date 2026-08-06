@@ -1,7 +1,15 @@
 #include "MCPPuerTSBridgeService.h"
 
+// CheckPreconditions compares the caller's expected scene hash against the
+// level, using the same StructureHash scene_inspect and scene_batch report.
+#include "MCPBridgeSceneSnapshot.h"
+
 #include "Editor.h"
 #include "AssetRegistryModule.h"
+#include "Builders/CubeBuilder.h"
+#include "Components/BrushComponent.h"
+#include "Engine/Brush.h"
+#include "Model.h"
 #include "FileHelpers.h"
 #include "EngineUtils.h"
 #include "Engine/Level.h"
@@ -12,7 +20,10 @@
 #include "HAL/PlatformTLS.h"
 #include "Json.h"
 #include "JsonObjectConverter.h"
+#include "ISourceControlModule.h"
+#include "ObjectTools.h"
 #include "Misc/ConfigCacheIni.h"
+#include "Misc/Crc.h"
 #include "Misc/FileHelper.h"
 #include "Misc/Guid.h"
 #include "Misc/Paths.h"
@@ -35,6 +46,31 @@ DEFINE_LOG_CATEGORY_STATIC(LogMCPPuerTSBridge, Log, All);
 namespace
 {
 const TCHAR* BridgeConfigSection = TEXT("MCPPuerTSBridge");
+
+FString BuildDefaultProjectPipeName()
+{
+    FString Name = FPaths::GetBaseFilename(FPaths::GetProjectFilePath());
+    if (Name.IsEmpty())
+    {
+        Name = TEXT("Project");
+    }
+    for (TCHAR& Character : Name)
+    {
+        if (!FChar::IsAlnum(Character) && Character != TEXT('_'))
+        {
+            Character = TEXT('_');
+        }
+    }
+    Name.LeftInline(32);
+
+    FString ProjectRoot = FPaths::ConvertRelativePathToFull(FPaths::ProjectDir());
+    FPaths::NormalizeDirectoryName(ProjectRoot);
+    ProjectRoot.ToLowerInline();
+    return FString::Printf(
+        TEXT("\\\\.\\pipe\\UE427PuerTSMCP_%s_%08x"),
+        *Name,
+        FCrc::StrCrc32(*ProjectRoot));
+}
 
 /** Where Initialize advertises the live pipe name and where Shutdown retracts it. */
 FString GetPipeAdvertisePath()
@@ -124,6 +160,73 @@ TArray<TSharedPtr<FJsonValue>> CopyArrayField(
     }
     return TArray<TSharedPtr<FJsonValue>>();
 }
+
+bool IsProjectPackagePath(const FString& PackagePath)
+{
+    return PackagePath.StartsWith(TEXT("/Game/"))
+        && FPackageName::IsValidLongPackageName(PackagePath, false);
+}
+
+bool ResolveProjectMapFilename(
+    const FString& PackagePath,
+    FString& OutFilename,
+    FString& OutError)
+{
+    if (!IsProjectPackagePath(PackagePath))
+    {
+        // A free function, so the service's Fail() is not in scope and this
+        // refusal carries no code. Its callers are members and can classify it
+        // if a client ever needs to branch here.
+        OutError = TEXT("Level paths must be valid package paths under /Game/.");
+        return false;
+    }
+    if (!FPackageName::DoesPackageExist(PackagePath, nullptr, &OutFilename))
+    {
+        OutError = FString::Printf(TEXT("Level was not found: %s"), *PackagePath);
+        return false;
+    }
+    if (FPaths::GetExtension(OutFilename, true) != FPackageName::GetMapPackageExtension())
+    {
+        OutError = FString::Printf(TEXT("Package is not a UE4 map: %s"), *PackagePath);
+        return false;
+    }
+    return true;
+}
+
+TArray<FString> DirtyProjectPackageNames()
+{
+    TArray<UPackage*> Packages;
+    FEditorFileUtils::GetDirtyWorldPackages(Packages);
+    FEditorFileUtils::GetDirtyContentPackages(Packages);
+
+    TArray<FString> Names;
+    for (UPackage* Package : Packages)
+    {
+        if (Package != nullptr)
+        {
+            Names.AddUnique(Package->GetName());
+        }
+    }
+    Names.Sort();
+    return Names;
+}
+
+bool RefuseLevelSwitchWithDirtyPackages(FString& OutError)
+{
+    TArray<FString> DirtyNames = DirtyProjectPackageNames();
+    if (DirtyNames.Num() == 0)
+    {
+        return true;
+    }
+    if (DirtyNames.Num() > 10)
+    {
+        DirtyNames.SetNum(10);
+    }
+    OutError = FString::Printf(
+        TEXT("Refusing to switch levels with unsaved packages: %s. Save first with puerts_level_save."),
+        *FString::Join(DirtyNames, TEXT(", ")));
+    return false;
+}
 }
 
 class UMCPPuerTSBridgeService::FBridgeLogCapture final : public FOutputDevice
@@ -169,7 +272,11 @@ UMCPPuerTSBridgeService::~UMCPPuerTSBridgeService() = default;
 
 bool UMCPPuerTSBridgeService::Initialize(FString& OutError)
 {
-    GConfig->GetString(BridgeConfigSection, TEXT("PipeName"), PipeName, GEngineIni);
+    if (!GConfig->GetString(BridgeConfigSection, TEXT("PipeName"), PipeName, GEngineIni)
+        || PipeName.TrimStartAndEnd().IsEmpty())
+    {
+        PipeName = BuildDefaultProjectPipeName();
+    }
     GConfig->GetString(BridgeConfigSection, TEXT("AllowedScriptRoot"), AllowedScriptRoot, GEngineIni);
     GConfig->GetString(BridgeConfigSection, TEXT("BootstrapModule"), BootstrapModule, GEngineIni);
     GConfig->GetInt(BridgeConfigSection, TEXT("RequestTimeoutMilliseconds"), RequestTimeoutMilliseconds, GEngineIni);
@@ -196,7 +303,10 @@ bool UMCPPuerTSBridgeService::Initialize(FString& OutError)
             // set hides that, so the duplicates are removed here rather than left
             // for the next reader to wonder about.
             TEXT("set_property"), TEXT("call_function"), TEXT("spawn_actor"), TEXT("delete_actor"),
-            TEXT("save"), TEXT("pie_start"), TEXT("pie_stop"), TEXT("undo"),
+            // Permanent asset deletion. It is not an editor transaction because
+            // neither the package file nor broken references can be restored by undo.
+            TEXT("delete_asset"),
+            TEXT("save"), TEXT("level_create"), TEXT("level_load"), TEXT("level_save"), TEXT("pie_start"), TEXT("pie_stop"), TEXT("undo"),
             TEXT("physics_build"), TEXT("physics_observe"), TEXT("viewport_screenshot"), TEXT("sky_shader_create"),
             TEXT("blueprint_build"), TEXT("blueprint_graph_patch"), TEXT("blueprint_member_patch"), TEXT("widget_build"),
             TEXT("widget_bind"),
@@ -210,7 +320,9 @@ bool UMCPPuerTSBridgeService::Initialize(FString& OutError)
             // commands are. A lighting build is not something a transaction can
             // take back.
             TEXT("lighting_build"),
-            TEXT("camera_shake"), TEXT("sequence_build"),
+            TEXT("camera_shake"), TEXT("sequence_build"), TEXT("anim_montage_build"),
+            TEXT("sequence_event_track_build"),
+            TEXT("data_table_build"),
             TEXT("camera_shake"),
             // Mutating, and deliberately absent from IsToolMutating below.
             // Navigation build is derived data regenerated by background tasks
@@ -226,20 +338,31 @@ bool UMCPPuerTSBridgeService::Initialize(FString& OutError)
             TEXT("anim_blueprint_inspect"), TEXT("anim_montage_inspect"), TEXT("anim_blend_space_inspect"), TEXT("blackboard_inspect"),
             TEXT("eqs_inspect"), TEXT("nav_inspect"), TEXT("nav_query"), TEXT("ai_controller_inspect"),
             TEXT("material_inspect"), TEXT("scene_inspect"), TEXT("input_mapping_info"), TEXT("pie_agent_query"),
+            // Runtime-only control. Deliberately absent from IsToolMutating:
+            // editor transactions do not record changes inside a PIE world.
+            TEXT("pie_agent_control"),
             // The comma after sequence_inspect is load bearing. Without it the
             // C++ preprocessor concatenates the two adjacent string literals
             // into "sequence_inspectaudio_inspect" and BOTH tools fall off the
             // allowlist, refused as unknown at AcceptCommand with nothing in
             // the build to say why.
             TEXT("sequence_inspect"),
-            TEXT("audio_inspect"), TEXT("cloth_inspect"),
+            TEXT("audio_inspect"), TEXT("audio_build"), TEXT("cloth_inspect"),
+            TEXT("anim_blend_space_build"),
             // The job API. job_status, job_result and job_cancel are short
             // commands that read a small in-memory record and ask the live
             // engine source for one job's state; they never block and never
-            // wait. sequence_render_start spawns a second UE process and
-            // returns a job id. See MCPPuerTSBridgeJobs.cpp.
+            // wait. The two *_start commands spawn child processes and return
+            // job ids. See MCPPuerTSBridgeJobs.cpp.
             TEXT("job_status"), TEXT("job_result"), TEXT("job_cancel"),
-            TEXT("sequence_render_start")
+            TEXT("sequence_render_start"), TEXT("project_package_start"),
+            TEXT("project_settings_maps"),
+            // Reaches every Project Settings page by writing config properties
+            // on the page's settings CDO. Deliberately not gated by
+            // AllowedWritableProperties: that list is per Class.Property and
+            // would need a C++ edit and rebuild for every setting, which is the
+            // opposite of what this command is for.
+            TEXT("project_settings_patch")
         };
         for (const TCHAR* Value : Defaults) { AllowedTools.Add(Value); }
     }
@@ -268,11 +391,26 @@ bool UMCPPuerTSBridgeService::Initialize(FString& OutError)
             TEXT("PostProcessVolume.bEnabled"), TEXT("PostProcessVolume.bUnbound"),
             TEXT("BoxComponent.BoxExtent"),
             TEXT("StaticMeshComponent.StaticMesh"),
-            // Widened for class_defaults_patch, by name, and no wider than the
-            // AI slice needs: without these two an authored pawn can never be
-            // possessed by an authored AIController, which is the whole gap.
-            // Both are inherited APawn class defaults, not Blueprint variables.
-            TEXT("Pawn.AIControllerClass"), TEXT("Pawn.AutoPossessAI")
+            // Widened for class_defaults_patch, by name. The first two let an
+            // authored Pawn use an authored AIController. The third lets an
+            // authored player Character possess Player0. All three are inherited
+            // APawn class defaults, not Blueprint variables.
+            TEXT("Pawn.AIControllerClass"), TEXT("Pawn.AutoPossessAI"),
+            TEXT("Pawn.AutoPossessPlayer"),
+            // Widened for the World Settings > Game Mode panel: the per-level
+            // GameMode Override plus the six class slots it exposes once set.
+            // WorldSettings.DefaultGameMode is the reflected name behind the
+            // "GameMode Override" DisplayName; the other six live on
+            // GameModeBase, not on the level's placed GameModeBase actor.
+            TEXT("WorldSettings.DefaultGameMode"),
+            TEXT("GameModeBase.DefaultPawnClass"), TEXT("GameModeBase.PlayerControllerClass"),
+            TEXT("GameModeBase.HUDClass"), TEXT("GameModeBase.GameStateClass"),
+            TEXT("GameModeBase.PlayerStateClass"), TEXT("GameModeBase.SpectatorClass"),
+            // Widened so a C++ Character base class can stay generic (no
+            // ConstructorHelpers asset path baked in) and a thin Blueprint
+            // subclass carries the mesh + Anim Blueprint as desired state,
+            // set through class_defaults_patch instead of a hardcoded path.
+            TEXT("SkeletalMeshComponent.SkeletalMesh"), TEXT("SkeletalMeshComponent.AnimClass")
         };
         for (const TCHAR* Value : Defaults) { AllowedWritableProperties.Add(Value); }
     }
@@ -424,6 +562,11 @@ void UMCPPuerTSBridgeService::Shutdown()
     for (FBridgeJob& Job : Jobs)
     {
         if (Job.ProcessHandle.IsValid()) { FPlatformProcess::CloseProc(Job.ProcessHandle); }
+        if (Job.ProcessReadPipe != nullptr)
+        {
+            FPlatformProcess::ClosePipe(Job.ProcessReadPipe, nullptr);
+            Job.ProcessReadPipe = nullptr;
+        }
     }
     Jobs.Reset();
 
@@ -570,7 +713,8 @@ FString UMCPPuerTSBridgeService::AcceptCommand(const FString& RequestJson)
         && (GEditor->PlayWorld != nullptr || GEditor->GetPlaySessionRequest().IsSet())
         && ToolName != TEXT("pie_stop")
         && ToolName != TEXT("get_logs")
-        && ToolName != TEXT("physics_observe"))
+        && ToolName != TEXT("physics_observe")
+        && ToolName != TEXT("pie_agent_query"))
     {
         Error = TEXT("Editor operations are blocked during Play In Editor. Stop PIE first.");
     }
@@ -587,6 +731,23 @@ FString UMCPPuerTSBridgeService::AcceptCommand(const FString& RequestJson)
     {
         Request->SetObjectField(TEXT("params"), MakeShared<FJsonObject>());
     }
+    // Preconditions are checked HERE, and the position is the whole point: the
+    // next block opens the transaction. Nothing above this line has touched the
+    // editor, so a refusal leaves no transaction, no undo entry and no dirty
+    // package. Placed after the tool, auth and parameter checks above so that a
+    // conflict is reported only for a request that was otherwise going to run.
+    const TSharedPtr<FJsonObject>* ParamsForPreconditions = nullptr;
+    Request->TryGetObjectField(TEXT("params"), ParamsForPreconditions);
+    TSharedPtr<FJsonObject> Conflict;
+    if (!CheckPreconditions(ToolName,
+        ParamsForPreconditions != nullptr ? *ParamsForPreconditions : nullptr, Conflict))
+    {
+        TSharedPtr<FJsonObject> Refusal = MakeShared<FJsonObject>();
+        Refusal->SetBoolField(TEXT("accepted"), false);
+        Refusal->SetObjectField(TEXT("response"), Conflict);
+        return SerializeJson(Refusal);
+    }
+
     ActiveCommandId = CommandId;
     ActiveToolName = ToolName;
     ActiveLogMarker = LogCapture != nullptr ? LogCapture->Marker() : 0;
@@ -624,6 +785,27 @@ FString UMCPPuerTSBridgeService::CompleteCommand(const FString& CommandId, const
     FString Message;
     ScriptResponse->TryGetStringField(TEXT("message"), Message);
     TSharedPtr<FJsonObject> Final = BuildBaseResponse(bSuccess, Message);
+    // This function rebuilds the envelope from a field allowlist rather than
+    // forwarding the script's object, so a field the runtime sets and this list
+    // does not name is silently dropped. error_code was exactly that: the
+    // runtime refused a quarantined tool with one and the client received
+    // undefined, which the live acceptance caught and no unit test could,
+    // because the C++ normalizer is not in the mock path. Set only when the
+    // script supplied one, so a success envelope stays as it was.
+    FString ErrorCode;
+    if (ScriptResponse->TryGetStringField(TEXT("error_code"), ErrorCode) && !ErrorCode.IsEmpty())
+    {
+        Final->SetStringField(TEXT("error_code"), ErrorCode);
+    }
+    else if (!bSuccess && !PendingErrorCode.IsEmpty())
+    {
+        // A native refusal reaches here as a thrown JavaScript error carrying
+        // only the message text, so the code cannot travel with it through the
+        // runtime. It is picked up from the service instead. The script's own
+        // code wins when it set one: the runtime refused before the native call
+        // in that case, and it knows something C++ does not.
+        Final->SetStringField(TEXT("error_code"), PendingErrorCode);
+    }
     const TSharedPtr<FJsonValue> Data = ScriptResponse->TryGetField(TEXT("data"));
     if (Data.IsValid())
     {
@@ -645,8 +827,24 @@ FString UMCPPuerTSBridgeService::CompleteCommand(const FString& CommandId, const
     ScriptResponse->TryGetStringField(TEXT("transaction_id"), ScriptTransactionId);
     const FString ResultTransactionId = ActiveTransactionId.IsEmpty() ? ScriptTransactionId : ActiveTransactionId;
     Final->SetStringField(TEXT("transaction_id"), ResultTransactionId);
-    Final->SetNumberField(TEXT("native_duration_ms"),
-        ActiveCommandStartSeconds > 0.0 ? (FPlatformTime::Seconds() - ActiveCommandStartSeconds) * 1000.0 : 0.0);
+    const double NativeMs = ActiveCommandStartSeconds > 0.0
+        ? (FPlatformTime::Seconds() - ActiveCommandStartSeconds) * 1000.0 : 0.0;
+    Final->SetNumberField(TEXT("native_duration_ms"), NativeMs);
+
+    // Durations, never timestamps. The runtime measured its own queue wait with
+    // its own monotonic clock and this adds the editor-side execution time;
+    // the MCP server adds validation and round trip from a third clock. Nothing
+    // subtracts one process's reading from another's, so no clock has to agree
+    // with any other. Named explicitly because this function rebuilds the
+    // envelope from an allowlist and silently drops what it does not name.
+    TSharedPtr<FJsonObject> Timings = MakeShared<FJsonObject>();
+    const TSharedPtr<FJsonObject>* ScriptTimings = nullptr;
+    if (ScriptResponse->TryGetObjectField(TEXT("timings_ms"), ScriptTimings) && ScriptTimings != nullptr)
+    {
+        Timings = MakeShared<FJsonObject>(**ScriptTimings);
+    }
+    Timings->SetNumberField(TEXT("native_execution"), NativeMs);
+    Final->SetObjectField(TEXT("timings_ms"), Timings);
 
     if (!ActiveTransactionId.IsEmpty())
     {
@@ -810,8 +1008,7 @@ bool UMCPPuerTSBridgeService::FindAssetsJson(
 {
     if (!Path.StartsWith(TEXT("/Game")) && !Path.StartsWith(TEXT("/Engine")))
     {
-        OutError = TEXT("Asset search is limited to /Game and /Engine.");
-        return false;
+        return Fail(TEXT("path_not_allowed"), TEXT("Asset search is limited to /Game and /Engine."), OutError);
     }
 
     FAssetRegistryModule& AssetRegistryModule =
@@ -853,6 +1050,151 @@ bool UMCPPuerTSBridgeService::FindAssetsJson(
     Root->SetArrayField(TEXT("assets"), Matches);
     Root->SetNumberField(TEXT("count"), Matches.Num());
     OutAssetsJson = SerializeJson(Root);
+    return true;
+}
+bool UMCPPuerTSBridgeService::DeleteAsset(
+    const FString& InAssetPath,
+    bool bConfirm,
+    bool bForce,
+    FString& OutResultJson,
+    FString& OutError) const
+{
+    if (!bConfirm)
+    {
+        return Fail(TEXT("confirmation_required"), TEXT("delete_asset requires confirm=true because asset deletion is permanent."), OutError);
+    }
+
+    const FString AssetPath = InAssetPath.TrimStartAndEnd();
+    FString PackagePath = AssetPath.Contains(TEXT("."))
+        ? FPackageName::ObjectPathToPackageName(AssetPath)
+        : AssetPath;
+    if (!PackagePath.StartsWith(TEXT("/Game/")) || !FPackageName::IsValidLongPackageName(PackagePath))
+    {
+        return Fail(TEXT("path_not_allowed"), TEXT("Asset deletion is limited to a valid package under /Game/."), OutError);
+    }
+    const FString ObjectPath = AssetPath.Contains(TEXT("."))
+        ? AssetPath
+        : PackagePath + TEXT(".") + FPackageName::GetLongPackageAssetName(PackagePath);
+
+    FAssetRegistryModule& AssetRegistryModule =
+        FModuleManager::LoadModuleChecked<FAssetRegistryModule>(TEXT("AssetRegistry"));
+    IAssetRegistry& AssetRegistry = AssetRegistryModule.Get();
+    const FAssetData AssetData = AssetRegistry.GetAssetByObjectPath(FName(*ObjectPath));
+    if (!AssetData.IsValid())
+    {
+        if (FPackageName::DoesPackageExist(PackagePath))
+        {
+            OutError = FString::Printf(
+                TEXT("The package '%s' exists but the Asset Registry has no asset at '%s'. Refusing to guess."),
+                *PackagePath,
+                *ObjectPath);
+            return false;
+        }
+        TSharedPtr<FJsonObject> Absent = MakeShared<FJsonObject>();
+        Absent->SetStringField(TEXT("asset_path"), PackagePath);
+        Absent->SetStringField(TEXT("object_path"), ObjectPath);
+        Absent->SetBoolField(TEXT("force"), bForce);
+        Absent->SetArrayField(TEXT("referencers"), TArray<TSharedPtr<FJsonValue>>());
+        Absent->SetBoolField(TEXT("deleted"), false);
+        Absent->SetBoolField(TEXT("already_absent"), true);
+        Absent->SetBoolField(TEXT("registry_absent"), true);
+        Absent->SetBoolField(TEXT("package_absent"), true);
+        OutResultJson = SerializeJson(Absent);
+        return true;
+    }
+
+    if (GEditor != nullptr)
+    {
+        UWorld* EditorWorld = GEditor->GetEditorWorldContext().World();
+        if (EditorWorld != nullptr && EditorWorld->GetOutermost()->GetFName() == AssetData.PackageName)
+        {
+            OutError = TEXT("The currently open level cannot be deleted. Load another level first.");
+            return false;
+        }
+    }
+
+    UObject* Asset = AssetData.GetAsset();
+    if (Asset == nullptr)
+    {
+        OutError = FString::Printf(TEXT("The asset at '%s' could not be loaded for deletion."), *ObjectPath);
+        return false;
+    }
+
+    FCanDeleteAssetResult CanDelete;
+    TArray<UObject*> Objects;
+    Objects.Add(Asset);
+    FEditorDelegates::OnAssetsCanDelete.Broadcast(Objects, CanDelete);
+    if (!CanDelete.Get())
+    {
+        OutError = FString::Printf(TEXT("The editor vetoed deletion of '%s'. See the Output Log."), *ObjectPath);
+        return false;
+    }
+
+    FString PackageFilename;
+    if (!ISourceControlModule::Get().IsEnabled()
+        && FPackageName::DoesPackageExist(PackagePath, nullptr, &PackageFilename)
+        && IFileManager::Get().IsReadOnly(*PackageFilename))
+    {
+        OutError = FString::Printf(
+            TEXT("'%s' is read-only and source control is disabled. Make the file writable before deleting it."),
+            *PackageFilename);
+        return false;
+    }
+
+    TArray<FName> ReferencerNames;
+    AssetRegistry.GetReferencers(AssetData.PackageName, ReferencerNames);
+    ReferencerNames.Remove(AssetData.PackageName);
+    ReferencerNames.Sort([](const FName& Left, const FName& Right)
+    {
+        return Left.LexicalLess(Right);
+    });
+    TArray<TSharedPtr<FJsonValue>> Referencers;
+    for (const FName& Referencer : ReferencerNames)
+    {
+        Referencers.Add(MakeShared<FJsonValueString>(Referencer.ToString()));
+    }
+
+    TSharedPtr<FJsonObject> Result = MakeShared<FJsonObject>();
+    Result->SetStringField(TEXT("asset_path"), PackagePath);
+    Result->SetStringField(TEXT("object_path"), ObjectPath);
+    Result->SetBoolField(TEXT("force"), bForce);
+    Result->SetArrayField(TEXT("referencers"), Referencers);
+    if (ReferencerNames.Num() > 0 && !bForce)
+    {
+        Result->SetBoolField(TEXT("deleted"), false);
+        Result->SetBoolField(TEXT("blocked"), true);
+        Result->SetStringField(TEXT("blocked_reason"), TEXT("asset_referenced"));
+        OutResultJson = SerializeJson(Result);
+        return true;
+    }
+
+    int32 DeletedCount = 0;
+    if (bForce)
+    {
+        DeletedCount = ObjectTools::ForceDeleteObjects(Objects, false);
+    }
+    else
+    {
+        TArray<FAssetData> Assets;
+        Assets.Add(AssetData);
+        DeletedCount = ObjectTools::DeleteAssets(Assets, false);
+    }
+
+    const bool bRegistryAbsent = !AssetRegistry.GetAssetByObjectPath(FName(*ObjectPath)).IsValid();
+    const bool bPackageAbsent = !FPackageName::DoesPackageExist(PackagePath);
+    const bool bDeleted = DeletedCount == 1 && bRegistryAbsent && bPackageAbsent;
+    Result->SetNumberField(TEXT("deleted_count"), DeletedCount);
+    Result->SetBoolField(TEXT("registry_absent"), bRegistryAbsent);
+    Result->SetBoolField(TEXT("package_absent"), bPackageAbsent);
+    Result->SetBoolField(TEXT("deleted"), bDeleted);
+    Result->SetBoolField(TEXT("blocked"), false);
+    if (!bDeleted)
+    {
+        Result->SetStringField(
+            TEXT("failure_reason"),
+            TEXT("UE4.27 did not report and verify exactly one deleted asset. It may still have an in-memory reference."));
+    }
+    OutResultJson = SerializeJson(Result);
     return true;
 }
 AActor* UMCPPuerTSBridgeService::FindLevelActor(const FString& NameOrPath) const
@@ -1105,7 +1447,14 @@ bool UMCPPuerTSBridgeService::SpawnActorJson(
 {
     if ((!ClassPath.StartsWith(TEXT("/Game/"))
             && !ClassPath.StartsWith(TEXT("/Script/Engine."))
-            && ClassPath != TEXT("/Script/CinematicCamera.CineCameraActor"))
+            && ClassPath != TEXT("/Script/CinematicCamera.CineCameraActor")
+            && ClassPath != TEXT("/Script/LevelSequence.LevelSequenceActor")
+            // NavMeshBoundsVolume is NotBlueprintable, so wrapping it in an
+            // empty /Game Blueprint - the usual route for a project-native
+            // class - is refused by the engine itself. There is no other way
+            // to make a level navigable. Kept in sync with the identical
+            // allowlist in puerts-runtime/src/registry.ts's spawnActor.
+            && ClassPath != TEXT("/Script/NavigationSystem.NavMeshBoundsVolume"))
         || GEditor == nullptr
         || ActiveTransaction == nullptr)
     {
@@ -1133,6 +1482,42 @@ bool UMCPPuerTSBridgeService::SpawnActorJson(
         return false;
     }
 
+    // ABrush (NavMeshBoundsVolume and every other Volume) has an empty Model
+    // - zero polygons - until something builds one. The editor's own "Place
+    // Actors" volume placement runs a brush builder as part of placement;
+    // plain SpawnActor/AddActor does not, so a spawned volume has correct
+    // transform and PolyFlags but a BrushComponent with nothing in it: its
+    // bounds read {0,0,0} and it registers no navigable area no matter what
+    // scale is applied afterward, because scaling zero geometry is still
+    // zero.
+    //
+    // The deeper reason: ABrush::Brush (the UModel* holding the actual BSP
+    // geometry) is UPROPERTY(Instanced) but is never constructed by
+    // ABrush::ABrush - Brush.cpp's constructor only builds BrushComponent.
+    // UEditorBrushBuilder::EndBrush (what every Build() call ends with)
+    // checks for exactly this: "UModel* Brush = BuilderBrush->Brush; if
+    // (Brush == nullptr) { return true; }" - it silently no-ops and reports
+    // SUCCESS with zero polys written. Every editor-driven volume placement
+    // works because FActorFactoryBoxVolume (or equivalent) creates that
+    // UModel before ever calling a builder; SpawnActor has no equivalent
+    // step, so the Model has to be created here first.
+    if (ABrush* Brush = Cast<ABrush>(Actor))
+    {
+        Brush->Brush = NewObject<UModel>(Brush, NAME_None, RF_Transactional);
+        Brush->Brush->Initialize(Brush, true);
+        Brush->GetBrushComponent()->Brush = Brush->Brush;
+
+        // Every Volume this command can reach today is a plain box, so a
+        // default 200-unit cube (UE4's own default builder-brush size) is
+        // what scene_batch's later SetActorScale3D then resizes to what the
+        // caller actually asked for.
+        UCubeBuilder* CubeBuilder = NewObject<UCubeBuilder>(GetTransientPackage());
+        CubeBuilder->X = 200.0f;
+        CubeBuilder->Y = 200.0f;
+        CubeBuilder->Z = 200.0f;
+        CubeBuilder->Build(World, Brush);
+    }
+
     TSharedPtr<FJsonObject> ActorJson = MakeShared<FJsonObject>();
     ActorJson->SetStringField(TEXT("name"), Actor->GetName());
     ActorJson->SetStringField(TEXT("path"), Actor->GetPathName());
@@ -1152,8 +1537,7 @@ bool UMCPPuerTSBridgeService::DeleteLevelActor(
 {
     if (!bConfirmed)
     {
-        OutError = TEXT("Actor deletion requires confirm=true.");
-        return false;
+        return Fail(TEXT("confirmation_required"), TEXT("Actor deletion requires confirm=true."), OutError);
     }
     if (ActiveTransaction == nullptr)
     {
@@ -1181,8 +1565,7 @@ bool UMCPPuerTSBridgeService::SaveProjectAsset(const FString& AssetPath, FString
 {
     if (!AssetPath.StartsWith(TEXT("/Game/")))
     {
-        OutError = TEXT("Only project assets under /Game can be saved.");
-        return false;
+        return Fail(TEXT("path_not_allowed"), TEXT("Only project assets under /Game can be saved."), OutError);
     }
 
     FAssetRegistryModule& AssetRegistryModule =
@@ -1218,9 +1601,17 @@ bool UMCPPuerTSBridgeService::SaveCurrentLevel(const FString& AssetPath, FString
     bool bSaved = false;
     if (AssetPath.IsEmpty())
     {
+        // FEditorFileUtils::SaveLevel opens an interactive Save Level As dialog
+        // when the level has never been saved before ("SaveAs is performed as
+        // necessary" per its own header comment) unless GIsRunningUnattendedScript
+        // is set, in which case it refuses cleanly instead. The bridge must never
+        // block on a window it cannot see or dismiss, so this scopes the same flag
+        // the engine's own Python plugin uses for unattended saves to just this
+        // call, leaving a human's own interactive saves elsewhere unaffected.
+        TGuardValue<bool> UnattendedGuard(GIsRunningUnattendedScript, true);
         bSaved = FEditorFileUtils::SaveLevel(World->PersistentLevel);
     }
-    else if (AssetPath.StartsWith(TEXT("/Game/MCPTests/"))
+    else if (AssetPath.StartsWith(TEXT("/Game/"))
         && FPackageName::IsValidLongPackageName(AssetPath))
     {
         const FString Filename = FPackageName::LongPackageNameToFilename(
@@ -1233,6 +1624,194 @@ bool UMCPPuerTSBridgeService::SaveCurrentLevel(const FString& AssetPath, FString
         OutSavedPath = AssetPath.IsEmpty() ? World->GetOutermost()->GetName() : AssetPath;
     }
     return bSaved;
+}
+
+bool UMCPPuerTSBridgeService::CreateLevelJson(
+    const FString& LevelPath,
+    const FString& TemplatePath,
+    FString& OutResultJson,
+    FString& OutError)
+{
+    if (GEditor == nullptr)
+    {
+        OutError = TEXT("GEditor is unavailable.");
+        return false;
+    }
+    if (!IsProjectPackagePath(LevelPath))
+    {
+        return Fail(TEXT("path_not_allowed"), TEXT("level_path must be a valid package path under /Game/."), OutError);
+    }
+    if (FPackageName::DoesPackageExist(LevelPath))
+    {
+        OutError = FString::Printf(TEXT("Level target already exists: %s"), *LevelPath);
+        return false;
+    }
+
+    FString TemplateFilename;
+    if (!TemplatePath.IsEmpty()
+        && !ResolveProjectMapFilename(TemplatePath, TemplateFilename, OutError))
+    {
+        OutError = FString::Printf(TEXT("Invalid template_path: %s"), *OutError);
+        return false;
+    }
+    if (!RefuseLevelSwitchWithDirtyPackages(OutError))
+    {
+        return false;
+    }
+
+    UWorld* PreviousWorld = GEditor->GetEditorWorldContext().World();
+    const FString PreviousLevel = PreviousWorld != nullptr
+        ? PreviousWorld->GetOutermost()->GetName()
+        : FString();
+
+    UWorld* World = TemplatePath.IsEmpty()
+        ? UEditorLoadingAndSavingUtils::NewBlankMap(false)
+        : UEditorLoadingAndSavingUtils::NewMapFromTemplate(TemplateFilename, false);
+    if (World == nullptr)
+    {
+        OutError = TEXT("Unreal could not create the new level.");
+        return false;
+    }
+    if (!UEditorLoadingAndSavingUtils::SaveMap(World, LevelPath))
+    {
+        OutError = FString::Printf(
+            TEXT("Level creation reached a new unsaved world, but saving %s failed. The unsaved world remains loaded."),
+            *LevelPath);
+        return false;
+    }
+
+    FString SavedFilename;
+    FString VerifyError;
+    UWorld* LoadedWorld = GEditor->GetEditorWorldContext().World();
+    if (LoadedWorld == nullptr
+        || LoadedWorld->GetOutermost()->GetName() != LevelPath
+        || !ResolveProjectMapFilename(LevelPath, SavedFilename, VerifyError))
+    {
+        OutError = FString::Printf(
+            TEXT("Level save returned success but read-back failed for %s: %s"),
+            *LevelPath,
+            *VerifyError);
+        return false;
+    }
+
+    TSharedPtr<FJsonObject> Result = MakeShared<FJsonObject>();
+    Result->SetStringField(TEXT("level"), LevelPath);
+    Result->SetStringField(TEXT("previous_level"), PreviousLevel);
+    Result->SetStringField(TEXT("template"), TemplatePath);
+    Result->SetBoolField(TEXT("created"), true);
+    Result->SetBoolField(TEXT("loaded"), true);
+    Result->SetBoolField(TEXT("saved"), true);
+    OutResultJson = SerializeJson(Result);
+    return true;
+}
+
+bool UMCPPuerTSBridgeService::LoadLevelJson(
+    const FString& LevelPath,
+    FString& OutResultJson,
+    FString& OutError)
+{
+    if (GEditor == nullptr)
+    {
+        OutError = TEXT("GEditor is unavailable.");
+        return false;
+    }
+
+    FString Filename;
+    if (!ResolveProjectMapFilename(LevelPath, Filename, OutError))
+    {
+        return false;
+    }
+
+    UWorld* CurrentWorld = GEditor->GetEditorWorldContext().World();
+    const FString PreviousLevel = CurrentWorld != nullptr
+        ? CurrentWorld->GetOutermost()->GetName()
+        : FString();
+    const bool bAlreadyLoaded = PreviousLevel == LevelPath;
+    if (!bAlreadyLoaded)
+    {
+        if (!RefuseLevelSwitchWithDirtyPackages(OutError))
+        {
+            return false;
+        }
+        UWorld* LoadedWorld = UEditorLoadingAndSavingUtils::LoadMap(Filename);
+        if (LoadedWorld == nullptr || LoadedWorld->GetOutermost()->GetName() != LevelPath)
+        {
+            OutError = FString::Printf(TEXT("Unreal could not load level: %s"), *LevelPath);
+            return false;
+        }
+    }
+
+    TSharedPtr<FJsonObject> Result = MakeShared<FJsonObject>();
+    Result->SetStringField(TEXT("level"), LevelPath);
+    Result->SetStringField(TEXT("previous_level"), PreviousLevel);
+    Result->SetBoolField(TEXT("loaded"), true);
+    Result->SetBoolField(TEXT("already_loaded"), bAlreadyLoaded);
+    OutResultJson = SerializeJson(Result);
+    return true;
+}
+
+bool UMCPPuerTSBridgeService::SaveLevelJson(
+    bool bSaveAll,
+    FString& OutResultJson,
+    FString& OutError)
+{
+    if (GEditor == nullptr)
+    {
+        OutError = TEXT("GEditor is unavailable.");
+        return false;
+    }
+    UWorld* World = GEditor->GetEditorWorldContext().World();
+    if (World == nullptr || World->PersistentLevel == nullptr)
+    {
+        OutError = TEXT("No editor level is loaded.");
+        return false;
+    }
+
+    const FString LevelPath = World->GetOutermost()->GetName();
+    FString ExistingFilename;
+    if (!ResolveProjectMapFilename(LevelPath, ExistingFilename, OutError))
+    {
+        OutError = TEXT("The current level has no saved /Game map package. Create it with puerts_level_create first.");
+        return false;
+    }
+
+    TArray<UPackage*> DirtyContentPackages;
+    FEditorFileUtils::GetDirtyContentPackages(DirtyContentPackages);
+    TArray<FString> DirtyContentNames;
+    for (UPackage* Package : DirtyContentPackages)
+    {
+        if (Package != nullptr)
+        {
+            DirtyContentNames.AddUnique(Package->GetName());
+        }
+    }
+    DirtyContentNames.Sort();
+
+    bool bSaved = false;
+    if (bSaveAll)
+    {
+        bSaved = UEditorLoadingAndSavingUtils::SaveDirtyPackages(true, true);
+    }
+    else
+    {
+        FString SavedLevel;
+        bSaved = SaveCurrentLevel(TEXT(""), SavedLevel);
+    }
+    if (!bSaved)
+    {
+        OutError = bSaveAll
+            ? TEXT("Saving one or more dirty map or content packages failed.")
+            : FString::Printf(TEXT("Current level save failed: %s"), *LevelPath);
+        return false;
+    }
+
+    TSharedPtr<FJsonObject> Result = MakeShared<FJsonObject>();
+    Result->SetStringField(TEXT("level_saved"), LevelPath);
+    Result->SetNumberField(TEXT("assets_saved_count"), bSaveAll ? DirtyContentNames.Num() : 0);
+    Result->SetArrayField(TEXT("assets_saved"), bSaveAll ? ToJsonArray(DirtyContentNames) : TArray<TSharedPtr<FJsonValue>>());
+    Result->SetBoolField(TEXT("save_all"), bSaveAll);
+    OutResultJson = SerializeJson(Result);
+    return true;
 }
 
 bool UMCPPuerTSBridgeService::StartPlayInEditor(FString& OutError)
@@ -1476,6 +2055,103 @@ bool UMCPPuerTSBridgeService::LoadOrCreateBearerToken(FString& OutError)
     return true;
 }
 
+bool UMCPPuerTSBridgeService::CheckPreconditions(
+    const FString& ToolName,
+    const TSharedPtr<FJsonObject>& Params,
+    TSharedPtr<FJsonObject>& OutConflict) const
+{
+    if (!Params.IsValid()) { return true; }
+    const TSharedPtr<FJsonObject>* Preconditions = nullptr;
+    if (!Params->TryGetObjectField(TEXT("preconditions"), Preconditions) || Preconditions == nullptr)
+    {
+        // No preconditions is the compatibility path, and stays one: an absent
+        // field means the caller is not claiming to know the prior state, which
+        // is what every existing caller does.
+        return true;
+    }
+
+    FString Expected;
+    if (!(*Preconditions)->TryGetStringField(TEXT("scene_structure_hash"), Expected) || Expected.IsEmpty())
+    {
+        return true;
+    }
+    // scene_structure_hash is defined for the tools that compute it. Silently
+    // ignoring it on a tool that does not would be worse than refusing: the
+    // caller believes a guard is in place that never runs.
+    if (ToolName != TEXT("scene_batch"))
+    {
+        OutConflict = BuildBaseResponse(false,
+            FString::Printf(TEXT("%s does not support the scene_structure_hash precondition."), *ToolName));
+        OutConflict->SetStringField(TEXT("error_code"), TEXT("unsupported_operation"));
+        TSharedPtr<FJsonObject> Data = MakeShared<FJsonObject>();
+        Data->SetStringField(TEXT("precondition"), TEXT("scene_structure_hash"));
+        Data->SetStringField(TEXT("supported_by"), TEXT("scene_batch"));
+        OutConflict->SetObjectField(TEXT("data"), Data);
+        TArray<TSharedPtr<FJsonValue>> Errors;
+        Errors.Add(MakeShared<FJsonValueString>(TEXT(
+            "unsupported_operation: scene_structure_hash describes level actor structure, so it guards "
+            "scene_batch. Asset, Blueprint, material, sequence and package plans need their own "
+            "precondition types, which do not exist yet.")));
+        OutConflict->SetArrayField(TEXT("errors"), Errors);
+        return false;
+    }
+
+    // A plan is where a caller OBTAINS a current hash. Enforcing the
+    // precondition on plan_only would mean a caller whose plan just conflicted
+    // has to remember to strip the field before re-planning, and a plan opens
+    // no transaction, so there is nothing for the guard to protect.
+    if (Params->HasTypedField<EJson::Boolean>(TEXT("plan_only")) && Params->GetBoolField(TEXT("plan_only")))
+    {
+        return true;
+    }
+
+    UWorld* World = MCPBridgeScene::EditorWorld();
+    if (World == nullptr || World->GetCurrentLevel() == nullptr)
+    {
+        OutConflict = BuildBaseResponse(false,
+            TEXT("No editor world is loaded, so the scene_structure_hash precondition cannot be evaluated."));
+        OutConflict->SetStringField(TEXT("error_code"), TEXT("state_conflict"));
+        TSharedPtr<FJsonObject> Data = MakeShared<FJsonObject>();
+        Data->SetStringField(TEXT("precondition"), TEXT("scene_structure_hash"));
+        Data->SetStringField(TEXT("expected"), Expected);
+        Data->SetStringField(TEXT("observed"), FString());
+        OutConflict->SetObjectField(TEXT("data"), Data);
+        TArray<TSharedPtr<FJsonValue>> Errors;
+        Errors.Add(MakeShared<FJsonValueString>(TEXT(
+            "state_conflict: there is no loaded level to compare against.")));
+        OutConflict->SetArrayField(TEXT("errors"), Errors);
+        return false;
+    }
+
+    // The wire form of every hash this bridge returns is bare lowercase hex.
+    // The "sha1:" prefix is accepted because it names the algorithm and a
+    // caller may reasonably carry it, but both sides are compared, and
+    // reported, in the form structure_hash_sha1 actually has - so a value
+    // copied from an inspector or from a plan matches without editing.
+    FString Normalized = Expected;
+    Normalized.RemoveFromStart(TEXT("sha1:"));
+    Normalized.ToLowerInline();
+
+    const FString Observed = MCPBridgeScene::StructureHash(World);
+    if (Normalized == Observed) { return true; }
+
+    OutConflict = BuildBaseResponse(false, TEXT("The scene changed after the operation was planned."));
+    OutConflict->SetStringField(TEXT("error_code"), TEXT("state_conflict"));
+    TSharedPtr<FJsonObject> Data = MakeShared<FJsonObject>();
+    Data->SetStringField(TEXT("precondition"), TEXT("scene_structure_hash"));
+    Data->SetStringField(TEXT("expected"), Normalized);
+    Data->SetStringField(TEXT("observed"), Observed);
+    Data->SetStringField(TEXT("basis"), MCPBridgeScene::StructureHashBasis());
+    Data->SetBoolField(TEXT("transaction_opened"), false);
+    OutConflict->SetObjectField(TEXT("data"), Data);
+    TArray<TSharedPtr<FJsonValue>> Errors;
+    Errors.Add(MakeShared<FJsonValueString>(TEXT(
+        "state_conflict: Inspect the current scene and create a new plan. Nothing was changed and no "
+        "transaction was opened; this check runs before AcceptCommand opens one.")));
+    OutConflict->SetArrayField(TEXT("errors"), Errors);
+    return false;
+}
+
 bool UMCPPuerTSBridgeService::IsToolMutating(const FString& ToolName) const
 {
     return ToolName == TEXT("set_property")
@@ -1504,6 +2180,7 @@ bool UMCPPuerTSBridgeService::IsToolMutating(const FString& ToolName) const
         // its undo records point at.
         || ToolName == TEXT("anim_blueprint_build")
         || ToolName == TEXT("anim_blueprint_patch")
+        || ToolName == TEXT("anim_montage_build")
         // blackboard_build and ai_perception_build write assets. Their
         // plan_only path returns before the mutation section, so a plan still
         // opens a transaction it never uses; that costs an empty undo entry and
@@ -1530,11 +2207,28 @@ bool UMCPPuerTSBridgeService::IsToolMutating(const FString& ToolName) const
         // deliberately absent: it opens no transaction and returns no
         // transaction id, like every other inspector here.
         || ToolName == TEXT("sequence_build")
+        || ToolName == TEXT("sequence_event_track_build")
+        || ToolName == TEXT("data_table_build")
+        || ToolName == TEXT("audio_build")
+        // anim_blend_space_build creates a UBlendSpace1D asset. Create-only,
+        // same as anim_blueprint_build, for the same reason: this bridge has
+        // no restore route for a Blend Space's sample set once it exists.
+        || ToolName == TEXT("anim_blend_space_build")
         || ToolName == TEXT("scene_batch");
+}
+
+bool UMCPPuerTSBridgeService::Fail(const TCHAR* Code, const FString& Message, FString& OutError) const
+{
+    PendingErrorCode = Code;
+    OutError = Message;
+    return false;
 }
 
 void UMCPPuerTSBridgeService::EndActiveCommand()
 {
+    // Cleared with the rest of the per-command state: a code left behind would
+    // be stamped on the NEXT command's refusal, which is worse than no code.
+    PendingErrorCode.Reset();
     ActiveTransaction.Reset();
     ActiveCommandId.Reset();
     ActiveToolName.Reset();

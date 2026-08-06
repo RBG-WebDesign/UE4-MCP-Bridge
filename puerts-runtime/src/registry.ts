@@ -3,7 +3,6 @@ import * as puerts from "puerts";
 import {
   CommandResponse,
   JsonObject,
-  JsonSchema,
   JsonValue,
   Permission,
   ToolContext,
@@ -21,32 +20,50 @@ import {
   decodeStructuredValue,
   objectArray,
   optionalObject,
-  outputSchema,
+  refuse,
   resolveObject,
   stringArray,
 } from "./runtime";
 
-const targetProperties = {
-  actor: { type: "string" },
-  object_path: { type: "string" },
-} as const;
-
-function schema(
-  properties: Readonly<Record<string, Readonly<Record<string, JsonValue>>>>,
-  required: readonly string[] = [],
-): JsonSchema {
-  return { type: "object", properties, required, additionalProperties: false };
+/**
+ * What this runtime will and will not execute, derived from the registry that
+ * decides it rather than from a second hand-maintained list. Reported inside
+ * puerts_diagnostic because a model otherwise learns a capability is gone by
+ * calling it and reading a failure, which costs a round trip and leaves a
+ * refusal in the transcript that looks like a bug.
+ *
+ * Capabilities are the registry's own tool names, not a dotted re-spelling of
+ * them: the name here is the name a caller sends, so there is nothing to map
+ * and nothing to keep in step.
+ */
+function capabilityReport(): JsonObject {
+  const available: string[] = [];
+  const unavailable: JsonObject[] = [];
+  for (const tool of toolDefinitions) {
+    const reason = quarantinedTools[tool.name];
+    if (reason === undefined) {
+      available.push(tool.name);
+    } else {
+      unavailable.push({
+        capability: tool.name,
+        reason_code: "capability_quarantined",
+        message: reason,
+      });
+    }
+  }
+  return { available, unavailable };
 }
 
 async function diagnostic(context: ToolContext, input: JsonObject): Promise<CommandResponse> {
   const actorLimit = Math.max(1, Math.min(500, Math.trunc(optionalNumber(input, "actor_limit", 500))));
   const data = JSON.parse(context.bridge.GetDiagnosticsJson(actorLimit)) as JsonObject;
+  data.capabilities = capabilityReport();
   return response(true, "Native PuerTS diagnostic complete.", data);
 }
 async function findAssets(context: ToolContext, input: JsonObject): Promise<CommandResponse> {
   const path = optionalString(input, "path") ?? "/Game";
   if (!path.startsWith("/Game") && !path.startsWith("/Engine")) {
-    throw new Error("Asset search is limited to /Game and /Engine");
+    refuse("path_not_allowed","Asset search is limited to /Game and /Engine");
   }
   const recursive = optionalBoolean(input, "recursive", true);
   const typeFilter = optionalString(input, "type") ?? "";
@@ -59,6 +76,48 @@ async function findAssets(context: ToolContext, input: JsonObject): Promise<Comm
   }
   const parsed = JSON.parse(puerts.$unref(assetsJson)) as JsonObject;
   return response(true, "Assets found.", parsed);
+}
+async function deleteAsset(context: ToolContext, input: JsonObject): Promise<CommandResponse> {
+  const assetPath = requireString(input, "asset_path");
+  if (!assetPath.startsWith("/Game/")) {
+    refuse("path_not_allowed","Asset deletion is limited to /Game/");
+  }
+  const confirmed = optionalBoolean(input, "confirm", false);
+  if (!confirmed) {
+    refuse("confirmation_required","delete_asset requires confirm=true because asset deletion is permanent");
+  }
+  const force = optionalBoolean(input, "force", false);
+  const resultJson = puerts.$ref<string>("");
+  const error = puerts.$ref<string>("");
+  if (!context.bridge.DeleteAsset(assetPath, confirmed, force, resultJson, error)) {
+    throw new Error(puerts.$unref(error));
+  }
+  const parsed = JSON.parse(puerts.$unref(resultJson)) as JsonObject;
+  const deleted = parsed.deleted === true;
+  const alreadyAbsent = parsed.already_absent === true;
+  const blocked = parsed.blocked === true;
+  const result = response(
+    deleted || alreadyAbsent,
+    deleted ? "Asset deleted." : alreadyAbsent ? "Asset already absent." : "Asset deletion refused.",
+    parsed,
+  );
+  const referencers = stringArray(parsed, "referencers");
+  if (blocked) {
+    result.errors.push(referencers.length > 0
+      ? "Asset is referenced by: " + referencers.join(", ")
+      : "Asset deletion was blocked by a reference.");
+  } else if (!deleted && !alreadyAbsent) {
+    result.errors.push(typeof parsed.failure_reason === "string"
+      ? parsed.failure_reason
+      : "UE4.27 did not verify the asset as deleted.");
+  }
+  if (deleted) {
+    result.changed_assets.push(assetPath, ...referencers);
+  }
+  if (force && referencers.length > 0) {
+    result.warnings.push("force=true may have nulled references in the reported referencer packages.");
+  }
+  return result;
 }
 function jsonObjectAt(value: JsonValue | undefined): JsonObject | undefined {
   return value !== null && value !== undefined && typeof value === "object" && !Array.isArray(value)
@@ -251,8 +310,16 @@ async function callApprovedFunction(context: ToolContext, input: JsonObject): Pr
 async function spawnActor(context: ToolContext, input: JsonObject): Promise<CommandResponse> {
   const classPath = requireString(input, "class_path");
   if (!classPath.startsWith("/Game/") && !classPath.startsWith("/Script/Engine.")
-      && classPath !== "/Script/CinematicCamera.CineCameraActor") {
-    throw new Error("Actor classes are limited to /Game and /Script/Engine");
+      && classPath !== "/Script/CinematicCamera.CineCameraActor"
+      && classPath !== "/Script/LevelSequence.LevelSequenceActor"
+      // NavMeshBoundsVolume is NotBlueprintable, so the usual "wrap it in an
+      // empty Blueprint" workaround (which is how project-native C++ classes
+      // get placed at all) is refused by the engine itself, not by this
+      // allowlist - there is no other route to a navigable level.
+      && classPath !== "/Script/NavigationSystem.NavMeshBoundsVolume") {
+    throw new Error(
+      "Actor classes are limited to /Game, /Script/Engine, CineCameraActor, "
+      + "LevelSequenceActor, and NavMeshBoundsVolume");
   }
   const location = optionalObject(input, "location") ?? {};
   const rotation = optionalObject(input, "rotation") ?? {};
@@ -319,7 +386,7 @@ async function spawnActor(context: ToolContext, input: JsonObject): Promise<Comm
 async function deleteActor(context: ToolContext, input: JsonObject): Promise<CommandResponse> {
   const confirmed = optionalBoolean(input, "confirm", false);
   if (!confirmed) {
-    throw new Error("delete_actor requires confirm=true");
+    refuse("confirmation_required","delete_actor requires confirm=true");
   }
   const actorPath = puerts.$ref<string>("");
   const error = puerts.$ref<string>("");
@@ -374,7 +441,7 @@ async function createSkyShader(context: ToolContext, input: JsonObject): Promise
 async function buildBlueprint(context: ToolContext, input: JsonObject): Promise<CommandResponse> {
   const assetPath = requireString(input, "asset_path");
   if (!assetPath.startsWith("/Game/MCPGenerated/")) {
-    throw new Error("Blueprint assets are limited to /Game/MCPGenerated/");
+    refuse("path_not_allowed","Blueprint assets are limited to /Game/MCPGenerated/");
   }
   const spec: JsonObject = {
     asset_path: assetPath,
@@ -442,7 +509,7 @@ async function buildBlueprint(context: ToolContext, input: JsonObject): Promise<
 async function patchBlueprintGraph(context: ToolContext, input: JsonObject): Promise<CommandResponse> {
   const assetPath = requireString(input, "asset_path");
   if (!assetPath.startsWith("/Game/MCPGenerated/")) {
-    throw new Error("Blueprint patching is limited to /Game/MCPGenerated/");
+    refuse("path_not_allowed","Blueprint patching is limited to /Game/MCPGenerated/");
   }
   const spec: JsonObject = { asset_path: assetPath };
   const graph = optionalString(input, "graph");
@@ -509,7 +576,7 @@ async function patchBlueprintGraph(context: ToolContext, input: JsonObject): Pro
 async function patchBlueprintMembers(context: ToolContext, input: JsonObject): Promise<CommandResponse> {
   const assetPath = requireString(input, "asset_path");
   if (!assetPath.startsWith("/Game/MCPGenerated/")) {
-    throw new Error("Blueprint member patching is limited to /Game/MCPGenerated/");
+    refuse("path_not_allowed","Blueprint member patching is limited to /Game/MCPGenerated/");
   }
   const operations = objectArray(input, "operations");
   if (operations.length === 0) {
@@ -558,7 +625,7 @@ async function patchBlueprintMembers(context: ToolContext, input: JsonObject): P
 async function buildWidget(context: ToolContext, input: JsonObject): Promise<CommandResponse> {
   const assetPath = requireString(input, "asset_path");
   if (!assetPath.startsWith("/Game/MCPGenerated/")) {
-    throw new Error("Widget Blueprints are limited to /Game/MCPGenerated/");
+    refuse("path_not_allowed","Widget Blueprints are limited to /Game/MCPGenerated/");
   }
   const tree = optionalObject(input, "tree");
   if (tree === undefined) {
@@ -610,7 +677,7 @@ async function buildWidget(context: ToolContext, input: JsonObject): Promise<Com
 async function bindWidget(context: ToolContext, input: JsonObject): Promise<CommandResponse> {
   const assetPath = requireString(input, "asset_path");
   if (!assetPath.startsWith("/Game/MCPGenerated/")) {
-    throw new Error("Widget binding is limited to /Game/MCPGenerated/");
+    refuse("path_not_allowed","Widget binding is limited to /Game/MCPGenerated/");
   }
   const bindings = input.bindings === undefined ? undefined : objectArray(input, "bindings");
   const exposeAsVariable = input.expose_as_variable === undefined
@@ -674,7 +741,7 @@ async function bindWidget(context: ToolContext, input: JsonObject): Promise<Comm
 async function inspectGraph(context: ToolContext, input: JsonObject): Promise<CommandResponse> {
   const assetPath = requireString(input, "asset_path");
   if (!assetPath.startsWith("/Game/") && !assetPath.startsWith("/Engine/")) {
-    throw new Error("Blueprint inspection is limited to /Game and /Engine");
+    refuse("path_not_allowed","Blueprint inspection is limited to /Game and /Engine");
   }
   const request: JsonObject = {
     asset_path: assetPath,
@@ -707,7 +774,7 @@ async function inspectGraph(context: ToolContext, input: JsonObject): Promise<Co
 async function buildBehaviorTree(context: ToolContext, input: JsonObject): Promise<CommandResponse> {
   const assetPath = requireString(input, "asset_path");
   if (!assetPath.startsWith("/Game/MCPGenerated/")) {
-    throw new Error("Behavior Tree assets are limited to /Game/MCPGenerated/");
+    refuse("path_not_allowed","Behavior Tree assets are limited to /Game/MCPGenerated/");
   }
   const root = optionalObject(input, "root");
   if (root === undefined) {
@@ -760,7 +827,7 @@ async function buildBehaviorTree(context: ToolContext, input: JsonObject): Promi
 async function inspectBehaviorTree(context: ToolContext, input: JsonObject): Promise<CommandResponse> {
   const assetPath = requireString(input, "asset_path");
   if (!assetPath.startsWith("/Game/") && !assetPath.startsWith("/Engine/")) {
-    throw new Error("Behavior Tree inspection is limited to /Game and /Engine");
+    refuse("path_not_allowed","Behavior Tree inspection is limited to /Game and /Engine");
   }
   const request: JsonObject = { asset_path: assetPath };
 
@@ -786,7 +853,7 @@ async function inspectBehaviorTree(context: ToolContext, input: JsonObject): Pro
 async function buildBlackboard(context: ToolContext, input: JsonObject): Promise<CommandResponse> {
   const assetPath = requireString(input, "asset_path");
   if (!assetPath.startsWith("/Game/MCPGenerated/")) {
-    throw new Error("Blackboard assets are limited to /Game/MCPGenerated/");
+    refuse("path_not_allowed","Blackboard assets are limited to /Game/MCPGenerated/");
   }
   const spec: JsonObject = {
     asset_path: assetPath,
@@ -842,7 +909,7 @@ async function buildBlackboard(context: ToolContext, input: JsonObject): Promise
 async function inspectBlackboard(context: ToolContext, input: JsonObject): Promise<CommandResponse> {
   const assetPath = requireString(input, "asset_path");
   if (!assetPath.startsWith("/Game/") && !assetPath.startsWith("/Engine/")) {
-    throw new Error("Blackboard inspection is limited to /Game and /Engine");
+    refuse("path_not_allowed","Blackboard inspection is limited to /Game and /Engine");
   }
   const resultJson = puerts.$ref<string>("");
   const error = puerts.$ref<string>("");
@@ -865,7 +932,7 @@ async function inspectBlackboard(context: ToolContext, input: JsonObject): Promi
 async function inspectEnvQuery(context: ToolContext, input: JsonObject): Promise<CommandResponse> {
   const assetPath = requireString(input, "asset_path");
   if (!assetPath.startsWith("/Game/") && !assetPath.startsWith("/Engine/")) {
-    throw new Error("Environment Query inspection is limited to /Game and /Engine");
+    refuse("path_not_allowed","Environment Query inspection is limited to /Game and /Engine");
   }
   const resultJson = puerts.$ref<string>("");
   const error = puerts.$ref<string>("");
@@ -919,12 +986,108 @@ async function queryNavigation(context: ToolContext, input: JsonObject): Promise
   return result;
 }
 
+/** Reconcile a DataTable from its complete row JSON. The native command owns
+    validation, rollback, independent export read-back and saving. */
+async function buildDataTable(context: ToolContext, input: JsonObject): Promise<CommandResponse> {
+  const assetPath = requireString(input, "asset_path");
+  if (!assetPath.startsWith("/Game/MCPGenerated/")) {
+    refuse("path_not_allowed","DataTable builds are limited to /Game/MCPGenerated/");
+  }
+  const spec: JsonObject = { asset_path: assetPath };
+  const rowStruct = optionalString(input, "row_struct");
+  if (rowStruct !== undefined) { spec.row_struct = rowStruct; }
+  const rows = input.rows_json;
+  if (rows === undefined) {
+    spec.rows_json = [];
+  } else if (typeof rows === "string" || Array.isArray(rows)) {
+    spec.rows_json = rows as JsonValue;
+  } else {
+    throw new Error("rows_json must be a JSON array or JSON text.");
+  }
+  if (input.plan_only !== undefined) {
+    spec.plan_only = optionalBoolean(input, "plan_only", false);
+  }
+  if (input.save !== undefined) {
+    spec.save = optionalBoolean(input, "save", true);
+  }
+
+  const resultJson = puerts.$ref<string>("");
+  const error = puerts.$ref<string>("");
+  if (!context.bridge.BuildDataTableJson(JSON.stringify(spec), resultJson, error)) {
+    const body = puerts.$unref(resultJson);
+    if (body.length > 0) {
+      return commandFailure(new Error(puerts.$unref(error)), JSON.parse(body) as JsonObject);
+    }
+    throw new Error(puerts.$unref(error));
+  }
+  const parsed = JSON.parse(puerts.$unref(resultJson)) as JsonObject;
+  const planOnly = parsed.plan_only === true;
+  const created = parsed.created === true;
+  const unchanged = parsed.unchanged === true;
+  const result = response(
+    true,
+    planOnly
+      ? "DataTable build planned."
+      : created ? "DataTable created."
+      : unchanged ? "DataTable already matches the requested rows."
+      : "DataTable rows replaced.",
+    parsed,
+  );
+  const objectPath = parsed.object_path;
+  if (!planOnly && !unchanged && typeof objectPath === "string" && objectPath.length > 0) {
+    result.changed_assets.push(objectPath);
+  }
+  return result;
+}
+
+/** Reconcile one Sound Cue node tree. Validation, rollback, graph regeneration,
+    independent read-back and saving all stay inside the native command. */
+async function buildAudio(context: ToolContext, input: JsonObject): Promise<CommandResponse> {
+  const assetPath = requireString(input, "asset_path");
+  if (!assetPath.startsWith("/Game/MCPGenerated/")) {
+    refuse("path_not_allowed","Sound Cue builds are limited to /Game/MCPGenerated/");
+  }
+  const spec: JsonObject = {
+    asset_path: assetPath,
+    first_node: requireString(input, "first_node"),
+    nodes: objectArray(input, "nodes") as unknown as JsonValue,
+  };
+  const properties = optionalObject(input, "properties");
+  if (properties !== undefined) { spec.properties = properties; }
+  for (const flag of ["plan_only", "save"]) {
+    if (input[flag] !== undefined) { spec[flag] = optionalBoolean(input, flag, false); }
+  }
+
+  const resultJson = puerts.$ref<string>("");
+  const error = puerts.$ref<string>("");
+  if (!context.bridge.BuildSoundCueJson(JSON.stringify(spec), resultJson, error)) {
+    const body = puerts.$unref(resultJson);
+    if (body.length > 0) {
+      return commandFailure(new Error(puerts.$unref(error)), JSON.parse(body) as JsonObject);
+    }
+    throw new Error(puerts.$unref(error));
+  }
+  const parsed = JSON.parse(puerts.$unref(resultJson)) as JsonObject;
+  const planOnly = parsed.plan_only === true;
+  const unchanged = parsed.unchanged === true;
+  const result = response(
+    true,
+    planOnly ? "Sound Cue build planned." : unchanged ? "Sound Cue already matches." : "Sound Cue built.",
+    parsed,
+  );
+  if (!planOnly && !unchanged && typeof parsed.object_path === "string") {
+    result.changed_assets.push(parsed.object_path);
+  }
+  return result;
+}
+
+
 /** Read a Sound Cue or Sound Wave. Read-only: the native side opens no
     transaction and touches no package. */
 async function inspectAudioAsset(context: ToolContext, input: JsonObject): Promise<CommandResponse> {
   const assetPath = requireString(input, "asset_path");
   if (!assetPath.startsWith("/Game/") && !assetPath.startsWith("/Engine/")) {
-    throw new Error("Audio inspection is limited to /Game and /Engine");
+    refuse("path_not_allowed","Audio inspection is limited to /Game and /Engine");
   }
   const resultJson = puerts.$ref<string>("");
   const error = puerts.$ref<string>("");
@@ -946,7 +1109,7 @@ async function inspectAudioAsset(context: ToolContext, input: JsonObject): Promi
 async function inspectCloth(context: ToolContext, input: JsonObject): Promise<CommandResponse> {
   const skeletalMesh = requireString(input, "skeletal_mesh");
   if (!skeletalMesh.startsWith("/Game/") && !skeletalMesh.startsWith("/Engine/")) {
-    throw new Error("Cloth inspection is limited to /Game and /Engine");
+    refuse("path_not_allowed","Cloth inspection is limited to /Game and /Engine");
   }
   const resultJson = puerts.$ref<string>("");
   const error = puerts.$ref<string>("");
@@ -997,7 +1160,7 @@ async function buildNavigation(context: ToolContext, input: JsonObject): Promise
 async function buildAIPerception(context: ToolContext, input: JsonObject): Promise<CommandResponse> {
   const assetPath = requireString(input, "asset_path");
   if (!assetPath.startsWith("/Game/MCPGenerated/")) {
-    throw new Error("Perception authoring is limited to /Game/MCPGenerated/");
+    refuse("path_not_allowed","Perception authoring is limited to /Game/MCPGenerated/");
   }
   const spec: JsonObject = {
     asset_path: assetPath,
@@ -1054,7 +1217,7 @@ async function buildAIPerception(context: ToolContext, input: JsonObject): Promi
 async function inspectAIController(context: ToolContext, input: JsonObject): Promise<CommandResponse> {
   const assetPath = requireString(input, "asset_path");
   if (!assetPath.startsWith("/Game/") && !assetPath.startsWith("/Engine/")) {
-    throw new Error("AIController inspection is limited to /Game and /Engine");
+    refuse("path_not_allowed","AIController inspection is limited to /Game and /Engine");
   }
   const resultJson = puerts.$ref<string>("");
   const error = puerts.$ref<string>("");
@@ -1076,7 +1239,7 @@ async function inspectAIController(context: ToolContext, input: JsonObject): Pro
 async function inspectWidget(context: ToolContext, input: JsonObject): Promise<CommandResponse> {
   const assetPath = requireString(input, "asset_path");
   if (!assetPath.startsWith("/Game/") && !assetPath.startsWith("/Engine/")) {
-    throw new Error("Widget Blueprint inspection is limited to /Game and /Engine");
+    refuse("path_not_allowed","Widget Blueprint inspection is limited to /Game and /Engine");
   }
   const request: JsonObject = { asset_path: assetPath };
 
@@ -1103,7 +1266,7 @@ async function inspectWidget(context: ToolContext, input: JsonObject): Promise<C
 async function inspectAnimBlueprint(context: ToolContext, input: JsonObject): Promise<CommandResponse> {
   const assetPath = requireString(input, "asset_path");
   if (!assetPath.startsWith("/Game/") && !assetPath.startsWith("/Engine/")) {
-    throw new Error("Animation Blueprint inspection is limited to /Game and /Engine");
+    refuse("path_not_allowed","Animation Blueprint inspection is limited to /Game and /Engine");
   }
   const request: JsonObject = { asset_path: assetPath };
 
@@ -1128,7 +1291,7 @@ async function inspectAnimBlueprint(context: ToolContext, input: JsonObject): Pr
 async function inspectAnimMontage(context: ToolContext, input: JsonObject): Promise<CommandResponse> {
   const assetPath = requireString(input, "asset_path");
   if (!assetPath.startsWith("/Game/") && !assetPath.startsWith("/Engine/")) {
-    throw new Error("Animation Montage inspection is limited to /Game and /Engine");
+    refuse("path_not_allowed","Animation Montage inspection is limited to /Game and /Engine");
   }
   const request: JsonObject = { asset_path: assetPath };
 
@@ -1146,13 +1309,58 @@ async function inspectAnimMontage(context: ToolContext, input: JsonObject): Prom
   return result;
 }
 
+async function buildAnimMontage(context: ToolContext, input: JsonObject): Promise<CommandResponse> {
+  const assetPath = requireString(input, "asset_path");
+  if (!assetPath.startsWith("/Game/")) {
+    refuse("path_not_allowed","Animation Montage authoring is limited to /Game/");
+  }
+  const spec: JsonObject = {
+    asset_path: assetPath,
+    skeleton: requireString(input, "skeleton"),
+    slots: objectArray(input, "slots") as unknown as JsonValue,
+    sections: objectArray(input, "sections") as unknown as JsonValue,
+    plan_only: optionalBoolean(input, "plan_only", false),
+    save: optionalBoolean(input, "save", true),
+  };
+  if (input.notifies !== undefined) {
+    if (!Array.isArray(input.notifies)) throw new Error("notifies must be an array");
+    spec.notifies = input.notifies;
+  }
+  const blend = optionalObject(input, "blend");
+  if (blend !== undefined) spec.blend = blend;
+  const syncGroup = optionalString(input, "sync_group");
+  if (syncGroup !== undefined) spec.sync_group = syncGroup;
+  const resultJson = puerts.$ref<string>("");
+  const error = puerts.$ref<string>("");
+  if (!context.bridge.BuildAnimMontageJson(JSON.stringify(spec), resultJson, error)) {
+    const body = puerts.$unref(resultJson);
+    if (body.length > 0) {
+      return commandFailure(new Error(puerts.$unref(error)), JSON.parse(body) as JsonObject);
+    }
+    throw new Error(puerts.$unref(error));
+  }
+  const parsed = JSON.parse(puerts.$unref(resultJson)) as JsonObject;
+  const result = response(
+    true,
+    parsed.plan_only === true ? "Animation Montage build planned."
+      : parsed.built === true ? "Animation Montage built."
+      : "Animation Montage build completed.",
+    parsed,
+  );
+  if (parsed.built === true && parsed.plan_only !== true
+      && typeof parsed.object_path === "string" && parsed.object_path.length > 0) {
+    result.changed_assets.push(parsed.object_path);
+  }
+  return result;
+}
+
 /** Read a Blend Space, Blend Space 1D or Aim Offset back as JSON: axes and
     samples. Read-only with no write counterpart, for the reason recorded on
     InspectAnimBlendSpaceJson. */
 async function inspectAnimBlendSpace(context: ToolContext, input: JsonObject): Promise<CommandResponse> {
   const assetPath = requireString(input, "asset_path");
   if (!assetPath.startsWith("/Game/") && !assetPath.startsWith("/Engine/")) {
-    throw new Error("Blend Space inspection is limited to /Game and /Engine");
+    refuse("path_not_allowed","Blend Space inspection is limited to /Game and /Engine");
   }
   const request: JsonObject = { asset_path: assetPath };
 
@@ -1167,6 +1375,48 @@ async function inspectAnimBlendSpace(context: ToolContext, input: JsonObject): P
 
   const result = response(true, "Blend Space inspected.", parsed);
   result.warnings.push(...warnings);
+  return result;
+}
+
+/** Create a NEW UBlendSpace1D from one JSON spec: skeleton, one axis, and a
+    sample list. Create-only, for the reason recorded on BuildAnimBlendSpaceJson:
+    UE4.27 rebuilds a blend space's whole triangulation from its sample set, so
+    there is no atomic way to replace an existing one's samples - only to build
+    a new asset from nothing and refuse if it already exists. */
+async function buildAnimBlendSpace(context: ToolContext, input: JsonObject): Promise<CommandResponse> {
+  const assetPath = requireString(input, "asset_path");
+  if (!assetPath.startsWith("/Game/MCPGenerated/")) {
+    refuse("path_not_allowed","Blend Space builds are limited to /Game/MCPGenerated/");
+  }
+  const spec: JsonObject = {
+    asset_path: assetPath,
+    skeleton_path: requireString(input, "skeleton_path"),
+    axis: requireObject(input, "axis"),
+    samples: objectArray(input, "samples") as unknown as JsonValue,
+  };
+  for (const flag of ["plan_only", "save"]) {
+    if (input[flag] !== undefined) { spec[flag] = optionalBoolean(input, flag, false); }
+  }
+
+  const resultJson = puerts.$ref<string>("");
+  const error = puerts.$ref<string>("");
+  if (!context.bridge.BuildAnimBlendSpaceJson(JSON.stringify(spec), resultJson, error)) {
+    const body = puerts.$unref(resultJson);
+    if (body.length > 0) {
+      return commandFailure(new Error(puerts.$unref(error)), JSON.parse(body) as JsonObject);
+    }
+    throw new Error(puerts.$unref(error));
+  }
+  const parsed = JSON.parse(puerts.$unref(resultJson)) as JsonObject;
+  const planOnly = parsed.plan_only === true;
+  const result = response(
+    true,
+    planOnly ? "Blend Space build planned." : "Blend Space built.",
+    parsed,
+  );
+  if (!planOnly && typeof parsed.object_path === "string") {
+    result.changed_assets.push(parsed.object_path);
+  }
   return result;
 }
 
@@ -1186,7 +1436,7 @@ async function inspectAnimBlendSpace(context: ToolContext, input: JsonObject): P
 function animBlueprintSpec(input: JsonObject): JsonObject {
   const assetPath = requireString(input, "asset_path");
   if (!assetPath.startsWith("/Game/MCPGenerated/")) {
-    throw new Error("Animation Blueprints are limited to /Game/MCPGenerated/");
+    refuse("path_not_allowed","Animation Blueprints are limited to /Game/MCPGenerated/");
   }
   const animGraph = optionalObject(input, "anim_graph");
   if (animGraph === undefined) {
@@ -1287,7 +1537,7 @@ async function patchAnimBlueprint(context: ToolContext, input: JsonObject): Prom
 async function inspectMaterial(context: ToolContext, input: JsonObject): Promise<CommandResponse> {
   const assetPath = requireString(input, "asset_path");
   if (!assetPath.startsWith("/Game/") && !assetPath.startsWith("/Engine/")) {
-    throw new Error("Material inspection is limited to /Game and /Engine");
+    refuse("path_not_allowed","Material inspection is limited to /Game and /Engine");
   }
   const request: JsonObject = { asset_path: assetPath };
 
@@ -1315,7 +1565,7 @@ async function inspectMaterial(context: ToolContext, input: JsonObject): Promise
 async function buildMaterialInstance(context: ToolContext, input: JsonObject): Promise<CommandResponse> {
   const assetPath = requireString(input, "asset_path");
   if (!assetPath.startsWith("/Game/MCPGenerated/")) {
-    throw new Error("Material instances are limited to /Game/MCPGenerated/");
+    refuse("path_not_allowed","Material instances are limited to /Game/MCPGenerated/");
   }
   const planOnly = optionalBoolean(input, "plan_only", false);
   const spec: JsonObject = {
@@ -1371,7 +1621,7 @@ async function buildMaterialInstance(context: ToolContext, input: JsonObject): P
 async function buildMaterial(context: ToolContext, input: JsonObject): Promise<CommandResponse> {
   const assetPath = requireString(input, "asset_path");
   if (!assetPath.startsWith("/Game/MCPGenerated/")) {
-    throw new Error("Materials are limited to /Game/MCPGenerated/");
+    refuse("path_not_allowed","Materials are limited to /Game/MCPGenerated/");
   }
   const planOnly = optionalBoolean(input, "plan_only", false);
   const spec: JsonObject = {
@@ -1421,7 +1671,7 @@ async function buildMaterial(context: ToolContext, input: JsonObject): Promise<C
 async function importTexture(context: ToolContext, input: JsonObject): Promise<CommandResponse> {
   const assetPath = requireString(input, "asset_path");
   if (!assetPath.startsWith("/Game/MCPGenerated/")) {
-    throw new Error("Textures are limited to /Game/MCPGenerated/");
+    refuse("path_not_allowed","Textures are limited to /Game/MCPGenerated/");
   }
   const planOnly = optionalBoolean(input, "plan_only", false);
   const spec: JsonObject = {
@@ -1879,43 +2129,17 @@ async function playCameraShake(context: ToolContext, input: JsonObject): Promise
   return response(true, "Camera shake played.", JSON.parse(puerts.$unref(resultJson)) as JsonObject);
 }
 
-/** The read-only half of the PIE agent: observe, status, expect.
-
-    The write half (move_to, look_at, press, record_start, record_stop, replay)
-    is deliberately absent. AGENTS.md requires the user to ask before any
-    pie_agent_* tool runs, so the half that only reads is both the safe one and
-    the one worth having first.
-
-    The agent answers with its own {success, data, error} envelope; this maps it
-    onto the bridge envelope without reshaping data, so the native lane and the
-    legacy listener cannot disagree about what the agent said. */
-async function queryPIEAgent(context: ToolContext, input: JsonObject): Promise<CommandResponse> {
-  const op = requireString(input, "op");
-  if (op !== "observe" && op !== "status" && op !== "expect") {
-    throw new Error(
-      "pie_agent_query op must be observe, status or expect. The write half of the PIE agent is "
-      + "not exposed natively yet.",
-    );
-  }
-  const request: JsonObject = { op };
-  for (const key of ["radius", "class_filter", "log_lines", "operation_id", "conditions", "within_seconds"]) {
-    if (input[key] !== undefined) { request[key] = input[key] as JsonValue; }
-  }
-
-  const resultJson = puerts.$ref<string>("");
-  const error = puerts.$ref<string>("");
-  if (!context.bridge.QueryPIEAgentJson(JSON.stringify(request), resultJson, error)) {
-    throw new Error(puerts.$unref(error));
-  }
-  const agent = JSON.parse(puerts.$unref(resultJson)) as {
+/** Map the PIE agent's native {success, data, error} envelope without changing
+    its data contract. */
+function pieAgentResponse(op: string, resultJson: string): CommandResponse {
+  const agent = JSON.parse(resultJson) as {
     success?: boolean; data?: JsonValue; error?: string | null;
   };
   const succeeded = agent.success === true;
-  const data = agent.data === undefined || agent.data === null ? {} : agent.data;
   const result = response(
     succeeded,
     succeeded ? "PIE agent " + op + " complete." : "PIE agent " + op + " failed.",
-    data,
+    agent.data === undefined || agent.data === null ? {} : agent.data,
   );
   if (!succeeded) {
     result.errors.push(typeof agent.error === "string" && agent.error.length > 0
@@ -1925,6 +2149,57 @@ async function queryPIEAgent(context: ToolContext, input: JsonObject): Promise<C
   return result;
 }
 
+/** The read-only half of the PIE agent: observe, read_property, status, expect. */
+async function queryPIEAgent(context: ToolContext, input: JsonObject): Promise<CommandResponse> {
+  const op = requireString(input, "op");
+  if (op !== "observe" && op !== "read_property" && op !== "status" && op !== "expect") {
+    throw new Error("pie_agent_query op must be observe, read_property, status or expect.");
+  }
+  const request: JsonObject = { op };
+  for (const key of ["radius", "class_filter", "log_lines", "operation_id", "conditions", "within_seconds"]) {
+    if (input[key] !== undefined) { request[key] = input[key] as JsonValue; }
+  }
+  if (op === "read_property") {
+    request.actor = requireString(input, "actor");
+    request.property = requireString(input, "property");
+  }
+
+  const resultJson = puerts.$ref<string>("");
+  const error = puerts.$ref<string>("");
+  if (!context.bridge.QueryPIEAgentJson(JSON.stringify(request), resultJson, error)) {
+    throw new Error(puerts.$unref(error));
+  }
+  return pieAgentResponse(op, puerts.$unref(resultJson));
+}
+
+/** Imperative, runtime-only half of the PIE agent. It never starts PIE and it
+    never changes an asset; the caller must already have a live session. */
+async function controlPIEAgent(context: ToolContext, input: JsonObject): Promise<CommandResponse> {
+  const op = requireString(input, "op");
+  if (op !== "move_to" && op !== "look_at" && op !== "press" && op !== "key_state"
+      && op !== "axis_state" && op !== "clear_axes" && op !== "record_start"
+      && op !== "record_stop" && op !== "replay") {
+    throw new Error(
+      "pie_agent_control op must be move_to, look_at, press, key_state, axis_state, clear_axes, "
+      + "record_start, record_stop or replay.",
+    );
+  }
+  const request: JsonObject = { op };
+  for (const key of [
+    "location", "actor", "timeout", "acceptance_radius", "action", "key", "keys",
+    "hold_seconds", "pressed", "axis", "value", "events", "class_filters",
+    "log_categories", "max_events", "script", "seed", "budget_seconds", "export",
+  ]) {
+    if (input[key] !== undefined) { request[key] = input[key] as JsonValue; }
+  }
+
+  const resultJson = puerts.$ref<string>("");
+  const error = puerts.$ref<string>("");
+  if (!context.bridge.ControlPIEAgentJson(JSON.stringify(request), resultJson, error)) {
+    throw new Error(puerts.$unref(error));
+  }
+  return pieAgentResponse(op, puerts.$unref(resultJson));
+}
 /** Read a ULevelSequence back as JSON. The independent read half of
     buildSequence, same shape as inspectGraph, inspectWidget and inspectScene:
     no transaction, nothing dirtied, dirty flag reported both sides. Reading is
@@ -1933,7 +2208,7 @@ async function queryPIEAgent(context: ToolContext, input: JsonObject): Promise<C
 async function inspectSequence(context: ToolContext, input: JsonObject): Promise<CommandResponse> {
   const assetPath = requireString(input, "asset_path");
   if (!assetPath.startsWith("/Game/") && !assetPath.startsWith("/Engine/")) {
-    throw new Error("Level Sequence inspection is limited to /Game and /Engine");
+    refuse("path_not_allowed","Level Sequence inspection is limited to /Game and /Engine");
   }
   const request: JsonObject = { asset_path: assetPath };
   if (input.include_keys !== undefined) {
@@ -1969,7 +2244,7 @@ async function inspectSequence(context: ToolContext, input: JsonObject): Promise
 async function buildSequence(context: ToolContext, input: JsonObject): Promise<CommandResponse> {
   const assetPath = requireString(input, "asset_path");
   if (!assetPath.startsWith("/Game/MCPGenerated/")) {
-    throw new Error("Level Sequence authoring is limited to /Game/MCPGenerated/");
+    refuse("path_not_allowed","Level Sequence authoring is limited to /Game/MCPGenerated/");
   }
   const planOnly = optionalBoolean(input, "plan_only", false);
   const spec: JsonObject = {
@@ -2022,6 +2297,53 @@ async function buildSequence(context: ToolContext, input: JsonObject): Promise<C
   return result;
 }
 
+async function buildSequenceEventTrack(context: ToolContext, input: JsonObject): Promise<CommandResponse> {
+  const assetPath = requireString(input, "asset_path");
+  if (!assetPath.startsWith("/Game/MCPGenerated/")) {
+    refuse("path_not_allowed","Sequence event authoring is limited to /Game/MCPGenerated/");
+  }
+  const events = objectArray(input, "events");
+  if (events.length === 0) throw new Error("events must be a non-empty array");
+  const spec: JsonObject = {
+    asset_path: assetPath,
+    endpoint_name: requireString(input, "endpoint_name"),
+    events: events as unknown as JsonValue,
+    plan_only: optionalBoolean(input, "plan_only", false),
+    save: optionalBoolean(input, "save", true),
+  };
+  const bindingId = optionalString(input, "binding_id");
+  if (bindingId !== undefined) spec.binding_id = bindingId;
+  if (input.call_in_editor !== undefined) {
+    spec.call_in_editor = optionalBoolean(input, "call_in_editor", false);
+  }
+  const resultJson = puerts.$ref<string>("");
+  const error = puerts.$ref<string>("");
+  if (!context.bridge.BuildSequenceEventTrackJson(JSON.stringify(spec), resultJson, error)) {
+    const body = puerts.$unref(resultJson);
+    if (body.length > 0) {
+      return commandFailure(new Error(puerts.$unref(error)), JSON.parse(body) as JsonObject);
+    }
+    throw new Error(puerts.$unref(error));
+  }
+  const parsed = JSON.parse(puerts.$unref(resultJson)) as JsonObject;
+  const planOnly = parsed.plan_only === true;
+  const changed = parsed.created_track === true || parsed.created_section === true
+    || parsed.created_endpoint === true
+    || (typeof parsed.applied_key_count === "number" && parsed.applied_key_count > 0)
+    || parsed.pre_structure_hash !== parsed.post_structure_hash;
+  const result = response(
+    true,
+    planOnly ? "Sequence event track build planned."
+      : changed ? "Sequence event track updated."
+      : "Sequence event track already matches.",
+    parsed,
+  );
+  if (!planOnly && changed && typeof parsed.object_path === "string" && parsed.object_path.length > 0) {
+    result.changed_assets.push(parsed.object_path);
+  }
+  return result;
+}
+
 async function buildPhysics(context: ToolContext, input: JsonObject): Promise<CommandResponse> {
   const actors = input.actors;
   if (!Array.isArray(actors) || actors.length === 0 || actors.length > 200) {
@@ -2064,11 +2386,52 @@ async function captureViewport(context: ToolContext, input: JsonObject): Promise
   return response(true, "Viewport screenshot requested.", JSON.parse(puerts.$unref(resultJson)) as JsonObject);
 }
 
+async function createLevel(context: ToolContext, input: JsonObject): Promise<CommandResponse> {
+  const levelPath = requireString(input, "level_path");
+  const templatePath = optionalString(input, "template_path") ?? "";
+  const resultJson = puerts.$ref<string>("");
+  const error = puerts.$ref<string>("");
+  if (!context.bridge.CreateLevelJson(levelPath, templatePath, resultJson, error)) {
+    throw new Error(puerts.$unref(error));
+  }
+  const result = response(true, "Level created, saved and loaded.", JSON.parse(puerts.$unref(resultJson)) as JsonObject);
+  result.changed_assets.push(levelPath);
+  result.warnings.push("Level creation and save are not covered by editor undo.");
+  return result;
+}
+
+async function loadLevel(context: ToolContext, input: JsonObject): Promise<CommandResponse> {
+  const levelPath = requireString(input, "level_path");
+  const resultJson = puerts.$ref<string>("");
+  const error = puerts.$ref<string>("");
+  if (!context.bridge.LoadLevelJson(levelPath, resultJson, error)) {
+    throw new Error(puerts.$unref(error));
+  }
+  return response(true, "Level loaded.", JSON.parse(puerts.$unref(resultJson)) as JsonObject);
+}
+
+async function saveLevel(context: ToolContext, input: JsonObject): Promise<CommandResponse> {
+  const resultJson = puerts.$ref<string>("");
+  const error = puerts.$ref<string>("");
+  if (!context.bridge.SaveLevelJson(optionalBoolean(input, "save_all", false), resultJson, error)) {
+    throw new Error(puerts.$unref(error));
+  }
+  const data = JSON.parse(puerts.$unref(resultJson)) as JsonObject;
+  const result = response(true, "Current level saved.", data);
+  const savedLevel = data.level_saved;
+  if (typeof savedLevel === "string" && savedLevel.length > 0) {
+    result.changed_assets.push(savedLevel);
+  }
+  result.changed_assets.push(...stringArray(data, "assets_saved"));
+  result.warnings.push("Saved packages are not restored by editor undo.");
+  return result;
+}
+
 async function saveChanges(context: ToolContext, input: JsonObject): Promise<CommandResponse> {
   const changedAssets: string[] = [];
   for (const assetPath of stringArray(input, "assets")) {
     if (!assetPath.startsWith("/Game/")) {
-      throw new Error("Only project assets under /Game can be saved");
+      refuse("path_not_allowed","Only project assets under /Game can be saved");
     }
     const error = puerts.$ref<string>("");
     if (!context.bridge.SaveProjectAsset(assetPath, error)) {
@@ -2083,8 +2446,10 @@ async function saveChanges(context: ToolContext, input: JsonObject): Promise<Com
     const savedPath = puerts.$ref<string>("");
     if (!context.bridge.SaveCurrentLevel(requestedLevelPath ?? "", savedPath)) {
       throw new Error(requestedLevelPath !== undefined
-        ? "Level save failed. Save-as paths must be under /Game/MCPTests/."
-        : "Current level save failed.");
+        ? "Level save failed. level_path must be a valid package path under /Game/."
+        : "Current level save failed. If this level has never been saved, the "
+          + "bridge refuses rather than opening a Save As dialog; retry with "
+          + "level_path set to a /Game/ package path to name it.");
     }
     level = puerts.$unref(savedPath);
   }
@@ -2192,7 +2557,7 @@ async function jobCancel(context: ToolContext, input: JsonObject): Promise<Comma
 async function startSequenceRender(context: ToolContext, input: JsonObject): Promise<CommandResponse> {
   const assetPath = requireString(input, "asset_path");
   if (!assetPath.startsWith("/Game/")) {
-    throw new Error("Sequence rendering is limited to /Game");
+    refuse("path_not_allowed","Sequence rendering is limited to /Game");
   }
   const spec: JsonObject = { asset_path: assetPath };
   for (const key of ["output_directory", "format", "output_format"]) {
@@ -2231,91 +2596,265 @@ async function startSequenceRender(context: ToolContext, input: JsonObject): Pro
   return result;
 }
 
+async function configureProjectMaps(context: ToolContext, input: JsonObject): Promise<CommandResponse> {
+  const spec: JsonObject = {};
+  for (const key of ["game_default_map", "editor_startup_map", "global_default_game_mode"]) {
+    const value = optionalString(input, key);
+    if (value !== undefined) { spec[key] = value; }
+  }
+  if (Object.keys(spec).length === 0) {
+    throw new Error(
+      "Provide at least one of: game_default_map, editor_startup_map, global_default_game_mode",
+    );
+  }
+  for (const key of ["game_default_map", "editor_startup_map"]) {
+    const value = spec[key];
+    if (typeof value === "string" && !value.startsWith("/Game/")) {
+      throw new Error(`${key} must name a /Game map.`);
+    }
+  }
+  const resultJson = puerts.$ref<string>("");
+  const error = puerts.$ref<string>("");
+  if (!context.bridge.ConfigureProjectMapsJson(JSON.stringify(spec), resultJson, error)) {
+    throw new Error(puerts.$unref(error));
+  }
+  return response(
+    true,
+    "Project default maps and game mode updated in Config/DefaultEngine.ini.",
+    JSON.parse(puerts.$unref(resultJson)) as JsonObject,
+  );
+}
+
+async function patchProjectSettings(context: ToolContext, input: JsonObject): Promise<CommandResponse> {
+  const section = optionalString(input, "section");
+  if (section === undefined || section.trim() === "") {
+    throw new Error(
+      "section must name the settings class behind a Project Settings page, such as "
+      + "GameMapsSettings or ProjectPackagingSettings.",
+    );
+  }
+  const properties = input.properties;
+  if (typeof properties !== "object" || properties === null || Array.isArray(properties)
+    || Object.keys(properties as JsonObject).length === 0) {
+    throw new Error("properties must be a non-empty object of {propertyName: value}.");
+  }
+  const spec: JsonObject = { section, properties: properties as JsonObject };
+  if (input.plan_only === true) { spec.plan_only = true; }
+  const resultJson = puerts.$ref<string>("");
+  const error = puerts.$ref<string>("");
+  if (!context.bridge.PatchProjectSettingsJson(JSON.stringify(spec), resultJson, error)) {
+    throw new Error(puerts.$unref(error));
+  }
+  const data = JSON.parse(puerts.$unref(resultJson)) as JsonObject;
+  const result = response(
+    true,
+    data.applied === true
+      ? `Project settings persisted to ${String(data.ini)}.`
+      : `Planned only. Nothing was written to ${String(data.ini)}.`,
+    data,
+  );
+  const unverified = data.persisted_but_not_value_compared;
+  if (Array.isArray(unverified) && unverified.length > 0) {
+    result.warnings.push(
+      `Container properties were confirmed present in the ini but not compared element by element: `
+      + `${unverified.join(", ")}. Read them back if the exact contents matter.`,
+    );
+  }
+  return result;
+}
+
+async function startProjectPackage(context: ToolContext, input: JsonObject): Promise<CommandResponse> {
+  const rawMaps = input.maps;
+  if (!Array.isArray(rawMaps) || rawMaps.length === 0 || rawMaps.length > 32) {
+    throw new Error("maps must contain 1 to 32 saved /Game map package names.");
+  }
+  const maps: string[] = [];
+  for (const value of rawMaps) {
+    if (typeof value !== "string" || !value.startsWith("/Game/")) {
+      throw new Error("Every map must be a /Game package name.");
+    }
+    maps.push(value);
+  }
+  const target = optionalString(input, "target") ?? "Win64";
+  const configuration = optionalString(input, "configuration") ?? "Development";
+  if (target !== "Win64") { throw new Error("target must be Win64."); }
+  if (configuration !== "Development" && configuration !== "Shipping") {
+    throw new Error("configuration must be Development or Shipping.");
+  }
+  const spec: JsonObject = { maps, target, configuration };
+  const outputDirectory = optionalString(input, "output_directory");
+  if (outputDirectory !== undefined) { spec.output_directory = outputDirectory; }
+  if (input.plan_only !== undefined) {
+    spec.plan_only = optionalBoolean(input, "plan_only", false);
+  }
+  const resultJson = puerts.$ref<string>("");
+  const error = puerts.$ref<string>("");
+  if (!context.bridge.PackageProjectJson(JSON.stringify(spec), resultJson, error)) {
+    throw new Error(puerts.$unref(error));
+  }
+  const parsed = JSON.parse(puerts.$unref(resultJson)) as JsonObject;
+  const planned = parsed.status === "planned";
+  const result = response(
+    true,
+    planned
+      ? "Project package planned; no process was started."
+      : "Project cook, stage and package STARTED in a child UAT process. It is not finished.",
+    parsed,
+  );
+  if (!planned) {
+    result.warnings.push(
+      "Poll puerts_job_status with the job_id until state is terminal. Cancellation stops the "
+      + "owned UAT process tree but leaves partial staged and archived files.",
+    );
+  }
+  return result;
+}
+
+/**
+ * Tools that are registered but refused, with the reason a caller gets back.
+ *
+ * Quarantine rather than deletion, deliberately. A deleted tool answers
+ * "Tool is not registered", which reads like a version mismatch and invites a
+ * retry; a quarantined one names the defect. The definition stays in
+ * toolDefinitions so its schema, permissions and timeout remain reviewable and
+ * so unquarantining is the removal of one line here.
+ *
+ * This is the RUNTIME half of the boundary. The MCP server drops the same
+ * tools from discovery (mcp-server/src/tools/puerts.ts, QUARANTINED_TOOLS), so
+ * a current client never sees them; this half is what stops a stale client,
+ * a hand-written pipe request or a compatibility alias from reaching the
+ * native call anyway. The two lists are asserted equal by
+ * mcp-server/tests/puerts-tools.test.ts, because they cannot import each other
+ * across the process boundary.
+ *
+ * Not enforced in the C++ allowlist as well: the allowlist is compiled into the
+ * editor, so a fix there ships only on a rebuild, and this check runs strictly
+ * before any native call is made. Add it there too if a quarantine ever has to
+ * survive a runtime that has been replaced.
+ */
+export const quarantinedTools: Readonly<Record<string, string>> = {
+  level_load:
+    "Disabled after a repeatable editor crash. Bridge-driven level switching killed the "
+    + "UE4.27 editor 3 times out of 3 on 2026-08-05, at two different crash sites "
+    + "(EXCEPTION_ACCESS_VIOLATION inside LoadLevelJson's UEditorLoadingAndSavingUtils::LoadMap "
+    + "call, and asynchronously in FTickFunctionTask::DoTask a few seconds later). The editor's "
+    + "own startup map load never crashes, so the fault is in the PuerTS UObject binding table "
+    + "not surviving UWorld teardown. Work in the level the editor already has open, and use "
+    + "puerts_save with level_path to move it to a new package. See docs/CAPABILITY_FINDINGS.md, "
+    + "section Unknown.",
+  level_create:
+    "Disabled after a repeatable editor crash. It loads the map it creates, so it reaches the "
+    + "same PuerTS binding-table fault as level_load and was reproduced on a brand-new blank map "
+    + "on 2026-08-05. Create content in the open level and use puerts_save with level_path. "
+    + "See docs/CAPABILITY_FINDINGS.md, section Unknown.",
+};
+
 export const toolDefinitions: readonly ToolDefinition[] = [
-  { name: "diagnostic", inputSchema: schema({ actor_limit: { type: "number" } }), outputSchema, permissions: ["actors.read"], executionTimeoutMs: 2000, execute: diagnostic },
-  { name: "find_assets", inputSchema: schema({ path: { type: "string" }, type: { type: "string" }, name: { type: "string" }, recursive: { type: "boolean" }, limit: { type: "number" } }), outputSchema, permissions: ["assets.read"], executionTimeoutMs: 4000, execute: findAssets },
+  { name: "diagnostic", permissions: ["actors.read"], executionTimeoutMs: 2000, execute: diagnostic },
+  { name: "find_assets", permissions: ["assets.read"], executionTimeoutMs: 4000, execute: findAssets },
+  { name: "delete_asset", permissions: ["assets.delete"], executionTimeoutMs: 30000, execute: deleteAsset },
   // folder_filter and include_transforms are the legacy level_actors parameters
   // restored. Either one routes the read through the scene snapshot, which is a
   // heavier read than the default actor iteration, hence the larger budget.
-  { name: "find_actors", inputSchema: schema({ name: { type: "string" }, type: { type: "string" }, folder_filter: { type: "string" }, include_transforms: { type: "boolean" }, limit: { type: "number" } }), outputSchema, permissions: ["actors.read"], executionTimeoutMs: 15000, execute: findActors },
-  { name: "read_property", inputSchema: schema({ ...targetProperties, property: { type: "string" } }, ["property"]), outputSchema, permissions: ["reflection.read"], executionTimeoutMs: 2000, execute: readProperty },
-  { name: "set_property", inputSchema: schema({ ...targetProperties, property: { type: "string" }, value: {} }, ["property", "value"]), outputSchema, permissions: ["reflection.write"], executionTimeoutMs: 2000, execute: setProperty },
-  { name: "call_function", inputSchema: schema({ actor: { type: "string" }, function: { type: "string" }, arguments: { type: "array" } }, ["actor", "function"]), outputSchema, permissions: ["functions.call"], executionTimeoutMs: 2000, execute: callApprovedFunction },
+  { name: "find_actors", permissions: ["actors.read"], executionTimeoutMs: 15000, execute: findActors },
+  { name: "read_property", permissions: ["reflection.read"], executionTimeoutMs: 2000, execute: readProperty },
+  { name: "set_property", permissions: ["reflection.write"], executionTimeoutMs: 2000, execute: setProperty },
+  { name: "call_function", permissions: ["functions.call"], executionTimeoutMs: 2000, execute: callApprovedFunction },
   // name, folder and scale are the legacy actor_spawn parameters restored. They
   // are finished through scene_batch inside the same transaction, so the budget
   // covers a spawn plus a one-operation batch with its verification read.
-  { name: "spawn_actor", inputSchema: schema({ class_path: { type: "string" }, location: { type: "object" }, rotation: { type: "object" }, scale: { type: "object" }, name: { type: "string" }, folder: { type: "string" } }, ["class_path"]), outputSchema, permissions: ["actors.spawn", "reflection.write"], executionTimeoutMs: 15000, execute: spawnActor },
-  { name: "delete_actor", inputSchema: schema({ actor: { type: "string" }, confirm: { type: "boolean" } }, ["actor", "confirm"]), outputSchema, permissions: ["actors.delete"], executionTimeoutMs: 2000, execute: deleteActor },
-  { name: "sky_shader_create", inputSchema: schema({ asset_path: { type: "string" }, sky_actor: { type: "string" } }), outputSchema, permissions: ["assets.write", "reflection.write"], executionTimeoutMs: 10000, execute: createSkyShader },
-  { name: "blueprint_build", inputSchema: schema({ asset_path: { type: "string" }, parent_class: { type: "string" }, components: { type: "array", items: { type: "object" } }, variables: { type: "array", items: { type: "object" } }, graph: { type: "object" }, compile: { type: "boolean" }, save: { type: "boolean" }, clear_existing_graph: { type: "boolean" }, remove_unlisted: { type: "object" }, plan_only: { type: "boolean" }, force_remove_referenced: { type: "boolean" } }, ["asset_path"]), outputSchema, permissions: ["assets.write"], executionTimeoutMs: 30000, execute: buildBlueprint },
-  { name: "blueprint_graph_patch", inputSchema: schema({ asset_path: { type: "string" }, graph: { type: "string" }, operations: { type: "array", items: { type: "object" } }, plan_only: { type: "boolean" }, compile: { type: "boolean" }, save: { type: "boolean" }, verify: { type: "boolean" } }, ["asset_path", "operations"]), outputSchema, permissions: ["assets.write"], executionTimeoutMs: 30000, execute: patchBlueprintGraph },
-  { name: "blueprint_member_patch", inputSchema: schema({ asset_path: { type: "string" }, operations: { type: "array", items: { type: "object" } }, plan_only: { type: "boolean" }, compile: { type: "boolean" }, save: { type: "boolean" }, verify: { type: "boolean" } }, ["asset_path", "operations"]), outputSchema, permissions: ["assets.write"], executionTimeoutMs: 60000, execute: patchBlueprintMembers },
-  { name: "widget_build", inputSchema: schema({ asset_path: { type: "string" }, tree: { type: "object" }, save: { type: "boolean" } }, ["asset_path", "tree"]), outputSchema, permissions: ["assets.write"], executionTimeoutMs: 30000, execute: buildWidget },
-  { name: "widget_bind", inputSchema: schema({ asset_path: { type: "string" }, bindings: { type: "array" }, expose_as_variable: { type: "array" }, remove_unlisted: { type: "boolean" }, plan_only: { type: "boolean" }, save: { type: "boolean" } }, ["asset_path"]), outputSchema, permissions: ["assets.write"], executionTimeoutMs: 30000, execute: bindWidget },
-  { name: "graph_inspect", inputSchema: schema({ asset_path: { type: "string" }, graph_name: { type: "string" }, include_pins: { type: "boolean" } }, ["asset_path"]), outputSchema, permissions: ["assets.read"], executionTimeoutMs: 15000, execute: inspectGraph },
-  { name: "behavior_tree_build", inputSchema: schema({ asset_path: { type: "string" }, blackboard_path: { type: "string" }, keys: { type: "array", items: { type: "object" } }, root: { type: "object" }, save: { type: "boolean" } }, ["asset_path", "root"]), outputSchema, permissions: ["assets.write"], executionTimeoutMs: 30000, execute: buildBehaviorTree },
-  { name: "behavior_tree_inspect", inputSchema: schema({ asset_path: { type: "string" } }, ["asset_path"]), outputSchema, permissions: ["assets.read"], executionTimeoutMs: 15000, execute: inspectBehaviorTree },
-  { name: "widget_inspect", inputSchema: schema({ asset_path: { type: "string" } }, ["asset_path"]), outputSchema, permissions: ["assets.read"], executionTimeoutMs: 15000, execute: inspectWidget },
-  { name: "anim_blueprint_build", inputSchema: schema({ asset_path: { type: "string" }, skeleton_path: { type: "string" }, variables: { type: "array", items: { type: "object" } }, anim_graph: { type: "object" }, state_machine: { type: "object" }, event_graph: { type: "object" }, save: { type: "boolean" } }, ["asset_path", "skeleton_path", "anim_graph", "state_machine"]), outputSchema, permissions: ["assets.write"], executionTimeoutMs: 60000, execute: buildAnimBlueprint },
-  { name: "anim_blueprint_patch", inputSchema: schema({ asset_path: { type: "string" }, skeleton_path: { type: "string" }, variables: { type: "array", items: { type: "object" } }, anim_graph: { type: "object" }, state_machine: { type: "object" }, event_graph: { type: "object" }, save: { type: "boolean" } }, ["asset_path", "skeleton_path", "anim_graph", "state_machine"]), outputSchema, permissions: ["assets.write"], executionTimeoutMs: 90000, execute: patchAnimBlueprint },
-  { name: "anim_blueprint_inspect", inputSchema: schema({ asset_path: { type: "string" } }, ["asset_path"]), outputSchema, permissions: ["assets.read"], executionTimeoutMs: 15000, execute: inspectAnimBlueprint },
-  { name: "anim_montage_inspect", inputSchema: schema({ asset_path: { type: "string" } }, ["asset_path"]), outputSchema, permissions: ["assets.read"], executionTimeoutMs: 15000, execute: inspectAnimMontage },
-  { name: "anim_blend_space_inspect", inputSchema: schema({ asset_path: { type: "string" } }, ["asset_path"]), outputSchema, permissions: ["assets.read"], executionTimeoutMs: 15000, execute: inspectAnimBlendSpace },
-  { name: "blackboard_build", inputSchema: schema({ asset_path: { type: "string" }, parent_path: { type: "string" }, keys: { type: "array", items: { type: "object" } }, remove_unlisted: { type: "boolean" }, plan_only: { type: "boolean" }, save: { type: "boolean" } }, ["asset_path"]), outputSchema, permissions: ["assets.write"], executionTimeoutMs: 20000, execute: buildBlackboard },
-  { name: "blackboard_inspect", inputSchema: schema({ asset_path: { type: "string" } }, ["asset_path"]), outputSchema, permissions: ["assets.read"], executionTimeoutMs: 10000, execute: inspectBlackboard },
-  { name: "eqs_inspect", inputSchema: schema({ asset_path: { type: "string" } }, ["asset_path"]), outputSchema, permissions: ["assets.read"], executionTimeoutMs: 10000, execute: inspectEnvQuery },
+  { name: "spawn_actor", permissions: ["actors.spawn", "reflection.write"], executionTimeoutMs: 15000, execute: spawnActor },
+  { name: "delete_actor", permissions: ["actors.delete"], executionTimeoutMs: 2000, execute: deleteActor },
+  { name: "sky_shader_create", permissions: ["assets.write", "reflection.write"], executionTimeoutMs: 10000, execute: createSkyShader },
+  { name: "blueprint_build", permissions: ["assets.write"], executionTimeoutMs: 30000, execute: buildBlueprint },
+  { name: "blueprint_graph_patch", permissions: ["assets.write"], executionTimeoutMs: 30000, execute: patchBlueprintGraph },
+  { name: "blueprint_member_patch", permissions: ["assets.write"], executionTimeoutMs: 60000, execute: patchBlueprintMembers },
+  { name: "widget_build", permissions: ["assets.write"], executionTimeoutMs: 30000, execute: buildWidget },
+  { name: "widget_bind", permissions: ["assets.write"], executionTimeoutMs: 30000, execute: bindWidget },
+  { name: "graph_inspect", permissions: ["assets.read"], executionTimeoutMs: 15000, execute: inspectGraph },
+  { name: "behavior_tree_build", permissions: ["assets.write"], executionTimeoutMs: 30000, execute: buildBehaviorTree },
+  { name: "behavior_tree_inspect", permissions: ["assets.read"], executionTimeoutMs: 15000, execute: inspectBehaviorTree },
+  { name: "widget_inspect", permissions: ["assets.read"], executionTimeoutMs: 15000, execute: inspectWidget },
+  { name: "anim_blueprint_build", permissions: ["assets.write"], executionTimeoutMs: 60000, execute: buildAnimBlueprint },
+  { name: "anim_blueprint_patch", permissions: ["assets.write"], executionTimeoutMs: 90000, execute: patchAnimBlueprint },
+  { name: "anim_blueprint_inspect", permissions: ["assets.read"], executionTimeoutMs: 15000, execute: inspectAnimBlueprint },
+  { name: "anim_montage_inspect", permissions: ["assets.read"], executionTimeoutMs: 15000, execute: inspectAnimMontage },
+  { name: "anim_blend_space_inspect", permissions: ["assets.read"], executionTimeoutMs: 15000, execute: inspectAnimBlendSpace },
+  { name: "anim_blend_space_build", permissions: ["assets.write"], executionTimeoutMs: 30000, execute: buildAnimBlendSpace },
+  { name: "blackboard_build", permissions: ["assets.write"], executionTimeoutMs: 20000, execute: buildBlackboard },
+  { name: "blackboard_inspect", permissions: ["assets.read"], executionTimeoutMs: 10000, execute: inspectBlackboard },
+  { name: "eqs_inspect", permissions: ["assets.read"], executionTimeoutMs: 10000, execute: inspectEnvQuery },
   // Navigation reads the level, not an asset, so it is actors.read rather than
   // assets.read: nav data, bounds volumes and modifier volumes are all actors.
-  { name: "nav_inspect", inputSchema: schema({}), outputSchema, permissions: ["actors.read"], executionTimeoutMs: 20000, execute: inspectNavigation },
-  { name: "nav_query", inputSchema: schema({ queries: { type: "array", items: { type: "object" } } }, ["queries"]), outputSchema, permissions: ["actors.read"], executionTimeoutMs: 20000, execute: queryNavigation },
+  { name: "nav_inspect", permissions: ["actors.read"], executionTimeoutMs: 20000, execute: inspectNavigation },
+  { name: "nav_query", permissions: ["actors.read"], executionTimeoutMs: 20000, execute: queryNavigation },
   // 25000, not 60000: the blocking wait path cannot be interrupted by this
   // layer's timer anyway, so the number that matters is the pipe deadline the
   // client is holding. Kept under it so a refusal arrives as a refusal.
-  { name: "nav_build", inputSchema: schema({ wait: { type: "boolean" }, plan_only: { type: "boolean" } }), outputSchema, permissions: ["actors.spawn", "level.save"], executionTimeoutMs: 25000, execute: buildNavigation },
-  { name: "ai_perception_build", inputSchema: schema({ asset_path: { type: "string" }, component_name: { type: "string" }, senses: { type: "array", items: { type: "object" } }, dominant_sense: { type: "string" }, remove_unlisted: { type: "boolean" }, plan_only: { type: "boolean" }, compile: { type: "boolean" }, save: { type: "boolean" } }, ["asset_path"]), outputSchema, permissions: ["assets.write"], executionTimeoutMs: 30000, execute: buildAIPerception },
-  { name: "ai_controller_inspect", inputSchema: schema({ asset_path: { type: "string" } }, ["asset_path"]), outputSchema, permissions: ["assets.read"], executionTimeoutMs: 15000, execute: inspectAIController },
-  { name: "material_inspect", inputSchema: schema({ asset_path: { type: "string" } }, ["asset_path"]), outputSchema, permissions: ["assets.read"], executionTimeoutMs: 15000, execute: inspectMaterial },
-  { name: "audio_inspect", inputSchema: schema({ asset_path: { type: "string" } }, ["asset_path"]), outputSchema, permissions: ["assets.read"], executionTimeoutMs: 15000, execute: inspectAudioAsset },
+  { name: "nav_build", permissions: ["actors.spawn", "level.save"], executionTimeoutMs: 25000, execute: buildNavigation },
+  { name: "ai_perception_build", permissions: ["assets.write"], executionTimeoutMs: 30000, execute: buildAIPerception },
+  { name: "ai_controller_inspect", permissions: ["assets.read"], executionTimeoutMs: 15000, execute: inspectAIController },
+  { name: "material_inspect", permissions: ["assets.read"], executionTimeoutMs: 15000, execute: inspectMaterial },
+  { name: "audio_build", permissions: ["assets.write"], executionTimeoutMs: 30000, execute: buildAudio },
+  { name: "data_table_build", permissions: ["assets.write"], executionTimeoutMs: 30000, execute: buildDataTable },
+  { name: "audio_inspect", permissions: ["assets.read"], executionTimeoutMs: 15000, execute: inspectAudioAsset },
   // 25000: the snapshot walks every LOD's render sections and every clothing
   // asset's physical mesh, and a character mesh with several cloth LODs is a
   // much larger read than a Blueprint graph.
-  { name: "cloth_inspect", inputSchema: schema({ skeletal_mesh: { type: "string" } }, ["skeletal_mesh"]), outputSchema, permissions: ["assets.read"], executionTimeoutMs: 25000, execute: inspectCloth },
-  { name: "material_instance_build", inputSchema: schema({ asset_path: { type: "string" }, parent_path: { type: "string" }, scalars: { type: "object" }, vectors: { type: "object" }, textures: { type: "object" }, switches: { type: "object" }, clear_unlisted: { type: "boolean" }, plan_only: { type: "boolean" }, save: { type: "boolean" } }, ["asset_path"]), outputSchema, permissions: ["assets.write"], executionTimeoutMs: 30000, execute: buildMaterialInstance },
+  { name: "cloth_inspect", permissions: ["assets.read"], executionTimeoutMs: 25000, execute: inspectCloth },
+  { name: "material_instance_build", permissions: ["assets.write"], executionTimeoutMs: 30000, execute: buildMaterialInstance },
   // A master material build blocks on a full shader compile, which is a long
   // way past the 30s an instance permutation needs.
-  { name: "material_build", inputSchema: schema({ asset_path: { type: "string" }, domain: { type: "string" }, blend_mode: { type: "string" }, shading_model: { type: "string" }, two_sided: { type: "boolean" }, parameters: { type: "array", items: { type: "object" } }, expressions: { type: "array", items: { type: "object" } }, connections: { type: "array", items: { type: "object" } }, outputs: { type: "object" }, plan_only: { type: "boolean" }, save: { type: "boolean" } }, ["asset_path"]), outputSchema, permissions: ["assets.write"], executionTimeoutMs: 90000, execute: buildMaterial },
-  { name: "texture_import", inputSchema: schema({ asset_path: { type: "string" }, pattern: { type: "string" }, width: { type: "number" }, height: { type: "number" }, checker_size: { type: "number" }, color: { type: "object" }, color_b: { type: "object" }, srgb: { type: "boolean" }, compression: { type: "string" }, source_file: { type: "string" }, plan_only: { type: "boolean" }, save: { type: "boolean" } }, ["asset_path"]), outputSchema, permissions: ["assets.write"], executionTimeoutMs: 30000, execute: importTexture },
-  { name: "scene_inspect", inputSchema: schema({ level_path: { type: "string" }, actors: { type: "array", items: { type: "string" } }, include_components: { type: "boolean" }, include_properties: { type: "array", items: { type: "string" } } }), outputSchema, permissions: ["actors.read", "reflection.read"], executionTimeoutMs: 15000, execute: inspectScene },
-  { name: "scene_batch", inputSchema: schema({ level_path: { type: "string" }, operations: { type: "array", items: { type: "object" } }, plan_only: { type: "boolean" }, verify: { type: "boolean" } }, ["operations"]), outputSchema, permissions: ["actors.spawn", "actors.delete", "reflection.write"], executionTimeoutMs: 60000, execute: applySceneBatch },
+  { name: "material_build", permissions: ["assets.write"], executionTimeoutMs: 90000, execute: buildMaterial },
+  { name: "texture_import", permissions: ["assets.write"], executionTimeoutMs: 30000, execute: importTexture },
+  { name: "scene_inspect", permissions: ["actors.read", "reflection.read"], executionTimeoutMs: 15000, execute: inspectScene },
+  // preconditions is declared here but never forwarded to ApplySceneBatchJson:
+  // it is enforced in C++ by CheckPreconditions, which runs in AcceptCommand
+  // BEFORE the transaction opens and therefore before this registry is reached
+  // at all. It appears in the schema only because additionalProperties is false,
+  // so an undeclared field would be refused here as a typo before the check
+  // that actually reads it ever ran.
+  { name: "scene_batch", permissions: ["actors.spawn", "actors.delete", "reflection.write"], executionTimeoutMs: 60000, execute: applySceneBatch },
   // Starts a Lightmass build and returns without waiting for it. The budget is
   // for the synchronous half, the scene gather and Lightmass export, which is
   // the only part this command blocks on.
-  { name: "lighting_build", inputSchema: schema({ action: { type: "string" }, quality: { type: "string" }, only_current_level: { type: "boolean" }, level_path: { type: "string" } }), outputSchema, permissions: ["assets.write"], executionTimeoutMs: 60000, execute: buildLighting },
-  { name: "class_defaults_patch", inputSchema: schema({ asset_path: { type: "string" }, properties: { type: "object" }, plan_only: { type: "boolean" }, verify: { type: "boolean" }, save: { type: "boolean" } }, ["asset_path", "properties"]), outputSchema, permissions: ["assets.write", "reflection.write"], executionTimeoutMs: 20000, execute: patchClassDefaults },
-  { name: "input_mapping_info", inputSchema: schema({ action_name: { type: "string" }, axis_name: { type: "string" }, key: { type: "string" } }), outputSchema, permissions: ["project.config.read"], executionTimeoutMs: 3000, execute: inspectInputMappings },
-  { name: "input_mapping_patch", inputSchema: schema({ preset: { type: "string" }, actions: { type: "array", items: { type: "object" } }, axes: { type: "array", items: { type: "object" } }, remove_actions: { type: "array", items: { type: "object" } }, remove_axes: { type: "array", items: { type: "object" } }, remove_unlisted: { type: "boolean" }, plan_only: { type: "boolean" } }), outputSchema, permissions: ["project.config.read", "project.config.write"], executionTimeoutMs: 10000, execute: patchInputMappings },
-  { name: "folder_visibility", inputSchema: schema({ hidden: { type: "array", items: { type: "string" } }, hide: { type: "array", items: { type: "string" } }, show: { type: "array", items: { type: "string" } }, plan_only: { type: "boolean" } }), outputSchema, permissions: ["project.config.read", "project.config.write"], executionTimeoutMs: 5000, execute: setFolderVisibility },
-  { name: "camera_shake", inputSchema: schema({ shake_class: { type: "string" }, scale: { type: "number" } }, ["shake_class"]), outputSchema, permissions: ["editor.pie"], executionTimeoutMs: 3000, execute: playCameraShake },
-  { name: "pie_agent_query", inputSchema: schema({ op: { type: "string" }, radius: { type: "number" }, class_filter: { type: "string" }, log_lines: { type: "number" }, operation_id: { type: "number" }, conditions: { type: "array", items: { type: "string" } }, within_seconds: { type: "number" } }, ["op"]), outputSchema, permissions: ["pie.observe"], executionTimeoutMs: 5000, execute: queryPIEAgent },
-  { name: "sequence_inspect", inputSchema: schema({ asset_path: { type: "string" }, include_keys: { type: "boolean" } }, ["asset_path"]), outputSchema, permissions: ["assets.read"], executionTimeoutMs: 15000, execute: inspectSequence },
-  { name: "sequence_build", inputSchema: schema({ asset_path: { type: "string" }, frame_rate: { type: "number" }, playback_range: { type: "object" }, bindings: { type: "array", items: { type: "object" } }, tracks: { type: "array", items: { type: "object" } }, plan_only: { type: "boolean" }, save: { type: "boolean" } }, ["asset_path"]), outputSchema, permissions: ["assets.write", "actors.read"], executionTimeoutMs: 30000, execute: buildSequence },
-  { name: "physics_build", inputSchema: schema({ actors: { type: "array", items: { type: "object" } } }, ["actors"]), outputSchema, permissions: ["actors.spawn"], executionTimeoutMs: 10000, execute: buildPhysics },
-  { name: "physics_observe", inputSchema: schema({ actors: { type: "array", items: { type: "string" } } }), outputSchema, permissions: ["actors.read"], executionTimeoutMs: 2000, execute: observePhysics },
-  { name: "viewport_screenshot", inputSchema: schema({ actors: { type: "array", items: { type: "string" } }, filename: { type: "string" } }), outputSchema, permissions: ["viewport.capture"], executionTimeoutMs: 2000, execute: captureViewport },
-  { name: "save", inputSchema: schema({ assets: { type: "array", items: { type: "string" } }, level_path: { type: "string" } }), outputSchema, permissions: ["assets.write", "level.save"], executionTimeoutMs: 5000, execute: saveChanges },
-  { name: "pie_start", inputSchema: schema({}), outputSchema, permissions: ["editor.pie"], executionTimeoutMs: 2000, execute: startPie },
-  { name: "pie_stop", inputSchema: schema({}), outputSchema, permissions: ["editor.pie"], executionTimeoutMs: 2000, execute: stopPie },
-  { name: "get_logs", inputSchema: schema({ maximum_lines: { type: "number" } }), outputSchema, permissions: ["logs.read"], executionTimeoutMs: 1000, execute: getLogs },
-  { name: "undo", inputSchema: schema({ transaction_id: { type: "string" } }, ["transaction_id"]), outputSchema, permissions: ["transactions.undo"], executionTimeoutMs: 2000, execute: undo },
+  { name: "lighting_build", permissions: ["assets.write"], executionTimeoutMs: 60000, execute: buildLighting },
+  { name: "class_defaults_patch", permissions: ["assets.write", "reflection.write"], executionTimeoutMs: 20000, execute: patchClassDefaults },
+  { name: "input_mapping_info", permissions: ["project.config.read"], executionTimeoutMs: 3000, execute: inspectInputMappings },
+  { name: "input_mapping_patch", permissions: ["project.config.read", "project.config.write"], executionTimeoutMs: 10000, execute: patchInputMappings },
+  { name: "folder_visibility", permissions: ["project.config.read", "project.config.write"], executionTimeoutMs: 5000, execute: setFolderVisibility },
+  { name: "camera_shake", permissions: ["editor.pie"], executionTimeoutMs: 3000, execute: playCameraShake },
+  { name: "pie_agent_query", permissions: ["pie.observe"], executionTimeoutMs: 5000, execute: queryPIEAgent },
+  { name: "pie_agent_control", permissions: ["editor.pie"], executionTimeoutMs: 5000, execute: controlPIEAgent },
+  { name: "sequence_inspect", permissions: ["assets.read"], executionTimeoutMs: 15000, execute: inspectSequence },
+  { name: "sequence_build", permissions: ["assets.write", "actors.read"], executionTimeoutMs: 30000, execute: buildSequence },
+  { name: "physics_build", permissions: ["actors.spawn"], executionTimeoutMs: 10000, execute: buildPhysics },
+  { name: "physics_observe", permissions: ["actors.read"], executionTimeoutMs: 2000, execute: observePhysics },
+  { name: "viewport_screenshot", permissions: ["viewport.capture"], executionTimeoutMs: 2000, execute: captureViewport },
+  { name: "level_create", permissions: ["level.save"], executionTimeoutMs: 30000, execute: createLevel },
+  { name: "level_load", permissions: ["level.save"], executionTimeoutMs: 30000, execute: loadLevel },
+  { name: "level_save", permissions: ["level.save"], executionTimeoutMs: 30000, execute: saveLevel },
+  { name: "save", permissions: ["assets.write", "level.save"], executionTimeoutMs: 5000, execute: saveChanges },
+  { name: "pie_start", permissions: ["editor.pie"], executionTimeoutMs: 2000, execute: startPie },
+  { name: "pie_stop", permissions: ["editor.pie"], executionTimeoutMs: 2000, execute: stopPie },
+  { name: "get_logs", permissions: ["logs.read"], executionTimeoutMs: 1000, execute: getLogs },
+  { name: "undo", permissions: ["transactions.undo"], executionTimeoutMs: 2000, execute: undo },
   // The job API. All three are short reads of an in-memory record plus one
   // live query, so their budgets are small on purpose: a job command that took
   // seconds would be occupying the command slot the job needs free.
-  { name: "job_status", inputSchema: schema({ job_id: { type: "string" } }), outputSchema, permissions: ["jobs.control"], executionTimeoutMs: 5000, execute: jobStatus },
-  { name: "job_result", inputSchema: schema({ job_id: { type: "string" } }, ["job_id"]), outputSchema, permissions: ["jobs.control"], executionTimeoutMs: 5000, execute: jobResult },
-  { name: "job_cancel", inputSchema: schema({ job_id: { type: "string" } }, ["job_id"]), outputSchema, permissions: ["jobs.control"], executionTimeoutMs: 5000, execute: jobCancel },
+  { name: "job_status", permissions: ["jobs.control"], executionTimeoutMs: 5000, execute: jobStatus },
+  { name: "job_result", permissions: ["jobs.control"], executionTimeoutMs: 5000, execute: jobResult },
+  { name: "job_cancel", permissions: ["jobs.control"], executionTimeoutMs: 5000, execute: jobCancel },
   // Loads the sequence, writes a manifest and spawns a process. It does not
   // wait for the render, so the budget covers the asset load and the spawn.
-  { name: "sequence_render_start", inputSchema: schema({ asset_path: { type: "string" }, output_directory: { type: "string" }, format: { type: "string" }, output_format: { type: "string" }, resolution_x: { type: "number" }, resolution_y: { type: "number" }, frame_rate: { type: "number" }, warm_up_frames: { type: "number" }, overwrite_existing: { type: "boolean" }, plan_only: { type: "boolean" } }, ["asset_path"]), outputSchema, permissions: ["assets.read", "jobs.control"], executionTimeoutMs: 20000, execute: startSequenceRender },
+  { name: "sequence_render_start", permissions: ["assets.read", "jobs.control"], executionTimeoutMs: 20000, execute: startSequenceRender },
+  { name: "project_settings_maps", permissions: ["project.config.write"], executionTimeoutMs: 10000, execute: configureProjectMaps },
+  // Reaches every Project Settings page, so the timeout covers a CDO write plus
+  // one ini rewrite and read-back, not an asset build.
+  { name: "project_settings_patch", permissions: ["project.config.write"], executionTimeoutMs: 10000, execute: patchProjectSettings },
+  { name: "project_package_start", permissions: ["assets.read", "jobs.control"], executionTimeoutMs: 20000, execute: startProjectPackage },
+  { name: "anim_montage_build", permissions: ["assets.write"], executionTimeoutMs: 60000, execute: buildAnimMontage },
+  { name: "sequence_event_track_build", permissions: ["assets.write"], executionTimeoutMs: 30000, execute: buildSequenceEventTrack },
 ];
 
 export class ToolRegistry {
@@ -2331,21 +2870,20 @@ export class ToolRegistry {
     }
   }
 
-  manifest(): JsonValue {
-    return [...this.tools.values()].map((tool: ToolDefinition) => ({
-      name: tool.name,
-      input_schema: tool.inputSchema as unknown as JsonValue,
-      output_schema: tool.outputSchema as unknown as JsonValue,
-      permissions: [...tool.permissions],
-      execution_timeout_ms: tool.executionTimeoutMs,
-    }));
-  }
-
   async execute(context: ToolContext, name: string, input: JsonObject): Promise<CommandResponse> {
     const tool = this.tools.get(name);
     if (tool === undefined) {
       const result = response(false, "Unknown tool.");
       result.errors.push("Tool is not registered: " + name);
+      return result;
+    }
+    // Before the permission check and before any native call: a quarantined
+    // tool must not execute even for a caller that holds every permission.
+    const quarantineReason = quarantinedTools[name];
+    if (quarantineReason !== undefined) {
+      const result = response(false, "The " + name + " capability is disabled.");
+      result.error_code = "capability_quarantined";
+      result.errors.push(quarantineReason);
       return result;
     }
     for (const permission of tool.permissions) {

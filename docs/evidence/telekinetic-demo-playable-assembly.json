@@ -1,0 +1,224 @@
+{
+  "campaign": "Telekinetic Demo Playable Level Assembly",
+  "status": "GO",
+  "timestamp": "2026-08-05T00:29:49.541Z",
+  "session": {
+    "session_id": "6cd43076-409c-6d73-0f59-97b80e275264",
+    "editor_pid": 22492,
+    "process_start_time": "0426-08-05T00:28:41.538Z",
+    "project_path": "D:/Unreal Projects/BridgeInstallTest",
+    "uproject_path": "D:/Unreal Projects/BridgeInstallTest/BridgeInstallTest.uproject",
+    "pipe_name": "\\\\.\\pipe\\UE427PuerTSMCP_BridgeInstallTest_eb10ef4f"
+  },
+  "levels_created": [
+    "/Game/MCPGenerated/TelekineticDemo/Maps/L_TelekineticDemo"
+  ],
+  "gameplay_assets_created": [
+    "/Game/MCPGenerated/BP_TelekineticCharacter",
+    "/Game/MCPGenerated/BP_TelekineticGameMode",
+    "/Game/MCPGenerated/BP_TelekineticPlayerController"
+  ],
+  "ui_assets_created": [
+    "/Game/MCPGenerated/WBP_MainMenu",
+    "/Game/MCPGenerated/WBP_GameHUD",
+    "/Game/MCPGenerated/WBP_PauseMenu",
+    "/Game/MCPGenerated/WBP_GameOver"
+  ],
+  "project_settings_changed": {
+    "editor_startup_map": "/Game/MCPGenerated/TelekineticDemo/Maps/L_TelekineticDemo",
+    "game_default_map": "/Game/MCPGenerated/TelekineticDemo/Maps/L_TelekineticDemo",
+    "global_default_game_mode": "/Game/MCPGenerated/BP_TelekineticGameMode.BP_TelekineticGameMode_C"
+  },
+  "level_actor_inventory": [
+    {
+      "name": "PlayerStart_Main",
+      "type": "/Script/Engine.PlayerStart",
+      "location": {
+        "x": 0,
+        "y": 0,
+        "z": 100
+      }
+    },
+    {
+      "name": "Floor",
+      "type": "/Script/Engine.StaticMeshActor",
+      "location": {
+        "x": 0,
+        "y": 0,
+        "z": -20
+      }
+    },
+    {
+      "name": "WallNorth",
+      "type": "/Script/Engine.StaticMeshActor",
+      "location": {
+        "x": 1500,
+        "y": 0,
+        "z": 300
+      }
+    },
+    {
+      "name": "WallSouth",
+      "type": "/Script/Engine.StaticMeshActor",
+      "location": {
+        "x": -1500,
+        "y": 0,
+        "z": 300
+      }
+    },
+    {
+      "name": "WallEast",
+      "type": "/Script/Engine.StaticMeshActor",
+      "location": {
+        "x": 0,
+        "y": 1500,
+        "z": 300
+      }
+    },
+    {
+      "name": "WallWest",
+      "type": "/Script/Engine.StaticMeshActor",
+      "location": {
+        "x": 0,
+        "y": -1500,
+        "z": 300
+      }
+    },
+    {
+      "name": "SunLight",
+      "type": "/Script/Engine.DirectionalLight",
+      "location": {
+        "x": 0,
+        "y": 0,
+        "z": 500
+      }
+    },
+    {
+      "name": "SkyLight_Main",
+      "type": "/Script/Engine.SkyLight",
+      "location": {
+        "x": 0,
+        "y": 0,
+        "z": 600
+      }
+    },
+    {
+      "name": "Prop_Cube1",
+      "type": "/Script/Engine.StaticMeshActor",
+      "location": {
+        "x": 400,
+        "y": -200,
+        "z": 100
+      }
+    },
+    {
+      "name": "Prop_Cube2",
+      "type": "/Script/Engine.StaticMeshActor",
+      "location": {
+        "x": 400,
+        "y": 0,
+        "z": 100
+      }
+    },
+    {
+      "name": "Prop_Cube3",
+      "type": "/Script/Engine.StaticMeshActor",
+      "location": {
+        "x": 400,
+        "y": 200,
+        "z": 100
+      }
+    },
+    {
+      "name": "Prop_Sphere1",
+      "type": "/Script/Engine.StaticMeshActor",
+      "location": {
+        "x": 600,
+        "y": -200,
+        "z": 100
+      }
+    },
+    {
+      "name": "Prop_Sphere2",
+      "type": "/Script/Engine.StaticMeshActor",
+      "location": {
+        "x": 600,
+        "y": 200,
+        "z": 100
+      }
+    },
+    {
+      "name": "Prop_Cylinder1",
+      "type": "/Script/Engine.StaticMeshActor",
+      "location": {
+        "x": 800,
+        "y": -200,
+        "z": 100
+      }
+    },
+    {
+      "name": "Prop_Cylinder2",
+      "type": "/Script/Engine.StaticMeshActor",
+      "location": {
+        "x": 800,
+        "y": 0,
+        "z": 100
+      }
+    },
+    {
+      "name": "Prop_Cylinder3",
+      "type": "/Script/Engine.StaticMeshActor",
+      "location": {
+        "x": 800,
+        "y": 200,
+        "z": 100
+      }
+    },
+    {
+      "name": "Prop_UngrabbablePillar",
+      "type": "/Script/Engine.StaticMeshActor",
+      "location": {
+        "x": 0,
+        "y": 500,
+        "z": 200
+      }
+    },
+    {
+      "name": "RaisedPlatform",
+      "type": "/Script/Engine.StaticMeshActor",
+      "location": {
+        "x": -600,
+        "y": 0,
+        "z": 100
+      }
+    },
+    {
+      "name": "TargetArea",
+      "type": "/Script/Engine.StaticMeshActor",
+      "location": {
+        "x": 1000,
+        "y": 0,
+        "z": 10
+      }
+    },
+    {
+      "name": "DamageHazard",
+      "type": "/Script/Engine.StaticMeshActor",
+      "location": {
+        "x": -600,
+        "y": 500,
+        "z": 10
+      }
+    }
+  ],
+  "screenshots": {
+    "editor_viewport": "Saved/Screenshots/MCPBridge/telekinetic_demo_editor_level.png",
+    "main_menu": "Saved/Screenshots/MCPBridge/telekinetic_demo_main_menu.png",
+    "pie_player": "Saved/Screenshots/MCPBridge/telekinetic_demo_pie_player.png",
+    "held_object": "Saved/Screenshots/MCPBridge/telekinetic_demo_pie_held_object.png",
+    "gameplay_hud": "Saved/Screenshots/MCPBridge/telekinetic_demo_hud.png",
+    "pause_menu": "Saved/Screenshots/MCPBridge/telekinetic_demo_pause_menu.png",
+    "game_over": "Saved/Screenshots/MCPBridge/telekinetic_demo_game_over.png"
+  },
+  "failures": []
+}

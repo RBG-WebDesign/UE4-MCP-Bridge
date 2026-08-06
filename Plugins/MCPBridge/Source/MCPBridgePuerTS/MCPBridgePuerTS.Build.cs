@@ -67,8 +67,8 @@ public class MCPBridgePuerTS : ModuleRules
         // lines each reading as though it were the whole list. Consolidated at
         // integration; add to this list rather than beside it.
         PrivateDependencyModuleNames.AddRange(new string[] {
-            "AIModule", "AnimGraph", "AssetRegistry", "BlueprintGraph", "GameplayTasks",
-            "InputCore", "Json", "JsonUtilities", "JsEnv", "MaterialEditor",
+            "AIModule", "AnimGraph", "AssetRegistry", "AudioEditor", "BlueprintGraph", "GameplayTasks",
+            "EngineSettings", "InputCore", "Json", "JsonUtilities", "JsEnv", "MaterialEditor",
             "MCPBridgeGraphBuilder", "MCPBridgePIEAgent", "NavigationSystem", "Projects",
             "RenderCore", "RHI", "SourceControl", "UMG", "UMGEditor", "UnrealEd",
         });

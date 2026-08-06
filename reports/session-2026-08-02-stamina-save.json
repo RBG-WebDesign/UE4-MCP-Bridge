@@ -145,11 +145,11 @@
   "not_committed": {
     "reason": "One-off authoring scripts, not test infrastructure. Recorded here so nothing silently vanishes.",
     "paths": [
-      "C:/Users/austi/AppData/Local/Temp/claude/D--Unreal-Projects-UE4-Bridge/02ab2dfe-190c-4b76-9daa-2f18aa762abe/scratchpad/spec.mjs - the 593-line stamina feature generator: variables, components, the two build passes, and a composer that folds a token list into a Concat chain",
-      "C:/Users/austi/AppData/Local/Temp/claude/D--Unreal-Projects-UE4-Bridge/02ab2dfe-190c-4b76-9daa-2f18aa762abe/scratchpad/mcp.mjs - a minimal stdio MCP client against mcp-server/dist with the .mcp.json env",
-      "C:/Users/austi/AppData/Local/Temp/claude/D--Unreal-Projects-UE4-Bridge/02ab2dfe-190c-4b76-9daa-2f18aa762abe/scratchpad/build.mjs - runs the four-step recipe",
-      "C:/Users/austi/AppData/Local/Temp/claude/D--Unreal-Projects-UE4-Bridge/02ab2dfe-190c-4b76-9daa-2f18aa762abe/scratchpad/probe.mjs - the six parent-gate probes",
-      "C:/Users/austi/AppData/Local/Temp/claude/D--Unreal-Projects-UE4-Bridge/02ab2dfe-190c-4b76-9daa-2f18aa762abe/scratchpad/pie.mjs - start PIE, wait, read logs, stop"
+      "C:/Users/USER/AppData/Local/Temp/claude/D--Unreal-Projects-UE4-Bridge/02ab2dfe-190c-4b76-9daa-2f18aa762abe/scratchpad/spec.mjs - the 593-line stamina feature generator: variables, components, the two build passes, and a composer that folds a token list into a Concat chain",
+      "C:/Users/USER/AppData/Local/Temp/claude/D--Unreal-Projects-UE4-Bridge/02ab2dfe-190c-4b76-9daa-2f18aa762abe/scratchpad/mcp.mjs - a minimal stdio MCP client against mcp-server/dist with the .mcp.json env",
+      "C:/Users/USER/AppData/Local/Temp/claude/D--Unreal-Projects-UE4-Bridge/02ab2dfe-190c-4b76-9daa-2f18aa762abe/scratchpad/build.mjs - runs the four-step recipe",
+      "C:/Users/USER/AppData/Local/Temp/claude/D--Unreal-Projects-UE4-Bridge/02ab2dfe-190c-4b76-9daa-2f18aa762abe/scratchpad/probe.mjs - the six parent-gate probes",
+      "C:/Users/USER/AppData/Local/Temp/claude/D--Unreal-Projects-UE4-Bridge/02ab2dfe-190c-4b76-9daa-2f18aa762abe/scratchpad/pie.mjs - start PIE, wait, read logs, stop"
     ],
     "note": "Scripts/mcp-smoke.mjs already carries the stdio client pattern mcp.mjs duplicates; if a driver belongs in the tree it should be that one grown, not this one moved."
   },

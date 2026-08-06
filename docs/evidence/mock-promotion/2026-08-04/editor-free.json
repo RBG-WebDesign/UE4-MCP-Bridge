@@ -1,0 +1,25 @@
+{
+  "timestamp": "2026-08-04T19:58:41.713Z",
+  "results": [
+    {
+      "name": "Blueprint Production Planner Suite",
+      "status": "PASS",
+      "output": "PASS  manifest and generated fixture library agree\n  PASS  all fixtures produce byte-stable plans with no raw intent in commands\n  PASS  command plans use only canonical commands and force production checks\n  PASS  dependency and operation order are stable\n  PASS  architecture policy selects Blueprint and hybrid for the right fixtures\n  PASS  layout is left to right, separates lanes, creates regions, and is stable\n  PASS  complexity policy emits all required warnings\n  PASS  unsupported requests remain non-executable and proof gaps stay visible\n  PASS  desired versus observed diff emits minimal repair scopes\n  PASS  schema boundary rejects unsafe paths and dangling graph references\n  PASS  blueprint production tool is one classified server-local planner\n  PASS  blueprint production tool returns a plan and missing-asset repairs\n  PASS  blueprint production tool calculates per-asset observed repairs\n  PASS  blueprint production tool strictly rejects unknown input fields\n\n14 passed, 0 failed"
+    },
+    {
+      "name": "Compatibility Aliases Editor-Free Contract",
+      "status": "PASS",
+      "output": "PASS  compat alias router (438 assertions, 0 failed)"
+    },
+    {
+      "name": "Project Intelligence Server-Local Index",
+      "status": "PASS",
+      "output": "Running project index tests...\n\n  PASS  real project exists and is indexable\n  PASS  real C++ symbols are found with module and base class\n  PASS  real Build.cs module dependencies are captured\n  PASS  real content inventory finds maps by package path\n  PASS  second run over an unchanged project re-indexes nothing\n  PASS  fixture parses input mappings and gameplay tags from Config\n  PASS  touching one file re-indexes exactly that file, with the reason recorded\n  PASS  a size change invalidates, and a deleted file is reported as removed\n  PASS  a schema version bump forces a full re-index\n  PASS  a missing project root fails with an error instead of throwing\n\n10 passed, 0 failed"
+    },
+    {
+      "name": "Inventory Consistency Check",
+      "status": "PASS",
+      "output": "> unreal-mcp-bridge@1.0.0 check:inventory\n> node Scripts/generate-tool-inventory.mjs\n\nOK: catalog matches inventory (308 tools; frozen count 308)."
+    }
+  ]
+}

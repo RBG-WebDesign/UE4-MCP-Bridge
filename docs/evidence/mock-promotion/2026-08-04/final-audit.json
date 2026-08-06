@@ -1,0 +1,3903 @@
+{
+  "timestamp": "2026-08-04T20:17:21.671Z",
+  "total_audited": 308,
+  "promotions_accepted": 308,
+  "promotions_reverted": 0,
+  "missing_evidence_rows": 0,
+  "rows": [
+    {
+      "name": "actor_delete",
+      "backend": "legacy_http",
+      "canonical_capability": "actors.delete",
+      "final_state": "replaced",
+      "disposition": "replaced",
+      "evidence_paths": [
+        "mcp-server/tests/compat-tools.test.ts",
+        "Scripts/puerts-live-smoke.mjs",
+        "docs/evidence/mock-promotion/2026-08-04/summary.json"
+      ],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "actor_delete",
+      "backend": "native_pipe_alias",
+      "canonical_capability": "actors.delete",
+      "final_state": "compat_verified",
+      "disposition": "compat_verified",
+      "evidence_paths": [
+        "mcp-server/tests/compat-tools.test.ts",
+        "Scripts/puerts-live-smoke.mjs",
+        "docs/evidence/mock-promotion/2026-08-04/summary.json"
+      ],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "actor_duplicate",
+      "backend": "legacy_http",
+      "canonical_capability": "actors.actor_duplicate",
+      "final_state": "retired",
+      "disposition": "retired",
+      "evidence_paths": [],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "actor_modify",
+      "backend": "legacy_http",
+      "canonical_capability": "properties.set",
+      "final_state": "replaced",
+      "disposition": "replaced",
+      "evidence_paths": [
+        "mcp-server/tests/compat-tools.test.ts",
+        "Scripts/puerts-live-smoke.mjs",
+        "docs/evidence/mock-promotion/2026-08-04/summary.json"
+      ],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "actor_modify",
+      "backend": "native_pipe_alias",
+      "canonical_capability": "properties.set",
+      "final_state": "compat_verified",
+      "disposition": "compat_verified",
+      "evidence_paths": [
+        "mcp-server/tests/compat-tools.test.ts",
+        "Scripts/puerts-live-smoke.mjs",
+        "docs/evidence/mock-promotion/2026-08-04/summary.json"
+      ],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "actor_organize",
+      "backend": "legacy_http",
+      "canonical_capability": "actors.actor_organize",
+      "final_state": "replaced",
+      "disposition": "replaced",
+      "evidence_paths": [
+        "mcp-server/tests/compat-tools.test.ts",
+        "Scripts/puerts-live-smoke.mjs",
+        "docs/evidence/mock-promotion/2026-08-04/summary.json"
+      ],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "actor_organize",
+      "backend": "native_pipe_alias",
+      "canonical_capability": "level.scene_batch",
+      "final_state": "compat_verified",
+      "disposition": "compat_verified",
+      "evidence_paths": [
+        "mcp-server/tests/compat-tools.test.ts",
+        "Scripts/puerts-live-smoke.mjs",
+        "docs/evidence/mock-promotion/2026-08-04/summary.json"
+      ],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "actor_selection",
+      "backend": "legacy_http",
+      "canonical_capability": "actors.actor_selection",
+      "final_state": "retired",
+      "disposition": "retired",
+      "evidence_paths": [],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "actor_snap_to_socket",
+      "backend": "legacy_http",
+      "canonical_capability": "actors.actor_snap_to_socket",
+      "final_state": "retired",
+      "disposition": "retired",
+      "evidence_paths": [],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "actor_spawn",
+      "backend": "legacy_http",
+      "canonical_capability": "actors.spawn",
+      "final_state": "replaced",
+      "disposition": "replaced",
+      "evidence_paths": [
+        "mcp-server/tests/compat-tools.test.ts",
+        "Scripts/puerts-live-smoke.mjs",
+        "docs/evidence/mock-promotion/2026-08-04/summary.json"
+      ],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "actor_spawn",
+      "backend": "native_pipe_alias",
+      "canonical_capability": "actors.spawn",
+      "final_state": "compat_verified",
+      "disposition": "compat_verified",
+      "evidence_paths": [
+        "mcp-server/tests/compat-tools.test.ts",
+        "Scripts/puerts-live-smoke.mjs",
+        "docs/evidence/mock-promotion/2026-08-04/summary.json"
+      ],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "ai_nav_rebuild",
+      "backend": "native_pipe_alias",
+      "canonical_capability": "navigation.build",
+      "final_state": "compat_verified",
+      "disposition": "compat_verified",
+      "evidence_paths": [
+        "mcp-server/tests/compat-tools.test.ts",
+        "Scripts/puerts-live-smoke.mjs",
+        "docs/evidence/mock-promotion/2026-08-04/summary.json"
+      ],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "ai_nav_rebuild",
+      "backend": "legacy_http",
+      "canonical_capability": "gameplay-setup.ai_nav_rebuild",
+      "final_state": "replaced",
+      "disposition": "replaced",
+      "evidence_paths": [
+        "mcp-server/tests/compat-tools.test.ts",
+        "Scripts/puerts-live-smoke.mjs",
+        "docs/evidence/mock-promotion/2026-08-04/summary.json"
+      ],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "anim_batch_reanchor",
+      "backend": "legacy_http",
+      "canonical_capability": "animation.anim_batch_reanchor",
+      "final_state": "retired",
+      "disposition": "retired",
+      "evidence_paths": [],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "anim_blueprint_build_from_json",
+      "backend": "legacy_http",
+      "canonical_capability": "animation.blueprint_build",
+      "final_state": "replaced",
+      "disposition": "replaced",
+      "evidence_paths": [
+        "mcp-server/tests/compat-tools.test.ts",
+        "Scripts/puerts-live-smoke.mjs",
+        "docs/evidence/mock-promotion/2026-08-04/summary.json"
+      ],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "anim_blueprint_build_from_json",
+      "backend": "native_pipe_alias",
+      "canonical_capability": "animation.anim_blueprint_build",
+      "final_state": "compat_verified",
+      "disposition": "compat_verified",
+      "evidence_paths": [
+        "mcp-server/tests/compat-tools.test.ts",
+        "Scripts/puerts-live-smoke.mjs",
+        "docs/evidence/mock-promotion/2026-08-04/summary.json"
+      ],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "anim_pose_delta",
+      "backend": "legacy_http",
+      "canonical_capability": "animation.anim_pose_delta",
+      "final_state": "retired",
+      "disposition": "retired",
+      "evidence_paths": [],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "anim_pose_snapshot",
+      "backend": "legacy_http",
+      "canonical_capability": "animation.anim_pose_snapshot",
+      "final_state": "retired",
+      "disposition": "retired",
+      "evidence_paths": [],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "anim_reanchor",
+      "backend": "legacy_http",
+      "canonical_capability": "animation.anim_reanchor",
+      "final_state": "retired",
+      "disposition": "retired",
+      "evidence_paths": [],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "anim_root_motion_analyze",
+      "backend": "legacy_http",
+      "canonical_capability": "animation.anim_root_motion_analyze",
+      "final_state": "retired",
+      "disposition": "retired",
+      "evidence_paths": [],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "asset_info",
+      "backend": "legacy_http",
+      "canonical_capability": "assets.find",
+      "final_state": "replaced",
+      "disposition": "replaced",
+      "evidence_paths": [],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "asset_list",
+      "backend": "native_pipe_alias",
+      "canonical_capability": "assets.find",
+      "final_state": "compat_verified",
+      "disposition": "compat_verified",
+      "evidence_paths": [
+        "mcp-server/tests/compat-tools.test.ts",
+        "Scripts/puerts-live-smoke.mjs",
+        "docs/evidence/mock-promotion/2026-08-04/summary.json"
+      ],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "asset_list",
+      "backend": "legacy_http",
+      "canonical_capability": "assets.find",
+      "final_state": "replaced",
+      "disposition": "replaced",
+      "evidence_paths": [
+        "mcp-server/tests/compat-tools.test.ts",
+        "Scripts/puerts-live-smoke.mjs",
+        "docs/evidence/mock-promotion/2026-08-04/summary.json"
+      ],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "asset_load_diagnostics",
+      "backend": "legacy_http",
+      "canonical_capability": "project.asset_load_diagnostics",
+      "final_state": "retired",
+      "disposition": "retired",
+      "evidence_paths": [],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "asset_save_many",
+      "backend": "native_pipe_alias",
+      "canonical_capability": "assets.save",
+      "final_state": "compat_verified",
+      "disposition": "compat_verified",
+      "evidence_paths": [
+        "mcp-server/tests/compat-tools.test.ts",
+        "Scripts/puerts-live-smoke.mjs",
+        "docs/evidence/mock-promotion/2026-08-04/summary.json"
+      ],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "asset_save_many",
+      "backend": "legacy_http",
+      "canonical_capability": "assets.save",
+      "final_state": "replaced",
+      "disposition": "replaced",
+      "evidence_paths": [
+        "mcp-server/tests/compat-tools.test.ts",
+        "Scripts/puerts-live-smoke.mjs",
+        "docs/evidence/mock-promotion/2026-08-04/summary.json"
+      ],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "audio_component_add",
+      "backend": "legacy_http",
+      "canonical_capability": "assets.audio_component_add",
+      "final_state": "retired",
+      "disposition": "retired",
+      "evidence_paths": [],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "batch_operations",
+      "backend": "native_pipe_alias",
+      "canonical_capability": "level.scene_batch",
+      "final_state": "compat_verified",
+      "disposition": "compat_verified",
+      "evidence_paths": [
+        "mcp-server/tests/compat-tools.test.ts",
+        "Scripts/puerts-live-smoke.mjs",
+        "docs/evidence/mock-promotion/2026-08-04/summary.json"
+      ],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "batch_operations",
+      "backend": "legacy_http",
+      "canonical_capability": "editor-ops.batch_operations",
+      "final_state": "replaced",
+      "disposition": "replaced",
+      "evidence_paths": [
+        "mcp-server/tests/compat-tools.test.ts",
+        "Scripts/puerts-live-smoke.mjs",
+        "docs/evidence/mock-promotion/2026-08-04/summary.json"
+      ],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "batch_spawn",
+      "backend": "legacy_http",
+      "canonical_capability": "actors.batch_spawn",
+      "final_state": "replaced",
+      "disposition": "replaced",
+      "evidence_paths": [
+        "mcp-server/tests/compat-tools.test.ts",
+        "Scripts/puerts-live-smoke.mjs",
+        "docs/evidence/mock-promotion/2026-08-04/summary.json"
+      ],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "batch_spawn",
+      "backend": "native_pipe_alias",
+      "canonical_capability": "level.scene_batch",
+      "final_state": "compat_verified",
+      "disposition": "compat_verified",
+      "evidence_paths": [
+        "mcp-server/tests/compat-tools.test.ts",
+        "Scripts/puerts-live-smoke.mjs",
+        "docs/evidence/mock-promotion/2026-08-04/summary.json"
+      ],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "behavior_tree_create",
+      "backend": "native_pipe_alias",
+      "canonical_capability": "ai.behavior_tree_build",
+      "final_state": "compat_verified",
+      "disposition": "compat_verified",
+      "evidence_paths": [
+        "mcp-server/tests/compat-tools.test.ts",
+        "Scripts/puerts-live-smoke.mjs",
+        "docs/evidence/mock-promotion/2026-08-04/summary.json"
+      ],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "behavior_tree_create",
+      "backend": "legacy_http",
+      "canonical_capability": "ai.behavior_tree_build",
+      "final_state": "replaced",
+      "disposition": "replaced",
+      "evidence_paths": [
+        "mcp-server/tests/compat-tools.test.ts",
+        "Scripts/puerts-live-smoke.mjs",
+        "docs/evidence/mock-promotion/2026-08-04/summary.json"
+      ],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "blackboard_create",
+      "backend": "native_pipe_alias",
+      "canonical_capability": "ai.blackboard_build",
+      "final_state": "compat_verified",
+      "disposition": "compat_verified",
+      "evidence_paths": [
+        "mcp-server/tests/compat-tools.test.ts",
+        "Scripts/puerts-live-smoke.mjs",
+        "docs/evidence/mock-promotion/2026-08-04/summary.json"
+      ],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "blackboard_create",
+      "backend": "legacy_http",
+      "canonical_capability": "ai.blackboard_build",
+      "final_state": "replaced",
+      "disposition": "replaced",
+      "evidence_paths": [
+        "mcp-server/tests/compat-tools.test.ts",
+        "Scripts/puerts-live-smoke.mjs",
+        "docs/evidence/mock-promotion/2026-08-04/summary.json"
+      ],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "blueprint_add_event_dispatcher",
+      "backend": "legacy_http",
+      "canonical_capability": "blueprint.blueprint_add_event_dispatcher",
+      "final_state": "replaced",
+      "disposition": "replaced",
+      "evidence_paths": [
+        "mcp-server/tests/compat-tools.test.ts",
+        "Scripts/puerts-live-smoke.mjs",
+        "docs/evidence/mock-promotion/2026-08-04/summary.json"
+      ],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "blueprint_add_event_dispatcher",
+      "backend": "native_pipe_alias",
+      "canonical_capability": "blueprints.member_patch",
+      "final_state": "compat_verified",
+      "disposition": "compat_verified",
+      "evidence_paths": [
+        "mcp-server/tests/compat-tools.test.ts",
+        "Scripts/puerts-live-smoke.mjs",
+        "docs/evidence/mock-promotion/2026-08-04/summary.json"
+      ],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "blueprint_add_function",
+      "backend": "legacy_http",
+      "canonical_capability": "blueprint.blueprint_add_function",
+      "final_state": "replaced",
+      "disposition": "replaced",
+      "evidence_paths": [
+        "mcp-server/tests/compat-tools.test.ts",
+        "Scripts/puerts-live-smoke.mjs",
+        "docs/evidence/mock-promotion/2026-08-04/summary.json"
+      ],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "blueprint_add_function",
+      "backend": "native_pipe_alias",
+      "canonical_capability": "blueprints.member_patch",
+      "final_state": "compat_verified",
+      "disposition": "compat_verified",
+      "evidence_paths": [
+        "mcp-server/tests/compat-tools.test.ts",
+        "Scripts/puerts-live-smoke.mjs",
+        "docs/evidence/mock-promotion/2026-08-04/summary.json"
+      ],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "blueprint_add_interface",
+      "backend": "legacy_http",
+      "canonical_capability": "blueprint.blueprint_add_interface",
+      "final_state": "replaced",
+      "disposition": "replaced",
+      "evidence_paths": [
+        "mcp-server/tests/compat-tools.test.ts",
+        "Scripts/puerts-live-smoke.mjs",
+        "docs/evidence/mock-promotion/2026-08-04/summary.json"
+      ],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "blueprint_add_interface",
+      "backend": "native_pipe_alias",
+      "canonical_capability": "blueprints.member_patch",
+      "final_state": "compat_verified",
+      "disposition": "compat_verified",
+      "evidence_paths": [
+        "mcp-server/tests/compat-tools.test.ts",
+        "Scripts/puerts-live-smoke.mjs",
+        "docs/evidence/mock-promotion/2026-08-04/summary.json"
+      ],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "blueprint_add_variable",
+      "backend": "legacy_http",
+      "canonical_capability": "blueprint.blueprint_add_variable",
+      "final_state": "replaced",
+      "disposition": "replaced",
+      "evidence_paths": [
+        "mcp-server/tests/compat-tools.test.ts",
+        "Scripts/puerts-live-smoke.mjs",
+        "docs/evidence/mock-promotion/2026-08-04/summary.json"
+      ],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "blueprint_add_variable",
+      "backend": "native_pipe_alias",
+      "canonical_capability": "blueprints.member_patch",
+      "final_state": "compat_verified",
+      "disposition": "compat_verified",
+      "evidence_paths": [
+        "mcp-server/tests/compat-tools.test.ts",
+        "Scripts/puerts-live-smoke.mjs",
+        "docs/evidence/mock-promotion/2026-08-04/summary.json"
+      ],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "blueprint_build_from_description",
+      "backend": "legacy_http",
+      "canonical_capability": "blueprint.blueprint_build_from_description",
+      "final_state": "retired",
+      "disposition": "retired",
+      "evidence_paths": [],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "blueprint_build_from_json",
+      "backend": "legacy_http",
+      "canonical_capability": "blueprints.build",
+      "final_state": "replaced",
+      "disposition": "replaced",
+      "evidence_paths": [
+        "mcp-server/tests/compat-tools.test.ts",
+        "Scripts/puerts-live-smoke.mjs",
+        "docs/evidence/mock-promotion/2026-08-04/summary.json"
+      ],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "blueprint_build_from_json",
+      "backend": "native_pipe_alias",
+      "canonical_capability": "blueprints.build",
+      "final_state": "compat_verified",
+      "disposition": "compat_verified",
+      "evidence_paths": [
+        "mcp-server/tests/compat-tools.test.ts",
+        "Scripts/puerts-live-smoke.mjs",
+        "docs/evidence/mock-promotion/2026-08-04/summary.json"
+      ],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "blueprint_compile",
+      "backend": "legacy_http",
+      "canonical_capability": "blueprint.blueprint_compile",
+      "final_state": "retired",
+      "disposition": "retired",
+      "evidence_paths": [],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "blueprint_component_remove",
+      "backend": "legacy_http",
+      "canonical_capability": "blueprint.blueprint_component_remove",
+      "final_state": "replaced",
+      "disposition": "replaced",
+      "evidence_paths": [
+        "mcp-server/tests/compat-tools.test.ts",
+        "Scripts/puerts-live-smoke.mjs",
+        "docs/evidence/mock-promotion/2026-08-04/summary.json"
+      ],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "blueprint_component_remove",
+      "backend": "native_pipe_alias",
+      "canonical_capability": "blueprints.member_patch",
+      "final_state": "compat_verified",
+      "disposition": "compat_verified",
+      "evidence_paths": [
+        "mcp-server/tests/compat-tools.test.ts",
+        "Scripts/puerts-live-smoke.mjs",
+        "docs/evidence/mock-promotion/2026-08-04/summary.json"
+      ],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "blueprint_component_rename",
+      "backend": "legacy_http",
+      "canonical_capability": "blueprint.blueprint_component_rename",
+      "final_state": "replaced",
+      "disposition": "replaced",
+      "evidence_paths": [
+        "mcp-server/tests/compat-tools.test.ts",
+        "Scripts/puerts-live-smoke.mjs",
+        "docs/evidence/mock-promotion/2026-08-04/summary.json"
+      ],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "blueprint_component_rename",
+      "backend": "native_pipe_alias",
+      "canonical_capability": "blueprints.member_patch",
+      "final_state": "compat_verified",
+      "disposition": "compat_verified",
+      "evidence_paths": [
+        "mcp-server/tests/compat-tools.test.ts",
+        "Scripts/puerts-live-smoke.mjs",
+        "docs/evidence/mock-promotion/2026-08-04/summary.json"
+      ],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "blueprint_create",
+      "backend": "legacy_http",
+      "canonical_capability": "blueprints.build",
+      "final_state": "replaced",
+      "disposition": "replaced",
+      "evidence_paths": [],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "blueprint_document",
+      "backend": "legacy_http",
+      "canonical_capability": "blueprint.blueprint_document",
+      "final_state": "retired",
+      "disposition": "retired",
+      "evidence_paths": [],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "blueprint_info",
+      "backend": "legacy_http",
+      "canonical_capability": "blueprints.inspect",
+      "final_state": "replaced",
+      "disposition": "replaced",
+      "evidence_paths": [
+        "mcp-server/tests/compat-tools.test.ts",
+        "Scripts/puerts-live-smoke.mjs",
+        "docs/evidence/mock-promotion/2026-08-04/summary.json"
+      ],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "blueprint_info",
+      "backend": "native_pipe_alias",
+      "canonical_capability": "blueprints.inspect",
+      "final_state": "compat_verified",
+      "disposition": "compat_verified",
+      "evidence_paths": [
+        "mcp-server/tests/compat-tools.test.ts",
+        "Scripts/puerts-live-smoke.mjs",
+        "docs/evidence/mock-promotion/2026-08-04/summary.json"
+      ],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "blueprint_inspect",
+      "backend": "legacy_http",
+      "canonical_capability": "blueprints.inspect",
+      "final_state": "replaced",
+      "disposition": "replaced",
+      "evidence_paths": [
+        "mcp-server/tests/compat-tools.test.ts",
+        "Scripts/puerts-live-smoke.mjs",
+        "docs/evidence/mock-promotion/2026-08-04/summary.json"
+      ],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "blueprint_inspect",
+      "backend": "native_pipe_alias",
+      "canonical_capability": "blueprints.inspect",
+      "final_state": "compat_verified",
+      "disposition": "compat_verified",
+      "evidence_paths": [
+        "mcp-server/tests/compat-tools.test.ts",
+        "Scripts/puerts-live-smoke.mjs",
+        "docs/evidence/mock-promotion/2026-08-04/summary.json"
+      ],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "blueprint_list",
+      "backend": "legacy_http",
+      "canonical_capability": "assets.find",
+      "final_state": "replaced",
+      "disposition": "replaced",
+      "evidence_paths": [],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "blueprint_node_add",
+      "backend": "legacy_http",
+      "canonical_capability": "blueprint.blueprint_node_add",
+      "final_state": "replaced",
+      "disposition": "replaced",
+      "evidence_paths": [
+        "mcp-server/tests/compat-tools.test.ts",
+        "Scripts/puerts-live-smoke.mjs",
+        "docs/evidence/mock-promotion/2026-08-04/summary.json"
+      ],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "blueprint_node_add",
+      "backend": "native_pipe_alias",
+      "canonical_capability": "blueprints.graph_patch",
+      "final_state": "compat_verified",
+      "disposition": "compat_verified",
+      "evidence_paths": [
+        "mcp-server/tests/compat-tools.test.ts",
+        "Scripts/puerts-live-smoke.mjs",
+        "docs/evidence/mock-promotion/2026-08-04/summary.json"
+      ],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "blueprint_node_delete",
+      "backend": "legacy_http",
+      "canonical_capability": "blueprint.blueprint_node_delete",
+      "final_state": "replaced",
+      "disposition": "replaced",
+      "evidence_paths": [
+        "mcp-server/tests/compat-tools.test.ts",
+        "Scripts/puerts-live-smoke.mjs",
+        "docs/evidence/mock-promotion/2026-08-04/summary.json"
+      ],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "blueprint_node_delete",
+      "backend": "native_pipe_alias",
+      "canonical_capability": "blueprints.graph_patch",
+      "final_state": "compat_verified",
+      "disposition": "compat_verified",
+      "evidence_paths": [
+        "mcp-server/tests/compat-tools.test.ts",
+        "Scripts/puerts-live-smoke.mjs",
+        "docs/evidence/mock-promotion/2026-08-04/summary.json"
+      ],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "blueprint_node_move",
+      "backend": "legacy_http",
+      "canonical_capability": "blueprint.blueprint_node_move",
+      "final_state": "replaced",
+      "disposition": "replaced",
+      "evidence_paths": [
+        "mcp-server/tests/compat-tools.test.ts",
+        "Scripts/puerts-live-smoke.mjs",
+        "docs/evidence/mock-promotion/2026-08-04/summary.json"
+      ],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "blueprint_node_move",
+      "backend": "native_pipe_alias",
+      "canonical_capability": "blueprints.graph_patch",
+      "final_state": "compat_verified",
+      "disposition": "compat_verified",
+      "evidence_paths": [
+        "mcp-server/tests/compat-tools.test.ts",
+        "Scripts/puerts-live-smoke.mjs",
+        "docs/evidence/mock-promotion/2026-08-04/summary.json"
+      ],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "blueprint_node_set_enabled",
+      "backend": "legacy_http",
+      "canonical_capability": "blueprint.blueprint_node_set_enabled",
+      "final_state": "retired",
+      "disposition": "retired",
+      "evidence_paths": [],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "blueprint_pins_break",
+      "backend": "legacy_http",
+      "canonical_capability": "blueprint.blueprint_pins_break",
+      "final_state": "retired",
+      "disposition": "retired",
+      "evidence_paths": [],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "blueprint_pins_connect",
+      "backend": "legacy_http",
+      "canonical_capability": "blueprint.blueprint_pins_connect",
+      "final_state": "replaced",
+      "disposition": "replaced",
+      "evidence_paths": [
+        "mcp-server/tests/compat-tools.test.ts",
+        "Scripts/puerts-live-smoke.mjs",
+        "docs/evidence/mock-promotion/2026-08-04/summary.json"
+      ],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "blueprint_pins_connect",
+      "backend": "native_pipe_alias",
+      "canonical_capability": "blueprints.graph_patch",
+      "final_state": "compat_verified",
+      "disposition": "compat_verified",
+      "evidence_paths": [
+        "mcp-server/tests/compat-tools.test.ts",
+        "Scripts/puerts-live-smoke.mjs",
+        "docs/evidence/mock-promotion/2026-08-04/summary.json"
+      ],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "blueprint_production_plan",
+      "backend": "server_local",
+      "canonical_capability": "blueprint.production_plan",
+      "final_state": "editor_free_verified",
+      "disposition": "editor_free_verified",
+      "evidence_paths": [
+        "mcp-server/tests/status-tool.test.ts",
+        "mcp-server/tests/engine-source-tools.test.ts",
+        "mcp-server/tests/blueprint-production.test.ts"
+      ],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "blueprint_remove_event_dispatcher",
+      "backend": "legacy_http",
+      "canonical_capability": "blueprint.blueprint_remove_event_dispatcher",
+      "final_state": "replaced",
+      "disposition": "replaced",
+      "evidence_paths": [
+        "mcp-server/tests/compat-tools.test.ts",
+        "Scripts/puerts-live-smoke.mjs",
+        "docs/evidence/mock-promotion/2026-08-04/summary.json"
+      ],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "blueprint_remove_event_dispatcher",
+      "backend": "native_pipe_alias",
+      "canonical_capability": "blueprints.member_patch",
+      "final_state": "compat_verified",
+      "disposition": "compat_verified",
+      "evidence_paths": [
+        "mcp-server/tests/compat-tools.test.ts",
+        "Scripts/puerts-live-smoke.mjs",
+        "docs/evidence/mock-promotion/2026-08-04/summary.json"
+      ],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "blueprint_remove_function",
+      "backend": "legacy_http",
+      "canonical_capability": "blueprint.blueprint_remove_function",
+      "final_state": "replaced",
+      "disposition": "replaced",
+      "evidence_paths": [
+        "mcp-server/tests/compat-tools.test.ts",
+        "Scripts/puerts-live-smoke.mjs",
+        "docs/evidence/mock-promotion/2026-08-04/summary.json"
+      ],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "blueprint_remove_function",
+      "backend": "native_pipe_alias",
+      "canonical_capability": "blueprints.member_patch",
+      "final_state": "compat_verified",
+      "disposition": "compat_verified",
+      "evidence_paths": [
+        "mcp-server/tests/compat-tools.test.ts",
+        "Scripts/puerts-live-smoke.mjs",
+        "docs/evidence/mock-promotion/2026-08-04/summary.json"
+      ],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "blueprint_remove_interface",
+      "backend": "legacy_http",
+      "canonical_capability": "blueprint.blueprint_remove_interface",
+      "final_state": "replaced",
+      "disposition": "replaced",
+      "evidence_paths": [
+        "mcp-server/tests/compat-tools.test.ts",
+        "Scripts/puerts-live-smoke.mjs",
+        "docs/evidence/mock-promotion/2026-08-04/summary.json"
+      ],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "blueprint_remove_interface",
+      "backend": "native_pipe_alias",
+      "canonical_capability": "blueprints.member_patch",
+      "final_state": "compat_verified",
+      "disposition": "compat_verified",
+      "evidence_paths": [
+        "mcp-server/tests/compat-tools.test.ts",
+        "Scripts/puerts-live-smoke.mjs",
+        "docs/evidence/mock-promotion/2026-08-04/summary.json"
+      ],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "blueprint_remove_variable",
+      "backend": "legacy_http",
+      "canonical_capability": "blueprint.blueprint_remove_variable",
+      "final_state": "replaced",
+      "disposition": "replaced",
+      "evidence_paths": [
+        "mcp-server/tests/compat-tools.test.ts",
+        "Scripts/puerts-live-smoke.mjs",
+        "docs/evidence/mock-promotion/2026-08-04/summary.json"
+      ],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "blueprint_remove_variable",
+      "backend": "native_pipe_alias",
+      "canonical_capability": "blueprints.member_patch",
+      "final_state": "compat_verified",
+      "disposition": "compat_verified",
+      "evidence_paths": [
+        "mcp-server/tests/compat-tools.test.ts",
+        "Scripts/puerts-live-smoke.mjs",
+        "docs/evidence/mock-promotion/2026-08-04/summary.json"
+      ],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "blueprint_set_variable_default",
+      "backend": "legacy_http",
+      "canonical_capability": "blueprint.blueprint_set_variable_default",
+      "final_state": "replaced",
+      "disposition": "replaced",
+      "evidence_paths": [
+        "mcp-server/tests/compat-tools.test.ts",
+        "Scripts/puerts-live-smoke.mjs",
+        "docs/evidence/mock-promotion/2026-08-04/summary.json"
+      ],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "blueprint_set_variable_default",
+      "backend": "native_pipe_alias",
+      "canonical_capability": "blueprints.member_patch",
+      "final_state": "compat_verified",
+      "disposition": "compat_verified",
+      "evidence_paths": [
+        "mcp-server/tests/compat-tools.test.ts",
+        "Scripts/puerts-live-smoke.mjs",
+        "docs/evidence/mock-promotion/2026-08-04/summary.json"
+      ],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "bridge_clear_log",
+      "backend": "legacy_http",
+      "canonical_capability": "system.listener_admin",
+      "final_state": "retired",
+      "disposition": "retired",
+      "evidence_paths": [],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "bridge_command_manifest",
+      "backend": "legacy_http",
+      "canonical_capability": "system.listener_admin",
+      "final_state": "retired",
+      "disposition": "retired",
+      "evidence_paths": [],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "bridge_command_status",
+      "backend": "server_local",
+      "canonical_capability": "bridge.command_status",
+      "final_state": "editor_free_verified",
+      "disposition": "editor_free_verified",
+      "evidence_paths": [
+        "mcp-server/tests/status-tool.test.ts",
+        "mcp-server/tests/engine-source-tools.test.ts",
+        "mcp-server/tests/blueprint-production.test.ts"
+      ],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "camera_rig_create",
+      "backend": "legacy_http",
+      "canonical_capability": "gameplay-setup.camera_rig_create",
+      "final_state": "retired",
+      "disposition": "retired",
+      "evidence_paths": [],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "camera_shake_blueprint",
+      "backend": "legacy_http",
+      "canonical_capability": "effects.camera_shake_blueprint",
+      "final_state": "retired",
+      "disposition": "retired",
+      "evidence_paths": [],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "camera_shake_play",
+      "backend": "native_pipe_alias",
+      "canonical_capability": "pie.camera_shake",
+      "final_state": "compat_verified",
+      "disposition": "compat_verified",
+      "evidence_paths": [
+        "mcp-server/tests/compat-tools.test.ts",
+        "Scripts/puerts-live-smoke.mjs",
+        "docs/evidence/mock-promotion/2026-08-04/summary.json"
+      ],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "camera_shake_play",
+      "backend": "legacy_http",
+      "canonical_capability": "effects.camera_shake_play",
+      "final_state": "replaced",
+      "disposition": "replaced",
+      "evidence_paths": [
+        "mcp-server/tests/compat-tools.test.ts",
+        "Scripts/puerts-live-smoke.mjs",
+        "docs/evidence/mock-promotion/2026-08-04/summary.json"
+      ],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "camera_shake_spawn",
+      "backend": "legacy_http",
+      "canonical_capability": "effects.camera_shake_spawn",
+      "final_state": "retired",
+      "disposition": "retired",
+      "evidence_paths": [],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "camera_shake_trigger",
+      "backend": "legacy_http",
+      "canonical_capability": "effects.camera_shake_trigger",
+      "final_state": "retired",
+      "disposition": "retired",
+      "evidence_paths": [],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "checkpoint_create",
+      "backend": "legacy_http",
+      "canonical_capability": "editor-ops.checkpoint_create",
+      "final_state": "retired",
+      "disposition": "retired",
+      "evidence_paths": [],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "checkpoint_restore",
+      "backend": "legacy_http",
+      "canonical_capability": "editor-ops.checkpoint_restore",
+      "final_state": "retired",
+      "disposition": "retired",
+      "evidence_paths": [],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "clear_output_log",
+      "backend": "legacy_http",
+      "canonical_capability": "system.listener_admin",
+      "final_state": "retired",
+      "disposition": "retired",
+      "evidence_paths": [],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "cloth_apply_fabric_profile",
+      "backend": "legacy_http",
+      "canonical_capability": "technical-art.cloth_apply_fabric_profile",
+      "final_state": "retired",
+      "disposition": "retired",
+      "evidence_paths": [],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "cloth_apply_lower_leg_gradient",
+      "backend": "legacy_http",
+      "canonical_capability": "technical-art.cloth_apply_lower_leg_gradient",
+      "final_state": "retired",
+      "disposition": "retired",
+      "evidence_paths": [],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "cloth_inspect_asset",
+      "backend": "legacy_http",
+      "canonical_capability": "technical-art.cloth_inspect_asset",
+      "final_state": "replaced",
+      "disposition": "replaced",
+      "evidence_paths": [
+        "mcp-server/tests/compat-tools.test.ts",
+        "Scripts/puerts-live-smoke.mjs",
+        "docs/evidence/mock-promotion/2026-08-04/summary.json"
+      ],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "cloth_inspect_asset",
+      "backend": "native_pipe_alias",
+      "canonical_capability": "cloth.inspect",
+      "final_state": "compat_verified",
+      "disposition": "compat_verified",
+      "evidence_paths": [
+        "mcp-server/tests/compat-tools.test.ts",
+        "Scripts/puerts-live-smoke.mjs",
+        "docs/evidence/mock-promotion/2026-08-04/summary.json"
+      ],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "cloth_smooth_max_distance",
+      "backend": "legacy_http",
+      "canonical_capability": "technical-art.cloth_smooth_max_distance",
+      "final_state": "retired",
+      "disposition": "retired",
+      "evidence_paths": [],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "console_effect",
+      "backend": "legacy_http",
+      "canonical_capability": "effects.console_effect",
+      "final_state": "retired",
+      "disposition": "retired",
+      "evidence_paths": [],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "cpp_build",
+      "backend": "legacy_http",
+      "canonical_capability": "cpp-build.cpp_build",
+      "final_state": "retired",
+      "disposition": "retired",
+      "evidence_paths": [],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "cpp_class_create",
+      "backend": "legacy_http",
+      "canonical_capability": "cpp-build.cpp_class_create",
+      "final_state": "retired",
+      "disposition": "retired",
+      "evidence_paths": [],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "data_table_create",
+      "backend": "native_pipe_alias",
+      "canonical_capability": "content.data_table_build",
+      "final_state": "compat_verified",
+      "disposition": "compat_verified",
+      "evidence_paths": [
+        "mcp-server/tests/compat-tools.test.ts",
+        "Scripts/puerts-live-smoke.mjs",
+        "docs/evidence/mock-promotion/2026-08-04/summary.json"
+      ],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "data_table_create",
+      "backend": "legacy_http",
+      "canonical_capability": "content.data_table_build",
+      "final_state": "replaced",
+      "disposition": "replaced",
+      "evidence_paths": [
+        "mcp-server/tests/compat-tools.test.ts",
+        "Scripts/puerts-live-smoke.mjs",
+        "docs/evidence/mock-promotion/2026-08-04/summary.json"
+      ],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "data_table_fill_from_json",
+      "backend": "native_pipe_alias",
+      "canonical_capability": "content.data_table_build",
+      "final_state": "compat_verified",
+      "disposition": "compat_verified",
+      "evidence_paths": [
+        "mcp-server/tests/compat-tools.test.ts",
+        "Scripts/puerts-live-smoke.mjs",
+        "docs/evidence/mock-promotion/2026-08-04/summary.json"
+      ],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "data_table_fill_from_json",
+      "backend": "legacy_http",
+      "canonical_capability": "content.data_table_build",
+      "final_state": "replaced",
+      "disposition": "replaced",
+      "evidence_paths": [
+        "mcp-server/tests/compat-tools.test.ts",
+        "Scripts/puerts-live-smoke.mjs",
+        "docs/evidence/mock-promotion/2026-08-04/summary.json"
+      ],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "engine_source_read",
+      "backend": "server_local",
+      "canonical_capability": "engine_source.read",
+      "final_state": "editor_free_verified",
+      "disposition": "editor_free_verified",
+      "evidence_paths": [
+        "mcp-server/tests/status-tool.test.ts",
+        "mcp-server/tests/engine-source-tools.test.ts",
+        "mcp-server/tests/blueprint-production.test.ts"
+      ],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "engine_source_search",
+      "backend": "server_local",
+      "canonical_capability": "engine_source.search",
+      "final_state": "editor_free_verified",
+      "disposition": "editor_free_verified",
+      "evidence_paths": [
+        "mcp-server/tests/status-tool.test.ts",
+        "mcp-server/tests/engine-source-tools.test.ts",
+        "mcp-server/tests/blueprint-production.test.ts"
+      ],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "folder_hidden_list",
+      "backend": "native_pipe_alias",
+      "canonical_capability": "assets.folder_visibility",
+      "final_state": "compat_verified",
+      "disposition": "compat_verified",
+      "evidence_paths": [
+        "mcp-server/tests/compat-tools.test.ts",
+        "Scripts/puerts-live-smoke.mjs",
+        "docs/evidence/mock-promotion/2026-08-04/summary.json"
+      ],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "folder_hidden_list",
+      "backend": "legacy_http",
+      "canonical_capability": "project.folder_hidden_list",
+      "final_state": "replaced",
+      "disposition": "replaced",
+      "evidence_paths": [
+        "mcp-server/tests/compat-tools.test.ts",
+        "Scripts/puerts-live-smoke.mjs",
+        "docs/evidence/mock-promotion/2026-08-04/summary.json"
+      ],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "folder_hide",
+      "backend": "native_pipe_alias",
+      "canonical_capability": "assets.folder_visibility",
+      "final_state": "compat_verified",
+      "disposition": "compat_verified",
+      "evidence_paths": [
+        "mcp-server/tests/compat-tools.test.ts",
+        "Scripts/puerts-live-smoke.mjs",
+        "docs/evidence/mock-promotion/2026-08-04/summary.json"
+      ],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "folder_hide",
+      "backend": "legacy_http",
+      "canonical_capability": "project.folder_hide",
+      "final_state": "replaced",
+      "disposition": "replaced",
+      "evidence_paths": [
+        "mcp-server/tests/compat-tools.test.ts",
+        "Scripts/puerts-live-smoke.mjs",
+        "docs/evidence/mock-promotion/2026-08-04/summary.json"
+      ],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "folder_show",
+      "backend": "native_pipe_alias",
+      "canonical_capability": "assets.folder_visibility",
+      "final_state": "compat_verified",
+      "disposition": "compat_verified",
+      "evidence_paths": [
+        "mcp-server/tests/compat-tools.test.ts",
+        "Scripts/puerts-live-smoke.mjs",
+        "docs/evidence/mock-promotion/2026-08-04/summary.json"
+      ],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "folder_show",
+      "backend": "legacy_http",
+      "canonical_capability": "project.folder_show",
+      "final_state": "replaced",
+      "disposition": "replaced",
+      "evidence_paths": [
+        "mcp-server/tests/compat-tools.test.ts",
+        "Scripts/puerts-live-smoke.mjs",
+        "docs/evidence/mock-promotion/2026-08-04/summary.json"
+      ],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "game_template_create",
+      "backend": "legacy_http",
+      "canonical_capability": "assets.game_template_create",
+      "final_state": "retired",
+      "disposition": "retired",
+      "evidence_paths": [],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "gameplay_framework_create",
+      "backend": "legacy_http",
+      "canonical_capability": "gameplay-setup.gameplay_framework_create",
+      "final_state": "retired",
+      "disposition": "retired",
+      "evidence_paths": [],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "gameplay_pattern_search",
+      "backend": "legacy_http",
+      "canonical_capability": "project.pattern_search",
+      "final_state": "retired",
+      "disposition": "retired",
+      "evidence_paths": [
+        "mcp-server/tests/project-index.test.ts"
+      ],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "gameplay_pie_start",
+      "backend": "native_pipe_alias",
+      "canonical_capability": "editor.pie_start",
+      "final_state": "compat_verified",
+      "disposition": "compat_verified",
+      "evidence_paths": [
+        "mcp-server/tests/compat-tools.test.ts",
+        "Scripts/puerts-live-smoke.mjs",
+        "docs/evidence/mock-promotion/2026-08-04/summary.json"
+      ],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "gameplay_pie_start",
+      "backend": "legacy_http",
+      "canonical_capability": "editor.pie_start",
+      "final_state": "replaced",
+      "disposition": "replaced",
+      "evidence_paths": [
+        "mcp-server/tests/compat-tools.test.ts",
+        "Scripts/puerts-live-smoke.mjs",
+        "docs/evidence/mock-promotion/2026-08-04/summary.json"
+      ],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "gameplay_pie_status",
+      "backend": "legacy_http",
+      "canonical_capability": "bridge.diagnostic",
+      "final_state": "replaced",
+      "disposition": "replaced",
+      "evidence_paths": [],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "gameplay_pie_stop",
+      "backend": "native_pipe_alias",
+      "canonical_capability": "editor.pie_stop",
+      "final_state": "compat_verified",
+      "disposition": "compat_verified",
+      "evidence_paths": [
+        "mcp-server/tests/compat-tools.test.ts",
+        "Scripts/puerts-live-smoke.mjs",
+        "docs/evidence/mock-promotion/2026-08-04/summary.json"
+      ],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "gameplay_pie_stop",
+      "backend": "legacy_http",
+      "canonical_capability": "editor.pie_stop",
+      "final_state": "replaced",
+      "disposition": "replaced",
+      "evidence_paths": [
+        "mcp-server/tests/compat-tools.test.ts",
+        "Scripts/puerts-live-smoke.mjs",
+        "docs/evidence/mock-promotion/2026-08-04/summary.json"
+      ],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "gameplay_run_acceptance_tests",
+      "backend": "legacy_http",
+      "canonical_capability": "pie.gameplay_run_acceptance_tests",
+      "final_state": "retired",
+      "disposition": "retired",
+      "evidence_paths": [],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "gameplay_telemetry_snapshot",
+      "backend": "legacy_http",
+      "canonical_capability": "pie.gameplay_telemetry_snapshot",
+      "final_state": "retired",
+      "disposition": "retired",
+      "evidence_paths": [],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "help",
+      "backend": "legacy_http",
+      "canonical_capability": "system.listener_admin",
+      "final_state": "retired",
+      "disposition": "retired",
+      "evidence_paths": [],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "history_list",
+      "backend": "legacy_http",
+      "canonical_capability": "editor-ops.history_list",
+      "final_state": "retired",
+      "disposition": "retired",
+      "evidence_paths": [],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "input_mapping_add",
+      "backend": "native_pipe_alias",
+      "canonical_capability": "input.mapping_patch",
+      "final_state": "compat_verified",
+      "disposition": "compat_verified",
+      "evidence_paths": [
+        "mcp-server/tests/compat-tools.test.ts",
+        "Scripts/puerts-live-smoke.mjs",
+        "docs/evidence/mock-promotion/2026-08-04/summary.json"
+      ],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "input_mapping_add",
+      "backend": "legacy_http",
+      "canonical_capability": "gameplay-setup.input_mapping_add",
+      "final_state": "replaced",
+      "disposition": "replaced",
+      "evidence_paths": [
+        "mcp-server/tests/compat-tools.test.ts",
+        "Scripts/puerts-live-smoke.mjs",
+        "docs/evidence/mock-promotion/2026-08-04/summary.json"
+      ],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "input_mapping_info",
+      "backend": "native_pipe_alias",
+      "canonical_capability": "input.mapping_info",
+      "final_state": "compat_verified",
+      "disposition": "compat_verified",
+      "evidence_paths": [
+        "mcp-server/tests/compat-tools.test.ts",
+        "Scripts/puerts-live-smoke.mjs",
+        "docs/evidence/mock-promotion/2026-08-04/summary.json"
+      ],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "input_mapping_info",
+      "backend": "legacy_http",
+      "canonical_capability": "project.input_mapping_info",
+      "final_state": "replaced",
+      "disposition": "replaced",
+      "evidence_paths": [
+        "mcp-server/tests/compat-tools.test.ts",
+        "Scripts/puerts-live-smoke.mjs",
+        "docs/evidence/mock-promotion/2026-08-04/summary.json"
+      ],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "input_mapping_remove",
+      "backend": "native_pipe_alias",
+      "canonical_capability": "input.mapping_patch",
+      "final_state": "compat_verified",
+      "disposition": "compat_verified",
+      "evidence_paths": [
+        "mcp-server/tests/compat-tools.test.ts",
+        "Scripts/puerts-live-smoke.mjs",
+        "docs/evidence/mock-promotion/2026-08-04/summary.json"
+      ],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "input_mapping_remove",
+      "backend": "legacy_http",
+      "canonical_capability": "gameplay-setup.input_mapping_remove",
+      "final_state": "replaced",
+      "disposition": "replaced",
+      "evidence_paths": [
+        "mcp-server/tests/compat-tools.test.ts",
+        "Scripts/puerts-live-smoke.mjs",
+        "docs/evidence/mock-promotion/2026-08-04/summary.json"
+      ],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "input_preset_apply",
+      "backend": "native_pipe_alias",
+      "canonical_capability": "input.mapping_patch",
+      "final_state": "compat_verified",
+      "disposition": "compat_verified",
+      "evidence_paths": [
+        "mcp-server/tests/compat-tools.test.ts",
+        "Scripts/puerts-live-smoke.mjs",
+        "docs/evidence/mock-promotion/2026-08-04/summary.json"
+      ],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "input_preset_apply",
+      "backend": "legacy_http",
+      "canonical_capability": "gameplay-setup.input_preset_apply",
+      "final_state": "replaced",
+      "disposition": "replaced",
+      "evidence_paths": [
+        "mcp-server/tests/compat-tools.test.ts",
+        "Scripts/puerts-live-smoke.mjs",
+        "docs/evidence/mock-promotion/2026-08-04/summary.json"
+      ],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "job_cancel",
+      "backend": "legacy_http",
+      "canonical_capability": "cpp-build.job_cancel",
+      "final_state": "retired",
+      "disposition": "retired",
+      "evidence_paths": [],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "job_list",
+      "backend": "legacy_http",
+      "canonical_capability": "cpp-build.job_list",
+      "final_state": "retired",
+      "disposition": "retired",
+      "evidence_paths": [],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "job_status",
+      "backend": "legacy_http",
+      "canonical_capability": "cpp-build.job_status",
+      "final_state": "retired",
+      "disposition": "retired",
+      "evidence_paths": [],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "level_actors",
+      "backend": "native_pipe_alias",
+      "canonical_capability": "actors.find",
+      "final_state": "compat_verified",
+      "disposition": "compat_verified",
+      "evidence_paths": [
+        "mcp-server/tests/compat-tools.test.ts",
+        "Scripts/puerts-live-smoke.mjs",
+        "docs/evidence/mock-promotion/2026-08-04/summary.json"
+      ],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "level_actors",
+      "backend": "legacy_http",
+      "canonical_capability": "actors.find",
+      "final_state": "replaced",
+      "disposition": "replaced",
+      "evidence_paths": [
+        "mcp-server/tests/compat-tools.test.ts",
+        "Scripts/puerts-live-smoke.mjs",
+        "docs/evidence/mock-promotion/2026-08-04/summary.json"
+      ],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "level_new",
+      "backend": "native_pipe_alias",
+      "canonical_capability": "level.create",
+      "final_state": "compat_verified",
+      "disposition": "compat_verified",
+      "evidence_paths": [
+        "mcp-server/tests/compat-tools.test.ts",
+        "Scripts/puerts-live-smoke.mjs",
+        "docs/evidence/mock-promotion/2026-08-04/summary.json"
+      ],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "level_new",
+      "backend": "legacy_http",
+      "canonical_capability": "level.create",
+      "final_state": "replaced",
+      "disposition": "replaced",
+      "evidence_paths": [
+        "mcp-server/tests/compat-tools.test.ts",
+        "Scripts/puerts-live-smoke.mjs",
+        "docs/evidence/mock-promotion/2026-08-04/summary.json"
+      ],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "level_outliner",
+      "backend": "legacy_http",
+      "canonical_capability": "actors.find",
+      "final_state": "replaced",
+      "disposition": "replaced",
+      "evidence_paths": [],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "level_save",
+      "backend": "native_pipe_alias",
+      "canonical_capability": "level.save",
+      "final_state": "compat_verified",
+      "disposition": "compat_verified",
+      "evidence_paths": [
+        "mcp-server/tests/compat-tools.test.ts",
+        "Scripts/puerts-live-smoke.mjs",
+        "docs/evidence/mock-promotion/2026-08-04/summary.json"
+      ],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "level_save",
+      "backend": "legacy_http",
+      "canonical_capability": "level.save",
+      "final_state": "replaced",
+      "disposition": "replaced",
+      "evidence_paths": [
+        "mcp-server/tests/compat-tools.test.ts",
+        "Scripts/puerts-live-smoke.mjs",
+        "docs/evidence/mock-promotion/2026-08-04/summary.json"
+      ],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "material_apply",
+      "backend": "legacy_http",
+      "canonical_capability": "materials.material_apply",
+      "final_state": "retired",
+      "disposition": "retired",
+      "evidence_paths": [],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "material_create",
+      "backend": "legacy_http",
+      "canonical_capability": "materials.material_create",
+      "final_state": "retired",
+      "disposition": "retired",
+      "evidence_paths": [],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "material_info",
+      "backend": "legacy_http",
+      "canonical_capability": "materials.material_info",
+      "final_state": "retired",
+      "disposition": "retired",
+      "evidence_paths": [],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "material_instance_create",
+      "backend": "legacy_http",
+      "canonical_capability": "assets.material_instance_create",
+      "final_state": "retired",
+      "disposition": "retired",
+      "evidence_paths": [],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "material_instance_set_params",
+      "backend": "legacy_http",
+      "canonical_capability": "assets.material_instance_set_params",
+      "final_state": "retired",
+      "disposition": "retired",
+      "evidence_paths": [],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "material_list",
+      "backend": "legacy_http",
+      "canonical_capability": "materials.material_list",
+      "final_state": "retired",
+      "disposition": "retired",
+      "evidence_paths": [],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "optimization_apply_low_risk_fixes",
+      "backend": "legacy_http",
+      "canonical_capability": "optimization.optimization_apply_low_risk_fixes",
+      "final_state": "retired",
+      "disposition": "retired",
+      "evidence_paths": [],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "optimization_asset_audit",
+      "backend": "legacy_http",
+      "canonical_capability": "optimization.optimization_asset_audit",
+      "final_state": "retired",
+      "disposition": "retired",
+      "evidence_paths": [],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "optimization_asset_cost_rank",
+      "backend": "legacy_http",
+      "canonical_capability": "optimization.optimization_asset_cost_rank",
+      "final_state": "retired",
+      "disposition": "retired",
+      "evidence_paths": [],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "optimization_before_after_verify",
+      "backend": "legacy_http",
+      "canonical_capability": "optimization.optimization_before_after_verify",
+      "final_state": "retired",
+      "disposition": "retired",
+      "evidence_paths": [],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "optimization_camera_path_profile",
+      "backend": "legacy_http",
+      "canonical_capability": "optimization.optimization_camera_path_profile",
+      "final_state": "retired",
+      "disposition": "retired",
+      "evidence_paths": [],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "optimization_cpu_capture",
+      "backend": "legacy_http",
+      "canonical_capability": "optimization.optimization_cpu_capture",
+      "final_state": "retired",
+      "disposition": "retired",
+      "evidence_paths": [],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "optimization_fix_candidates",
+      "backend": "legacy_http",
+      "canonical_capability": "optimization.optimization_fix_candidates",
+      "final_state": "retired",
+      "disposition": "retired",
+      "evidence_paths": [],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "optimization_generate_report",
+      "backend": "legacy_http",
+      "canonical_capability": "optimization.optimization_generate_report",
+      "final_state": "retired",
+      "disposition": "retired",
+      "evidence_paths": [],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "optimization_gpu_capture",
+      "backend": "legacy_http",
+      "canonical_capability": "optimization.optimization_gpu_capture",
+      "final_state": "retired",
+      "disposition": "retired",
+      "evidence_paths": [],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "optimization_insights_trace_start",
+      "backend": "legacy_http",
+      "canonical_capability": "optimization.optimization_insights_trace_start",
+      "final_state": "retired",
+      "disposition": "retired",
+      "evidence_paths": [],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "optimization_insights_trace_stop",
+      "backend": "legacy_http",
+      "canonical_capability": "optimization.optimization_insights_trace_stop",
+      "final_state": "retired",
+      "disposition": "retired",
+      "evidence_paths": [],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "optimization_insights_trace_summary",
+      "backend": "legacy_http",
+      "canonical_capability": "optimization.optimization_insights_trace_summary",
+      "final_state": "retired",
+      "disposition": "retired",
+      "evidence_paths": [],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "optimization_memory_streaming_capture",
+      "backend": "legacy_http",
+      "canonical_capability": "optimization.optimization_memory_streaming_capture",
+      "final_state": "retired",
+      "disposition": "retired",
+      "evidence_paths": [],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "optimization_profilegpu_capture",
+      "backend": "legacy_http",
+      "canonical_capability": "optimization.optimization_profilegpu_capture",
+      "final_state": "retired",
+      "disposition": "retired",
+      "evidence_paths": [],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "optimization_quick_triage",
+      "backend": "legacy_http",
+      "canonical_capability": "optimization.optimization_quick_triage",
+      "final_state": "retired",
+      "disposition": "retired",
+      "evidence_paths": [],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "optimization_rendering_capture",
+      "backend": "legacy_http",
+      "canonical_capability": "optimization.optimization_rendering_capture",
+      "final_state": "retired",
+      "disposition": "retired",
+      "evidence_paths": [],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "optimization_run_console_checklist",
+      "backend": "legacy_http",
+      "canonical_capability": "optimization.optimization_run_console_checklist",
+      "final_state": "retired",
+      "disposition": "retired",
+      "evidence_paths": [],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "optimization_scene_audit",
+      "backend": "legacy_http",
+      "canonical_capability": "optimization.optimization_scene_audit",
+      "final_state": "retired",
+      "disposition": "retired",
+      "evidence_paths": [],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "optimization_stat_capture",
+      "backend": "legacy_http",
+      "canonical_capability": "optimization.optimization_stat_capture",
+      "final_state": "retired",
+      "disposition": "retired",
+      "evidence_paths": [],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "optimization_texture_harm_rank",
+      "backend": "legacy_http",
+      "canonical_capability": "optimization.optimization_texture_harm_rank",
+      "final_state": "retired",
+      "disposition": "retired",
+      "evidence_paths": [],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "optimization_tool_catalog",
+      "backend": "legacy_http",
+      "canonical_capability": "optimization.optimization_tool_catalog",
+      "final_state": "retired",
+      "disposition": "retired",
+      "evidence_paths": [],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "optimization_viewmode_capture_set",
+      "backend": "legacy_http",
+      "canonical_capability": "optimization.optimization_viewmode_capture_set",
+      "final_state": "retired",
+      "disposition": "retired",
+      "evidence_paths": [],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "optimization_visual_logger_ingest",
+      "backend": "legacy_http",
+      "canonical_capability": "optimization.optimization_visual_logger_ingest",
+      "final_state": "retired",
+      "disposition": "retired",
+      "evidence_paths": [],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "optimization_vr_audit",
+      "backend": "legacy_http",
+      "canonical_capability": "optimization.optimization_vr_audit",
+      "final_state": "retired",
+      "disposition": "retired",
+      "evidence_paths": [],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "pie_agent_expect",
+      "backend": "native_pipe_alias",
+      "canonical_capability": "pie.agent_query",
+      "final_state": "compat_verified",
+      "disposition": "compat_verified",
+      "evidence_paths": [
+        "mcp-server/tests/compat-tools.test.ts",
+        "Scripts/puerts-live-smoke.mjs",
+        "docs/evidence/mock-promotion/2026-08-04/summary.json"
+      ],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "pie_agent_expect",
+      "backend": "legacy_http",
+      "canonical_capability": "pie.pie_agent_expect",
+      "final_state": "replaced",
+      "disposition": "replaced",
+      "evidence_paths": [
+        "mcp-server/tests/compat-tools.test.ts",
+        "Scripts/puerts-live-smoke.mjs",
+        "docs/evidence/mock-promotion/2026-08-04/summary.json"
+      ],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "pie_agent_look_at",
+      "backend": "native_pipe_alias",
+      "canonical_capability": "pie.agent_control",
+      "final_state": "compat_verified",
+      "disposition": "compat_verified",
+      "evidence_paths": [
+        "mcp-server/tests/compat-tools.test.ts",
+        "Scripts/puerts-live-smoke.mjs",
+        "docs/evidence/mock-promotion/2026-08-04/summary.json"
+      ],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "pie_agent_look_at",
+      "backend": "legacy_http",
+      "canonical_capability": "pie.pie_agent_look_at",
+      "final_state": "replaced",
+      "disposition": "replaced",
+      "evidence_paths": [
+        "mcp-server/tests/compat-tools.test.ts",
+        "Scripts/puerts-live-smoke.mjs",
+        "docs/evidence/mock-promotion/2026-08-04/summary.json"
+      ],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "pie_agent_move_to",
+      "backend": "native_pipe_alias",
+      "canonical_capability": "pie.agent_control",
+      "final_state": "compat_verified",
+      "disposition": "compat_verified",
+      "evidence_paths": [
+        "mcp-server/tests/compat-tools.test.ts",
+        "Scripts/puerts-live-smoke.mjs",
+        "docs/evidence/mock-promotion/2026-08-04/summary.json"
+      ],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "pie_agent_move_to",
+      "backend": "legacy_http",
+      "canonical_capability": "pie.pie_agent_move_to",
+      "final_state": "replaced",
+      "disposition": "replaced",
+      "evidence_paths": [
+        "mcp-server/tests/compat-tools.test.ts",
+        "Scripts/puerts-live-smoke.mjs",
+        "docs/evidence/mock-promotion/2026-08-04/summary.json"
+      ],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "pie_agent_observe",
+      "backend": "native_pipe_alias",
+      "canonical_capability": "pie.agent_query",
+      "final_state": "compat_verified",
+      "disposition": "compat_verified",
+      "evidence_paths": [
+        "mcp-server/tests/compat-tools.test.ts",
+        "Scripts/puerts-live-smoke.mjs",
+        "docs/evidence/mock-promotion/2026-08-04/summary.json"
+      ],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "pie_agent_observe",
+      "backend": "legacy_http",
+      "canonical_capability": "pie.pie_agent_observe",
+      "final_state": "replaced",
+      "disposition": "replaced",
+      "evidence_paths": [
+        "mcp-server/tests/compat-tools.test.ts",
+        "Scripts/puerts-live-smoke.mjs",
+        "docs/evidence/mock-promotion/2026-08-04/summary.json"
+      ],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "pie_agent_press",
+      "backend": "native_pipe_alias",
+      "canonical_capability": "pie.agent_control",
+      "final_state": "compat_verified",
+      "disposition": "compat_verified",
+      "evidence_paths": [
+        "mcp-server/tests/compat-tools.test.ts",
+        "Scripts/puerts-live-smoke.mjs",
+        "docs/evidence/mock-promotion/2026-08-04/summary.json"
+      ],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "pie_agent_press",
+      "backend": "legacy_http",
+      "canonical_capability": "pie.pie_agent_press",
+      "final_state": "replaced",
+      "disposition": "replaced",
+      "evidence_paths": [
+        "mcp-server/tests/compat-tools.test.ts",
+        "Scripts/puerts-live-smoke.mjs",
+        "docs/evidence/mock-promotion/2026-08-04/summary.json"
+      ],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "pie_agent_record_start",
+      "backend": "native_pipe_alias",
+      "canonical_capability": "pie.agent_control",
+      "final_state": "compat_verified",
+      "disposition": "compat_verified",
+      "evidence_paths": [
+        "mcp-server/tests/compat-tools.test.ts",
+        "Scripts/puerts-live-smoke.mjs",
+        "docs/evidence/mock-promotion/2026-08-04/summary.json"
+      ],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "pie_agent_record_start",
+      "backend": "legacy_http",
+      "canonical_capability": "pie.pie_agent_record_start",
+      "final_state": "replaced",
+      "disposition": "replaced",
+      "evidence_paths": [
+        "mcp-server/tests/compat-tools.test.ts",
+        "Scripts/puerts-live-smoke.mjs",
+        "docs/evidence/mock-promotion/2026-08-04/summary.json"
+      ],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "pie_agent_record_stop",
+      "backend": "native_pipe_alias",
+      "canonical_capability": "pie.agent_control",
+      "final_state": "compat_verified",
+      "disposition": "compat_verified",
+      "evidence_paths": [
+        "mcp-server/tests/compat-tools.test.ts",
+        "Scripts/puerts-live-smoke.mjs",
+        "docs/evidence/mock-promotion/2026-08-04/summary.json"
+      ],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "pie_agent_record_stop",
+      "backend": "legacy_http",
+      "canonical_capability": "pie.pie_agent_record_stop",
+      "final_state": "replaced",
+      "disposition": "replaced",
+      "evidence_paths": [
+        "mcp-server/tests/compat-tools.test.ts",
+        "Scripts/puerts-live-smoke.mjs",
+        "docs/evidence/mock-promotion/2026-08-04/summary.json"
+      ],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "pie_agent_replay",
+      "backend": "native_pipe_alias",
+      "canonical_capability": "pie.agent_control",
+      "final_state": "compat_verified",
+      "disposition": "compat_verified",
+      "evidence_paths": [
+        "mcp-server/tests/compat-tools.test.ts",
+        "Scripts/puerts-live-smoke.mjs",
+        "docs/evidence/mock-promotion/2026-08-04/summary.json"
+      ],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "pie_agent_replay",
+      "backend": "legacy_http",
+      "canonical_capability": "pie.pie_agent_replay",
+      "final_state": "replaced",
+      "disposition": "replaced",
+      "evidence_paths": [
+        "mcp-server/tests/compat-tools.test.ts",
+        "Scripts/puerts-live-smoke.mjs",
+        "docs/evidence/mock-promotion/2026-08-04/summary.json"
+      ],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "pie_agent_status",
+      "backend": "native_pipe_alias",
+      "canonical_capability": "pie.agent_query",
+      "final_state": "compat_verified",
+      "disposition": "compat_verified",
+      "evidence_paths": [
+        "mcp-server/tests/compat-tools.test.ts",
+        "Scripts/puerts-live-smoke.mjs",
+        "docs/evidence/mock-promotion/2026-08-04/summary.json"
+      ],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "pie_agent_status",
+      "backend": "legacy_http",
+      "canonical_capability": "pie.pie_agent_status",
+      "final_state": "replaced",
+      "disposition": "replaced",
+      "evidence_paths": [
+        "mcp-server/tests/compat-tools.test.ts",
+        "Scripts/puerts-live-smoke.mjs",
+        "docs/evidence/mock-promotion/2026-08-04/summary.json"
+      ],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "placement_validate",
+      "backend": "legacy_http",
+      "canonical_capability": "actors.placement_validate",
+      "final_state": "replaced",
+      "disposition": "replaced",
+      "evidence_paths": [
+        "mcp-server/tests/compat-tools.test.ts",
+        "Scripts/puerts-live-smoke.mjs",
+        "docs/evidence/mock-promotion/2026-08-04/summary.json"
+      ],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "placement_validate",
+      "backend": "native_pipe_alias",
+      "canonical_capability": "level.scene_inspect",
+      "final_state": "compat_verified",
+      "disposition": "compat_verified",
+      "evidence_paths": [
+        "mcp-server/tests/compat-tools.test.ts",
+        "Scripts/puerts-live-smoke.mjs",
+        "docs/evidence/mock-promotion/2026-08-04/summary.json"
+      ],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "pp_preset",
+      "backend": "legacy_http",
+      "canonical_capability": "effects.pp_preset",
+      "final_state": "retired",
+      "disposition": "retired",
+      "evidence_paths": [],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "pp_volume_modify",
+      "backend": "legacy_http",
+      "canonical_capability": "effects.pp_volume_modify",
+      "final_state": "retired",
+      "disposition": "retired",
+      "evidence_paths": [],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "pp_volume_spawn",
+      "backend": "legacy_http",
+      "canonical_capability": "effects.pp_volume_spawn",
+      "final_state": "retired",
+      "disposition": "retired",
+      "evidence_paths": [],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "project_enable_plugins",
+      "backend": "legacy_http",
+      "canonical_capability": "project.project_enable_plugins",
+      "final_state": "retired",
+      "disposition": "retired",
+      "evidence_paths": [],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "project_index_query",
+      "backend": "legacy_http",
+      "canonical_capability": "project.index_query",
+      "final_state": "retired",
+      "disposition": "retired",
+      "evidence_paths": [
+        "mcp-server/tests/project-index.test.ts"
+      ],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "project_index_rebuild",
+      "backend": "legacy_http",
+      "canonical_capability": "project.index_rebuild",
+      "final_state": "retired",
+      "disposition": "retired",
+      "evidence_paths": [
+        "mcp-server/tests/project-index.test.ts"
+      ],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "project_info",
+      "backend": "legacy_http",
+      "canonical_capability": "project.project_info",
+      "final_state": "retired",
+      "disposition": "retired",
+      "evidence_paths": [],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "project_semantic_diff",
+      "backend": "legacy_http",
+      "canonical_capability": "project.semantic_diff",
+      "final_state": "retired",
+      "disposition": "retired",
+      "evidence_paths": [
+        "mcp-server/tests/project-index.test.ts"
+      ],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "project_settings_maps",
+      "backend": "native_pipe_alias",
+      "canonical_capability": "project.settings_maps",
+      "final_state": "compat_verified",
+      "disposition": "compat_verified",
+      "evidence_paths": [
+        "mcp-server/tests/compat-tools.test.ts",
+        "Scripts/puerts-live-smoke.mjs",
+        "docs/evidence/mock-promotion/2026-08-04/summary.json"
+      ],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "project_settings_maps",
+      "backend": "legacy_http",
+      "canonical_capability": "gameplay-setup.project_settings_maps",
+      "final_state": "replaced",
+      "disposition": "replaced",
+      "evidence_paths": [
+        "mcp-server/tests/compat-tools.test.ts",
+        "Scripts/puerts-live-smoke.mjs",
+        "docs/evidence/mock-promotion/2026-08-04/summary.json"
+      ],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "prompt_generate",
+      "backend": "legacy_http",
+      "canonical_capability": "ui.prompt_generate",
+      "final_state": "retired",
+      "disposition": "retired",
+      "evidence_paths": [],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "prompt_spec_list",
+      "backend": "legacy_http",
+      "canonical_capability": "ui.prompt_spec_list",
+      "final_state": "retired",
+      "disposition": "retired",
+      "evidence_paths": [],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "prompt_status",
+      "backend": "legacy_http",
+      "canonical_capability": "ui.prompt_status",
+      "final_state": "retired",
+      "disposition": "retired",
+      "evidence_paths": [],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "puerts_ai_controller_inspect",
+      "backend": "native_pipe",
+      "canonical_capability": "ai.controller_inspect",
+      "final_state": "live_verified",
+      "disposition": "live_verified",
+      "evidence_paths": [
+        "Scripts/puerts-live-smoke.mjs",
+        "mcp-server/tests/puerts-tools.test.ts",
+        "docs/evidence/mock-promotion/2026-08-04/summary.json"
+      ],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "puerts_ai_perception_build",
+      "backend": "native_pipe",
+      "canonical_capability": "ai.perception_build",
+      "final_state": "live_verified",
+      "disposition": "live_verified",
+      "evidence_paths": [
+        "Scripts/puerts-live-smoke.mjs",
+        "mcp-server/tests/puerts-tools.test.ts",
+        "docs/evidence/mock-promotion/2026-08-04/summary.json"
+      ],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "puerts_anim_blend_space_inspect",
+      "backend": "native_pipe",
+      "canonical_capability": "animation.anim_blend_space_inspect",
+      "final_state": "live_verified",
+      "disposition": "live_verified",
+      "evidence_paths": [
+        "Scripts/puerts-live-smoke.mjs",
+        "mcp-server/tests/puerts-tools.test.ts",
+        "docs/evidence/mock-promotion/2026-08-04/summary.json"
+      ],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "puerts_anim_blueprint_build",
+      "backend": "native_pipe",
+      "canonical_capability": "animation.anim_blueprint_build",
+      "final_state": "live_verified",
+      "disposition": "live_verified",
+      "evidence_paths": [
+        "Scripts/puerts-live-smoke.mjs",
+        "mcp-server/tests/puerts-tools.test.ts",
+        "docs/evidence/mock-promotion/2026-08-04/summary.json"
+      ],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "puerts_anim_blueprint_inspect",
+      "backend": "native_pipe",
+      "canonical_capability": "animation.anim_blueprint_inspect",
+      "final_state": "live_verified",
+      "disposition": "live_verified",
+      "evidence_paths": [
+        "Scripts/puerts-live-smoke.mjs",
+        "mcp-server/tests/puerts-tools.test.ts",
+        "docs/evidence/mock-promotion/2026-08-04/summary.json"
+      ],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "puerts_anim_blueprint_patch",
+      "backend": "native_pipe",
+      "canonical_capability": "animation.anim_blueprint_patch",
+      "final_state": "live_verified",
+      "disposition": "live_verified",
+      "evidence_paths": [
+        "Scripts/puerts-live-smoke.mjs",
+        "mcp-server/tests/puerts-tools.test.ts",
+        "docs/evidence/mock-promotion/2026-08-04/summary.json"
+      ],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "puerts_anim_montage_build",
+      "backend": "native_pipe",
+      "canonical_capability": "animation.anim_montage_build",
+      "final_state": "live_verified",
+      "disposition": "live_verified",
+      "evidence_paths": [
+        "Scripts/puerts-live-smoke.mjs",
+        "mcp-server/tests/puerts-tools.test.ts",
+        "docs/evidence/mock-promotion/2026-08-04/summary.json"
+      ],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "puerts_anim_montage_inspect",
+      "backend": "native_pipe",
+      "canonical_capability": "animation.anim_montage_inspect",
+      "final_state": "live_verified",
+      "disposition": "live_verified",
+      "evidence_paths": [
+        "Scripts/puerts-live-smoke.mjs",
+        "mcp-server/tests/puerts-tools.test.ts",
+        "docs/evidence/mock-promotion/2026-08-04/summary.json"
+      ],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "puerts_audio_build",
+      "backend": "native_pipe",
+      "canonical_capability": "audio.build",
+      "final_state": "live_verified",
+      "disposition": "live_verified",
+      "evidence_paths": [
+        "Scripts/puerts-live-smoke.mjs",
+        "mcp-server/tests/puerts-tools.test.ts",
+        "docs/evidence/mock-promotion/2026-08-04/summary.json"
+      ],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "puerts_audio_inspect",
+      "backend": "native_pipe",
+      "canonical_capability": "audio.inspect",
+      "final_state": "live_verified",
+      "disposition": "live_verified",
+      "evidence_paths": [
+        "Scripts/puerts-live-smoke.mjs",
+        "mcp-server/tests/puerts-tools.test.ts",
+        "docs/evidence/mock-promotion/2026-08-04/summary.json"
+      ],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "puerts_behavior_tree_build",
+      "backend": "native_pipe",
+      "canonical_capability": "ai.behavior_tree_build",
+      "final_state": "live_verified",
+      "disposition": "live_verified",
+      "evidence_paths": [
+        "Scripts/puerts-live-smoke.mjs",
+        "mcp-server/tests/puerts-tools.test.ts",
+        "docs/evidence/mock-promotion/2026-08-04/summary.json"
+      ],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "puerts_behavior_tree_inspect",
+      "backend": "native_pipe",
+      "canonical_capability": "ai.behavior_tree_inspect",
+      "final_state": "live_verified",
+      "disposition": "live_verified",
+      "evidence_paths": [
+        "Scripts/puerts-live-smoke.mjs",
+        "mcp-server/tests/puerts-tools.test.ts",
+        "docs/evidence/mock-promotion/2026-08-04/summary.json"
+      ],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "puerts_blackboard_build",
+      "backend": "native_pipe",
+      "canonical_capability": "ai.blackboard_build",
+      "final_state": "live_verified",
+      "disposition": "live_verified",
+      "evidence_paths": [
+        "Scripts/puerts-live-smoke.mjs",
+        "mcp-server/tests/puerts-tools.test.ts",
+        "docs/evidence/mock-promotion/2026-08-04/summary.json"
+      ],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "puerts_blackboard_inspect",
+      "backend": "native_pipe",
+      "canonical_capability": "ai.blackboard_inspect",
+      "final_state": "live_verified",
+      "disposition": "live_verified",
+      "evidence_paths": [
+        "Scripts/puerts-live-smoke.mjs",
+        "mcp-server/tests/puerts-tools.test.ts",
+        "docs/evidence/mock-promotion/2026-08-04/summary.json"
+      ],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "puerts_blueprint_build",
+      "backend": "native_pipe",
+      "canonical_capability": "blueprints.build",
+      "final_state": "live_verified",
+      "disposition": "live_verified",
+      "evidence_paths": [
+        "Scripts/puerts-live-smoke.mjs",
+        "mcp-server/tests/puerts-tools.test.ts",
+        "docs/evidence/mock-promotion/2026-08-04/summary.json"
+      ],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "puerts_blueprint_graph_patch",
+      "backend": "native_pipe",
+      "canonical_capability": "blueprints.graph_patch",
+      "final_state": "live_verified",
+      "disposition": "live_verified",
+      "evidence_paths": [
+        "Scripts/puerts-live-smoke.mjs",
+        "mcp-server/tests/puerts-tools.test.ts",
+        "docs/evidence/mock-promotion/2026-08-04/summary.json"
+      ],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "puerts_blueprint_member_patch",
+      "backend": "native_pipe",
+      "canonical_capability": "blueprints.member_patch",
+      "final_state": "live_verified",
+      "disposition": "live_verified",
+      "evidence_paths": [
+        "Scripts/puerts-live-smoke.mjs",
+        "mcp-server/tests/puerts-tools.test.ts",
+        "docs/evidence/mock-promotion/2026-08-04/summary.json"
+      ],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "puerts_call_function",
+      "backend": "native_pipe",
+      "canonical_capability": "reflection.call_function",
+      "final_state": "live_verified",
+      "disposition": "live_verified",
+      "evidence_paths": [
+        "Scripts/puerts-live-smoke.mjs",
+        "mcp-server/tests/puerts-tools.test.ts",
+        "docs/evidence/mock-promotion/2026-08-04/summary.json"
+      ],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "puerts_camera_shake",
+      "backend": "native_pipe",
+      "canonical_capability": "pie.camera_shake",
+      "final_state": "live_verified",
+      "disposition": "live_verified",
+      "evidence_paths": [
+        "Scripts/puerts-live-smoke.mjs",
+        "mcp-server/tests/puerts-tools.test.ts",
+        "docs/evidence/mock-promotion/2026-08-04/summary.json"
+      ],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "puerts_class_defaults_patch",
+      "backend": "native_pipe",
+      "canonical_capability": "blueprints.class_defaults_patch",
+      "final_state": "live_verified",
+      "disposition": "live_verified",
+      "evidence_paths": [
+        "Scripts/puerts-live-smoke.mjs",
+        "mcp-server/tests/puerts-tools.test.ts",
+        "docs/evidence/mock-promotion/2026-08-04/summary.json"
+      ],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "puerts_cloth_inspect",
+      "backend": "native_pipe",
+      "canonical_capability": "cloth.inspect",
+      "final_state": "live_verified",
+      "disposition": "live_verified",
+      "evidence_paths": [
+        "Scripts/puerts-live-smoke.mjs",
+        "mcp-server/tests/puerts-tools.test.ts",
+        "docs/evidence/mock-promotion/2026-08-04/summary.json"
+      ],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "puerts_data_table_build",
+      "backend": "native_pipe",
+      "canonical_capability": "content.data_table_build",
+      "final_state": "live_verified",
+      "disposition": "live_verified",
+      "evidence_paths": [
+        "Scripts/puerts-live-smoke.mjs",
+        "mcp-server/tests/puerts-tools.test.ts",
+        "docs/evidence/mock-promotion/2026-08-04/summary.json"
+      ],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "puerts_delete_actor",
+      "backend": "native_pipe",
+      "canonical_capability": "actors.delete",
+      "final_state": "live_verified",
+      "disposition": "live_verified",
+      "evidence_paths": [
+        "Scripts/puerts-live-smoke.mjs",
+        "mcp-server/tests/puerts-tools.test.ts",
+        "docs/evidence/mock-promotion/2026-08-04/summary.json"
+      ],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "puerts_delete_asset",
+      "backend": "native_pipe",
+      "canonical_capability": "assets.delete",
+      "final_state": "live_verified",
+      "disposition": "live_verified",
+      "evidence_paths": [
+        "Scripts/puerts-live-smoke.mjs",
+        "mcp-server/tests/puerts-tools.test.ts",
+        "docs/evidence/mock-promotion/2026-08-04/summary.json"
+      ],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "puerts_diagnostic",
+      "backend": "native_pipe",
+      "canonical_capability": "bridge.diagnostic",
+      "final_state": "live_verified",
+      "disposition": "live_verified",
+      "evidence_paths": [
+        "Scripts/puerts-live-smoke.mjs",
+        "mcp-server/tests/puerts-tools.test.ts",
+        "docs/evidence/mock-promotion/2026-08-04/summary.json"
+      ],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "puerts_eqs_inspect",
+      "backend": "native_pipe",
+      "canonical_capability": "ai.eqs_inspect",
+      "final_state": "live_verified",
+      "disposition": "live_verified",
+      "evidence_paths": [
+        "Scripts/puerts-live-smoke.mjs",
+        "mcp-server/tests/puerts-tools.test.ts",
+        "docs/evidence/mock-promotion/2026-08-04/summary.json"
+      ],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "puerts_find_actors",
+      "backend": "native_pipe",
+      "canonical_capability": "actors.find",
+      "final_state": "live_verified",
+      "disposition": "live_verified",
+      "evidence_paths": [
+        "Scripts/puerts-live-smoke.mjs",
+        "mcp-server/tests/puerts-tools.test.ts",
+        "docs/evidence/mock-promotion/2026-08-04/summary.json"
+      ],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "puerts_find_assets",
+      "backend": "native_pipe",
+      "canonical_capability": "assets.find",
+      "final_state": "live_verified",
+      "disposition": "live_verified",
+      "evidence_paths": [
+        "Scripts/puerts-live-smoke.mjs",
+        "mcp-server/tests/puerts-tools.test.ts",
+        "docs/evidence/mock-promotion/2026-08-04/summary.json"
+      ],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "puerts_folder_visibility",
+      "backend": "native_pipe",
+      "canonical_capability": "assets.folder_visibility",
+      "final_state": "live_verified",
+      "disposition": "live_verified",
+      "evidence_paths": [
+        "Scripts/puerts-live-smoke.mjs",
+        "mcp-server/tests/puerts-tools.test.ts",
+        "docs/evidence/mock-promotion/2026-08-04/summary.json"
+      ],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "puerts_get_logs",
+      "backend": "native_pipe",
+      "canonical_capability": "editor.logs",
+      "final_state": "live_verified",
+      "disposition": "live_verified",
+      "evidence_paths": [
+        "Scripts/puerts-live-smoke.mjs",
+        "mcp-server/tests/puerts-tools.test.ts",
+        "docs/evidence/mock-promotion/2026-08-04/summary.json"
+      ],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "puerts_graph_inspect",
+      "backend": "native_pipe",
+      "canonical_capability": "blueprints.inspect",
+      "final_state": "live_verified",
+      "disposition": "live_verified",
+      "evidence_paths": [
+        "Scripts/puerts-live-smoke.mjs",
+        "mcp-server/tests/puerts-tools.test.ts",
+        "docs/evidence/mock-promotion/2026-08-04/summary.json"
+      ],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "puerts_input_mapping_info",
+      "backend": "native_pipe",
+      "canonical_capability": "input.mapping_info",
+      "final_state": "live_verified",
+      "disposition": "live_verified",
+      "evidence_paths": [
+        "Scripts/puerts-live-smoke.mjs",
+        "mcp-server/tests/puerts-tools.test.ts",
+        "docs/evidence/mock-promotion/2026-08-04/summary.json"
+      ],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "puerts_input_mapping_patch",
+      "backend": "native_pipe",
+      "canonical_capability": "input.mapping_patch",
+      "final_state": "live_verified",
+      "disposition": "live_verified",
+      "evidence_paths": [
+        "Scripts/puerts-live-smoke.mjs",
+        "mcp-server/tests/puerts-tools.test.ts",
+        "docs/evidence/mock-promotion/2026-08-04/summary.json"
+      ],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "puerts_job_cancel",
+      "backend": "native_pipe",
+      "canonical_capability": "jobs.cancel",
+      "final_state": "live_verified",
+      "disposition": "live_verified",
+      "evidence_paths": [
+        "Scripts/puerts-live-smoke.mjs",
+        "mcp-server/tests/puerts-tools.test.ts",
+        "docs/evidence/mock-promotion/2026-08-04/summary.json"
+      ],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "puerts_job_result",
+      "backend": "native_pipe",
+      "canonical_capability": "jobs.result",
+      "final_state": "live_verified",
+      "disposition": "live_verified",
+      "evidence_paths": [
+        "Scripts/puerts-live-smoke.mjs",
+        "mcp-server/tests/puerts-tools.test.ts",
+        "docs/evidence/mock-promotion/2026-08-04/summary.json"
+      ],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "puerts_job_status",
+      "backend": "native_pipe",
+      "canonical_capability": "jobs.status",
+      "final_state": "live_verified",
+      "disposition": "live_verified",
+      "evidence_paths": [
+        "Scripts/puerts-live-smoke.mjs",
+        "mcp-server/tests/puerts-tools.test.ts",
+        "docs/evidence/mock-promotion/2026-08-04/summary.json"
+      ],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "puerts_level_create",
+      "backend": "native_pipe",
+      "canonical_capability": "level.create",
+      "final_state": "live_verified",
+      "disposition": "live_verified",
+      "evidence_paths": [
+        "Scripts/puerts-live-smoke.mjs",
+        "mcp-server/tests/puerts-tools.test.ts",
+        "docs/evidence/mock-promotion/2026-08-04/summary.json"
+      ],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "puerts_level_load",
+      "backend": "native_pipe",
+      "canonical_capability": "level.load",
+      "final_state": "live_verified",
+      "disposition": "live_verified",
+      "evidence_paths": [
+        "Scripts/puerts-live-smoke.mjs",
+        "mcp-server/tests/puerts-tools.test.ts",
+        "docs/evidence/mock-promotion/2026-08-04/summary.json"
+      ],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "puerts_level_save",
+      "backend": "native_pipe",
+      "canonical_capability": "level.save",
+      "final_state": "live_verified",
+      "disposition": "live_verified",
+      "evidence_paths": [
+        "Scripts/puerts-live-smoke.mjs",
+        "mcp-server/tests/puerts-tools.test.ts",
+        "docs/evidence/mock-promotion/2026-08-04/summary.json"
+      ],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "puerts_lighting_build",
+      "backend": "native_pipe",
+      "canonical_capability": "level.lighting_build",
+      "final_state": "live_verified",
+      "disposition": "live_verified",
+      "evidence_paths": [
+        "Scripts/puerts-live-smoke.mjs",
+        "mcp-server/tests/puerts-tools.test.ts",
+        "docs/evidence/mock-promotion/2026-08-04/summary.json"
+      ],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "puerts_material_build",
+      "backend": "native_pipe",
+      "canonical_capability": "materials.graph_build",
+      "final_state": "live_verified",
+      "disposition": "live_verified",
+      "evidence_paths": [
+        "Scripts/puerts-live-smoke.mjs",
+        "mcp-server/tests/puerts-tools.test.ts",
+        "docs/evidence/mock-promotion/2026-08-04/summary.json"
+      ],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "puerts_material_inspect",
+      "backend": "native_pipe",
+      "canonical_capability": "materials.inspect",
+      "final_state": "live_verified",
+      "disposition": "live_verified",
+      "evidence_paths": [
+        "Scripts/puerts-live-smoke.mjs",
+        "mcp-server/tests/puerts-tools.test.ts",
+        "docs/evidence/mock-promotion/2026-08-04/summary.json"
+      ],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "puerts_material_instance_build",
+      "backend": "native_pipe",
+      "canonical_capability": "materials.instance_build",
+      "final_state": "live_verified",
+      "disposition": "live_verified",
+      "evidence_paths": [
+        "Scripts/puerts-live-smoke.mjs",
+        "mcp-server/tests/puerts-tools.test.ts",
+        "docs/evidence/mock-promotion/2026-08-04/summary.json"
+      ],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "puerts_nav_build",
+      "backend": "native_pipe",
+      "canonical_capability": "navigation.build",
+      "final_state": "live_verified",
+      "disposition": "live_verified",
+      "evidence_paths": [
+        "Scripts/puerts-live-smoke.mjs",
+        "mcp-server/tests/puerts-tools.test.ts",
+        "docs/evidence/mock-promotion/2026-08-04/summary.json"
+      ],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "puerts_nav_inspect",
+      "backend": "native_pipe",
+      "canonical_capability": "navigation.inspect",
+      "final_state": "live_verified",
+      "disposition": "live_verified",
+      "evidence_paths": [
+        "Scripts/puerts-live-smoke.mjs",
+        "mcp-server/tests/puerts-tools.test.ts",
+        "docs/evidence/mock-promotion/2026-08-04/summary.json"
+      ],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "puerts_nav_query",
+      "backend": "native_pipe",
+      "canonical_capability": "navigation.query",
+      "final_state": "live_verified",
+      "disposition": "live_verified",
+      "evidence_paths": [
+        "Scripts/puerts-live-smoke.mjs",
+        "mcp-server/tests/puerts-tools.test.ts",
+        "docs/evidence/mock-promotion/2026-08-04/summary.json"
+      ],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "puerts_physics_build",
+      "backend": "native_pipe",
+      "canonical_capability": "physics.scene_build",
+      "final_state": "live_verified",
+      "disposition": "live_verified",
+      "evidence_paths": [
+        "Scripts/puerts-live-smoke.mjs",
+        "mcp-server/tests/puerts-tools.test.ts",
+        "docs/evidence/mock-promotion/2026-08-04/summary.json"
+      ],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "puerts_physics_observe",
+      "backend": "native_pipe",
+      "canonical_capability": "physics.scene_observe",
+      "final_state": "live_verified",
+      "disposition": "live_verified",
+      "evidence_paths": [
+        "Scripts/puerts-live-smoke.mjs",
+        "mcp-server/tests/puerts-tools.test.ts",
+        "docs/evidence/mock-promotion/2026-08-04/summary.json"
+      ],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "puerts_pie_agent_control",
+      "backend": "native_pipe",
+      "canonical_capability": "pie.agent_control",
+      "final_state": "live_verified",
+      "disposition": "live_verified",
+      "evidence_paths": [
+        "Scripts/puerts-live-smoke.mjs",
+        "mcp-server/tests/puerts-tools.test.ts",
+        "docs/evidence/mock-promotion/2026-08-04/summary.json"
+      ],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "puerts_pie_agent_query",
+      "backend": "native_pipe",
+      "canonical_capability": "pie.agent_query",
+      "final_state": "live_verified",
+      "disposition": "live_verified",
+      "evidence_paths": [
+        "Scripts/puerts-live-smoke.mjs",
+        "mcp-server/tests/puerts-tools.test.ts",
+        "docs/evidence/mock-promotion/2026-08-04/summary.json"
+      ],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "puerts_pie_start",
+      "backend": "native_pipe",
+      "canonical_capability": "editor.pie_start",
+      "final_state": "live_verified",
+      "disposition": "live_verified",
+      "evidence_paths": [
+        "Scripts/puerts-live-smoke.mjs",
+        "mcp-server/tests/puerts-tools.test.ts",
+        "docs/evidence/mock-promotion/2026-08-04/summary.json"
+      ],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "puerts_pie_stop",
+      "backend": "native_pipe",
+      "canonical_capability": "editor.pie_stop",
+      "final_state": "live_verified",
+      "disposition": "live_verified",
+      "evidence_paths": [
+        "Scripts/puerts-live-smoke.mjs",
+        "mcp-server/tests/puerts-tools.test.ts",
+        "docs/evidence/mock-promotion/2026-08-04/summary.json"
+      ],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "puerts_project_package_start",
+      "backend": "native_pipe",
+      "canonical_capability": "project.package",
+      "final_state": "live_verified",
+      "disposition": "live_verified",
+      "evidence_paths": [
+        "Scripts/puerts-live-smoke.mjs",
+        "mcp-server/tests/puerts-tools.test.ts",
+        "docs/evidence/mock-promotion/2026-08-04/summary.json"
+      ],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "puerts_project_settings_maps",
+      "backend": "native_pipe",
+      "canonical_capability": "project.settings_maps",
+      "final_state": "live_verified",
+      "disposition": "live_verified",
+      "evidence_paths": [
+        "Scripts/puerts-live-smoke.mjs",
+        "mcp-server/tests/puerts-tools.test.ts",
+        "docs/evidence/mock-promotion/2026-08-04/summary.json"
+      ],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "puerts_read_property",
+      "backend": "native_pipe",
+      "canonical_capability": "properties.get",
+      "final_state": "live_verified",
+      "disposition": "live_verified",
+      "evidence_paths": [
+        "Scripts/puerts-live-smoke.mjs",
+        "mcp-server/tests/puerts-tools.test.ts",
+        "docs/evidence/mock-promotion/2026-08-04/summary.json"
+      ],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "puerts_save",
+      "backend": "native_pipe",
+      "canonical_capability": "assets.save",
+      "final_state": "live_verified",
+      "disposition": "live_verified",
+      "evidence_paths": [
+        "Scripts/puerts-live-smoke.mjs",
+        "mcp-server/tests/puerts-tools.test.ts",
+        "docs/evidence/mock-promotion/2026-08-04/summary.json"
+      ],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "puerts_scene_batch",
+      "backend": "native_pipe",
+      "canonical_capability": "level.scene_batch",
+      "final_state": "live_verified",
+      "disposition": "live_verified",
+      "evidence_paths": [
+        "Scripts/puerts-live-smoke.mjs",
+        "mcp-server/tests/puerts-tools.test.ts",
+        "docs/evidence/mock-promotion/2026-08-04/summary.json"
+      ],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "puerts_scene_inspect",
+      "backend": "native_pipe",
+      "canonical_capability": "level.scene_inspect",
+      "final_state": "live_verified",
+      "disposition": "live_verified",
+      "evidence_paths": [
+        "Scripts/puerts-live-smoke.mjs",
+        "mcp-server/tests/puerts-tools.test.ts",
+        "docs/evidence/mock-promotion/2026-08-04/summary.json"
+      ],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "puerts_sequence_build",
+      "backend": "native_pipe",
+      "canonical_capability": "cinematics.sequence_build",
+      "final_state": "live_verified",
+      "disposition": "live_verified",
+      "evidence_paths": [
+        "Scripts/puerts-live-smoke.mjs",
+        "mcp-server/tests/puerts-tools.test.ts",
+        "docs/evidence/mock-promotion/2026-08-04/summary.json"
+      ],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "puerts_sequence_event_track_build",
+      "backend": "native_pipe",
+      "canonical_capability": "cinematics.sequence_event_track_build",
+      "final_state": "live_verified",
+      "disposition": "live_verified",
+      "evidence_paths": [
+        "Scripts/puerts-live-smoke.mjs",
+        "mcp-server/tests/puerts-tools.test.ts",
+        "docs/evidence/mock-promotion/2026-08-04/summary.json"
+      ],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "puerts_sequence_inspect",
+      "backend": "native_pipe",
+      "canonical_capability": "cinematics.sequence_inspect",
+      "final_state": "live_verified",
+      "disposition": "live_verified",
+      "evidence_paths": [
+        "Scripts/puerts-live-smoke.mjs",
+        "mcp-server/tests/puerts-tools.test.ts",
+        "docs/evidence/mock-promotion/2026-08-04/summary.json"
+      ],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "puerts_sequence_render_start",
+      "backend": "native_pipe",
+      "canonical_capability": "cinematics.sequence_render",
+      "final_state": "live_verified",
+      "disposition": "live_verified",
+      "evidence_paths": [
+        "Scripts/puerts-live-smoke.mjs",
+        "mcp-server/tests/puerts-tools.test.ts",
+        "docs/evidence/mock-promotion/2026-08-04/summary.json"
+      ],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "puerts_set_property",
+      "backend": "native_pipe",
+      "canonical_capability": "properties.set",
+      "final_state": "live_verified",
+      "disposition": "live_verified",
+      "evidence_paths": [
+        "Scripts/puerts-live-smoke.mjs",
+        "mcp-server/tests/puerts-tools.test.ts",
+        "docs/evidence/mock-promotion/2026-08-04/summary.json"
+      ],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "puerts_sky_shader_create",
+      "backend": "native_pipe",
+      "canonical_capability": "materials.sky_demo",
+      "final_state": "live_verified",
+      "disposition": "live_verified",
+      "evidence_paths": [
+        "Scripts/puerts-live-smoke.mjs",
+        "mcp-server/tests/puerts-tools.test.ts",
+        "docs/evidence/mock-promotion/2026-08-04/summary.json"
+      ],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "puerts_spawn_actor",
+      "backend": "native_pipe",
+      "canonical_capability": "actors.spawn",
+      "final_state": "live_verified",
+      "disposition": "live_verified",
+      "evidence_paths": [
+        "Scripts/puerts-live-smoke.mjs",
+        "mcp-server/tests/puerts-tools.test.ts",
+        "docs/evidence/mock-promotion/2026-08-04/summary.json"
+      ],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "puerts_texture_import",
+      "backend": "native_pipe",
+      "canonical_capability": "materials.texture_build",
+      "final_state": "live_verified",
+      "disposition": "live_verified",
+      "evidence_paths": [
+        "Scripts/puerts-live-smoke.mjs",
+        "mcp-server/tests/puerts-tools.test.ts",
+        "docs/evidence/mock-promotion/2026-08-04/summary.json"
+      ],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "puerts_undo",
+      "backend": "native_pipe",
+      "canonical_capability": "editor.undo",
+      "final_state": "live_verified",
+      "disposition": "live_verified",
+      "evidence_paths": [
+        "Scripts/puerts-live-smoke.mjs",
+        "mcp-server/tests/puerts-tools.test.ts",
+        "docs/evidence/mock-promotion/2026-08-04/summary.json"
+      ],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "puerts_viewport_screenshot",
+      "backend": "native_pipe",
+      "canonical_capability": "viewport.screenshot",
+      "final_state": "live_verified",
+      "disposition": "live_verified",
+      "evidence_paths": [
+        "Scripts/puerts-live-smoke.mjs",
+        "mcp-server/tests/puerts-tools.test.ts",
+        "docs/evidence/mock-promotion/2026-08-04/summary.json"
+      ],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "puerts_widget_bind",
+      "backend": "native_pipe",
+      "canonical_capability": "ui.widget_bind",
+      "final_state": "live_verified",
+      "disposition": "live_verified",
+      "evidence_paths": [
+        "Scripts/puerts-live-smoke.mjs",
+        "mcp-server/tests/puerts-tools.test.ts",
+        "docs/evidence/mock-promotion/2026-08-04/summary.json"
+      ],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "puerts_widget_build",
+      "backend": "native_pipe",
+      "canonical_capability": "widgets.build",
+      "final_state": "live_verified",
+      "disposition": "live_verified",
+      "evidence_paths": [
+        "Scripts/puerts-live-smoke.mjs",
+        "mcp-server/tests/puerts-tools.test.ts",
+        "docs/evidence/mock-promotion/2026-08-04/summary.json"
+      ],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "puerts_widget_inspect",
+      "backend": "native_pipe",
+      "canonical_capability": "ui.widget_inspect",
+      "final_state": "live_verified",
+      "disposition": "live_verified",
+      "evidence_paths": [
+        "Scripts/puerts-live-smoke.mjs",
+        "mcp-server/tests/puerts-tools.test.ts",
+        "docs/evidence/mock-promotion/2026-08-04/summary.json"
+      ],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "python_proxy",
+      "backend": "legacy_http",
+      "canonical_capability": "system.listener_admin",
+      "final_state": "replaced",
+      "disposition": "replaced",
+      "evidence_paths": [
+        "docs/UE427_PUERST_MCP_HANDOFF_2026-07-31.md"
+      ],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "redo",
+      "backend": "legacy_http",
+      "canonical_capability": "editor-ops.redo",
+      "final_state": "retired",
+      "disposition": "retired",
+      "evidence_paths": [],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "refresh_tools",
+      "backend": "legacy_http",
+      "canonical_capability": "system.listener_admin",
+      "final_state": "retired",
+      "disposition": "retired",
+      "evidence_paths": [],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "restart_listener",
+      "backend": "legacy_http",
+      "canonical_capability": "system.listener_admin",
+      "final_state": "retired",
+      "disposition": "retired",
+      "evidence_paths": [],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "test_connection",
+      "backend": "legacy_http",
+      "canonical_capability": "system.listener_admin",
+      "final_state": "retired",
+      "disposition": "retired",
+      "evidence_paths": [],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "title_controller_create",
+      "backend": "legacy_http",
+      "canonical_capability": "cinematics.title_controller_create",
+      "final_state": "retired",
+      "disposition": "retired",
+      "evidence_paths": [],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "title_manifest_adjust",
+      "backend": "legacy_http",
+      "canonical_capability": "cinematics.title_manifest_adjust",
+      "final_state": "retired",
+      "disposition": "retired",
+      "evidence_paths": [],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "title_manifest_create",
+      "backend": "legacy_http",
+      "canonical_capability": "cinematics.title_manifest_create",
+      "final_state": "retired",
+      "disposition": "retired",
+      "evidence_paths": [],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "title_manifest_from_reference",
+      "backend": "legacy_http",
+      "canonical_capability": "cinematics.title_manifest_from_reference",
+      "final_state": "retired",
+      "disposition": "retired",
+      "evidence_paths": [],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "title_manifest_validate",
+      "backend": "legacy_http",
+      "canonical_capability": "cinematics.title_manifest_validate",
+      "final_state": "retired",
+      "disposition": "retired",
+      "evidence_paths": [],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "title_render_compare",
+      "backend": "legacy_http",
+      "canonical_capability": "cinematics.title_render_compare",
+      "final_state": "retired",
+      "disposition": "retired",
+      "evidence_paths": [],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "title_sequence_bind",
+      "backend": "legacy_http",
+      "canonical_capability": "cinematics.title_sequence_bind",
+      "final_state": "retired",
+      "disposition": "retired",
+      "evidence_paths": [],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "title_widget_build_from_manifest",
+      "backend": "legacy_http",
+      "canonical_capability": "cinematics.title_widget_build_from_manifest",
+      "final_state": "retired",
+      "disposition": "retired",
+      "evidence_paths": [],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "ue_logs",
+      "backend": "native_pipe_alias",
+      "canonical_capability": "editor.logs",
+      "final_state": "compat_verified",
+      "disposition": "compat_verified",
+      "evidence_paths": [
+        "mcp-server/tests/compat-tools.test.ts",
+        "Scripts/puerts-live-smoke.mjs",
+        "docs/evidence/mock-promotion/2026-08-04/summary.json"
+      ],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "ue_logs",
+      "backend": "legacy_http",
+      "canonical_capability": "editor.logs",
+      "final_state": "replaced",
+      "disposition": "replaced",
+      "evidence_paths": [
+        "mcp-server/tests/compat-tools.test.ts",
+        "Scripts/puerts-live-smoke.mjs",
+        "docs/evidence/mock-promotion/2026-08-04/summary.json"
+      ],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "undo",
+      "backend": "native_pipe_alias",
+      "canonical_capability": "editor.undo",
+      "final_state": "compat_verified",
+      "disposition": "compat_verified",
+      "evidence_paths": [
+        "mcp-server/tests/compat-tools.test.ts",
+        "Scripts/puerts-live-smoke.mjs",
+        "docs/evidence/mock-promotion/2026-08-04/summary.json"
+      ],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "undo",
+      "backend": "legacy_http",
+      "canonical_capability": "editor.undo",
+      "final_state": "replaced",
+      "disposition": "replaced",
+      "evidence_paths": [
+        "mcp-server/tests/compat-tools.test.ts",
+        "Scripts/puerts-live-smoke.mjs",
+        "docs/evidence/mock-promotion/2026-08-04/summary.json"
+      ],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "viewport_bounds",
+      "backend": "legacy_http",
+      "canonical_capability": "viewport.viewport_bounds",
+      "final_state": "retired",
+      "disposition": "retired",
+      "evidence_paths": [],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "viewport_camera",
+      "backend": "legacy_http",
+      "canonical_capability": "viewport.viewport_camera",
+      "final_state": "retired",
+      "disposition": "retired",
+      "evidence_paths": [],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "viewport_fit",
+      "backend": "native_pipe_alias",
+      "canonical_capability": "viewport.screenshot",
+      "final_state": "compat_verified",
+      "disposition": "compat_verified",
+      "evidence_paths": [
+        "mcp-server/tests/compat-tools.test.ts",
+        "Scripts/puerts-live-smoke.mjs",
+        "docs/evidence/mock-promotion/2026-08-04/summary.json"
+      ],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "viewport_fit",
+      "backend": "legacy_http",
+      "canonical_capability": "viewport.screenshot",
+      "final_state": "replaced",
+      "disposition": "replaced",
+      "evidence_paths": [
+        "mcp-server/tests/compat-tools.test.ts",
+        "Scripts/puerts-live-smoke.mjs",
+        "docs/evidence/mock-promotion/2026-08-04/summary.json"
+      ],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "viewport_focus",
+      "backend": "native_pipe_alias",
+      "canonical_capability": "viewport.screenshot",
+      "final_state": "compat_verified",
+      "disposition": "compat_verified",
+      "evidence_paths": [
+        "mcp-server/tests/compat-tools.test.ts",
+        "Scripts/puerts-live-smoke.mjs",
+        "docs/evidence/mock-promotion/2026-08-04/summary.json"
+      ],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "viewport_focus",
+      "backend": "legacy_http",
+      "canonical_capability": "viewport.screenshot",
+      "final_state": "replaced",
+      "disposition": "replaced",
+      "evidence_paths": [
+        "mcp-server/tests/compat-tools.test.ts",
+        "Scripts/puerts-live-smoke.mjs",
+        "docs/evidence/mock-promotion/2026-08-04/summary.json"
+      ],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "viewport_look_at",
+      "backend": "legacy_http",
+      "canonical_capability": "viewport.viewport_look_at",
+      "final_state": "retired",
+      "disposition": "retired",
+      "evidence_paths": [],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "viewport_mode",
+      "backend": "legacy_http",
+      "canonical_capability": "viewport.viewport_mode",
+      "final_state": "retired",
+      "disposition": "retired",
+      "evidence_paths": [],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "viewport_render_mode",
+      "backend": "legacy_http",
+      "canonical_capability": "viewport.viewport_render_mode",
+      "final_state": "retired",
+      "disposition": "retired",
+      "evidence_paths": [],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "viewport_screenshot",
+      "backend": "native_pipe_alias",
+      "canonical_capability": "viewport.screenshot",
+      "final_state": "compat_verified",
+      "disposition": "compat_verified",
+      "evidence_paths": [
+        "mcp-server/tests/compat-tools.test.ts",
+        "Scripts/puerts-live-smoke.mjs",
+        "docs/evidence/mock-promotion/2026-08-04/summary.json"
+      ],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "viewport_screenshot",
+      "backend": "legacy_http",
+      "canonical_capability": "viewport.screenshot",
+      "final_state": "replaced",
+      "disposition": "replaced",
+      "evidence_paths": [
+        "mcp-server/tests/compat-tools.test.ts",
+        "Scripts/puerts-live-smoke.mjs",
+        "docs/evidence/mock-promotion/2026-08-04/summary.json"
+      ],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "widget_build_from_json",
+      "backend": "native_pipe_alias",
+      "canonical_capability": "widgets.build",
+      "final_state": "compat_verified",
+      "disposition": "compat_verified",
+      "evidence_paths": [
+        "mcp-server/tests/compat-tools.test.ts",
+        "Scripts/puerts-live-smoke.mjs",
+        "docs/evidence/mock-promotion/2026-08-04/summary.json"
+      ],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "widget_build_from_json",
+      "backend": "legacy_http",
+      "canonical_capability": "widgets.build",
+      "final_state": "replaced",
+      "disposition": "replaced",
+      "evidence_paths": [
+        "mcp-server/tests/compat-tools.test.ts",
+        "Scripts/puerts-live-smoke.mjs",
+        "docs/evidence/mock-promotion/2026-08-04/summary.json"
+      ],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "widget_lower_third_create",
+      "backend": "legacy_http",
+      "canonical_capability": "ui.widget_lower_third_create",
+      "final_state": "retired",
+      "disposition": "retired",
+      "evidence_paths": [],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "widget_title_card_create",
+      "backend": "legacy_http",
+      "canonical_capability": "ui.widget_title_card_create",
+      "final_state": "retired",
+      "disposition": "retired",
+      "evidence_paths": [],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    },
+    {
+      "name": "widget_title_template",
+      "backend": "legacy_http",
+      "canonical_capability": "ui.widget_title_template",
+      "final_state": "retired",
+      "disposition": "retired",
+      "evidence_paths": [],
+      "audit_result": "PASS",
+      "missing_requirements": []
+    }
+  ]
+}

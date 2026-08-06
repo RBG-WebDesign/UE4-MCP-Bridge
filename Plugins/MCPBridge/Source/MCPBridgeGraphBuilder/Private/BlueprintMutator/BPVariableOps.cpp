@@ -7,6 +7,7 @@
 #include "../BlueprintInspector/BPTypeDescriptor.h"
 #include "Engine/Blueprint.h"
 #include "Kismet2/BlueprintEditorUtils.h"
+#include "Json.h"
 #include "UObject/UnrealType.h"
 #include "UObject/UObjectIterator.h"
 
@@ -249,6 +250,93 @@ bool FBPVariableOps::SetVariableDefault(UBlueprint* Blueprint, const FString& Va
         SyncDefaultValueFromCDO(Blueprint, VarFName);
     }
     return bOk;
+}
+
+bool FBPVariableOps::RenameVariable(UBlueprint* Blueprint, const FString& OldName, const FString& NewName)
+{
+    if (!Blueprint || OldName.IsEmpty() || NewName.IsEmpty()) return false;
+    if (OldName == NewName) return true;
+    const FName Old(*OldName);
+    const FName New(*NewName);
+    if (!Blueprint->NewVariables.ContainsByPredicate(
+            [&](const FBPVariableDescription& V){ return V.VarName == Old; })
+        || Blueprint->NewVariables.ContainsByPredicate(
+            [&](const FBPVariableDescription& V){ return V.VarName == New; }))
+    {
+        return false;
+    }
+    return FBPMutatorHelpers::RunMutation(Blueprint,
+        LOCTEXT("RenameVariable", "MCP Bridge: Rename Variable"), [&]()
+        {
+            FBlueprintEditorUtils::RenameMemberVariable(Blueprint, Old, New);
+            return Blueprint->NewVariables.ContainsByPredicate(
+                [&](const FBPVariableDescription& V){ return V.VarName == New; });
+        });
+}
+
+bool FBPVariableOps::SetVariableMetadata(UBlueprint* Blueprint, const FString& VarName,
+    const FString& MetadataJson, FString& OutError)
+{
+    if (!Blueprint) { OutError = TEXT("Blueprint is null."); return false; }
+    const FName Name(*VarName);
+    const int32 Index = Blueprint->NewVariables.IndexOfByPredicate(
+        [&](const FBPVariableDescription& V){ return V.VarName == Name; });
+    if (Index == INDEX_NONE) { OutError = FString::Printf(TEXT("Variable '%s' not found."), *VarName); return false; }
+    TSharedPtr<FJsonObject> Metadata;
+    const TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(MetadataJson);
+    if (!FJsonSerializer::Deserialize(Reader, Metadata) || !Metadata.IsValid())
+    {
+        OutError = TEXT("Variable metadata must be a JSON object.");
+        return false;
+    }
+    static const TSet<FString> Known = {
+        TEXT("category"), TEXT("tooltip"), TEXT("editable"), TEXT("private"),
+        TEXT("expose_on_spawn"), TEXT("replicated") };
+    for (const TPair<FString, TSharedPtr<FJsonValue>>& Pair : Metadata->Values)
+    {
+        if (!Known.Contains(Pair.Key))
+        {
+            OutError = FString::Printf(TEXT("Unsupported variable metadata key '%s'."), *Pair.Key);
+            return false;
+        }
+    }
+    return FBPMutatorHelpers::RunMutation(Blueprint,
+        LOCTEXT("SetVariableMetadata", "MCP Bridge: Set Variable Metadata"), [&]()
+        {
+            FBPVariableDescription& Variable = Blueprint->NewVariables[Index];
+            FString Text;
+            if (Metadata->TryGetStringField(TEXT("category"), Text))
+            {
+                FBlueprintEditorUtils::SetBlueprintVariableCategory(
+                    Blueprint, Name, nullptr, FText::FromString(Text), /*bDontRecompile=*/true);
+            }
+            if (Metadata->TryGetStringField(TEXT("tooltip"), Text))
+            {
+                FBlueprintEditorUtils::SetBlueprintVariableMetaData(
+                    Blueprint, Name, nullptr, FName(TEXT("tooltip")), Text);
+            }
+            auto SetMetadataBool = [&](const TCHAR* JsonKey, const TCHAR* MetadataKey)
+            {
+                bool bValue = false;
+                if (!Metadata->TryGetBoolField(JsonKey, bValue)) return;
+                const FName Key(MetadataKey);
+                if (bValue) FBlueprintEditorUtils::SetBlueprintVariableMetaData(Blueprint, Name, nullptr, Key, TEXT("true"));
+                else FBlueprintEditorUtils::RemoveBlueprintVariableMetaData(Blueprint, Name, nullptr, Key);
+            };
+            SetMetadataBool(TEXT("private"), TEXT("BlueprintPrivate"));
+            SetMetadataBool(TEXT("expose_on_spawn"), TEXT("ExposeOnSpawn"));
+            bool bFlag = false;
+            if (Metadata->TryGetBoolField(TEXT("editable"), bFlag))
+            {
+                bFlag ? Variable.PropertyFlags |= CPF_Edit : Variable.PropertyFlags &= ~CPF_Edit;
+            }
+            if (Metadata->TryGetBoolField(TEXT("replicated"), bFlag))
+            {
+                bFlag ? Variable.PropertyFlags |= CPF_Net : Variable.PropertyFlags &= ~(CPF_Net | CPF_RepNotify);
+                if (!bFlag) Variable.RepNotifyFunc = NAME_None;
+            }
+            return true;
+        });
 }
 
 #undef LOCTEXT_NAMESPACE

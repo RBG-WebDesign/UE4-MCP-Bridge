@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "fixtures": [
+    { "id": "f1_basic_actor", "assets": ["/Game/MCPGenerated/BPV_F1_BasicActor"] },
+    { "id": "f2_interaction_system", "assets": ["/Game/MCPGenerated/BPV_F2_InteractableActor"] },
+    { "id": "f3_cpp_hybrid_actor", "assets": ["/Game/MCPGenerated/BPV_F3_HybridSwitch"] },
+    { "id": "f4_stateful_door", "assets": ["/Game/MCPGenerated/BPV_F4_StatefulDoor"] },
+    { "id": "f5_inventory_component", "assets": ["/Game/MCPGenerated/BPV_F5_InventoryComponent"] },
+    { "id": "f6_inheritance", "assets": ["/Game/MCPGenerated/BPV_F6_BaseInteractable", "/Game/MCPGenerated/BPV_F6_ChildInteractable"] },
+    { "id": "f7_graph_cleanup", "assets": ["/Game/MCPGenerated/BPV_F7_GraphCleanup"] },
+    { "id": "f8_failure_rollback", "assets": ["/Game/MCPGenerated/BPV_F8_Rollback"] },
+    { "id": "capstone_physics_pickup_throw", "assets": ["/Game/MCPGenerated/BPV_Capstone_PhysicsObject", "/Game/MCPGenerated/BPV_Capstone_Character"] },
+    { "id": "telekinetic_component_handoff", "assets": ["/Game/MCPGenerated/BP_TelekineticCharacter"] }
+  ]
+}

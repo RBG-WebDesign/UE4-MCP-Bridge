@@ -10,6 +10,11 @@
 #include "K2Node_Variable.h"
 #include "K2Node_CustomEvent.h"
 #include "K2Node_Event.h"
+#include "K2Node_InputAction.h"
+#include "K2Node_InputAxisEvent.h"
+#include "K2Node_MacroInstance.h"
+#include "K2Node_BaseMCDelegate.h"
+#include "K2Node_CreateDelegate.h"
 
 namespace
 {
@@ -56,6 +61,35 @@ TSharedPtr<FJsonObject> FBPNodeSerializer::Serialize(UEdGraphNode* Node)
         {
             Meta->SetStringField(TEXT("target_class"), FString());
         }
+    }
+    else if (UK2Node_InputAction* InputAction = Cast<UK2Node_InputAction>(Node))
+    {
+        Meta->SetStringField(TEXT("action_name"), InputAction->InputActionName.ToString());
+        Meta->SetBoolField(TEXT("consume_input"), InputAction->bConsumeInput);
+        Meta->SetBoolField(TEXT("execute_when_paused"), InputAction->bExecuteWhenPaused);
+        Meta->SetBoolField(TEXT("override_parent"), InputAction->bOverrideParentBinding);
+    }
+    else if (UK2Node_InputAxisEvent* InputAxis = Cast<UK2Node_InputAxisEvent>(Node))
+    {
+        Meta->SetStringField(TEXT("axis_name"), InputAxis->InputAxisName.ToString());
+        Meta->SetBoolField(TEXT("consume_input"), InputAxis->bConsumeInput);
+        Meta->SetBoolField(TEXT("execute_when_paused"), InputAxis->bExecuteWhenPaused);
+        Meta->SetBoolField(TEXT("override_parent"), InputAxis->bOverrideParentBinding);
+    }
+    else if (UK2Node_MacroInstance* Macro = Cast<UK2Node_MacroInstance>(Node))
+    {
+        UEdGraph* MacroGraph = Macro->GetMacroGraph();
+        Meta->SetStringField(TEXT("macro_name"), MacroGraph ? MacroGraph->GetName() : FString());
+        Meta->SetStringField(TEXT("macro_blueprint"), MacroGraph && MacroGraph->GetOuter() ? MacroGraph->GetOuter()->GetPathName() : FString());
+    }
+    else if (UK2Node_BaseMCDelegate* Delegate = Cast<UK2Node_BaseMCDelegate>(Node))
+    {
+        Meta->SetStringField(TEXT("delegate_name"), Delegate->GetPropertyName().ToString());
+
+    }
+    else if (UK2Node_CreateDelegate* Create = Cast<UK2Node_CreateDelegate>(Node))
+    {
+        Meta->SetStringField(TEXT("selected_function_name"), Create->GetFunctionName().ToString());
     }
     else if (UK2Node_CustomEvent* CE = Cast<UK2Node_CustomEvent>(Node))
     {

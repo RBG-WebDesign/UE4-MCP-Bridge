@@ -1,0 +1,66 @@
+{
+  "name": "release-demo",
+  "blueprint": {
+    "asset_path": "/Game/MCPGenerated/ReleaseDemo/BP_BridgeBeacon",
+    "parent_class": "Actor",
+    "components": [{ "class": "StaticMeshComponent", "name": "BeaconMesh", "properties": { "StaticMesh": "/Engine/BasicShapes/Cube.Cube" } }],
+    "variables": [{ "name": "PulseCount", "type": "int", "default": 0, "category": "Demo" }],
+    "graph": {
+      "nodes": [
+        { "id": "begin", "type": "BeginPlay", "x": 0, "y": 0 },
+        { "id": "count", "type": "VariableGet", "x": 0, "y": 250, "params": { "var_name": "PulseCount" } },
+        { "id": "increment", "type": "Operator", "x": 280, "y": 250, "params": { "op": "add_int", "B": 1 } },
+        { "id": "set", "type": "VariableSet", "x": 520, "y": 0, "params": { "var_name": "PulseCount" } },
+        { "id": "marker", "type": "PrintString", "x": 800, "y": 0, "params": { "InString": "MCP_RELEASE_DEMO_PULSE" } }
+      ],
+      "connections": [
+        { "from": "begin.then", "to": "set.exec" },
+        { "from": "count.PulseCount", "to": "increment.A" },
+        { "from": "increment.ReturnValue", "to": "set.PulseCount" },
+        { "from": "set.then", "to": "marker.exec" }
+      ]
+    }
+  },
+  "member_patch": {
+    "asset_path": "/Game/MCPGenerated/ReleaseDemo/BP_BridgeBeacon",
+    "operations": [{ "op": "add_variable", "name": "DemoLabel", "type": { "category": "string" }, "default": "Bridge Beacon", "category": "Demo" }]
+  },
+  "expect": {
+    "graph": "EventGraph",
+    "components": ["BeaconMesh"],
+    "variables": ["PulseCount", "DemoLabel"],
+    "min_nodes": 5,
+    "no_unmapped_nodes": true
+  },
+  "scene_batch": {
+    "operations": [{
+      "op": "upsert_actor", "label": "BridgeReleaseDemo",
+      "class": "/Game/MCPGenerated/ReleaseDemo/BP_BridgeBeacon.BP_BridgeBeacon_C",
+      "location": { "x": 0, "y": 0, "z": 100 }
+    }]
+  },
+  "material": {
+    "tool": "puerts_material_build",
+    "args": {
+      "asset_path": "/Game/MCPGenerated/ReleaseDemo/M_BridgeBeacon",
+      "domain": "Surface", "blend_mode": "Opaque", "shading_model": "DefaultLit",
+      "parameters": [
+        { "kind": "vector", "name": "BeaconColor", "default": { "r": 0.05, "g": 0.45, "b": 1.0, "a": 1.0 } },
+        { "kind": "scalar", "name": "GlowStrength", "default": 5.0 }
+      ],
+      "expressions": [{ "id": "Glow", "type": "Multiply", "x": -300, "y": 0 }],
+      "connections": [
+        { "from": "BeaconColor", "to": "Glow.A" },
+        { "from": "GlowStrength", "to": "Glow.B" }
+      ],
+      "outputs": { "BaseColor": "BeaconColor", "EmissiveColor": "Glow" },
+      "save": true
+    }
+  },
+  "runtime_verify": { "actor": "BridgeReleaseDemo", "property": "PulseCount", "equals": 1 },
+  "repair_operations": [{
+    "op": "connect_pins",
+    "from": { "target": { "type": "VariableSet", "x": 520, "y": 0 }, "pin": "then" },
+    "to": { "target": { "type": "PrintString", "x": 800, "y": 0 }, "pin": "exec" }
+  }]
+}

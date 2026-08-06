@@ -15,6 +15,7 @@
 
 import { runSlice } from "./slice-harness.mjs";
 
+const includePie = process.argv.includes("--include-pie");
 const BP = "/Game/MCPGenerated/BP_SliceBeacon";
 
 const SPEC = {
@@ -185,14 +186,41 @@ await runSlice({
     label: "5. capture the viewport as the visual half of the feedback loop",
   });
 
-  // The event graph does something observable only while the game runs, and
-  // AGENTS.md reserves PIE for the user to ask for. Nothing in the catalog can
-  // observe a Blueprint executing without entering play.
-  h.policy("6. observe the graph actually running",
-    "PIE is reserved for the user to request (AGENTS.md testing etiquette). puerts_pie_start exists but is live_partial, "
-    + "and there is no primitive that reads a variable off a running actor: puerts_read_property addresses editor objects. "
-    + "A gameplay slice therefore proves authoring, not behavior.");
-
+  // Runtime proof remains opt-in. --include-pie is the caller's explicit
+  // authorization to start and stop PIE for this slice.
+  if (!includePie) {
+    h.policy("6. observe the graph actually running",
+      "PIE is reserved for the user to request. Re-run with --include-pie to start PIE, read "
+      + "SliceBeacon.IsLit through puerts_pie_agent_query, then stop PIE.");
+  } else if (!canScene || !cls) {
+    h.policy("6. observe the graph actually running",
+      "PIE was requested, but scene_batch did not provide the stable SliceBeacon label the runtime read requires.");
+  } else {
+    let pieStarted = false;
+    try {
+      const started = await h.call("puerts_pie_start", {}, {
+        label: "6. start PIE for the explicitly requested runtime proof",
+      });
+      pieStarted = started?.success === true;
+      if (pieStarted) {
+        await new Promise((resolve) => setTimeout(resolve, 4000));
+        const running = await h.call("puerts_pie_agent_query", {
+          op: "read_property", actor: "SliceBeacon", property: "IsLit",
+        }, {
+          label: "6. read the live beacon state from the PIE actor",
+          why: "a runtime read proves BeginPlay and Delay executed, not merely that the graph was authored",
+        });
+        h.check(running?.data?.value === true,
+          "6. the live beacon reached its delayed lit state", String(running?.data?.value));
+      }
+    } finally {
+      if (pieStarted) {
+        await h.call("puerts_pie_stop", {}, {
+          label: "6. stop the explicitly requested PIE session",
+        });
+      }
+    }
+  }
   h.seal({ asset_path: BP, inspect_tool: "puerts_graph_inspect", structure_hash: hash });
   const p4After = h.sourceControl();
   if (p4Before !== null && p4After !== null) {

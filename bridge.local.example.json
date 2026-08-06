@@ -1,0 +1,12 @@
+{
+  "//": "Copy to bridge.local.json (gitignored) or let Scripts/setup-unreal-project.ps1 write it.",
+  "//UE_ENGINE_ROOT": "Engine root: the directory containing Engine/Source.",
+  "UE_ENGINE_ROOT": "D:/UE/UE_4.27",
+
+  "//MCP_UNREAL_PROJECT_ROOT": "The UE project whose running editor the bridge addresses. The directory holding the .uproject, not the .uproject itself.",
+  "MCP_UNREAL_PROJECT_ROOT": "D:/Unreal Projects/MyGame",
+
+  "//MCP_PUERTS_SESSION_ID": "Optional. Pins one exact editor session when several are open.",
+
+  "//UNREAL_API_MCP_EXE": "Optional. Overrides the unreal-api venv location; defaults to .venv-unreal-api in this repository."
+}

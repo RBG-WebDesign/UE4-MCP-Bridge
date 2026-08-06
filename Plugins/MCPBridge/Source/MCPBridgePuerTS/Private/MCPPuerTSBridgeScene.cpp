@@ -4,6 +4,7 @@
 
 #include "MCPBridgeAssetRollback.h"
 #include "MCPBridgeSceneSnapshot.h"
+#include "MCPBridgeVolumeBrush.h"
 
 #include "BSPOps.h"
 #include "Builders/CubeBuilder.h"
@@ -182,6 +183,33 @@ namespace
         const FString& PropertyName,
         const TSharedPtr<FJsonValue>& Desired)
     {
+        FProperty* Property = FindFProperty<FProperty>(Object->GetClass(), *PropertyName);
+        if (const FObjectPropertyBase* ObjectProperty = CastField<FObjectPropertyBase>(Property))
+        {
+            UObject* Actual = ObjectProperty->GetObjectPropertyValue(
+                Property->ContainerPtrToValuePtr<void>(Object));
+            if (Desired->Type == EJson::Null) { return Actual == nullptr; }
+            if (Desired->Type == EJson::String)
+            {
+                // ExportTextPathToObjectPath only strips a "ClassName'...'"
+                // wrapper; a bare package path with no such wrapper comes back
+                // unchanged, with no ".AssetName" suffix. GetPathName() always
+                // has that suffix for a top-level asset, so "/Game/Foo/Bar"
+                // (exactly what puerts_set_property and every builder in this
+                // codebase accept and correctly resolve) could never equal
+                // "/Game/Foo/Bar.Bar" here - every object-reference property
+                // request in short form was permanently unsatisfiable. Same
+                // normalization LoadBuildPath-style helpers already use
+                // elsewhere: a result with no '.' gets its leaf name appended.
+                FString DesiredObjectPath = FPackageName::ExportTextPathToObjectPath(Desired->AsString());
+                if (!DesiredObjectPath.IsEmpty() && !DesiredObjectPath.Contains(TEXT(".")))
+                {
+                    DesiredObjectPath += TEXT(".") + FPackageName::GetLongPackageAssetName(DesiredObjectPath);
+                }
+                return Actual != nullptr && Actual->GetPathName() == DesiredObjectPath;
+            }
+        }
+
         FString ValueJson;
         FString ObjectPath;
         FString Error;
@@ -344,57 +372,6 @@ namespace
         return false;
     }
 
-    /**
-     * Give a freshly spawned volume the box brush the editor would have given
-     * it, and answer whether it now has one.
-     *
-     * GEditor->AddActor calls World->SpawnActor directly. That is the whole
-     * placement path for a normal actor, but it is only half of one for an
-     * AVolume: the Place Actors panel reaches a volume through
-     * UActorFactoryBoxVolume, whose PostSpawnActor is what builds the cube.
-     * Spawned without it, a TriggerVolume, BlockingVolume, PostProcessVolume or
-     * NavMeshBoundsVolume has a null Brush, zero bounds and no collision. That
-     * is not a cosmetic gap: an empty volume triggers nothing, blocks nothing
-     * and bounds no navmesh, and its zero extent would walk straight through
-     * the PlayerStart clearance check below and report a pass that measured
-     * nothing.
-     *
-     * The engine's own helper for this, CreateBrushForVolumeActor, is a free
-     * function in UnrealEd's ActorFactory.cpp with no declaration in any
-     * header, so it cannot be called from here. This is that function, less the
-     * builder choice: a 200-unit cube, the same one the editor places, sized
-     * from there by the operation's scale.
-     */
-    bool EnsureVolumeBrush(AActor* Actor)
-    {
-        AVolume* Volume = Cast<AVolume>(Actor);
-        if (Volume == nullptr) { return true; }
-        if (Volume->Brush != nullptr) { return true; }
-
-        UCubeBuilder* Builder = NewObject<UCubeBuilder>();
-        Builder->X = 200.0f;
-        Builder->Y = 200.0f;
-        Builder->Z = 200.0f;
-
-        Volume->PreEditChange(nullptr);
-        const EObjectFlags BrushFlags = Volume->GetFlags() & (RF_Transient | RF_Transactional);
-        Volume->PolyFlags = 0;
-        Volume->Brush = NewObject<UModel>(Volume, NAME_None, BrushFlags);
-        Volume->Brush->Initialize(nullptr, true);
-        Volume->Brush->Polys = NewObject<UPolys>(Volume->Brush, NAME_None, BrushFlags);
-        Volume->GetBrushComponent()->Brush = Volume->Brush;
-        Volume->BrushBuilder = DuplicateObject<UBrushBuilder>(Builder, Volume);
-        Builder->Build(Volume->GetWorld(), Volume);
-        FBSPOps::csgPrepMovingBrush(Volume);
-
-        // Untextured, so a volume forms no dependency on a material it never
-        // renders. The engine helper does the same and gives the same reason.
-        for (FPoly& Poly : Volume->Brush->Polys->Element) { Poly.Material = nullptr; }
-        Volume->PostEditChange();
-
-        return Volume->Brush != nullptr && Volume->Brush->Polys->Element.Num() > 0;
-    }
-
     /** Actor classes scene_batch may spawn. The same limit spawn_actor carries,
         plus NavigationSystem, which is where ANavMeshBoundsVolume lives and
         which a level cannot be authored without. */
@@ -403,7 +380,8 @@ namespace
         return ClassPath.StartsWith(TEXT("/Game/"))
             || ClassPath.StartsWith(TEXT("/Script/Engine."))
             || ClassPath.StartsWith(TEXT("/Script/NavigationSystem."))
-            || ClassPath == TEXT("/Script/CinematicCamera.CineCameraActor");
+            || ClassPath == TEXT("/Script/CinematicCamera.CineCameraActor")
+            || ClassPath == TEXT("/Script/LevelSequence.LevelSequenceActor");
     }
 }
 
@@ -532,6 +510,7 @@ bool UMCPPuerTSBridgeService::InspectSceneJson(
     Result->SetArrayField(TEXT("player_starts"), Starts);
     Result->SetStringField(TEXT("structure_hash_sha1"), MCPBridgeScene::StructureHash(World));
     Result->SetStringField(TEXT("structure_hash_basis"), MCPBridgeScene::StructureHashBasis());
+    Result->SetObjectField(TEXT("world_diagnostics"), MCPBridgeScene::WorldDiagnosticsJson(World));
     Result->SetBoolField(TEXT("package_dirty_before"), bDirtyBefore);
     Result->SetBoolField(TEXT("package_dirty_after"), Package != nullptr && Package->IsDirty());
     Result->SetNumberField(TEXT("elapsed_ms"), (FPlatformTime::Seconds() - StartSeconds) * 1000.0);
@@ -712,7 +691,8 @@ bool UMCPPuerTSBridgeService::ApplySceneBatchJson(
                     Refusals.Add(FString::Printf(
                         TEXT("operation %d (%s): actor classes are limited to /Game/, "
                              "/Script/Engine., /Script/NavigationSystem. and "
-                             "/Script/CinematicCamera.CineCameraActor; '%s' is none of those."),
+                             "/Script/CinematicCamera.CineCameraActor and "
+                             "/Script/LevelSequence.LevelSequenceActor; '%s' is none of those."),
                         Index, *R.Label, *ClassPath));
                     continue;
                 }
@@ -964,6 +944,7 @@ bool UMCPPuerTSBridgeService::ApplySceneBatchJson(
 
     bool bRollbackAttempted = false;
     bool bRollbackSucceeded = false;
+    bool bMutationStarted = false;
     TArray<TSharedPtr<FJsonValue>> Warnings;
 
     // Declared before the failure path so a refusal partway through the batch
@@ -976,7 +957,24 @@ bool UMCPPuerTSBridgeService::ApplySceneBatchJson(
     auto FailWithRollback = [&](const FString& Error) -> bool
     {
         bRollbackAttempted = true;
-        if (ActiveTransaction != nullptr) { ActiveTransaction->Cancel(); }
+        if (ActiveTransaction != nullptr)
+        {
+            if (bMutationStarted)
+            {
+                // Cancel discards records without restoring objects in UE4.27.
+                // End the transaction and replay it before checking the hash.
+                ActiveTransaction.Reset();
+                if (GEditor == nullptr || !GEditor->UndoTransaction())
+                {
+                    Warnings.Add(MakeShared<FJsonValueString>(
+                        TEXT("Unreal could not replay the failed scene transaction.")));
+                }
+            }
+            else
+            {
+                ActiveTransaction->Cancel();
+            }
+        }
         Rollback.Rollback();
         // Trust the read-back, not the undo. A cancelled transaction looks
         // transactional; the only thing that settles whether the level came back
@@ -1044,7 +1042,7 @@ bool UMCPPuerTSBridgeService::ApplySceneBatchJson(
     };
 
     // --- Apply. ---
-    for (const FResolvedOp& R : Resolved)
+    for (FResolvedOp& R : Resolved)
     {
         // Asked here, not read from the plan. The batch is ordered, so this
         // operation's precondition is whatever the operations before it left.
@@ -1054,6 +1052,7 @@ bool UMCPPuerTSBridgeService::ApplySceneBatchJson(
             continue;
         }
 
+        bMutationStarted = true;
         int32 MatchCount = 0;
         AActor* Actor = ResolveOne(World, R, MatchCount);
         if (MatchCount > 1)
@@ -1168,6 +1167,22 @@ bool UMCPPuerTSBridgeService::ApplySceneBatchJson(
                     TEXT("operation %d (%s): the label was set to '%s' and read back as '%s'. "
                          "Unreal renamed it, so this operation could never converge."),
                     R.Index, *R.Label, *R.DesiredLabel, *Actor->GetActorLabel()));
+            }
+            // AActor::SetActorLabel (ActorEditor.cpp) does not just store the
+            // label: when the object's current name still looks auto-generated,
+            // it also renames the UObject itself to match the new label, so
+            // Actor->GetName() can differ from what it was one line above. A
+            // selector of kind "name" was resolved against the OLD name, and the
+            // final verification pass re-resolves the same selector against
+            // freshly read state (IsOpSatisfied -> ResolveOne), so leaving
+            // R.SelectValue pointing at a name the actor no longer has makes a
+            // successful relabel report as "selector_matches=0" and roll back a
+            // change that actually worked. Track the rename the same way a
+            // caller re-selecting by the actor's current name would.
+            if (R.SelectKind == TEXT("name") && !Actor->GetName().Equals(R.SelectValue, ESearchCase::IgnoreCase))
+            {
+                R.SelectValue = Actor->GetName();
+                R.ActorKey = FString::Printf(TEXT("%s:%s"), *R.SelectKind, *R.SelectValue.ToLower());
             }
         }
 
@@ -1319,9 +1334,18 @@ bool UMCPPuerTSBridgeService::ApplySceneBatchJson(
         {
             if (!IsOpSatisfied(*this, World, R))
             {
+                int32 MatchCount = 0;
+                const AActor* Actual = ResolveOne(World, R, MatchCount);
+                const FString ActualSummary = Actual == nullptr
+                    ? FString::Printf(TEXT("selector_matches=%d"), MatchCount)
+                    : FString::Printf(TEXT("actual={class:%s,label:%s,folder:%s,location:%s,rotation:%s,scale:%s}"),
+                        *Actual->GetClass()->GetPathName(), *Actual->GetActorLabel(),
+                        *Actual->GetFolderPath().ToString(), *Actual->GetActorLocation().ToString(),
+                        *Actual->GetActorRotation().ToString(), *Actual->GetActorScale3D().ToString());
                 VerificationMismatches.Add(MakeShared<FJsonValueString>(FString::Printf(
-                    TEXT("operation %d (%s) is not true of the level after the batch."),
-                    R.Index, *R.Label)));
+                    TEXT("operation %d (%s) is not true after the batch; %s; requested=%s"),
+                    R.Index, *R.Label, *ActualSummary,
+                    *ValueToJsonText(MakeShared<FJsonValueObject>(*R.Spec)))));
             }
         }
         if (Applied.Num() > 0 && PostHash == PreHash)

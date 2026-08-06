@@ -87,7 +87,10 @@ function readEngineAssociation(): string | null {
   }
 }
 
-function resolveEngineRoot(): string {
+/** Exported so setup tooling resolves the engine the same way the tools do.
+    Scripts/resolve-engine-root.mjs is the only other caller; do not add a
+    second implementation of this in PowerShell or Python. */
+export function resolveEngineRoot(): string {
   const envRoot = process.env.UE_ENGINE_ROOT;
   if (envRoot) {
     if (existsSync(join(envRoot, "Engine", "Source"))) return envRoot;

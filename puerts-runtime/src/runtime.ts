@@ -1,25 +1,6 @@
 import * as UE from "ue";
-import { JsonObject, JsonSchema, JsonValue, response, CommandResponse } from "./types";
+import { JsonObject, JsonValue, response, CommandResponse } from "./types";
 
-export const outputSchema: JsonSchema = {
-  type: "object",
-  properties: {
-    success: { type: "boolean" },
-    message: { type: "string" },
-    data: {},
-    changed_assets: { type: "array", items: { type: "string" } },
-    changed_actors: { type: "array", items: { type: "string" } },
-    warnings: { type: "array", items: { type: "string" } },
-    errors: { type: "array", items: { type: "string" } },
-    log_output: { type: "array", items: { type: "string" } },
-    transaction_id: { type: "string" },
-  },
-  required: [
-    "success", "message", "changed_assets", "changed_actors", "warnings",
-    "errors", "log_output", "transaction_id",
-  ],
-  additionalProperties: true,
-};
 
 export function findActor(bridge: UE.MCPPuerTSBridgeService, nameOrPath: string): UE.Actor {
   const actor = bridge.FindLevelActor(nameOrPath);
@@ -119,9 +100,31 @@ export function stringArray(input: JsonObject, key: string): string[] {
     failing command has structure to report as well as a sentence: the same
     envelope, the same message, the same error text, and a body instead of an
     empty object. */
+/**
+ * A refusal with a stable, branchable code.
+ *
+ * The runtime is where most client-visible refusals actually originate, not
+ * C++. The path and confirmation gates are checked here AND in the native
+ * service, and this copy runs first, so a client asking for /Engine sees this
+ * message and never reaches the native one. Coding only the C++ side would
+ * therefore have produced codes almost nobody receives.
+ */
+export class RefusedError extends Error {
+  constructor(readonly code: string, message: string) {
+    super(message);
+    this.name = "RefusedError";
+  }
+}
+
+/** Refuse with a code. Reads at the call site like the `throw new Error` it replaces. */
+export function refuse(code: string, message: string): never {
+  throw new RefusedError(code, message);
+}
+
 export function commandFailure(error: unknown, data: JsonValue = {}): CommandResponse {
   const message = error instanceof Error ? error.message : String(error);
   const result = response(false, "Command failed.", data);
+  if (error instanceof RefusedError) { result.error_code = error.code; }
   result.errors.push(message);
   return result;
 }

@@ -23,6 +23,7 @@ const PILLARS = [
 ];
 const TRIGGER_LOCATION = { x: 1400, y: 0, z: 100 };
 const TRIGGER_EXTENT = { x: 200, y: 200, z: 200 };
+const LEVEL_PATH = "/Game/MCPGenerated/L_SliceCourtyard";
 
 await runSlice({
   id: "level",
@@ -114,12 +115,15 @@ await runSlice({
     h.check((placed.data?.verification_mismatches ?? []).length === 0,
       "2. the batch verified every operation it applied",
       JSON.stringify(placed.data?.verification_mismatches ?? []).slice(0, 300));
-    h.check(placed.data?.applied_operation_count === operations.length,
-      "2. every operation in the batch applied",
-      `${placed.data?.applied_operation_count} of ${operations.length}`);
+    // A converged rerun (nothing left to change) is a correct outcome, not a
+    // failure: scene_batch's own converged field distinguishes "0 applied
+    // because everything was already right" from "0 applied because it broke".
+    h.check(placed.data?.applied_operation_count === operations.length || placed.data?.converged === true,
+      "2. every operation in the batch applied, or the batch converged",
+      `applied ${placed.data?.applied_operation_count} of ${operations.length}, converged=${placed.data?.converged}`);
   }
 
-  const read = await h.call("puerts_scene_inspect", { include_components: true }, {
+  const read = await h.call("puerts_scene_inspect", { include_components: true, include_properties: [] }, {
     label: "3. read the level back with the independent scene inspector",
     why: "puerts_find_actors returns names and classes only. It reports no transform, no folder, no bounds and no "
       + "structure hash, so there is no way to verify a placement without one",
@@ -131,7 +135,7 @@ await runSlice({
     request: {
       tool: "puerts_scene_inspect",
       owner: "lane L (settled, implemented_unverified)",
-      params: { level_path: "optional assertion; refuses if a different level is loaded", actors: "optional selectors", include_components: "boolean", include_properties: "boolean" },
+      params: { level_path: "optional assertion; refuses if a different level is loaded", actors: "optional selectors", include_components: "boolean", include_properties: "string[]" },
       returns: "{ level_path, level_name, actor_count, actors: [{id, path, label, class, folder, tags, transform, bounds, attach_parent, components}], structure_hash_sha1 }",
     },
   });
@@ -198,7 +202,12 @@ await runSlice({
       + "therefore shows preview lighting, and that is the intended state for this slice.");
   }
 
-  await h.call("puerts_save", {}, {
+  // The level starts untitled (no path on disk) every time the editor boots
+  // from its template startup map, and the bridge refuses to save an
+  // untitled level rather than ever opening a Save As dialog. An explicit
+  // level_path is how this slice actually proves persistence works, not a
+  // workaround for a limitation.
+  await h.call("puerts_save", { level_path: LEVEL_PATH }, {
     label: "6. persist the level, which scene_batch deliberately does not do",
   });
 

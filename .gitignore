@@ -44,3 +44,10 @@ _releases/
 # Release artifacts produced by Scripts/package-mcp-bridge.ps1 (over 100 MB:
 # the vendored PuerTS bundle is in there)
 Releases/
+
+# Machine-local bridge paths (engine root, target project). Template:
+# bridge.local.example.json. Written by Scripts/setup-unreal-project.ps1.
+bridge.local.json
+# Dedicated environment for the unreal-api MCP server.
+# Created by Scripts/setup-unreal-api-mcp.ps1.
+.venv-unreal-api/

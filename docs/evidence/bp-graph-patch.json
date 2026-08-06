@@ -3,13 +3,13 @@
   "steps": {
     "fixture": {
       "node_count": 22,
-      "structure_hash": "ca12eaf79ac8545e80160847393779d484bd3d5d",
-      "file_sha256": "20594f259d6d5193c0aa437612f6d3ab0e011e41a2b27a29ef9e74b8fac96ef7"
+      "structure_hash": "c5b1d65937d9763cf2b143e96772886469d8394b",
+      "file_sha256": "a5c223e272285688fa821ee252d0a3569161b6f026bb913c869641f76c4144a4"
     },
     "plan": {
       "graph": "EventGraph",
       "matched_nodes": [
-        "operation 0 (set_pin_default) target -> PrintString [K2Node_CallFunction fn=PrintString] at 600,0 (guid E5C3DA0C40BFF6CC942A8DB5CBDBD6E9, object K2Node_CallFunction_7)"
+        "operation 0 (set_pin_default) target -> PrintString [K2Node_CallFunction fn=PrintString] at 600,0 (guid D3081BFD4C1ED23B68B3F0862DAB04ED, object K2Node_CallFunction_1)"
       ],
       "unmatched_selectors": [],
       "ambiguous_selectors": [],
@@ -17,7 +17,7 @@
       "nodes_to_update": [],
       "nodes_to_remove": [],
       "pin_defaults_to_change": [
-        "PrintString [K2Node_CallFunction fn=PrintString] at 600,0 (guid E5C3DA0C40BFF6CC942A8DB5CBDBD6E9, object K2Node_CallFunction_7).InString: currently 'two'"
+        "PrintString [K2Node_CallFunction fn=PrintString] at 600,0 (guid D3081BFD4C1ED23B68B3F0862DAB04ED, object K2Node_CallFunction_1).InString: currently 'two'"
       ],
       "links_to_add": [],
       "links_to_remove": [],
@@ -27,14 +27,14 @@
       "prediction_unavailable_reason": "the batch changes the graph, and a node's structural key includes pin defaults that Unreal only materialises once the node exists. A predicted hash is offered only for a no-op batch, where it is the current hash by definition.",
       "plan_only": true,
       "ok": true,
-      "pre_structure_hash": "ca12eaf79ac8545e80160847393779d484bd3d5d",
-      "elapsed_ms": 8.282499999040738
+      "pre_structure_hash": "c5b1d65937d9763cf2b143e96772886469d8394b",
+      "elapsed_ms": 10.137399978702888
     },
     "patch": {
-      "elapsed_ms": 94.38799999770708,
+      "elapsed_ms": 90.43090001796372,
       "applied_operation_count": 8,
-      "pre_structure_hash": "ca12eaf79ac8545e80160847393779d484bd3d5d",
-      "post_structure_hash": "64ef958352d0d6c41c67756c4d0fb423efa2b278"
+      "pre_structure_hash": "c5b1d65937d9763cf2b143e96772886469d8394b",
+      "post_structure_hash": "eeb606462faa102ee54a8d68151bf9c31ace989f"
     },
     "untouched_nodes_compared": 19,
     "rerun": {
@@ -44,7 +44,7 @@
     "partial_batch_refused": true,
     "source_control_quiescent": null
   },
-  "post_patch_structure_hash": "64ef958352d0d6c41c67756c4d0fb423efa2b278",
+  "post_patch_structure_hash": "eeb606462faa102ee54a8d68151bf9c31ace989f",
   "post_patch_node_count": 22,
   "mcp_round_trips": 11
 }

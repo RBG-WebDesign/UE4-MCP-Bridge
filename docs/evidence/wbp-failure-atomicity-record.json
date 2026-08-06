@@ -34,7 +34,7 @@
     "good_build": {
       "success": true,
       "compile_status": "UpToDate",
-      "saved": true,
+      "saved": false,
       "widget_count": 3,
       "cleanup": {
         "rollback_attempted": false,
@@ -55,9 +55,9 @@
       }
     },
     "inspection": {
-      "payload_bytes": 7044,
+      "payload_bytes": 7067,
       "structure_hash_sha1": "4C33675FF120DB53FB2E193B4B161AF3A1AD12A2",
-      "canonical_json_sha256": "f234fb122e9656cdb86621a9ee0d92b9bf7ca0aae5e2989c9f090a83dd3114ef",
+      "canonical_json_sha256": "823f07c5b2431d5fcf7f6eac839abe0dca01ff7ec1bc1d3911bc1751b12323c1",
       "widget_count": 3,
       "panel_count": 1,
       "parent_class": "/Script/UMG.UserWidget",

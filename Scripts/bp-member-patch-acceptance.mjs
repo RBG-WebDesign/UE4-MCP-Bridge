@@ -22,12 +22,10 @@
 //   * blueprint_build converges on what the spec NAMES. A stale "Beacon" is
 //     named by nothing, so the rebuild adds "Lamp" back and leaves "Beacon"
 //     standing. The rename under test then collides with its own residue.
-//   * remove_unlisted has a components scope in the schema, and the native
-//     command REJECTS it as unsupported. Only the variables scope is
-//     implemented, so downward convergence on components does not exist.
-//   * There is no delete-asset primitive anywhere in the catalog, and deleting
-//     the .uasset from disk does not reseed a live editor: the package is
-//     already loaded, and the next build finds the in-memory object.
+//   * At the time of the two failed runs, component downward convergence and
+//     asset deletion did not exist. Both now have native primitives, but a
+//     fresh path remains the stronger isolation because it proves the fixture
+//     was unused before the test begins.
 //
 // So the reseed is a fresh asset path per run: BP_MemberProbe_<run id>, where
 // the run id is the record phase's start time in base 36. The asset cannot have

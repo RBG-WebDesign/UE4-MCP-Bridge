@@ -46,42 +46,43 @@ await runSlice({
   }
 
   const [idle, walk, run] = [animations[0], animations[1], animations[2]];
-
-  // Lane J owns these names and confirms both are uncompiled C++ today.
-  const built = await h.call("puerts_anim_blueprint_build", {
+  const animSpec = {
     asset_path: ABP,
     skeleton_path: skeleton ?? "<no Skeleton found by step 1>",
-    variables: [{ name: "Speed", type: "float", default: 0 }],
-    states: [
-      { name: "Idle", animation: idle, loop: true },
-      { name: "Walk", animation: walk, loop: true },
-      { name: "Run", animation: run, loop: true },
+    variables: [
+      { name: "IsMoving", type: "bool", default: "false" },
+      { name: "IsRunning", type: "bool", default: "false" },
     ],
-    transitions: [
-      { from: "Idle", to: "Walk", condition: { variable: "Speed", op: "greater", value: 10 } },
-      { from: "Walk", to: "Run", condition: { variable: "Speed", op: "greater", value: 300 } },
-      { from: "Run", to: "Walk", condition: { variable: "Speed", op: "less_equal", value: 300 } },
-      { from: "Walk", to: "Idle", condition: { variable: "Speed", op: "less_equal", value: 10 } },
-    ],
-    save: true,
-  }, {
-    label: "3. build the state machine from one spec",
-    why: "an Animation Blueprint with states and transitions is the whole animation slice; "
-      + "UAnimBlueprintBuilderLibrary::BuildAnimBlueprintFromJSON exists in C++ and anim_blueprint_build_from_json "
-      + "exists only behind the legacy HTTP opt-in, so there is no registered path to it",
-    legacy: ["anim_blueprint_build_from_json"],
-    request: {
-      tool: "puerts_anim_blueprint_build",
-      owner: "lane J (settled, C++ uncompiled)",
-      params: { asset_path: "string", skeleton_path: "string", variables: "array", anim_graph: "object", states: "array", transitions: "array", save: "boolean" },
-      note: "CREATE ONLY by design: rerunning against an existing asset is a refusal, not a no-op",
+    anim_graph: { pipeline: [{ id: "locomotion", type: "StateMachine", name: "Locomotion" }] },
+    state_machine: {
+      states: [
+        { id: "idle", name: "Idle", animation: idle, looping: true, is_entry: true },
+        { id: "walk", name: "Walk", animation: walk, looping: true },
+        { id: "run", name: "Run", animation: run, looping: true },
+      ],
+      transitions: [
+        { from: "idle", to: "walk", condition: { type: "bool_variable", variable: "IsMoving", value: true } },
+        { from: "walk", to: "idle", condition: { type: "bool_variable", variable: "IsMoving", value: false } },
+        { from: "walk", to: "run", condition: { type: "bool_variable", variable: "IsRunning", value: true } },
+        { from: "run", to: "walk", condition: { type: "bool_variable", variable: "IsRunning", value: false } },
+      ],
     },
+    save: true,
+  };
+
+  const existing = await h.call("puerts_find_assets", {
+    path: "/Game/MCPGenerated", name: "ABP_SliceGuard", limit: 2,
+  }, { label: "3. determine whether the slice asset needs create or patch" });
+  const buildTool = (existing?.data?.assets ?? []).length > 0
+    ? "puerts_anim_blueprint_patch"
+    : "puerts_anim_blueprint_build";
+  const built = await h.call(buildTool, animSpec, {
+    label: `3. ${buildTool.endsWith("patch") ? "patch" : "build"} the state machine from one spec`,
   });
   if (built?.success === true) {
     h.check(built.data?.compile_status === "UpToDate",
       "3. the Animation Blueprint compiled clean", String(built.data?.compile_status));
   }
-
   const read = await h.call("puerts_anim_blueprint_inspect", { asset_path: ABP }, {
     label: "4. read the state machine back with the independent inspector",
     why: "no inspector exists for Animation Blueprints today, which breaks the builder-plus-inspector rule "
@@ -103,26 +104,16 @@ await runSlice({
     h.check(transitions.length >= 4, "4. all four transitions are in the asset", `${transitions.length} found`);
   }
 
-  // Lane J is explicit that there will be no patch primitive, so a second prompt
-  // that adjusts one transition has to delete and rebuild the whole asset. Every
-  // other builder here has an incremental partner; this one will not.
-  h.request("puerts_anim_blueprint_patch",
-    "change one state, transition or variable on an existing Animation Blueprint. "
-    + "puerts_anim_blueprint_build is create-only and refuses an existing asset, and lane J will not ship a patch "
-    + "because the UAnimBlueprintBuilderLibrary rebuild path appends instead of replacing and cannot be made "
-    + "failure-atomic yet. Until it exists, an animation slice is single-shot: the second prompt about the same "
-    + "asset has nowhere to go",
-    {
-      tool: "puerts_anim_blueprint_patch",
-      blocked_by: "UAnimBlueprintBuilderLibrary rebuild appends rather than replaces; needs the same failure-atomic "
-        + "treatment BPMutatorHelpers is getting",
-      params: {
-        asset_path: "string",
-        operations: "[{op:'add_state'|'remove_state'|'set_transition_condition'|'set_state_animation', ...}]",
-        plan_only: "boolean", verify: "boolean", save: "boolean",
-      },
-    });
-
+  const patched = await h.call("puerts_anim_blueprint_patch", animSpec, {
+    label: "5. apply the same desired state through the failure-atomic patch path",
+  });
+  if (patched?.success === true) {
+    h.check(patched.data?.compile_status === "UpToDate",
+      "5. the patched Animation Blueprint compiled clean", String(patched.data?.compile_status));
+    h.check((patched.data?.verification?.actual_states ?? []).length === 3,
+      "5. patching replaced the state machine instead of appending another",
+      JSON.stringify(patched.data?.verification?.actual_states ?? []));
+  }
   // Attaching the AnimBP to a mesh is a component template property, which the
   // Blueprint builder already writes. This step is authorable today and is here
   // to prove the two halves compose once the AnimBP exists.
@@ -136,11 +127,11 @@ await runSlice({
       properties: { AnimClass: animClass },
     }],
   }, {
-    label: "5. attach the Animation Blueprint to a pawn's SkeletalMeshComponent",
+    label: "6. attach the Animation Blueprint to a pawn's SkeletalMeshComponent",
     why: "AnimClass is a component template property, so this is the one step of the slice with a registered path",
   });
 
-  h.policy("6. see the state machine blend",
+  h.policy("7. see the state machine blend",
     "an Animation Blueprint only evaluates in a running game or in the asset editor's preview viewport. "
     + "PIE is user-gated, and puerts_viewport_screenshot captures the level viewport, not an asset editor preview. "
     + "The legacy anim_pose_snapshot / anim_pose_delta pair is the closest thing to a pose read-back and is "

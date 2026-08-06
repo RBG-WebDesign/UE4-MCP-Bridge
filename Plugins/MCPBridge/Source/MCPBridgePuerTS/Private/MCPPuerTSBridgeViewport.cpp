@@ -5,6 +5,7 @@
 #include "HAL/FileManager.h"
 #include "ImageUtils.h"
 #include "Json.h"
+#include "LevelEditorViewport.h"
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
 #include "UnrealClient.h"
@@ -83,12 +84,39 @@ bool UMCPPuerTSBridgeService::CaptureViewportJson(
 
     if (Actors.Num() > 0)
     {
-        GEditor->MoveViewportCamerasToActor(Actors, true);
+        GEditor->SelectNone(false, true);
+        for (AActor* Actor : Actors)
+        {
+            if (Actor != nullptr)
+            {
+                GEditor->SelectActor(Actor, true, true);
+            }
+        }
+        GEditor->MoveViewportCamerasToActor(Actors, false);
     }
     const FString Directory = FPaths::ConvertRelativePathToFull(FPaths::ProjectSavedDir() / TEXT("Screenshots/MCPBridge"));
     IFileManager::Get().MakeDirectory(*Directory, true);
     const FString OutputPath = Directory / Filename;
     FViewport* Viewport = GEditor->GetActiveViewport();
+    if (Viewport == nullptr)
+    {
+        // GetActiveViewport requires a level viewport tab to be in the
+        // foreground (SLevelEditor::GetActiveViewport walks visible viewport
+        // tabs and only returns one that IsInForegroundTab()). A material or
+        // Animation Blueprint editor left open in front of the level viewport
+        // makes this legitimately null even though a perfectly good level
+        // viewport still exists and is still rendering. Fall back to any
+        // registered level viewport client's own Viewport rather than failing
+        // a capture over which editor tab happens to be frontmost.
+        for (FLevelEditorViewportClient* Client : GEditor->GetLevelViewportClients())
+        {
+            if (Client != nullptr && Client->Viewport != nullptr)
+            {
+                Viewport = Client->Viewport;
+                break;
+            }
+        }
+    }
     if (Viewport == nullptr)
     {
         OutError = TEXT("No active editor viewport is available for capture.");

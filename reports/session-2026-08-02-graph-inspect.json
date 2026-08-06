@@ -182,7 +182,7 @@
 
   "not_committed": {
     "reason": "Acceptance driver, not test infrastructure. Converting the stdio-driver pattern into a maintained Scripts/ entry point was explicitly dropped from this chunk.",
-    "path": "C:/Users/austi/AppData/Local/Temp/claude/D--Unreal-Projects-UE4-Bridge/02ab2dfe-190c-4b76-9daa-2f18aa762abe/scratchpad/inspect-drive.mjs",
+    "path": "C:/Users/USER/AppData/Local/Temp/claude/D--Unreal-Projects-UE4-Bridge/02ab2dfe-190c-4b76-9daa-2f18aa762abe/scratchpad/inspect-drive.mjs",
     "what_it_does": "spawns a fresh mcp-server/dist over stdio, calls puerts_graph_inspect twice against one asset, canonicalizes object keys, SHA-256s both payloads and writes them to disk for a byte-level cmp. Read-only; it can make no other call.",
     "note": "Scripts/mcp-smoke.mjs already carries the stdio client pattern this duplicates. If a driver belongs in the tree it is that one grown, not this one moved."
   },

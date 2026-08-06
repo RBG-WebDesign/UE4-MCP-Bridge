@@ -142,6 +142,11 @@ public:
     UFUNCTION(BlueprintCallable, Category="BlueprintMutator")
     static bool RemoveVariable(UBlueprint* Blueprint, const FString& VarName);
 
+    static bool RenameVariable(UBlueprint* Blueprint, const FString& OldName, const FString& NewName);
+
+    static bool SetVariableMetadata(UBlueprint* Blueprint, const FString& VarName,
+        const FString& MetadataJson, FString& OutError);
+
     /** Update a member variable's default value (string form). */
     UFUNCTION(BlueprintCallable, Category="BlueprintMutator")
     static bool SetVariableDefault(UBlueprint* Blueprint, const FString& VarName, const FString& DefaultValueJson);
@@ -161,6 +166,8 @@ public:
     /** Rename an SCS (component) node. */
     UFUNCTION(BlueprintCallable, Category="BlueprintMutator")
     static bool RenameSCSNode(UBlueprint* Blueprint, const FString& OldName, const FString& NewName);
+
+    static bool ReparentSCSNode(UBlueprint* Blueprint, const FString& ComponentName, const FString& ParentName);
 
     // --- Tier 3: node authoring (Phase 3) ---
 
@@ -201,6 +208,35 @@ public:
     UFUNCTION(BlueprintCallable, Category="BlueprintMutator")
     static bool RemoveFunction(UBlueprint* Blueprint, const FString& FunctionName);
 
+    static bool RenameFunction(UBlueprint* Blueprint, const FString& OldName, const FString& NewName, FString& OutError);
+
+    /**
+     * Converge an existing function's declared metadata. MetadataJson understands
+     * category, tooltip, pure, const and access; only the keys present are
+     * written, and an unrecognised key is refused rather than ignored.
+     *
+     * These three Set* entry points are what makes a function incrementally
+     * patchable. AddFunction can only create, and re-creating a function to
+     * change its tooltip would take its graph body and every call site with it.
+     */
+    static bool SetFunctionMetadata(UBlueprint* Blueprint, const FString& FunctionName,
+        const FString& MetadataJson, FString& OutError);
+
+    /**
+     * Converge an existing function's parameters. Elements are
+     * {name, type, default?, rename_from?}; an empty json string leaves that
+     * direction alone and a present array is authoritative. rename_from carries
+     * the caller's intent that a parameter was RENAMED rather than replaced,
+     * which is the only way a call site's connection to it can survive.
+     */
+    static bool SetFunctionParameters(UBlueprint* Blueprint, const FString& FunctionName,
+        const FString& InputsJson, const FString& OutputsJson, FString& OutError);
+
+    /** Converge an existing function's local variables. Elements are
+     *  {name, type, default?}; a present array is authoritative. */
+    static bool SetFunctionLocals(UBlueprint* Blueprint, const FString& FunctionName,
+        const FString& LocalsJson, FString& OutError);
+
     /**
      * Create a new event dispatcher (delegate signature graph). SignatureJson is
      * {parameters: [{name, type: TypeDescriptor}]}. Returns the dispatcher's name on success.
@@ -211,4 +247,10 @@ public:
     /** Remove an event dispatcher by name. Returns true on success. */
     UFUNCTION(BlueprintCallable, Category="BlueprintMutator")
     static bool RemoveEventDispatcher(UBlueprint* Blueprint, const FString& DispatcherName);
+    static FString AddMacro(UBlueprint* Blueprint, const FString& MacroName,
+        const FString& InputsJson, const FString& OutputsJson, FString& OutError);
+    static bool RemoveMacro(UBlueprint* Blueprint, const FString& MacroName, FString& OutError);
+    static bool RenameMacro(UBlueprint* Blueprint, const FString& OldName, const FString& NewName, FString& OutError);
+    static bool SetMacroSignature(UBlueprint* Blueprint, const FString& MacroName,
+        const FString& InputsJson, const FString& OutputsJson, FString& OutError);
 };

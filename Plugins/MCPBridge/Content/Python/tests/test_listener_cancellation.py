@@ -18,6 +18,10 @@ if PYTHON_ROOT not in sys.path:
 from mcp_bridge import listener  # noqa: E402
 
 
+def _route(command: str, params: dict) -> dict:
+    return {"success": True, "data": {"command": command, "params": params}}
+
+
 def _reset_state() -> None:
     while not listener._command_queue.empty():
         listener._command_queue.get_nowait()
@@ -38,7 +42,7 @@ def test_cancelled_command_is_skipped() -> None:
     with listener._cancelled_lock:
         listener._cancelled_requests.add(request_id)
 
-    listener._process_command_queue(0.0)
+    listener._process_command_queue(0.0, _route)
 
     assert request_id not in listener._response_data, (
         "cancelled command produced a response - it was executed"
@@ -59,7 +63,7 @@ def test_live_command_still_executes() -> None:
         "params": {},
     })
 
-    listener._process_command_queue(0.0)
+    listener._process_command_queue(0.0, _route)
 
     assert request_id in listener._response_data, "live command produced no response"
     result = listener._response_data[request_id]
@@ -77,7 +81,7 @@ def test_cancelled_and_live_mixed() -> None:
     with listener._cancelled_lock:
         listener._cancelled_requests.add(cancelled_id)
 
-    listener._process_command_queue(0.0)
+    listener._process_command_queue(0.0, _route)
 
     assert cancelled_id not in listener._response_data, "cancelled command executed"
     assert live_id in listener._response_data, "live command skipped"

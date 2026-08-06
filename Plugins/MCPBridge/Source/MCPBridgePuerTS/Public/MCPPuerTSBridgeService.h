@@ -20,6 +20,7 @@ enum class EBridgeJobKind : uint8
     LightingBuild,
     NavigationBuild,
     SequenceRender,
+    ProjectPackage,
 };
 
 /** One tracked job.
@@ -47,10 +48,12 @@ struct FBridgeJob
     TSharedPtr<FJsonObject> StartResult;
     /** SequenceRender only. */
     FProcHandle ProcessHandle;
+    void* ProcessReadPipe = nullptr;
     uint32 ProcessId = 0;
     int32 ReturnCode = 0;
     FString OutputDirectory;
     FString ManifestPath;
+    FString OutputTail;
 };
 
 UCLASS()
@@ -107,6 +110,17 @@ public:
         bool bRecursive,
         int32 Limit,
         FString& OutAssetsJson,
+        FString& OutError) const;
+
+    /** Permanently delete one /Game asset. confirm=true is mandatory. force
+        uses UE4.27's ForceDeleteObjects path and may null references. Asset
+        deletion is not transacted and cannot be undone. */
+    UFUNCTION(BlueprintCallable, Category="MCP PuerTS Bridge")
+    bool DeleteAsset(
+        const FString& AssetPath,
+        bool bConfirm,
+        bool bForce,
+        FString& OutResultJson,
         FString& OutError) const;
 
     UFUNCTION(BlueprintPure, Category="MCP PuerTS Bridge")
@@ -391,6 +405,25 @@ public:
     bool SaveCurrentLevel(const FString& AssetPath, FString& OutSavedPath);
 
     UFUNCTION(BlueprintCallable, Category="MCP PuerTS Bridge")
+    bool CreateLevelJson(
+        const FString& LevelPath,
+        const FString& TemplatePath,
+        FString& OutResultJson,
+        FString& OutError);
+
+    UFUNCTION(BlueprintCallable, Category="MCP PuerTS Bridge")
+    bool LoadLevelJson(
+        const FString& LevelPath,
+        FString& OutResultJson,
+        FString& OutError);
+
+    UFUNCTION(BlueprintCallable, Category="MCP PuerTS Bridge")
+    bool SaveLevelJson(
+        bool bSaveAll,
+        FString& OutResultJson,
+        FString& OutError);
+
+    UFUNCTION(BlueprintCallable, Category="MCP PuerTS Bridge")
     bool StartPlayInEditor(FString& OutError);
 
     UFUNCTION(BlueprintCallable, Category="MCP PuerTS Bridge")
@@ -445,6 +478,35 @@ private:
     bool ValidateScriptConfiguration(FString& OutError) const;
     bool LoadOrCreateBearerToken(FString& OutError);
     bool IsToolMutating(const FString& ToolName) const;
+
+    /**
+     * Optimistic concurrency for a planned write: refuse when the state the
+     * caller planned against has moved.
+     *
+     * Called from AcceptCommand, which is the only point that is strictly
+     * BEFORE the transaction. AcceptCommand opens the FScopedTransaction for
+     * every mutating tool before the JavaScript registry runs at all, so a
+     * check inside the tool body - or inside the runtime - would already be
+     * inside a transaction, and "the transaction must not start when the
+     * precondition fails" would be untrue however carefully the tool then
+     * cancelled it.
+     *
+     * Returns false and fills OutConflict with a complete, already-normalized
+     * response when a precondition does not hold. That response leaves through
+     * the accepted:false path, which does NOT pass through CompleteCommand, so
+     * it must be whole here.
+     *
+     * Currently understands one precondition, scene_structure_hash, on one
+     * tool, scene_batch: the only tool that both computes that hash and returns
+     * it from a plan. Asset, Blueprint, material, sequence and package
+     * preconditions need their own hash definitions and are deliberately not
+     * stubbed here.
+     */
+    bool CheckPreconditions(
+        const FString& ToolName,
+        const TSharedPtr<FJsonObject>& Params,
+        TSharedPtr<FJsonObject>& OutConflict) const;
+
     void EndActiveCommand();
 
     /** Establish this editor's identity and write the first session manifest. */
@@ -455,7 +517,7 @@ private:
     void WriteSessionManifest(const TCHAR* ShutdownState) const;
     bool TickHeartbeat(float DeltaSeconds);
 
-    FString PipeName = TEXT("\\\\.\\pipe\\UE427PuerTSMCP");
+    FString PipeName;
     FString AllowedScriptRoot = TEXT("../Plugins/MCPBridge/Content/JavaScript");
     FString BootstrapModule = TEXT("bootstrap.js");
     int32 RequestTimeoutMilliseconds = 5000;
@@ -489,6 +551,38 @@ private:
     FString ActiveCommandId;
     FString ActiveToolName;
     FString ActiveTransactionId;
+
+    /**
+     * Stable error code for the refusal currently being reported, or empty.
+     *
+     * Deliberately a member rather than a field on the ~627 `OutError = ...`
+     * out-parameters. Threading a struct through every one of those signatures
+     * would be a repository-wide edit whose only product is the ability to
+     * convert them, and most of them do not want a code: 512 of the 627 name a
+     * condition no client can branch on, and the contract already says a
+     * missing code means "read the message".
+     *
+     * Set by Fail(), read by CompleteCommand when the command failed and the
+     * script supplied no code of its own, cleared by EndActiveCommand. Call
+     * sites convert one at a time by swapping `OutError = X; return false;` for
+     * `return Fail(code, X);` - nothing else has to move.
+     */
+    mutable FString PendingErrorCode;
+
+    /**
+     * Record a refusal with a stable code and return false, for the common
+     * `OutError = ...; return false;` shape.
+     *
+     * Codes are added only where a client would do something different on
+     * seeing one. A refusal with no code is not a defect.
+     *
+     * Shadowing hazard: ten builder .cpp files declare a local
+     * `auto Fail = [&](const FString&)` rollback lambda, which hides this
+     * member inside those function bodies. Converting a call site in one of
+     * them is a compile error naming the wrong argument count, not a silent
+     * miss - rename the lambda, or call this as `this->Fail(...)`.
+     */
+    bool Fail(const TCHAR* Code, const FString& Message, FString& OutError) const;
     FString LastMCPTransactionId;
     FString ActiveUndoActorName;
     FString ActiveUndoPropertyName;
@@ -548,28 +642,22 @@ private:
         UE4.27 exposes no atomic operation for, and a half-applied edit would
         leave a montage that plays the wrong thing. This reads; it never
         writes. */
+public:
     UFUNCTION(BlueprintCallable, Category="MCP PuerTS Bridge")
     bool InspectAnimMontageJson(
         const FString& RequestJson,
         FString& OutResultJson,
         FString& OutError) const;
 
-    /** Read a Blend Space, Blend Space 1D or Aim Offset back as
-        machine-readable JSON: the target skeleton, all three blend axes with
-        their display name, range and grid divisions, and every sample with its
-        animation, position and rate scale.
-
-        READ ONLY, on the same terms as the other inspectors, and read-only for
-        the same kind of reason the montage reader is: UE4.27 rebuilds a blend
-        space's triangulation from its sample set, so a partially applied sample
-        edit leaves a space that interpolates wrong rather than one that fails,
-        and there is no atomic sample-set replacement to wrap.
-
-        Samples are sorted by position and animation rather than reported in
-        array order, because a blend space's array order carries no meaning:
-        sorting is what makes two reads of an unchanged asset agree by hash. All
-        three axes are reported because UE4.27 exposes no dimension count; the
-        class is what distinguishes 1D from 2D. */
+private:
+    /** Create or update an Animation Montage from one validated JSON spec.
+        The native writer owns validation, transaction scope, inspect read-back,
+        save and rollback evidence. */
+    UFUNCTION(BlueprintCallable, Category="MCP PuerTS Bridge")
+    bool BuildAnimMontageJson(
+        const FString& SpecJson,
+        FString& OutResultJson,
+        FString& OutError);
 
     /** Read a Blend Space, Blend Space 1D or Aim Offset back as
         machine-readable JSON: the target skeleton, all three blend axes with
@@ -592,6 +680,29 @@ private:
         const FString& RequestJson,
         FString& OutResultJson,
         FString& OutError) const;
+
+    /** Create a NEW UBlendSpace1D from one JSON spec: target skeleton, one
+        axis (name, min, max, grid divisions) and a sample list (animation,
+        position, optional rate scale).
+
+        This is the write half InspectAnimBlendSpaceJson's own comment says
+        does not exist, and the reason it can exist now is that it does not
+        attempt the thing that comment ruled out. It never touches an
+        existing Blend Space's sample set: CREATE-ONLY, refused outright if
+        asset_path already names an asset, exactly like anim_blueprint_build.
+        A new asset is built entirely in memory - every sample added through
+        the engine's own AddSample, then ValidateSampleData() rebuilds the
+        triangulation and marks each sample valid or not - and only kept if
+        every sample comes back valid and an independent read through
+        InspectAnimBlendSpaceJson agrees with what was requested. Anything
+        else rolls the whole asset back through FBridgeAssetRollback, so a
+        failed build leaves nothing under /Game/MCPGenerated/ for the reason
+        the read tool's comment gives: there is no partial state to leave. */
+    UFUNCTION(BlueprintCallable, Category="MCP PuerTS Bridge")
+    bool BuildAnimBlendSpaceJson(
+        const FString& RequestJson,
+        FString& OutResultJson,
+        FString& OutError);
 
     /** Create a NEW Animation Blueprint from one JSON spec, handed to the
         existing UAnimBlueprintBuilderLibrary: variables, the anim graph
@@ -834,6 +945,28 @@ private:
         plan_only runs every precondition and no generator. */
     UFUNCTION(BlueprintCallable, Category="MCP PuerTS Bridge")
     bool BuildNavigationJson(
+        const FString& RequestJson,
+        FString& OutResultJson,
+        FString& OutError);
+
+    /** Build or reconcile a Sound Cue under /Game/MCPGenerated from a desired-state
+        node tree. The playable FirstNode/ChildNodes structure is authored first,
+        then UE4.27 regenerates the editor graph through
+        LinkGraphNodesFromSoundNodes. Existing assets require a clean saved package
+        so FBridgeContentSnapshot can restore a failed replacement; new assets use
+        FBridgeAssetRollback. The result is independently read back through
+        audio_inspect before it may be saved. */
+    UFUNCTION(BlueprintCallable, Category="MCP PuerTS Bridge")
+    bool BuildSoundCueJson(
+        const FString& RequestJson,
+        FString& OutResultJson,
+        FString& OutError);
+
+    /** Create or reconcile a DataTable using the native raw JSON importer.
+        The row struct is validated before creation, rows are read back by name,
+        and the command requires the shared transaction boundary. */
+    UFUNCTION(BlueprintCallable, Category="MCP PuerTS Bridge")
+    bool BuildDataTableJson(
         const FString& RequestJson,
         FString& OutResultJson,
         FString& OutError);
@@ -1296,9 +1429,9 @@ private:
         FString& OutResultJson,
         FString& OutError) const;
 
-    /** The read-only half of the PIE agent: observe, status, expect.
+    /** The read-only half of the PIE agent: observe, read_property, status, expect.
 
-        A re-front of UPIEAgentLibrary. These three change no asset and no
+        A re-front of UPIEAgentLibrary. These four change no asset and no
         world state; they read the running session, poll an operation, or start
         an in-engine condition check that only reads. The write half (move_to,
         look_at, press, record, replay) is deliberately NOT here: AGENTS.md
@@ -1310,9 +1443,9 @@ private:
         lane and the legacy listener cannot disagree about what the agent
         said. */
 
-    /** The read-only half of the PIE agent: observe, status, expect.
+    /** The read-only half of the PIE agent: observe, read_property, status, expect.
 
-        A re-front of UPIEAgentLibrary. These three change no asset and no
+        A re-front of UPIEAgentLibrary. These four change no asset and no
         world state; they read the running session, poll an operation, or start
         an in-engine condition check that only reads. The write half (move_to,
         look_at, press, record, replay) is deliberately NOT here: AGENTS.md
@@ -1329,6 +1462,13 @@ private:
         FString& OutResultJson,
         FString& OutError) const;
 
+    /** Drive the running PIE session through UPIEAgentLibrary. Runtime-only:
+        no asset is changed and no editor transaction is opened. */
+    UFUNCTION(BlueprintCallable, Category="MCP PuerTS Bridge")
+    bool ControlPIEAgentJson(
+        const FString& RequestJson,
+        FString& OutResultJson,
+        FString& OutError) const;
 
     /** Read a ULevelSequence back as machine-readable JSON: display rate, tick
         resolution, playback range, every possessable and spawnable, every
@@ -1405,6 +1545,15 @@ private:
         FString& OutResultJson,
         FString& OutError);
 
+    /** Add or converge a director Blueprint event endpoint and event keys on a
+        Level Sequence. The native writer verifies both assets and restores the
+        captured package on failure. */
+    UFUNCTION(BlueprintCallable, Category="MCP PuerTS Bridge")
+    bool BuildSequenceEventTrackJson(
+        const FString& SpecJson,
+        FString& OutResultJson,
+        FString& OutError);
+
     // -----------------------------------------------------------------------
     // The asynchronous job API. See MCPPuerTSBridgeJobs.cpp for the whole
     // model and docs/PERF_AND_LONG_JOBS.md 6.10 for why it is shaped this way.
@@ -1418,6 +1567,36 @@ private:
         blocks and never waits. */
     UFUNCTION(BlueprintCallable, Category="MCP PuerTS Bridge")
     bool ControlJobJson(
+        const FString& RequestJson,
+        FString& OutResultJson,
+        FString& OutError);
+
+    /** Set the project's default maps and game mode through UE4.27's
+        UGameMapsSettings CDO and persist Config/DefaultEngine.ini. */
+    UFUNCTION(BlueprintCallable, Category="MCP PuerTS Bridge")
+    bool ConfigureProjectMapsJson(
+        const FString& RequestJson,
+        FString& OutResultJson,
+        FString& OutError);
+
+    /** Patch any config property on any Project Settings class CDO and persist
+        it to that class's Default*.ini. Every page in the Project Settings
+        window is such a class, so this reaches all of them; the per-page tools
+        stay for the values worth validating specifically. Refuses a property
+        without CPF_Config rather than changing it in memory only, verifies
+        against the file on disk, and restores both the CDO and the previous ini
+        bytes when the read-back disagrees. */
+    UFUNCTION(BlueprintCallable, Category="MCP PuerTS Bridge")
+    bool PatchProjectSettingsJson(
+        const FString& RequestJson,
+        FString& OutResultJson,
+        FString& OutError);
+
+    /** Start UAT BuildCookRun in a separate process. The project is always the
+        project this service is serving; callers cannot supply executable paths
+        or command-line fragments. */
+    UFUNCTION(BlueprintCallable, Category="MCP PuerTS Bridge")
+    bool PackageProjectJson(
         const FString& RequestJson,
         FString& OutResultJson,
         FString& OutError);

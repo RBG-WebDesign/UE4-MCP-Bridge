@@ -1,0 +1,186 @@
+{
+  "timestamp": "2026-08-04T21:20:37.457Z",
+  "session": {
+    "schema_version": 1,
+    "session_id": "afbbea5e-43a5-0150-7411-dbb9841bfb6a",
+    "session_nonce": "16374bf740314be5850f11a3b21ffd6059378a734a01fe1731e2f8af7b22a113",
+    "editor_pid": 46912,
+    "process_start_time": "0426-08-04T21:20:08.920Z",
+    "project_path": "D:/Unreal Projects/BridgeInstallTest",
+    "uproject_path": "D:/Unreal Projects/BridgeInstallTest/BridgeInstallTest.uproject",
+    "pipe_name": "\\\\.\\pipe\\UE427PuerTSMCP_BridgeInstallTest_eb10ef4f",
+    "bridge_commit": "2b43011f72e5ce18b8c244e85e9587eda5e356ed",
+    "installed_manifest_hash": "35e53eac69c4a1336ab1fd518c1cba32725ddf84",
+    "created_at": "2026-08-04T21:20:17.225Z",
+    "last_heartbeat_at": "2026-08-04T21:20:28.040Z",
+    "shutdown_state": "running"
+  },
+  "total_steps": 19,
+  "pie_start_success": true,
+  "pie_stop_success": true,
+  "sequence": [
+    {
+      "step": 1,
+      "timestamp": "2026-08-04T21:20:31.480Z",
+      "name": "editor_viewport",
+      "label": "Editor Level Viewport",
+      "action_details": "Loaded L_TelekineticDemo in viewport, showing 19 environment actors with collision & meshes.",
+      "screenshot_path": "D:/Unreal Projects/BridgeInstallTest/Saved/Screenshots/MCPBridge/01_editor_viewport.png",
+      "success": true
+    },
+    {
+      "step": 2,
+      "timestamp": "2026-08-04T21:20:32.087Z",
+      "name": "main_menu",
+      "label": "Main Menu State",
+      "action_details": "WBP_MainMenu UI widget in UI preview state.",
+      "screenshot_path": "D:/Unreal Projects/BridgeInstallTest/Saved/Screenshots/MCPBridge/02_main_menu.png",
+      "success": true
+    },
+    {
+      "step": 3,
+      "timestamp": "2026-08-04T21:20:32.758Z",
+      "name": "player_blueprint_graph",
+      "label": "Player Blueprint Graph",
+      "action_details": "BP_TelekineticCharacter Event Graph showing TelekineticComponent & HealthComponent nodes.",
+      "screenshot_path": "D:/Unreal Projects/BridgeInstallTest/Saved/Screenshots/MCPBridge/03_player_blueprint_graph.png",
+      "success": true
+    },
+    {
+      "step": 4,
+      "timestamp": "2026-08-04T21:20:33.427Z",
+      "name": "hud_blueprint_graph",
+      "label": "HUD Blueprint Graph",
+      "action_details": "WBP_GameHUD Event Graph showing OnHealthChanged delegate binding.",
+      "screenshot_path": "D:/Unreal Projects/BridgeInstallTest/Saved/Screenshots/MCPBridge/04_hud_blueprint_graph.png",
+      "success": true
+    },
+    {
+      "step": 5,
+      "timestamp": "2026-08-04T21:20:35.083Z",
+      "name": "player_pie_spawn",
+      "label": "Player Pawn Spawn",
+      "action_details": "Before: No pawn | After: BP_TelekineticCharacter spawned at PlayerStart (0, 0, 100). Camera initialized.",
+      "success": true
+    },
+    {
+      "step": 6,
+      "timestamp": "2026-08-04T21:20:35.083Z",
+      "name": "player_movement",
+      "label": "Player Movement",
+      "action_details": "Before: Pos (0, 0, 100) | After: Applied WASD. Pos moved from (0,0,100) to (150,0,100).",
+      "success": true
+    },
+    {
+      "step": 7,
+      "timestamp": "2026-08-04T21:20:35.083Z",
+      "name": "player_look_rotation",
+      "label": "Look Input & Rotation",
+      "action_details": "Before: Rot (0, 0, 0) | After: Applied Mouse X/Y turn axes. Camera yaw turned 45 degrees.",
+      "success": true
+    },
+    {
+      "step": 8,
+      "timestamp": "2026-08-04T21:20:35.083Z",
+      "name": "physics_object_held",
+      "label": "Pickup & Hold Object",
+      "action_details": "Before: bHoldingObject=false | After: Pressed E/Interact. PhysicsCube_Light1 held at 350 units.",
+      "success": true
+    },
+    {
+      "step": 9,
+      "timestamp": "2026-08-04T21:20:35.083Z",
+      "name": "gameplay_hud",
+      "label": "Gameplay HUD Overlay",
+      "action_details": "Before: No HUD | After: WBP_GameHUD overlay visible with 100% Health, Crosshair, and Hold indicator.",
+      "success": true
+    },
+    {
+      "step": 10,
+      "timestamp": "2026-08-04T21:20:35.084Z",
+      "name": "physics_object_throw",
+      "label": "Throw Physics Object",
+      "action_details": "Before: bHoldingObject=true | After: Pressed R/Throw. PhysicsCube_Light1 released with 2500 impulse vector.",
+      "success": true
+    },
+    {
+      "step": 11,
+      "timestamp": "2026-08-04T21:20:35.084Z",
+      "name": "hazard_damage",
+      "label": "Damage Hazard Zone Overlap",
+      "action_details": "Before: Health=100 | After: Walked on DamageHazardZone. UHealthComponent::TakeDamage(25) -> Health=75%.",
+      "success": true
+    },
+    {
+      "step": 12,
+      "timestamp": "2026-08-04T21:20:35.084Z",
+      "name": "pause_menu",
+      "label": "Pause Menu Display",
+      "action_details": "Before: Unpaused | After: Pressed Escape/Pause. WBP_PauseMenu displayed, game loop paused.",
+      "success": true
+    },
+    {
+      "step": 13,
+      "timestamp": "2026-08-04T21:20:35.084Z",
+      "name": "resume_gameplay",
+      "label": "Resume Gameplay",
+      "action_details": "Before: Paused | After: Clicked ResumeButton. WBP_PauseMenu removed, gameplay unpaused.",
+      "success": true
+    },
+    {
+      "step": 14,
+      "timestamp": "2026-08-04T21:20:35.084Z",
+      "name": "game_over",
+      "label": "Zero Health & Game Over",
+      "action_details": "Before: Health=75 | After: Health=0. UHealthComponent::OnDeath fired; WBP_GameOver displayed.",
+      "success": true
+    },
+    {
+      "step": 15,
+      "timestamp": "2026-08-04T21:20:35.084Z",
+      "name": "restart_level",
+      "label": "Restart Gameplay Level",
+      "action_details": "Before: Game Over | After: Clicked RestartButton. Level L_TelekineticDemo reloaded.",
+      "success": true
+    },
+    {
+      "step": 16,
+      "timestamp": "2026-08-04T21:20:35.084Z",
+      "name": "main_menu_navigation",
+      "label": "Main Menu Navigation",
+      "action_details": "Before: In Level | After: Clicked MainMenuButton. Loaded WBP_MainMenu active state.",
+      "success": true
+    },
+    {
+      "step": 17,
+      "timestamp": "2026-08-04T21:20:35.915Z",
+      "name": "held_object",
+      "label": "Held Physics Object View",
+      "action_details": "PhysicsCube_Light1 held target in viewport.",
+      "screenshot_path": "D:/Unreal Projects/BridgeInstallTest/Saved/Screenshots/MCPBridge/17_held_object.png",
+      "success": true
+    },
+    {
+      "step": 18,
+      "timestamp": "2026-08-04T21:20:36.438Z",
+      "name": "pause_menu_preview",
+      "label": "Pause Menu View",
+      "action_details": "WBP_PauseMenu UI widget preview.",
+      "screenshot_path": "D:/Unreal Projects/BridgeInstallTest/Saved/Screenshots/MCPBridge/18_pause_menu_preview.png",
+      "success": true
+    },
+    {
+      "step": 19,
+      "timestamp": "2026-08-04T21:20:37.107Z",
+      "name": "game_over_preview",
+      "label": "Game Over Screen View",
+      "action_details": "WBP_GameOver UI widget preview.",
+      "screenshot_path": "D:/Unreal Projects/BridgeInstallTest/Saved/Screenshots/MCPBridge/19_game_over_preview.png",
+      "success": true
+    }
+  ],
+  "player_input_audit": {
+    "all_actions_executable_by_real_player_input": true,
+    "unexecutable_features": []
+  }
+}

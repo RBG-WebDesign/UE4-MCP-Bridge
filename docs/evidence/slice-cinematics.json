@@ -3,111 +3,125 @@
   "title": "a LevelSequence with tracks and keyframes",
   "proves": "author a sequence with bindings, tracks and keys, read it back, place it in the level and play it",
   "phase": "warm",
-  "generated_at": "2026-08-03T15:43:58.603Z",
-  "verdict": "BLOCKED_MISSING_PRIMITIVE",
+  "generated_at": "2026-08-05T03:06:51.249Z",
+  "verdict": "PASS",
   "editor": {
-    "available": false,
-    "reason": "PuerTS command pipe timed out"
+    "available": true,
+    "reason": "puerts_diagnostic answered"
   },
   "install_gate": {
     "ok": true,
     "project_root": "D:/Unreal Projects/BridgeInstallTest"
   },
   "catalog": {
-    "registered_tool_count": 58,
+    "registered_tool_count": 75,
     "legacy_http_enabled": false
   },
   "steps": [
     {
       "n": 1,
-      "label": "primitive puerts_sequence_build is registered",
-      "tool": "puerts_sequence_build",
-      "status": "PASS"
-    },
-    {
-      "n": 2,
-      "label": "primitive puerts_sequence_inspect is registered",
-      "tool": "puerts_sequence_inspect",
-      "status": "PASS"
-    },
-    {
-      "n": 3,
       "label": "primitive puerts_scene_batch is registered",
       "tool": "puerts_scene_batch",
       "status": "PASS"
     },
     {
+      "n": 2,
+      "label": "primitive puerts_sequence_render_start is registered",
+      "tool": "puerts_sequence_render_start",
+      "status": "PASS"
+    },
+    {
+      "n": 3,
+      "label": "1. place the beacon that the sequence will possess",
+      "tool": "puerts_scene_batch",
+      "status": "PASS"
+    },
+    {
       "n": 4,
-      "label": "primitive puerts_sequence_render is NOT usable",
-      "tool": "puerts_sequence_render",
-      "status": "MISSING_PRIMITIVE",
-      "detail": "NEW: not registered, and no legacy tool in the inventory covers it either",
-      "why": "render a LevelSequence to image frames or a video so the result of a cinematic prompt can be looked at. puerts_viewport_screenshot captures one editor viewport frame and cannot follow a sequence's camera cuts"
+      "label": "primitive puerts_sequence_build is registered",
+      "tool": "puerts_sequence_build",
+      "status": "PASS"
     },
     {
       "n": 5,
-      "label": "1. build the intro sequence with two bound tracks and five keys",
+      "label": "2. build the intro sequence with two bound tracks and five keys",
       "tool": "puerts_sequence_build",
-      "status": "UNPROVEN_NO_EDITOR",
-      "detail": "PuerTS command pipe timed out"
+      "status": "PASS"
     },
     {
       "n": 6,
-      "label": "2. read the sequence back and count the keys that actually landed",
+      "label": "primitive puerts_sequence_inspect is registered",
       "tool": "puerts_sequence_inspect",
-      "status": "UNPROVEN_NO_EDITOR",
-      "detail": "PuerTS command pipe timed out"
+      "status": "PASS"
     },
     {
       "n": 7,
-      "label": "3. place a LevelSequenceActor that points at it",
-      "tool": "puerts_scene_batch",
-      "status": "UNPROVEN_NO_EDITOR",
-      "detail": "PuerTS command pipe timed out"
+      "label": "3. read the sequence back and count the keys that actually landed",
+      "tool": "puerts_sequence_inspect",
+      "status": "PASS"
     },
     {
       "n": 8,
-      "label": "4. render the three seconds so the result can be looked at",
-      "tool": "puerts_sequence_render",
-      "status": "SKIPPED_PRIOR_STEP_BLOCKED",
-      "detail": "its primitive is missing"
+      "label": "4. place a LevelSequenceActor that points at it",
+      "tool": "puerts_scene_batch",
+      "status": "PASS"
     },
     {
       "n": 9,
-      "label": "5. what this slice is really reporting",
-      "status": "NOTE",
-      "detail": "cinematics is the only one of the seven domains with no owner and no partial support. Four primitives are missing and three of them are unowned. The nearest existing code, title_sequence_bind, writes a JSON scaffold and its own runtime_note says a dedicated Sequencer bridge tool is required."
-    }
-  ],
-  "missing_primitives": [
+      "label": "primitive puerts_save is registered",
+      "tool": "puerts_save",
+      "status": "PASS"
+    },
     {
-      "tool": "puerts_sequence_render",
-      "state": "MISSING",
-      "gap_kind": "NEW",
-      "why": "render a LevelSequence to image frames or a video so the result of a cinematic prompt can be looked at. puerts_viewport_screenshot captures one editor viewport frame and cannot follow a sequence's camera cuts",
-      "proposed_schema": {
-        "tool": "puerts_sequence_render",
-        "owner": "UNOWNED",
-        "params": {
-          "asset_path": "string",
-          "output_directory": "string",
-          "resolution": "{width, height}",
-          "format": "PNG | JPG",
-          "frame_range": "{start_frame, end_frame}"
-        },
-        "returns": "{ frame_count, output_files, elapsed_ms }",
-        "note": "UE4.27 ships Movie Render Queue as a plugin; the fallback is the older FSequencerRenderer / automated level sequence capture path. Which one is available is a project-settings question, so the tool must report which it used."
-      }
+      "n": 10,
+      "label": "5. save the level before the child render process reads it",
+      "tool": "puerts_save",
+      "status": "PASS"
+    },
+    {
+      "n": 11,
+      "label": "6. start rendering the three seconds in a separate UE4 process",
+      "tool": "puerts_sequence_render_start",
+      "status": "PASS"
+    },
+    {
+      "n": 12,
+      "label": "6. the render returned a trackable job id",
+      "status": "PASS",
+      "detail": "8804347c-4d6d-a3a9-dbdb-83921ff7aed9-1"
+    },
+    {
+      "n": 13,
+      "label": "primitive puerts_job_status is registered",
+      "tool": "puerts_job_status",
+      "status": "PASS"
+    },
+    {
+      "n": 14,
+      "label": "7. read the asynchronous render state back",
+      "tool": "puerts_job_status",
+      "status": "PASS"
+    },
+    {
+      "n": 15,
+      "label": "7. the render process is running or already completed",
+      "status": "PASS",
+      "detail": "running"
+    },
+    {
+      "n": 16,
+      "label": "8. render completion is asynchronous",
+      "status": "NOTE",
+      "detail": "puerts_sequence_render_start returns immediately. The release run polls job_status until terminal and then calls job_result; this slice proves the sequence, placement, save, child-process launch and job tracking compose."
     }
   ],
+  "missing_primitives": [],
   "checks": {
-    "passed": 0,
+    "passed": 9,
     "failed": 0
   },
   "sealed_artifacts": [],
-  "mcp_round_trips": 1,
-  "elapsed_ms": 8697,
-  "blocks": [
-    "puerts_sequence_render"
-  ]
+  "mcp_round_trips": 8,
+  "elapsed_ms": 4484,
+  "blocks": []
 }

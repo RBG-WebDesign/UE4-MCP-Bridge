@@ -1,4 +1,4 @@
-﻿# Capability findings
+# Capability findings
 
 Live probe results against the UE427PuerTSMCP editor. Each entry states what
 was observed, with the reproduction. Phase P of docs/MASTERY_PLAN_2026-07-31.md
@@ -76,10 +76,159 @@ maintains this file; Phase L consumes it.
 
 | `remove_unlisted.variables` verification status | **live_verified as of 2026-08-02.** Promoted only after the full induced-failure proof passed, which took four sessions and two ruled-out approaches. It is a sub-capability of `puerts_blueprint_build` (already live_verified) and has no separate metadata key, so the status is recorded here rather than by inventing an entry `check:inventory` would reject. Evidence: `Scripts/bp-remove-unlisted-acceptance.mjs` warm and cold, `docs/evidence/bp-remove-unlisted-*.json`. Everything the promotion rests on: convergence downward and upward, protection by ownership stamp, blocked referenced removals, forced removal with node deletion reported, plan_only read-only, and a failing build that leaves the Blueprint byte-identical to how it found it - variables, reference nodes, untouched graph nodes, file hash and package dirty state |
 | Blueprint variable downward convergence (`remove_unlisted`) | Opt-in, off by default, variables scope only. Ownership is an explicit stamp, not a heuristic: `blueprint_build` writes `MCPManaged=1` metadata on every variable it declares, and removal only ever considers stamped variables, so inherited, native C++, engine-generated and human-authored variables are protected **by construction** rather than by an exclusion list, and a Blueprint authored before this change has nothing removable until a build declares its managed set. Live on `BP_ConvergeProbe` (six managed variables, graph nodes referencing two): `plan_only` returned `variables_to_remove ["DropAlsoPlain","DropPlain"]`, `blocked_removals` naming `DropReferenced` with its reference locations, and left inspection byte-identical. An unforced apply removed exactly the two unreferenced ones and left the referenced one alive with no node deleted; `force_remove_referenced` then removed it and reported every deleted node. `graph_inspect` independently confirmed the final set is exactly `["KeptA","KeptB","KeptC"]`, that `KeptA`'s reference node survived, and that BeginPlay/PrintString were untouched. Rerun removes nothing and the inspected variable set is byte-stable; after a restart the cold-loaded asset is still converged (2026-08-02) |
-| Unsupported `remove_unlisted` scopes are rejected, never ignored | `components`, `functions`, `macros`, `graph_nodes` and `interfaces` set `true` each return `unsupported_scope` naming the scope; set `false` they are accepted. Silently accepting them would read as a promise to prune and quietly not do it, which is worse than refusing. An unknown scope key is also rejected (2026-08-02) |
+| Unsupported `remove_unlisted` scopes are rejected, never ignored | `functions`, `macros`, `graph_nodes` and `interfaces` set `true` return `unsupported_scope`; `components` is now implemented by FP-4. False values and known implemented scopes are accepted. An unknown scope key is rejected. FP-4 live evidence is pending (updated 2026-08-03). |
 | Defect 0 reproduced independently, on `VariableGet` | The builder's config key is `varName`; a spec using `params.variable` makes the factory return null while the build still reports `node_count 2` and `node_types ["BeginPlay","VariableGet"]`, and `graph_inspect` sees only `["BeginPlay"]`. Found while writing the `remove_unlisted` fixture: every reference assertion in it passed **vacuously** because the reference nodes did not exist. This is the same phantom-counting defect 0 records for `Cast`, now confirmed on a second node type and caught only by comparing the build's own report against the independent inspector - which is the argument for builder/inspector parity in one line (2026-08-02) |
 
 | Truthful Blueprint build reporting | Defect 0 closed for counting. `node_count` came from `RequestedNodeTypes.Num()` and `NodeMap.Add(NodeId, SpawnedNode)` ran **even when the factory returned null**, so a refused node stayed in the count: a build reported `node_count 2` while `graph_inspect` saw one node. Now the builder reports `OutCreatedNodes`/`OutFailedNodes`, skips null nodes and nodes created in a graph other than the one requested, and the command reports `requested_node_count` / `created_node_count` / `failed_node_count` / `failed_nodes` and the connection triple, on the success **and** failure payloads. A refused node now fails the whole build: partial graph creation is not a success mode. Live: `VariableGet` with `variable` instead of `varName` returns `success false` naming the refused node and its supplied parameters, `created_node_count` excludes it, and the gate `created_node_count == independently inspected node_count` holds on the valid graph (4), the rerun (4) and MultiGate (2). `Cast` with an unresolvable target class behaves the same. No failing case left a dirty package, a file change, a source-control entry or a save prompt. `Scripts/bp-truthful-report-acceptance.mjs`, 27 of 28 checks (2026-08-02) |
+
+## Issue A, 2026-08-05: the hash is a SYMPTOM. scene_inspect intermittently reports an empty world
+
+Investigated on `investigate/hash-determinism`. The nondeterministic hash and
+the item-4 precondition flake are **one bug**, and it is not a hashing bug.
+
+### What is established, reproducibly
+
+`puerts_scene_inspect` intermittently returns `success: true`, the correct
+`level_path`, a valid 40-hex hash, and **zero actors** for a level holding 18.
+Caught at read 21 of 80, and again at read 73 of 120 - roughly 1 in 30 to 1 in
+100, with no mutation, no PIE and no user activity:
+
+```text
+NORMAL  count=18  elapsed_ms=1.40  hash=efa8557c472de323450ec7c08e63a632f0b77aaf
+EMPTY   count=0   elapsed_ms=0.05  hash=00640089900a6a395e68809f63443505afd5a414
+```
+
+`00640089900a6a395e68809f63443505afd5a414` is the hash of an empty level. It is
+the same value that appeared in the item-4 precondition failure, which is what
+ties the two symptoms together: a plan or an apply that lands on an empty read
+compares a real hash against the hash of nothing and reports `state_conflict`.
+
+The 30x drop in `elapsed_ms` says the actor iteration reached the end
+immediately rather than doing work and finding nothing.
+
+### What has been disproved, with measurements
+
+A `world_diagnostics` block was added to `scene_inspect` (diagnostic only,
+nothing branches on it) and captured on both a normal and an empty read. The
+two are **identical**:
+
+```json
+{"world_object_path":"/Game/MCPGenerated/L_BridgeThirdPerson.L_BridgeThirdPerson",
+ "world_type":"2","world_initialized":true,"level_count":1,
+ "current_level_null":false,"current_level_actor_array":18,
+ "all_levels_actor_array":18,"play_world_active":false,
+ "world_context_count":1,"gc_pending":false,
+ "current_level_visible":true,"visible_level_count":1}
+```
+
+That disproves, for this failure:
+
+- **A null, wrong, or uninitialized world.** Same world object path, initialized.
+- **An empty or missing level.** One level, `Actors.Num()` is 18 at the instant
+  the iterator returns none.
+- **Garbage collection mid-read.** `gc_pending` false.
+- **A PIE world or a second world context.** Neither present.
+- **`EActorIteratorFlags::OnlyActiveLevels` skipping a level whose `bIsVisible`
+  flickered.** This was the leading hypothesis and it is wrong:
+  `current_level_visible` is true and `visible_level_count` is 1 on the empty
+  read.
+- **Float formatting, sort order, negative zero, tag order, label churn.** All
+  irrelevant: the input set is empty, not differently encoded. The probe also
+  found spawn, move, delete and tag phases individually STABLE across 12 reads.
+
+Also disproved along the way: an earlier version of the probe reported the hash
+unstable in 5 of 8 phases, but it did not check `success`, so a refused read
+became an `undefined` hash counted as a second value. Corrected; the probe now
+separates call failures from hash samples and reports them apart.
+
+### What is still open
+
+`TActorIterator<AActor>(World)` yields nothing while that world's only level is
+visible and holds 18 valid actors. The remaining candidates are inside the
+iteration itself, not around it:
+
+- the iterator's own suitability filter rejecting every actor for one call;
+- `SortedLevelActors`'s `IsValid`/`IsPendingKill` filter rejecting all 18;
+- an early-return path inside `InspectSceneJson` producing an empty result that
+  never reached the iterator at all.
+
+The next diagnostic separates those three and is small: count what the iterator
+visits, what each filter rejects, and which branch produced the result, and
+report all three next to `actor_count`. Until that runs, no cause is claimed.
+
+### Impact, unchanged by this investigation
+
+It still fails closed. An empty read can only make a precondition REFUSE a valid
+apply; it cannot make one accept an invalid apply, because the empty hash never
+matches a real expected hash. `scene_inspect` returning an empty level to a
+caller who believes it is real is the more serious half, and it is the reason
+this is filed as a state-query defect rather than a hashing one.
+
+### Artifacts
+
+`Scripts/hash-determinism-probe.mjs` runs the phase matrix and writes
+`hash-input-before/after/diff.<phase>.json` under
+`<project>/Saved/MCPPuerTSBridge/hash-probe/` on the first mismatch of each
+phase.
+
+## Superseded: the scene structure hash is not stable across consecutive reads after a mutation
+
+Found 2026-08-05 while accepting the `scene_structure_hash` precondition
+(item 4). Recorded here rather than left in a test log because AGENTS.md is
+explicit: a project-state query discrepancy is a tracked Unknown, and a tool
+that controls Unreal must be able to trust its own state queries.
+
+**What is observed.** `Scripts/precondition-acceptance.mjs` intermittently fails
+- roughly 3 runs in 10 - in one of two places, and both are the same symptom:
+
+```text
+FAIL  9. data carries the observed hash, and it matches an independent read
+      observed d69e971d9f3283506e6c162226244d45d4d27fa8,
+      inspect  00640089900a6a395e68809f63443505afd5a414
+FAIL  5. the level hashes the same before and after the refusal
+```
+
+The first is `scene_batch`'s own `observed` hash disagreeing with a
+`scene_inspect` taken immediately around it. The second is the level hashing
+differently before and after a refusal that changed nothing. Both mean
+`StructureHash(World)` returned two values for a level nobody mutated in
+between.
+
+**What has been ruled out, with measurements.**
+
+- *A settling editor.* Six `scene_inspect` reads at one-second intervals on a
+  freshly started editor: one distinct hash. Stable.
+- *An asynchronous navigation rebuild after a spawn.* Spawned a
+  StaticMeshActor at (700, -700, 300), inside `NavMeshBoundsVolume_Main`, then
+  hashed immediately and at +1s, +2s and +4s: one distinct hash throughout, and
+  deleting the probe returned the level to its exact pre-spawn hash.
+- *"It only fails on the first run after a restart."* Claimed, then disproved:
+  a first run after a fresh restart passed, and failures have occurred on later
+  runs.
+
+**What is still open.** Both ruled-out tests only ever spawned and deleted. The
+acceptance additionally MOVES an actor that sits inside the nav bounds, and no
+test has yet isolated a move. The next diagnostic is to move an actor inside the
+bounds, then hash repeatedly, and compare against the same loop with the actor
+moved outside them - which distinguishes a navigation-driven change from one in
+the moved actor's own structural key.
+
+**Safety impact: none, and the direction matters.** The precondition fails
+CLOSED. An unstable hash makes `scene_batch` occasionally REFUSE an apply that
+would have been valid; it cannot make it accept one that is not. A caller sees
+`state_conflict`, re-plans and proceeds. Nothing is written on the strength of a
+hash that moved.
+
+**Correctness impact on item 4's promise.** `structure_hash_sha1` is documented
+as stable across two reads of an unchanged level. That is true for a level
+nobody has mutated and NOT reliably true in the window after a mutation, so a
+plan-apply pair around a mutation can conflict spuriously. Retries are the
+workaround; a caller should not treat a single `state_conflict` as proof the
+level really moved.
+
+The acceptance now reads the hash immediately before the apply and prints it
+next to the planned one, so the next occurrence states whether the level
+actually changed rather than only that the apply was refused.
 
 ## Defects and limitations (Phase L queue)
 
@@ -1090,7 +1239,137 @@ maintains this file; Phase L consumes it.
 
 ## Unknown (tracked, not explained)
 
-None open. The one entry that was here is resolved below.
+**`puerts_level_load` and `puerts_level_create` reproducibly crash the editor
+on level switch** (found 2026-08-05, building a third-person character in
+BridgeInstallTest).
+
+Reproduced 3/3, on three different maps, two of them brand new:
+
+1. `puerts_level_load` onto a level saved moments earlier via `puerts_save
+level_path=...` (itself fine - save-as-new-path never crashed). The editor
+   answered `loaded: true`, then died ~4s later during ordinary Tick:
+   `EXCEPTION_ACCESS_VIOLATION reading address 0xffffffffffffffff` inside
+   `FTickFunctionTask::DoTask()`.
+2. The same `level_path`, second attempt, after a clean relaunch: crashed
+   synchronously this time, inside the command itself -
+   `UMCPPuerTSBridgeService::LoadLevelJson()` at
+   `MCPPuerTSBridgeService.cpp:1629` (the `UEditorLoadingAndSavingUtils::LoadMap`
+   call), reached through PuerTS's own V8/libnode call stack
+   (`FJsEnvImpl::UvRunOnce` -> `FFunctionTranslator::Call` -> `execLoadLevelJson`).
+3. `puerts_level_create` on a brand-new, never-before-loaded blank map: same
+   failure mode, editor gone before the next `puerts_diagnostic`.
+
+Two different crash sites (async Tick vs. synchronous inside the load call)
+against three different levels including a fresh one rules out a
+level-specific corrupt asset. Native engine map loads that happen without the
+bridge - the editor's own `EditorStartupMap` load at process start - never
+crashed across five separate launches tonight. Only a *bridge-driven* level
+switch crashes. That points at PuerTS's own UObject/JS binding table not
+surviving `UWorld` teardown (`CleanupWorld`) during `LoadMap`: something it is
+still holding a raw pointer to gets freed mid-switch, and either the next Tick
+or the load call itself dereferences it.
+
+Not root-caused further this session: the fault is inside vendored
+`Plugins/Puerts` internals (`JsEnvImpl.cpp`, `FunctionTranslator.cpp`), which
+`AGENTS.md` calls "pinned" and out of scope for casual edits, and diagnosing a
+V8-to-UObject lifetime bug is its own session, not a one-line fix. `FP-5`
+(`docs/CONTINUE_HERE.md`) already flagged `puerts_level_create`/
+`puerts_level_load`/`puerts_level_save` as implemented but never live-tested;
+this is that live test, and it fails. `puerts_level_save` with a `level_path`
+(save current level to a new package) does NOT reproduce this and remains
+safe - every level-path change made while building the third-person character
+went through save-as, never load/create, after the second crash.
+
+**Workaround in place, not a fix:** avoid `puerts_level_load` and
+`puerts_level_create` until this is root-caused. Do all work in the level the
+editor already has open, and use `puerts_save level_path=...` to move it to a
+new package path when needed.
+
+**QUARANTINED 2026-08-05, at three boundaries.** The workaround above was a
+sentence in a document, which is not a boundary: the tools stayed in
+`tools/list`, so the next session would pick one and crash the editor again.
+They are now withheld and refused:
+
+1. **Discovery.** `QUARANTINED_TOOLS` in `mcp-server/src/tools/puerts.ts`
+   filters both out of `createPuertsTools`. Their specs stay in
+   `nativeToolSpecs`, so schemas, annotations and the inventory row survive the
+   pause and unquarantining is the removal of one line.
+2. **The compatibility alias.** `level_new` fronted `puerts_level_create`, so
+   removing the canonical tool alone would have left the crash reachable under
+   its legacy name. `createCompatTools` filters any alias whose canonical target
+   is quarantined, from the same set.
+3. **The runtime.** `quarantinedTools` in `puerts-runtime/src/registry.ts`
+   refuses execution before the permission check and before any native call,
+   answering `error_code: "capability_quarantined"` with the reason. This is the
+   half that stops a stale client, a hand-written pipe request, or a future
+   alias, none of which read `tools/list`.
+
+`puerts_diagnostic` now reports `capabilities.available` and
+`capabilities.unavailable` derived from those same two structures, so the model
+learns a capability is paused by reading, not by calling and crashing the
+editor. The skill's `references/tool-catalog.md` lists them under Quarantined
+with the reason, generated from `docs/TOOL_INVENTORY.json`.
+
+The two lists sit on opposite sides of the process boundary and cannot import
+each other, because the runtime imports `ue`. `mcp-server/tests/puerts-tools.test.ts`
+parses the runtime file and fails when they name different tools; that is the
+boundary test standing in for generation that is not practical here.
+
+`docs/TOOL_CAPABILITY_METADATA.json` carried
+`"verification": "live_verified"` and "Verified over authenticated PuerTS named
+pipe connection on UE4.27" for both tools. That was true of a smoke run that
+never switched levels, and false as a statement about the tool. Both are now
+`pending_live` with the crash recorded; the scoreboard reads `live_verified: 71,
+quarantined: 2` instead of 73.
+
+Not enforced in the C++ allowlist as well. The allowlist is compiled into the
+editor, so a change there ships only on a rebuild, and the runtime check already
+runs strictly before any native call. Add it there if a quarantine ever has to
+survive a replaced runtime.
+
+**LIVE ACCEPTANCE PASSED 2026-08-05, 32/32.** `Scripts/quarantine-acceptance.mjs`
+(`npm run acceptance:quarantine`) against `BridgeInstallTest` session
+`d1682a90`, editor pid 73008, after a full stop / `install:sync` rebuild /
+relaunch cycle:
+
+| Condition | Evidence |
+|---|---|
+| 1. reported unavailable | `capabilities.unavailable` names `level_load` and `level_create` |
+| 2. stable reason | `reason_code: "capability_quarantined"` on both |
+| 3. absent from discovery | `tools/list` over real stdio, with aliases off and on |
+| 4. alias absent | `level_new` absent with `MCP_COMPAT_ALIASES=1`, in a run proven to register aliases |
+| 5. runtime refuses | direct pipe request answers `error_code: "capability_quarantined"`, no "Missing permission", no "Tool is not registered", empty `transaction_id`, no `changed_assets` or `changed_actors` |
+| 6. editor survived | same `session_id` and pid answered `puerts_diagnostic` before and after two deliberate calls to the crashing tools |
+| 7. counts agree | 71 available + 2 unavailable = 73 registry definitions |
+
+Condition 4 asserts the alias-enabled run registered more tools than the plain
+one before checking `level_new` is missing. Without that guard the check passes
+when the environment variable failed to reach the server, which is exactly what
+happened on the first manual attempt through `npm run inspect:list`: no aliases
+registered at all, and "level_new is absent" meant nothing.
+
+### The defect the live run caught, which no unit test could
+
+The first acceptance run failed conditions 5a and 5b only: the refusal arrived
+with `error_code: undefined` while its message and errors came through intact.
+
+`UMCPPuerTSBridgeService::CompleteCommand` does not forward the script's
+response object. It rebuilds the envelope field by field from an allowlist -
+`success`, `message`, `data`, `changed_assets`, `changed_actors`, `warnings`,
+`errors`, `log_output`, `transaction_id`, `native_duration_ms`. **A field the
+runtime sets and that list does not name is dropped silently.** `error_code`
+was one, so adding it to `CommandResponse` in TypeScript and setting it in the
+registry produced a field that existed everywhere except at the client.
+
+The unit suites could not see this: they mock the pipe, so the C++ normalizer
+is not in their path. `MCPPuerTSBridgeService.cpp` now copies `error_code` when
+the script supplied a non-empty one, leaving success envelopes unchanged.
+
+**The general rule this establishes: the result contract is defined in C++, not
+in TypeScript.** Any future top-level envelope field - `timings_ms` (item 6),
+anything a precondition failure adds beside `data` (item 4) - has to be added
+to that allowlist or it will not leave the editor, and only a live run will say
+so. Fields nested inside `data` are exempt: `data` is forwarded whole.
 
 ## Resolved Unknowns
 
@@ -1515,6 +1794,13 @@ content gate works. The build-artifact gate does not exist.
 
 ## Finding 0n: three gaps that make a live fixture impossible to reset
 
+**Status update, 2026-08-03:** items 1 and 2 are implemented. Item 1 is
+`puerts_delete_asset`: confirmed, `/Game`-limited, reference-aware and verified
+against both registry and package-file absence. Item 2 extends
+`blueprint_build.remove_unlisted` to MCPManaged components, protects graph
+references, bound events and retained children, and reports independent
+component convergence. Both pass focused tests, UE4.27 compilation, final link
+and install:check. Their live acceptances remain user-gated. Item 3 remains open.
 Found by lane H, 2026-08-02, while making the member_patch acceptance
 deterministic. Recorded together because they are one practical problem: there
 is no way to return a live editor's asset to a known state.
@@ -2949,3 +3235,299 @@ passed, 0 failed after the editor advertised session
 `d946471b-4747-1ab7-8b70-638fab554d82`; `install:check` passed immediately
 before and after the run. Cold evidence remains part of the wider slice
 restart sweep.
+
+## Finding 0aa: FIXED. Package existence did not prove an input was a level
+
+Found during FP-5 integration on 2026-08-03 before the command was run live.
+
+The lane draft validated level_path and template_path with
+FPackageName::DoesPackageExist. That answers whether any package exists at the
+name. It does not answer whether the package is a map, so a texture, Blueprint
+or material package under /Game could pass preflight and reach LoadMap or
+NewMapFromTemplate.
+
+The distinguishing measurement is UE4.27 FileHelpers.cpp: UEditorLoadingAndSavingUtils::LoadMap
+takes a filename and delegates directly to FEditorFileUtils::LoadMap. The
+package type is not part of DoesPackageExist's contract. The command now
+resolves the actual filename and requires
+FPackageName::GetMapPackageExtension before any dirty check or level switch.
+The same helper guards load, template creation and saving the current map.
+Editor-free tests pin the check, and UHT, UBT and final linking pass. Live warm
+and cold acceptance remains user-gated.
+## Finding 0ab: FIXED. Sound Cue convergence originally ignored the special wave reference and cue properties
+
+Found during FP-6 integration on 2026-08-03 before any live run.
+
+The first comparator checked node ids, classes, ordered children and requested
+node properties. It did not compare the builder's special `sound_wave` field,
+and it did not compare requested properties on the `USoundCue` itself. A cue
+with the requested topology but the wrong wave, volume or pitch could therefore
+be reported as converged and skip the corrective write.
+
+The distinguishing check was the reader, not the writer. `audio_inspect` had no
+explicit wave field, while `audio_build` accepted `sound_wave` outside the
+reflected property bag. The inspector now reports each Wave Player's resolved
+`sound_wave` object path. The builder's convergence and post-write verification
+compare that field and every requested cue property through the same inspector.
+The focused contract, UHT, UE4.27 compile, library creation and DLL link pass.
+Live warm and cold evidence remains user-gated.
+
+## Finding 0ac: FIXED. World Settings' Game Mode panel was entirely unwritable, and two existing allowlist entries were already dead
+
+Found 2026-08-05, user-directed: "master control over everything in World
+Settings," pointing at the editor's World Settings > Game Mode panel where
+every field (`GameMode Override`, `Default Pawn Class`, `HUD Class`, `Game
+State Class`, `Player State Class`, `Spectator Class`) read `None`.
+
+Reproduced live before touching anything: `puerts_set_property` on a
+`WorldSettings` actor's `DefaultGameMode` (the reflected name behind the
+"GameMode Override" display label, confirmed against
+`Engine/Classes/GameFramework/WorldSettings.h:566` via `engine_source_search`)
+refused with `"Writable property is not approved."`
+
+Root cause read from `IsWritablePropertyAllowed()`
+(`MCPPuerTSBridgeService.cpp:811`): it checks
+`AllowedWritableProperties.Contains(Class->GetName() + "." + PropertyName)`
+walking the object's class chain - always a `ClassName.PropertyName` pair,
+never a bare name. BridgeInstallTest's own `Config/DefaultEngine.ini` had
+`+AllowedWritableProperties=DefaultPawnClass` and `=PlayerControllerClass`
+with no class prefix. Since `GConfig->GetArray` only falls back to the
+compiled-in defaults when the ini array is completely empty
+(`MCPPuerTSBridgeService.cpp:351`), and this project's ini was non-empty, both
+entries were live but permanently unmatchable - dead config nobody had
+noticed because nothing had tried to use them since whatever session added
+them.
+
+Fixed at both layers: the compiled-in default list in
+`MCPPuerTSBridgeService.cpp` gained
+`WorldSettings.DefaultGameMode` and `GameModeBase.{DefaultPawnClass,
+PlayerControllerClass, HUDClass, GameStateClass, PlayerStateClass,
+SpectatorClass}` (ships for every project going forward), and
+BridgeInstallTest's local ini was corrected to the qualified form so it
+benefits immediately without depending on the ini being cleared. Verified live
+after rebuild and editor restart: the exact `WorldSettings.DefaultGameMode`
+write that was refused before now succeeds and reads back correctly, and
+`WorldSettings.DefaultGameMode` was set to a real project GameMode class as
+part of the same session's third-person character work.
+
+`World`, `Physics`, `Lightmass`, `Broadphase` and `VR` sections of World
+Settings remain unwidened - "master control over everything" is a bigger,
+deliberate follow-up, not attempted this session per the one-capability-per-
+session rule. This finding covers the Game Mode panel specifically, which is
+what blocked the actual task.
+
+## Finding 0ad: class_defaults_patch cannot reach a component's properties, only the actor class's own
+
+Found 2026-08-05, same session, immediately after finding 0ac made
+`SkeletalMeshComponent.SkeletalMesh` and `.AnimClass` writable-allowlist
+entries. Setting a Character Blueprint's mesh through
+`puerts_class_defaults_patch` still could not work, and reading
+`PatchClassDefaultsJson` (`MCPPuerTSBridgeClassDefaults.cpp:182`) shows why
+before ever calling it: `Op.Property = FindFProperty<FProperty>(CDO->GetClass(),
+*Op.Name)` resolves the property name only against the CDO's own class chain.
+A property that lives on a *component* subobject (`Mesh`/`CharacterMesh0`,
+`CollisionCylinder`, any SCS node) is never on that chain - `FindFProperty`
+returns null and the whole op is refused as "not a reflected property," never
+reaching the allowlist check at all. Widening the allowlist for a component
+class name (as 0ac did) makes the property reachable through
+`puerts_set_property` on a placed actor INSTANCE's component object path
+(proven working), but not through `class_defaults_patch` on a Blueprint's
+CDO - there is no subobject-path resolution in that command at all.
+
+Practical effect: there is currently no bridge-only way to set a class-default
+mesh/material/anything-on-a-component for a Blueprint. The standard UE4
+fallback - `ConstructorHelpers::FObjectFinder`/`FClassFinder` in the native
+C++ base class's constructor - is what `ABridgeThirdPersonCharacter` uses
+instead, and it is arguably the more idiomatic answer anyway, not just a
+workaround. Not fixed: extending `class_defaults_patch` to resolve dotted
+component paths is real new scope (component lookup by name, then property
+lookup on the subobject's class, then the same allowlist check qualified by
+the component's class rather than the actor's) - a distinct future capability,
+not attempted this session.
+
+## Finding 0ae: puerts_spawn_actor's class allowlist excludes a project's own native (non-Blueprint) classes
+
+Found 2026-08-05, same session. `puerts_spawn_actor` with
+`class_path=/Script/BridgeInstallTest.BridgeThirdPersonCharacter` (a plain
+native `ACharacter` subclass in the target project's own game module, not a
+Blueprint) refused: `"Actor classes are limited to /Game, /Script/Engine,
+CineCameraActor, and LevelSequenceActor."` A project's own compiled C++
+gameplay classes are not `/Script/Engine` and are not under `/Game`, so they
+cannot be placed directly.
+
+This turned out to match standard UE4 practice rather than fight it: Epic's
+own convention is to place a thin Blueprint wrapper of a native class in a
+level, never the raw native class, precisely so editor tooling (here, the
+bridge's spawn allowlist) has a `/Game` asset to address. The fix used this
+session was exactly that - `puerts_blueprint_build` with `parent_class:
+"/Script/BridgeInstallTest.BridgeThirdPersonCharacter"` and no components or
+graph, a few lines, then `puerts_spawn_actor` on the generated
+`_C` class path, which the allowlist already permits. Recorded as a finding
+rather than left silent because the refusal message doesn't say this is the
+expected shape - a caller hitting it for the first time has no reason to guess
+"wrap it in an empty Blueprint" is the sanctioned fix rather than a dead end.
+
+## Finding 0af: FIXED. spawn_actor's class allowlist blocked NavMeshBoundsVolume, which is also NotBlueprintable so 0ae's own fix doesn't apply to it
+
+Found 2026-08-05, building an AI-controlled chaser (Assailant): no level had a
+NavMeshBoundsVolume, so no AI could path anywhere. `puerts_spawn_actor` with
+`class_path=/Script/NavigationSystem.NavMeshBoundsVolume` refused with the
+same "/Game, /Script/Engine, CineCameraActor, LevelSequenceActor" allowlist
+finding 0ae describes. That finding's own fix - wrap the class in an empty
+`/Game` Blueprint - does NOT apply here: `puerts_blueprint_build` refused with
+"Unreal refuses Blueprints of class ...NavMeshBoundsVolume" (`AVolume` and
+several of its subclasses are marked `NotBlueprintable` in engine source, a
+real engine restriction, not a bridge one). With no Blueprint route and the
+class outside every allowed prefix, there was no way to make a level
+navigable through this bridge at all - a hard blocker for every future AI
+task, not just this one.
+
+The allowlist turned out to be enforced TWICE, independently, with near-
+identical wording: once in `puerts-runtime/src/registry.ts`'s `spawnActor`
+(a plain TS prefix check, no C++ involved) and again natively in
+`UMCPPuerTSBridgeService::SpawnActorJson`
+(`MCPPuerTSBridgeService.cpp:1380`). Fixing only one produces a different,
+confusing refusal from the other layer ("Actor spawn requires an approved
+class path and active transaction" from native, after the TS layer had
+already been widened) - worth knowing before assuming one fix covers a spawn
+allowlist change. Both are now widened by exactly one class,
+`/Script/NavigationSystem.NavMeshBoundsVolume`, not the whole module: verified
+live, spawned into `L_BridgeThirdPerson`, and `puerts_nav_build wait:true`
+produced a real `RecastNavMesh-Default`.
+
+## Finding 0ag: three separate tools share one blind spot - Blueprint-level component tooling cannot see or touch a component a native C++ parent class created
+
+Found across this session building `ABridgeThirdPersonCharacter` and then
+`AAssailantAIController`/`AAssailantCharacter`, in three independent tools:
+
+1. `puerts_class_defaults_patch` (finding 0ad): `FindFProperty<FProperty>`
+   only walks the CDO's own class chain, never a subobject's.
+2. `puerts_blueprint_build`'s `components` array: adding a component named
+   the same as one already inherited from C++ does not attach to or
+   configure it; the native one stays whatever the constructor set.
+3. `puerts_ai_perception_build`: pointed at `AAssailantAIController` (which
+   creates its own `UAIPerceptionComponent` named "AIPerception" in its
+   constructor), it could not find that component, instead ran
+   `AddComponentToBlueprint` and created a SECOND, differently-named one
+   ("AIPerception1"), then failed to give it a template
+   ("Component 'AIPerception' was added but has no AIPerceptionComponent
+   template") and rolled back the transaction - but the stray SCS component
+   survived the rollback. `puerts_ai_controller_inspect` and
+   `puerts_anim_blend_space_inspect`'s siblings already say this plainly in
+   their own docstrings ("Only components this Blueprint declares in its
+   SimpleConstructionScript are visible... which this reader does not walk"),
+   but the write-side tools do not warn before acting, and in perception's
+   case the failure left real litter: `puerts_delete_asset` with `force:true`
+   was needed to clean up the half-built Blueprint (the plain `confirm:true`
+   delete refused with "may still have an in-memory reference").
+
+The working pattern, used for all three cases this session: give the native
+C++ base class everything a Blueprint-level tool cannot reach - mesh,
+AnimClass, AIPerceptionComponent plus its sense config, `AIControllerClass` -
+via the constructor (`ConstructorHelpers`, `CreateDefaultSubobject`,
+`ConfigureSense`), and let the Blueprint wrapper stay a thin, empty
+placement shim. Not a workaround so much as the correct division of labor
+once you know where the line is: the bridge's Blueprint tools own
+Blueprint-declared state; a native class's own constructor is the only
+reliable way to configure what it declares itself.
+
+Not fixed: extending `class_defaults_patch` and `ai_perception_build` to
+resolve a native-declared component by name (walk the class's default
+subobjects, not just the SCS) is real, shared new scope across at least two
+tools - a distinct future capability, not attempted this session.
+
+## Finding 0ah: behavior_tree_build fails to save when pointed at a separately pre-built blackboard_path
+
+Found 2026-08-05. `puerts_blackboard_build` created `BB_Assailant` (reported
+`created: true, saved: true`). Pointing `puerts_behavior_tree_build` at it via
+`blackboard_path` built the tree graph successfully (5 nodes, log confirms
+"[BTBuilder] built BT 'BT_Assailant'") but then failed to SAVE: "Graph is
+linked to private object(s) in an external package. External Object(s):
+/Game/MCPGenerated/BB_Assailant" - `UPackage::Save` itself refused, not the
+bridge's own verification. The build was correctly rolled back (asset
+removed, `rollback_succeeded: true`).
+
+Not root-caused to the exact private-object flag (likely something about how
+a pre-existing blackboard asset's internal object is referenced versus one
+`behavior_tree_build` creates itself). Workaround, not a fix: let
+`behavior_tree_build` create its own blackboard (omit `blackboard_path`, pass
+`keys` directly) - this is the tool's default, better-trodden path per its
+own description, and it saved cleanly with the identical key set. Sharing one
+blackboard across several trees via a pre-built `blackboard_path` - a use
+case the tool's own schema explicitly documents ("Point several trees at one
+path to share a blackboard") - is confirmed broken and not investigated
+further this session.
+
+## Finding 0ai: FIXED. NavMeshBoundsVolume (and every other spawned Volume) had zero geometry - ABrush::Brush is never constructed by a plain SpawnActor
+
+Found 2026-08-05, same session as 0af, while actually trying to use the
+navmesh that finding fixed the allowlist for. A spawned NavMeshBoundsVolume
+reported correct transform and PolyFlags but `bounds: {extent: {0,0,0}}` no
+matter what `scale` was requested, and `puerts_nav_build` produced a
+`RecastNavMesh-Default` with zero navigable area - a technically-successful
+build over nothing, which is worse than a refusal because nothing in the
+response said so.
+
+Root-caused by reading engine source directly rather than guessing:
+`ABrush::Brush` (`Engine/Brush.h:106`, `UPROPERTY(Instanced)`) is the `UModel`
+holding the actual BSP polygon data, and `ABrush::ABrush()`
+(`Brush.cpp:35-50`) constructs `BrushComponent` but never touches `Brush` -
+it stays null forever unless something else sets it. The confirming detail:
+`UEditorBrushBuilder::EndBrush` (`EditorBrushBuilder.cpp:49-80`, what every
+brush builder's `Build()` call ends with) opens with
+`UModel* Brush = BuilderBrush->Brush; if (Brush == nullptr) { return true; }`
+- silently reports SUCCESS and writes zero polygons when the Model doesn't
+exist yet. A first fix attempt (build a `UCubeBuilder` cube straight after
+`SpawnActor`) hit exactly this silent no-op and looked like it had worked.
+
+The editor's own "Place Actors" volume placement never hits this because
+it constructs the `UModel` as part of placement, before any builder runs;
+`GEditor->AddActor` (what `SpawnActorJson` uses for every actor class) has no
+equivalent step for Brush-derived actors specifically. Fixed by explicitly
+constructing `Brush->Brush = NewObject<UModel>(...)` and calling
+`Brush->Brush->Initialize(Brush, true)` before handing it to `UCubeBuilder`,
+in `SpawnActorJson` itself, gated on `Cast<ABrush>(Actor)` succeeding - so
+every future Volume placed through this bridge gets real geometry by
+default, not just NavMeshBoundsVolume. Verified live: a spawned volume's
+registered nav bounds went from `{0,0,0}` extent to `{2000,2000,500}` (a real
+box matching the requested scale), `puerts_nav_build` produced a
+correspondingly-sized navmesh, and an Assailant AIController's `MoveTo` then
+produced real non-zero pursuit velocity toward the player in PIE where it had
+previously done nothing.
+
+## Finding 0aj: puerts_scene_batch's own convergence check misreads a component-property-only write as a no-op and rolls it back, even though the write succeeded
+
+Found 2026-08-05, building level geometry. `upsert_actor` with only a
+`components: {StaticMeshComponent0: {StaticMesh: "..."}}} ` override (no
+location/rotation/scale/label change) on an existing StaticMeshActor always
+fails with "operation reported as applied, but the structure hash is
+unchanged" and rolls back - even though the identical write through
+`puerts_set_property` on the same object path succeeds immediately and
+sticks.
+
+The cause is legible from the tool's own documented contract, once the two
+halves are put next to each other: `puerts_scene_inspect`'s
+`structure_hash_basis` explicitly excludes property values by design ("Bounds
+and reflected property values are deliberately excluded... property values
+are verified per operation rather than folded into one number") - a
+`StaticMesh` assignment can never move that hash, structurally correctly.
+But `scene_batch`'s own success check for an already-structurally-satisfied
+operation appears to use "did the structure hash change" as its proxy for
+"did anything happen," which is exactly the comparison its sibling inspector
+says is the wrong one for a property-only change. Confirmed by isolating the
+write: identical `StaticMesh` value, same object, `set_property` alone
+succeeds and reads back correctly; the same write wrapped in a `scene_batch`
+`upsert_actor` op reports the mismatch and undoes itself.
+
+Workaround used this session, not a fix: spawn or move actors structurally
+through `scene_batch`/`puerts_spawn_actor` (those fields DO move the hash and
+verify correctly), then set component properties like `StaticMesh`
+individually through `puerts_set_property`. Costs one extra round trip per
+actor instead of the single batched call the tool exists to provide, which
+defeats a real part of its purpose for level-dressing work (placing many
+static meshes is exactly scene_batch's stated use case). Not fixed: the
+native comparison needs to check requested property values against
+independently-read actual values (the way `puerts_audio_build` and
+`puerts_anim_blend_space_build` verify against their own inspectors) rather
+than relying on the structure hash for a case the hash was never meant to
+cover.
