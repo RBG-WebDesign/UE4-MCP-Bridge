@@ -315,7 +315,13 @@ namespace
         TArray<UK2Node*> Nodes;
         virtual void EditCallSite(UK2Node_CallFunction* CallSite, UBlueprint*) override
         {
-            if (CallSite != nullptr) { Nodes.AddUnique(CallSite); }
+            // The cast is not decoration. TArray<UK2Node*>::AddUnique takes
+            // UK2Node*&&, and binding a UK2Node_CallFunction* to it needs a
+            // conversion MSVC will not make during overload resolution. A unity
+            // build hid this for months; Sinfeld builds adaptive non-unity, so
+            // the file compiles alone and C2664 surfaces. The two overrides
+            // below already cast for the same reason.
+            if (CallSite != nullptr) { Nodes.AddUnique((UK2Node*)CallSite); }
         }
         virtual void EditMacroInstance(UK2Node_MacroInstance* MacroInstance, UBlueprint*) override
         {
